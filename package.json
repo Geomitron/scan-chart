@@ -1,0 +1,46 @@
+{
+  "name": "scan-chart",
+  "version": "0.0.1",
+  "description": "Module for scanning a Clone Hero Songs folder to identify charts and extract metadata",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@github.com/Geomitron/scan-chart.git"
+  },
+  "keywords": [
+    "clonehero",
+    "songs",
+    "charts",
+    "scan"
+  ],
+  "author": "Geomitron",
+  "license": "UNLICENSED",
+  "bugs": {
+    "url": "https://github.com/Geomitron/scan-chart/issues"
+  },
+  "homepage": "https://github.com/Geomitron/scan-chart#readme",
+  "dependencies": {
+    "@nestjs/common": "^9.4.0",
+    "charset-detector": "^0.0.2",
+    "class-transformer": "^0.5.1",
+    "class-validator": "^0.14.0",
+    "crypto": "^1.0.1",
+    "edgedb": "^1.2.0",
+    "fluent-ffmpeg": "^2.1.2",
+    "lodash": "^4.17.21",
+    "path": "^0.12.7",
+    "sanitize-filename": "^1.6.3",
+    "sharp": "^0.32.1",
+    "workerpool": "^6.4.0"
+  },
+  "devDependencies": {
+    "@types/charset-detector": "^0.0.1",
+    "@types/fluent-ffmpeg": "^2.1.21",
+    "@types/lodash": "^4.14.194",
+    "@types/node": "^18.16.3",
+    "@types/workerpool": "^6.4.0",
+    "typescript": "^4.7.4"
+  }
+}
