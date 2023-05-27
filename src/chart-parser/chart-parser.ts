@@ -1,11 +1,9 @@
-import { Injectable } from '@nestjs/common'
-
 import { createHash } from 'crypto'
 import { Instrument } from 'dbschema/interfaces'
 import { readFile } from 'fs/promises'
 import * as _ from 'lodash'
 
-import { AsyncReturnType, getEncoding } from 'src/utils'
+import { AsyncReturnType, getEncoding } from '../utils'
 import { EventType, NotesDataBase, TrackEvent } from '../notes-data'
 import { TrackParser } from '../track-parser/track-parser'
 
@@ -342,7 +340,6 @@ class ChartParser {
 	}
 }
 
-@Injectable()
 export class ChartParserService {
 	/**
 	 * @throws an exception if the file failed to be read.

@@ -4,11 +4,9 @@ import { FolderIssueType, MetadataIssueType } from 'dbschema/interfaces'
 import * as _ from 'lodash'
 import { join } from 'path'
 
-import { AppRef } from 'src/app.module'
-import { DiscordService } from 'src/discord/discord/discord.service'
-import { hasIniExtension, hasIniName, isArray, removeStyleTags } from 'src/utils'
-import { IniObject, IniParserService } from '../ini-parser/ini-parser.service'
-import { ChartFolder } from './charts-scanner.service'
+import { hasIniExtension, hasIniName, isArray, removeStyleTags } from '../utils'
+import { IniObject, IniParserService } from '../ini-parser/ini-parser'
+import { ChartFolder } from '../main'
 
 type TypedSubset<O, K extends keyof O, T> = O[K] extends T ? K : never
 type StringProperties<O> = { [key in keyof O as TypedSubset<O, key, string>]: string }
@@ -62,15 +60,15 @@ export const defaultMetadata = {
 
 export class IniScanner {
 
-	private iniParserService = AppRef.get(IniParserService)
-	private discordService = AppRef.get(DiscordService)
-
+	//private iniParserService: IniParserService
 	private metadata: Metadata | null = null
 	private folderIssues: { folderIssue: FolderIssueType; description: string }[] = []
 	private metadataIssues: MetadataIssueType[] = []
 
 	/** The ini object with parsed data from the song.ini file, or the notes.chart file if an ini doesn't exist */
 	private iniObject: IniObject
+
+	private iniParser = new IniParserService()
 
 	static async construct(chartFolder: ChartFolder) {
 		const iniScanner = new IniScanner()
@@ -82,13 +80,13 @@ export class IniScanner {
 		}
 	}
 
-	private constructor() { }
+	private constructor() {}
 
 	private addFolderIssue(folderIssue: FolderIssueType, description: string) {
 		this.folderIssues.push({ folderIssue, description })
 	}
 	private logError(description: string, err: Error) {
-		this.discordService.adminLog(description + '\n' + err.message + '\n' + err.stack)
+		throw new Error(description + '\n' + err.message + '\n' + err.stack)
 	}
 
 	/**
@@ -152,7 +150,7 @@ export class IniScanner {
 	 */
 	private async getIniAtFilepath(fullPath: string) {
 		try {
-			const { iniObject, iniErrors } = await this.iniParserService.parse(fullPath)
+			const { iniObject, iniErrors } = await this.iniParser.parse(fullPath)
 
 			for (const iniError of iniErrors.slice(-5)) { // Limit this if there are too many errors
 				this.addFolderIssue('badIniLine', _.truncate(iniError, { length: 200 }))

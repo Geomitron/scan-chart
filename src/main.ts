@@ -1,5 +1,3 @@
-import { Injectable } from '@nestjs/common'
-
 import { createHash } from 'crypto'
 import { Chart, FolderIssueType } from 'dbschema/interfaces'
 import { Dirent } from 'fs'
@@ -7,14 +5,11 @@ import { readdir, readFile } from 'fs/promises'
 import * as _ from 'lodash'
 import { join, parse, relative } from 'path'
 
-import { Config } from 'src/config'
-import { DiscordService } from 'src/discord/discord/discord.service'
-import { DriveChartBase } from 'src/drive/drive-scanner/drive-chart'
-import { appearsToBeChartFolder, getDriveChartDownloadPath, OptionalMatchingProps, RequireMatchingProps, Subset } from 'src/utils'
-import { EventType } from '../notes-data'
-import { ChartScanner } from './chart-scanner'
-import { ImageScanner } from './image-scanner'
-import { defaultMetadata, IniScanner } from './ini-scanner'
+import { appearsToBeChartFolder, OptionalMatchingProps, RequireMatchingProps, Subset } from './utils'
+import { EventType } from './notes-data'
+import { ChartScanner } from './charts-scanner/chart-scanner'
+import { ImageScanner } from './charts-scanner/image-scanner'
+import { defaultMetadata, IniScanner } from './charts-scanner/ini-scanner'
 
 export interface ChartFolder {
 	path: string
@@ -26,16 +21,13 @@ export interface FolderIssue {
 	description: string
 }
 
-@Injectable()
-export class ChartsScannerService {
+export class ChartsScanner {
+	public errors: String[] = []
 
-	constructor(
-		private config: Config,
-		private discordService: DiscordService,
-	) { }
+	constructor(max_threads:number = 1) { }
 
 	/**
-	 * @returns The `Chart` DB object(s) found in the download directory for `driveChart`.
+	 * @returns The `Chart` DB object(s) found in the download directory for `chartDirectory`.
 	 * Note that the resulting data returned will never need to change as long
 	 * as `driveChart.filesHash` stays the same.
 	 *
@@ -43,22 +35,30 @@ export class ChartsScannerService {
 	 * and any `folderIssues`/`metadataIssues` that could possibly be
 	 * incorrect/removed later without a `filesHash` change.
 	 */
-	public async scan(applicationDriveId: string, driveChart: DriveChartBase) {
-		const driveChartFolder = getDriveChartDownloadPath(this.config.CHARTS_FOLDER, applicationDriveId, driveChart)
-		const chartFolders = await this.getChartFolders(driveChartFolder)
+	public async scan(chartDirectory: string) {
+		const chartFolders = await this.getChartFolders(chartDirectory)
 
-		const charts: { chart: OptionalMatchingProps<Chart, 'driveCharts' | 'charters' | 'song'>, driveChartPath: string }[] = []
+		if (chartFolders.length == 0){
+			throw new Error(`Directory has no charts: ${chartDirectory}`)
+		}
+
+		const charts: { chart: OptionalMatchingProps<Chart, 'driveCharts' | 'charters' | 'song'>, chartPath: string }[] = []
 		for (const chartFolder of chartFolders) {
-			const chart = await this.construct(chartFolder)
-			if (chart) {
-				charts.push({ chart, driveChartPath: relative(driveChartFolder, chartFolder.path) })
+			try{
+				const chart = await this.construct(chartFolder)				
+				if (chart) {
+					charts.push({ chart, chartPath: relative(chartDirectory, chartFolder.path) })
+				}
+			}
+			catch (error) {
+				this.logError('Failed Scan', error)
 			}
 		}
-		return charts
+		return [charts, this.errors]
 	}
 
 	private logError(description: string, err: Error) {
-		this.discordService.adminLog(description + '\n' + err.message + '\n' + err.stack)
+		this.errors.push(description + '\n' + err.message + '\n' + err.stack)
 	}
 
 	/**
@@ -152,7 +152,7 @@ export class ChartsScannerService {
 		}
 
 		// TODO: Implement this when determining the best audio fingerprint algorithm
-		// const audioData = await AudioScanner.construct(chartFolder)
+		// const audioData = await AudioScanner.construct(chartFolder, this.config.MAX_THREADS)
 		// chart.folderIssues.push(...audioData.folderIssues)
 
 		if (!chartData.notesData /* TODO: || !audioData.audioHash */) {

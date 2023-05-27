@@ -1,8 +1,6 @@
-import { Injectable } from '@nestjs/common'
-
 import { readFile } from 'fs/promises'
 
-import { getEncoding } from 'src/utils'
+import { getEncoding } from '../utils'
 
 export const $NoSection: unique symbol = Symbol('Lines before any sections')
 export interface IniObject {
@@ -10,7 +8,6 @@ export interface IniObject {
 	[section: string]: { [key: string]: string }
 }
 
-@Injectable()
 export class IniParserService {
 
 	/**

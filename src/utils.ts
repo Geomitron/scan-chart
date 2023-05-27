@@ -5,7 +5,6 @@ import { join, parse } from 'path'
 import sanitize from 'sanitize-filename'
 
 import { usernameExceptions } from './constants/username-exceptions'
-import { DriveChartBase } from './drive-chart'
 
 /** Overwrites the type of a nested property in `T` with `U`. */
 export type Overwrite<T, U> = U extends object ? (
@@ -35,31 +34,6 @@ export function getEncoding(buffer: Buffer) {
 		case 'UTF-16LE': return 'utf16le'
 		default: return 'utf8'
 	}
-}
-
-/**
- * @returns the Drive ID in `link`, or `null` if `link` wasn't a valid Google Drive link.
- */
-export function parseDriveLink(link: string) {
-	const result = (link.match(/(?:\/|\?id=)[01][a-zA-Z0-9_-]{10,}/ug) ?? [])[0]
-	if (result) {
-		return result.startsWith('?id=') ? result.substring(4) : result.substring(1)
-	} else {
-		return null
-	}
-}
-
-/**
- * @returns `https://drive.google.com/open?id=${fileID}`
- */
-export function driveLink(fileID: string) {
-	return `https://drive.google.com/open?id=${fileID}`
-}
-
-export function getDriveChartDownloadPath(chartsFolder: string, applicationDriveId: string, driveChart: DriveChartBase) {
-	const containingDriveFolder = _.last(driveChart.chartBreadcrumbs.split('/'))
-	const shortHash = _.take(driveChart.filesHash, 8).join('')
-	return join(chartsFolder, sanitizeFilename(applicationDriveId), sanitizeFilename(`${containingDriveFolder} ${shortHash}`))
 }
 
 /**

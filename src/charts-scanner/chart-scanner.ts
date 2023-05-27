@@ -3,23 +3,20 @@
 import { FolderIssueType, MetadataIssueType } from 'dbschema/interfaces'
 import { join, parse } from 'path'
 
-import { AppRef } from 'src/app.module'
-import { DiscordService } from 'src/discord/discord/discord.service'
-import { hasChartExtension, hasChartName } from 'src/utils'
-import { ChartMetadata, ChartParserService } from '../chart-parser/chart-parser.service'
-import { MidiParserService } from '../midi-parser/midi-parser.service'
+import { hasChartExtension, hasChartName } from '../utils'
+import { ChartMetadata, ChartParserService } from '../chart-parser/chart-parser'
+import { MidiParserService } from '../midi-parser/midi-parser'
 import { NotesDataBase } from '../notes-data'
-import { ChartFolder } from './charts-scanner.service'
+import { ChartFolder } from '../main'
 
 export class ChartScanner {
-
-	private chartParserService = AppRef.get(ChartParserService)
-	private midiParserService = AppRef.get(MidiParserService)
-	private discordService = AppRef.get(DiscordService)
 
 	private notesData: NotesDataBase | null = null
 	private chartMetadata: ChartMetadata | null = null
 	private folderIssues: { folderIssue: FolderIssueType; description: string }[] = []
+
+	private chartParser = new ChartParserService()
+	private midiParser = new MidiParserService()
 
 	static async construct(chartFolder: ChartFolder) {
 		const chartScanner = new ChartScanner()
@@ -34,13 +31,14 @@ export class ChartScanner {
 		}
 	}
 
-	private constructor() { }
+	private constructor() { 
+	}
 
 	private addFolderIssue(folderIssue: FolderIssueType, description: string) {
 		this.folderIssues.push({ folderIssue, description })
 	}
 	private logError(description: string, err: Error) {
-		this.discordService.adminLog(description + '\n' + err.message + '\n' + err.stack)
+		throw new Error(description + '\n' + err.message + '\n' + err.stack)
 	}
 
 	private async scan(chartFolder: ChartFolder) {
@@ -94,9 +92,9 @@ export class ChartScanner {
 	private async getChartAtFilepath(fullPath: string) {
 		try {
 			if (parse(fullPath).ext.toLowerCase() === '.chart') {
-				return await this.chartParserService.parse(fullPath)
+				return await this.chartParser.parse(fullPath)
 			} else {
-				const notesData = await this.midiParserService.parse(fullPath)
+				const notesData = await this.midiParser.parse(fullPath)
 				return { notesData, notesMetadata: {} as ChartMetadata }
 			}
 		} catch (err) {

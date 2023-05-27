@@ -2,8 +2,8 @@ import { FolderIssueType } from 'dbschema/interfaces'
 import { join } from 'path'
 import sharp from 'sharp'
 
-import { hasAlbumName } from 'src/utils'
-import { ChartFolder } from './charts-scanner.service'
+import { hasAlbumName } from '../utils'
+import { ChartFolder } from '../main'
 
 export class ImageScanner {
 

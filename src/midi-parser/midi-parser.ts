@@ -1,5 +1,3 @@
-import { Injectable } from '@nestjs/common'
-
 import { createHash } from 'crypto'
 import { Difficulty, Instrument } from 'dbschema/interfaces'
 import { readFile } from 'fs/promises'
@@ -40,9 +38,7 @@ interface TrackEventDiff extends TrackEvent {
 }
 
 class MidiParser {
-
 	private notesData: NotesDataBase
-
 	private tempoMap: MIDIEvent[] = []
 	private timeSignatures: MIDIEvent[] = []
 	private tracks: { trackIndex: number; trackName: TrackName; trackEvents: MIDIEvent[] }[]
@@ -390,7 +386,6 @@ class MidiParser {
 	}
 }
 
-@Injectable()
 export class MidiParserService {
 	/**
 	 * @throws an exception if the file failed to be read.

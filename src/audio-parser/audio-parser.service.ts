@@ -1,26 +1,29 @@
-import { Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common'
-
 import ffmpeg from 'fluent-ffmpeg'
 import { pool, WorkerPool } from 'workerpool'
-
-import { Config } from 'src/config'
 import { calculateFingerprint } from './audio-fingerprint'
 
 /** Maximum number of seconds of audio to analyze per stem */
 const STREAM_DURATION = 100
 
-@Injectable()
-export class AudioParserService implements OnModuleInit, OnModuleDestroy {
+export class AudioParserService {
 
 	private pool: WorkerPool
 
-	constructor(private config: Config) { }
+	constructor(max_threads:number) {
+		this.start(max_threads)
+	 }
 
-	async onModuleInit() {
-		this.pool = pool(undefined, { maxWorkers: this.config.MAX_THREADS })
+	/**
+	 * Used to spawn a worker pool when the service begins
+	 */
+	async start(workers:number) {
+		this.pool = pool(undefined, { maxWorkers: workers })
 	}
 
-	onModuleDestroy() {
+	/**
+	 * Used to terminate the worker pool on user action 
+	 */
+	stop() {
 		this.pool.terminate(true)
 	}
 
