@@ -1,5 +1,21 @@
-import { cpus } from 'os'
-import { ChartsScanner } from "./main";
+import { inspect } from 'util'
 
-const scanner = new ChartsScanner(cpus().length - 1)
-scanner.scan('D:/Clone Hero/').then(res => console.log(res))
+import { scanCharts } from './main'
+
+async function main() {
+	console.time('Scan function')
+	const result = scanCharts('C:/dev/ChorusCharts/scanErrorTest')
+	result.on('error', err => console.log(err))
+	result.on('folder', folderName => {
+		console.log(`Scanned: ${folderName}`)
+	})
+	result.on('chart', (chart, index, count) => {
+		console.log(`Scanned chart [${index + 1}/${count}] (${chart.chart.artist} - ${chart.chart.name} (${chart.chart.charter}))`)
+	})
+	result.on('end', charts => {
+		console.log('Charts:\n', inspect(charts, undefined, 300))
+		console.timeEnd('Scan function')
+	})
+}
+
+main()

@@ -1,89 +1,125 @@
+import Bottleneck from 'bottleneck'
 import { createHash } from 'crypto'
-import { Chart, FolderIssueType } from 'dbschema/interfaces'
+import EventEmitter from 'events'
 import { Dirent } from 'fs'
 import { readdir, readFile } from 'fs/promises'
 import * as _ from 'lodash'
 import { join, parse, relative } from 'path'
 
-import { appearsToBeChartFolder, OptionalMatchingProps, RequireMatchingProps, Subset } from './utils'
-import { EventType } from './notes-data'
-import { ChartScanner } from './charts-scanner/chart-scanner'
-import { ImageScanner } from './charts-scanner/image-scanner'
-import { defaultMetadata, IniScanner } from './charts-scanner/ini-scanner'
+import { scanChart } from './chart'
+import { scanImage } from './image'
+import { defaultMetadata, scanIni } from './ini'
+import { Chart, ChartFile, EventType, ScannedChart } from './interfaces'
+import { appearsToBeChartFolder, RequireMatchingProps, Subset } from './utils'
 
-export interface ChartFolder {
-	path: string
-	files: Dirent[]
+interface ScanChartsResultEvents {
+	'folder': (folderName: string) => void
+	'chart': (chart: ScannedChart, index: number, count: number) => void
+	'error': (err: Error) => void
+	'end': (result: ScannedChart[]) => void
 }
-
-export interface FolderIssue {
-	folderIssue: FolderIssueType
-	description: string
-}
-
-export class ChartsScanner {
-	public errors: String[] = []
-
-	constructor(max_threads:number = 1) { }
+export declare interface ScanChartsResult {
+	/**
+	 * Registers `listener` to be called when a chart folder has been found.
+	 * The name of the chart folder is passed to `listener`. No `chart` events are emitted before this.
+	 */
+	on(event: 'folder', listener: (folderName: string) => void): void
+	/**
+	 * Registers `listener` to be called when a chart has been scanned.
+	 * The `ScannedChart` is passed to `listener`, along with the index of this chart and the total number of charts to be scanned.
+	 * No `folder` events are emitted after this.
+	 */
+	on(event: 'chart', listener: (chart: ScannedChart, index: number, count: number) => void): void
 
 	/**
-	 * @returns The `Chart` DB object(s) found in the download directory for `chartDirectory`.
-	 * Note that the resulting data returned will never need to change as long
-	 * as `driveChart.filesHash` stays the same.
-	 *
-	 * The `Chart` properties not populated are `song`, `driveCharts`, `charters`,
-	 * and any `folderIssues`/`metadataIssues` that could possibly be
-	 * incorrect/removed later without a `filesHash` change.
+	 * Registers `listener` to be called if the filesystem failed to read a file. If this is called, the "end" event won't happen.
 	 */
-	public async scan(chartDirectory: string) {
-		const chartFolders = await this.getChartFolders(chartDirectory)
+	on(event: 'error', listener: (err: Error) => void): void
 
-		if (chartFolders.length == 0){
-			throw new Error(`Directory has no charts: ${chartDirectory}`)
+	/**
+	 * Registers `listener` to be called when the application has been fully synced
+	 * with the database. If this is called, the "error" event won't happen.
+	 */
+	on(event: 'end', listener: (result: ScannedChart[]) => void): void
+}
+
+class ChartsScanner {
+
+	public eventEmitter = new EventEmitter()
+
+	constructor(private chartsFolder: string) { }
+
+	/**
+	 * Scans the charts in `chartsFolder` and its subfolders.
+	 */
+	public async scanChartsFolder() {
+		const chartFolders = await this.getChartFolders(this.chartsFolder)
+
+		if (chartFolders.length == 0) {
+			this.eventEmitter.emit('end', [])
+			return
 		}
 
-		const charts: { chart: OptionalMatchingProps<Chart, 'driveCharts' | 'charters' | 'song'>, chartPath: string }[] = []
+		const limiter = new Bottleneck({ maxConcurrent: 20 }) // Ensures memory use stays bounded
+		let chartCounter = 0
+
+		const charts: ScannedChart[] = []
 		for (const chartFolder of chartFolders) {
-			try{
-				const chart = await this.construct(chartFolder)				
-				if (chart) {
-					charts.push({ chart, chartPath: relative(chartDirectory, chartFolder.path) })
+			limiter.schedule(async () => {
+				const chartFiles: ChartFile[] = []
+				await Promise.all(chartFolder.files.map(async file => {
+					const fullPath = join(chartFolder.path, file.name)
+					chartFiles.push({ name: file.name, data: await readFile(fullPath) })
+				}))
+				const result = {
+					chart: await this.scanChartFolder(chartFiles),
+					chartPath: relative(this.chartsFolder, chartFolder.path),
 				}
-			}
-			catch (error) {
-				this.logError('Failed Scan', error)
-			}
+				if (result.chart) {
+					charts.push(result as ScannedChart)
+					this.eventEmitter.emit('chart', result, chartCounter, chartFolders.length)
+				}
+				chartCounter++
+			})
 		}
-		return [charts, this.errors]
-	}
 
-	private logError(description: string, err: Error) {
-		this.errors.push(description + '\n' + err.message + '\n' + err.stack)
+		let emittedError = false
+		limiter.on('error', err => {
+			this.eventEmitter.emit('error', err)
+			emittedError = true
+			limiter.stop()
+		})
+		limiter.on('idle', () => {
+			if (!emittedError) {
+				this.eventEmitter.emit('end', charts)
+			}
+		})
 	}
 
 	/**
 	 * @returns valid chart folders in `path` and all its subdirectories.
 	 */
 	private async getChartFolders(path: string) {
-		const chartFolders: ChartFolder[] = []
+		const chartFolders: { path: string; files: Dirent[] }[] = []
 
 		const files = await readdir(path, { withFileTypes: true })
 
 		if (appearsToBeChartFolder(files.map(file => parse(file.name).ext.substring(1)))) {
-			chartFolders.push({ path, files })
+			chartFolders.push({ path, files: files.filter(f => !f.isDirectory()) })
+			this.eventEmitter.emit('folder', relative(this.chartsFolder, path))
 		}
 
-		const promises = _.chain(files)
+		const subfolders = _.chain(files)
 			.filter(f => f.isDirectory() && f.name !== '__MACOSX') // Apple should follow the principle of least astonishment (smh)
 			.map(f => this.getChartFolders(join(path, f.name)))
 			.value()
 
-		chartFolders.push(..._.flatMap(await Promise.all(promises)))
+		chartFolders.push(..._.flatMap(await Promise.all(subfolders)))
 
 		return chartFolders
 	}
 
-	private async construct(chartFolder: ChartFolder) {
+	private async scanChartFolder(chartFolder: ChartFile[]) {
 		const chart: RequireMatchingProps<Subset<Chart>, 'folderIssues' | 'metadataIssues' | 'playable'> = {
 			folderIssues: [],
 			metadataIssues: [],
@@ -91,23 +127,17 @@ export class ChartsScanner {
 		}
 
 		const hash = createHash('md5')
-		for (const file of _.orderBy(chartFolder.files, f => f.name)) {
+		for (const file of _.orderBy(chartFolder, f => f.name)) {
 			hash.update(file.name)
-			const fullPath = join(chartFolder.path, file.name)
-			try {
-				hash.update(await readFile(fullPath))
-			} catch (err) {
-				this.logError(`Error: Failed to read file at [${fullPath}]`, err)
-				return null
-			}
+			hash.update(file.data)
 		}
 		chart.md5 = hash.digest('hex')
 
-		const iniData = await IniScanner.construct(chartFolder)
+		const iniData = scanIni(chartFolder)
 		chart.folderIssues.push(...iniData.folderIssues)
 		chart.metadataIssues.push(...iniData.metadataIssues)
 
-		const chartData = await ChartScanner.construct(chartFolder)
+		const chartData = scanChart(chartFolder)
 		chart.folderIssues.push(...chartData.folderIssues)
 		chart.metadataIssues.push(...chartData.metadataIssues)
 		if (chartData.notesData) {
@@ -142,7 +172,7 @@ export class ChartsScanner {
 		}
 		chart.chart_offset = chartData.metadata?.delay ?? 0
 
-		const imageData = await ImageScanner.construct(chartFolder)
+		const imageData = await scanImage(chartFolder)
 		chart.folderIssues.push(...imageData.folderIssues)
 		if (imageData.albumBuffer) {
 			chart.albumArt = {
@@ -152,13 +182,27 @@ export class ChartsScanner {
 		}
 
 		// TODO: Implement this when determining the best audio fingerprint algorithm
-		// const audioData = await AudioScanner.construct(chartFolder, this.config.MAX_THREADS)
+		// const audioData = await scanAudio(chartFolder, cpus().length - 1)
 		// chart.folderIssues.push(...audioData.folderIssues)
 
 		if (!chartData.notesData /* TODO: || !audioData.audioHash */) {
 			chart.playable = false
 		}
 
-		return chart as OptionalMatchingProps<Chart, 'driveCharts' | 'charters' | 'song'>
+		return chart as Chart
+	}
+}
+
+/**
+ * Scans the charts in `chartsFolder` and returns an event emitter that emits the results.
+ */
+export function scanCharts(chartsFolder: string) {
+	const chartsScanner = new ChartsScanner(chartsFolder)
+	chartsScanner.scanChartsFolder()
+
+	return {
+		on: <T extends keyof ScanChartsResultEvents>(event: T, listener: ScanChartsResultEvents[T]) => {
+			chartsScanner.eventEmitter.on(event, listener)
+		},
 	}
 }

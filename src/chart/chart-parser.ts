@@ -1,13 +1,11 @@
 import { createHash } from 'crypto'
-import { Instrument } from 'dbschema/interfaces'
-import { readFile } from 'fs/promises'
 import * as _ from 'lodash'
 
-import { AsyncReturnType, getEncoding } from '../utils'
-import { EventType, NotesDataBase, TrackEvent } from '../notes-data'
-import { TrackParser } from '../track-parser/track-parser'
+import { EventType, Instrument, NotesData, TrackEvent } from '../interfaces'
+import { getEncoding } from '../utils'
+import { TrackParser } from './track-parser'
 
-export type ChartMetadata = AsyncReturnType<ChartParserService['parse']>['notesMetadata']
+export type ChartMetadata = ReturnType<ChartParser['getMetadata']>
 
 /* eslint-disable @typescript-eslint/naming-convention */
 type TrackName = keyof typeof trackNameMap
@@ -51,7 +49,7 @@ const trackNameMap = {
 
 class ChartParser {
 
-	private notesData: NotesDataBase
+	private notesData: NotesData
 
 	private metadata: { [key: string]: string }
 	private resolution: number
@@ -139,7 +137,7 @@ class ChartParser {
 		return timeSignatures
 	}
 
-	parse() {
+	public parse() {
 		if (!this.resolution || !this.tempoMap.length || !this.timeSignatures.length) {
 			return { notesData: this.notesData, notesMetadata: this.getMetadata() }
 		}
@@ -340,52 +338,48 @@ class ChartParser {
 	}
 }
 
-export class ChartParserService {
-	/**
-	 * @throws an exception if the file failed to be read.
-	 * @returns the `notesData` object corresponding with the ".chart" file at `filepath`.
-	 */
-	async parse(filepath: string) {
-		const buffer = await readFile(filepath)
-		const encoding = getEncoding(buffer)
-		const chartText = buffer.toString(encoding)
-		const fileSections = this.getFileSections(chartText) ?? {}
-		return new ChartParser(fileSections).parse()
-	}
-
-	private getFileSections(chartText: string) {
-		const sections: { [sectionName: string]: string[] } = {}
-		let skipLine = false
-		let readStartIndex = 0
-		let readingSection = false
-		let thisSection: string | null = null
-		for (let i = 0; i < chartText.length; i++) {
-			if (readingSection) {
-				if (chartText[i] === ']') {
-					readingSection = false
-					thisSection = chartText.slice(readStartIndex, i)
-				}
-				if (chartText[i] === '\n') { return null }
-				continue // Keep reading section until it ends
+function getFileSections(chartText: string) {
+	const sections: { [sectionName: string]: string[] } = {}
+	let skipLine = false
+	let readStartIndex = 0
+	let readingSection = false
+	let thisSection: string | null = null
+	for (let i = 0; i < chartText.length; i++) {
+		if (readingSection) {
+			if (chartText[i] === ']') {
+				readingSection = false
+				thisSection = chartText.slice(readStartIndex, i)
 			}
-
-			if (chartText[i] === '=') { skipLine = true } // Skip all user-entered values
-			if (chartText[i] === '\n') { skipLine = false }
-			if (skipLine) { continue } // Keep skipping until '\n' is found
-
-			if (chartText[i] === '{') {
-				skipLine = true
-				readStartIndex = i + 1
-			} else if (chartText[i] === '}') {
-				if (!thisSection) { return null }
-				// Trim each line because of Windows \r\n shenanigans
-				sections[thisSection] = chartText.slice(readStartIndex, i).split('\n').map(line => line.trim()).filter(line => line.length)
-			} else if (chartText[i] === '[') {
-				readStartIndex = i + 1
-				readingSection = true
-			}
+			if (chartText[i] === '\n') { return null }
+			continue // Keep reading section until it ends
 		}
 
-		return sections
+		if (chartText[i] === '=') { skipLine = true } // Skip all user-entered values
+		if (chartText[i] === '\n') { skipLine = false }
+		if (skipLine) { continue } // Keep skipping until '\n' is found
+
+		if (chartText[i] === '{') {
+			skipLine = true
+			readStartIndex = i + 1
+		} else if (chartText[i] === '}') {
+			if (!thisSection) { return null }
+			// Trim each line because of Windows \r\n shenanigans
+			sections[thisSection] = chartText.slice(readStartIndex, i).split('\n').map(line => line.trim()).filter(line => line.length)
+		} else if (chartText[i] === '[') {
+			readStartIndex = i + 1
+			readingSection = true
+		}
 	}
+
+	return sections
+}
+
+/**
+ * @returns the `notesData` and `notesMetadata` objects corresponding with the ".chart" file in `buffer`.
+ */
+export function parseChart(buffer: Buffer) {
+	const encoding = getEncoding(buffer)
+	const chartText = buffer.toString(encoding)
+	const fileSections = getFileSections(chartText) ?? {}
+	return new ChartParser(fileSections).parse()
 }

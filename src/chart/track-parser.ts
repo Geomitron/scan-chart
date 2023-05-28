@@ -1,8 +1,7 @@
 import { createHash } from 'crypto'
-import { Difficulty, Instrument, NoteIssueType, TrackIssueType } from 'dbschema/interfaces'
 import * as _ from 'lodash'
 
-import { EventType, GroupedTrackEvent, NoteIssue, NotesDataBase, TrackEvent } from '../notes-data'
+import { Difficulty, EventType, GroupedTrackEvent, Instrument, NoteIssue, NoteIssueType, NotesData, TrackEvent, TrackIssueType } from '../interfaces'
 
 const LEADING_SILENCE_THRESHOLD_MS = 1000
 const MIN_SUSTAIN_GAP_MS = 40
@@ -18,7 +17,7 @@ export class TrackParser {
 	private trackIssues: TrackIssueType[] = []
 
 	constructor(
-		private notesData: NotesDataBase,
+		private notesData: NotesData,
 		private instrument: Instrument,
 		private difficulty: Difficulty,
 		private trackEvents: TrackEvent[],
@@ -72,7 +71,7 @@ export class TrackParser {
 				const previousNote = this.groupedNotes[i - 1]
 				const distance = note.time - previousNote.time
 				if (distance > 0 && distance <= 15) {
-					if (this.typeCount(note, [EventType.open]) > 0 && _.maxBy(previousNote.events, e => e.length)?.length! > 5) {
+					if (this.typeCount(note, [EventType.open]) > 0 && (_.maxBy(previousNote.events, e => e.length)?.length ?? 0) > 5) {
 						continue // Skip open notes under an extended sustain
 					}
 					this.addNoteIssue('brokenNote', this.groupedNotes[i].time)

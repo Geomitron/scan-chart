@@ -1,12 +1,10 @@
 import { createHash } from 'crypto'
-import { Difficulty, Instrument } from 'dbschema/interfaces'
-import { readFile } from 'fs/promises'
 import * as _ from 'lodash'
 import { EVENT_DIVSYSEX, EVENT_META, EVENT_META_END_OF_TRACK, EVENT_META_LYRICS, EVENT_META_SET_TEMPO, EVENT_META_TEXT, EVENT_META_TIME_SIGNATURE, EVENT_META_TRACK_NAME, EVENT_MIDI, EVENT_MIDI_NOTE_ON, EVENT_SYSEX, MIDIEvent } from 'midievents'
 import MIDIFile from 'midifile'
 
-import { EventType, NotesDataBase, TrackEvent } from '../notes-data'
-import { TrackParser } from '../track-parser/track-parser'
+import { Difficulty, EventType, Instrument, NotesData, TrackEvent } from '../interfaces'
+import { TrackParser } from './track-parser'
 
 /* eslint-disable @typescript-eslint/naming-convention */
 type TrackName = InstrumentName | 'PART VOCALS' | 'EVENTS'
@@ -38,7 +36,7 @@ interface TrackEventDiff extends TrackEvent {
 }
 
 class MidiParser {
-	private notesData: NotesDataBase
+	private notesData: NotesData
 	private tempoMap: MIDIEvent[] = []
 	private timeSignatures: MIDIEvent[] = []
 	private tracks: { trackIndex: number; trackName: TrackName; trackEvents: MIDIEvent[] }[]
@@ -294,7 +292,7 @@ class MidiParser {
 		}
 	}
 
-	parse(): NotesDataBase {
+	public parse(): NotesData {
 
 		const trackParsers = _.chain(this.splitTracks)
 			.map(track => new TrackParser(
@@ -385,14 +383,10 @@ class MidiParser {
 	}
 }
 
-export class MidiParserService {
-	/**
-	 * @throws an exception if the file failed to be read.
-	 * @returns the `notesData` object corresponding with the ".mid" file at `filepath`.
-	 */
-	public async parse(filepath: string): Promise<NotesDataBase> {
-		const chartBuffer = await readFile(filepath)
-		const midiFile = new MIDIFile(chartBuffer)
-		return new MidiParser(midiFile).parse()
-	}
+/**
+ * @returns the `notesData` object corresponding with the ".mid" file in `buffer`.
+ */
+export function parseMidi(buffer: Buffer) {
+	const midiFile = new MIDIFile(buffer)
+	return new MidiParser(midiFile).parse()
 }

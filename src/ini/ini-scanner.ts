@@ -1,27 +1,23 @@
-
-
-import { FolderIssueType, MetadataIssueType } from 'dbschema/interfaces'
 import * as _ from 'lodash'
-import { join } from 'path'
 
+import { ChartFile, FolderIssueType, MetadataIssueType } from '../interfaces'
 import { hasIniExtension, hasIniName, isArray, removeStyleTags } from '../utils'
-import { IniObject, IniParserService } from '../ini-parser/ini-parser'
-import { ChartFolder } from '../main'
+import { IniObject, parseIni } from './ini-parser'
 
 type TypedSubset<O, K extends keyof O, T> = O[K] extends T ? K : never
 type StringProperties<O> = { [key in keyof O as TypedSubset<O, key, string>]: string }
 type NumberProperties<O> = { [key in keyof O as TypedSubset<O, key, number>]: number }
 type BooleanProperties<O> = { [key in keyof O as TypedSubset<O, key, boolean>]: boolean }
 
-export type Metadata = typeof defaultMetadata
-export type CInputMetaStringKey = keyof StringProperties<InputMetadata>
-export type CMetaStringKey = keyof StringProperties<Metadata>
-export type CInputMetaNumberKey = keyof NumberProperties<InputMetadata>
-export type CMetaNumberKey = keyof NumberProperties<Metadata>
-export type CInputMetaBooleanKey = keyof BooleanProperties<InputMetadata>
-export type CMetaBooleanKey = keyof BooleanProperties<Metadata>
+type Metadata = typeof defaultMetadata
+type CInputMetaStringKey = keyof StringProperties<InputMetadata>
+type CMetaStringKey = keyof StringProperties<Metadata>
+type CInputMetaNumberKey = keyof NumberProperties<InputMetadata>
+type CMetaNumberKey = keyof NumberProperties<Metadata>
+type CInputMetaBooleanKey = keyof BooleanProperties<InputMetadata>
+type CMetaBooleanKey = keyof BooleanProperties<Metadata>
 
-export type InputMetadata = Metadata & {
+type InputMetadata = Metadata & {
 	'frets': string
 	'track': number
 }
@@ -58,29 +54,14 @@ export const defaultMetadata = {
 	'end_events': true,
 }
 
-export class IniScanner {
+class IniScanner {
 
-	//private iniParserService: IniParserService
-	private metadata: Metadata | null = null
-	private folderIssues: { folderIssue: FolderIssueType; description: string }[] = []
-	private metadataIssues: MetadataIssueType[] = []
+	public metadata: Metadata | null = null
+	public folderIssues: { folderIssue: FolderIssueType; description: string }[] = []
+	public metadataIssues: MetadataIssueType[] = []
 
 	/** The ini object with parsed data from the song.ini file, or the notes.chart file if an ini doesn't exist */
 	private iniObject: IniObject
-
-	private iniParser = new IniParserService()
-
-	static async construct(chartFolder: ChartFolder) {
-		const iniScanner = new IniScanner()
-		await iniScanner.scan(chartFolder)
-		return {
-			metadata: iniScanner.metadata,
-			folderIssues: iniScanner.folderIssues,
-			metadataIssues: iniScanner.metadataIssues,
-		}
-	}
-
-	private constructor() {}
 
 	private addFolderIssue(folderIssue: FolderIssueType, description: string) {
 		this.folderIssues.push({ folderIssue, description })
@@ -92,11 +73,11 @@ export class IniScanner {
 	/**
 	 * Sets `this.metadata` to the ini metadata provided in `this.chartFolder`.
 	 */
-	private async scan(chartFolder: ChartFolder) {
-		const iniFilepath = this.getIniFilepath(chartFolder)
-		if (!iniFilepath) { return }
+	public scan(chartFolder: ChartFile[]) {
+		const iniChartFile = this.getIniChartFile(chartFolder)
+		if (!iniChartFile) { return }
 
-		const iniFile = await this.getIniAtFilepath(iniFilepath)
+		const iniFile = this.getIniAtFile(iniChartFile)
 		if (!iniFile) { return }
 
 		this.iniObject = iniFile
@@ -112,21 +93,21 @@ export class IniScanner {
 	}
 
 	/**
-	 * @returns the path to the .ini file in this chart, or `null` if one wasn't found.
+	 * @returns the .ini file in this chart, or `null` if one wasn't found.
 	 */
-	private getIniFilepath(chartFolder: ChartFolder) {
+	private getIniChartFile(chartFolder: ChartFile[]) {
 		let iniCount = 0
-		let bestIniPath: string | null = null
-		let lastIniPath: string | null = null
+		let bestIni: ChartFile | null = null
+		let lastIni: ChartFile | null = null
 
-		for (const file of chartFolder.files) {
+		for (const file of chartFolder) {
 			if (hasIniExtension(file.name)) {
 				iniCount++
-				lastIniPath = join(chartFolder.path, file.name)
+				lastIni = file
 				if (!hasIniName(file.name)) {
 					this.addFolderIssue('invalidIni', `"${file.name}" is not named "song.ini"`)
 				} else {
-					bestIniPath = join(chartFolder.path, file.name)
+					bestIni = file
 				}
 			}
 		}
@@ -135,10 +116,10 @@ export class IniScanner {
 			this.addFolderIssue('multipleIniFiles', `This chart has multiple .ini files`)
 		}
 
-		if (bestIniPath !== null) {
-			return bestIniPath
-		} else if (lastIniPath !== null) {
-			return lastIniPath
+		if (bestIni !== null) {
+			return bestIni
+		} else if (lastIni !== null) {
+			return lastIni
 		} else {
 			this.addFolderIssue('noMetadata', `This chart doesn't have "song.ini"`)
 			return null
@@ -146,21 +127,16 @@ export class IniScanner {
 	}
 
 	/**
-	 * @returns an `IIniObject` derived from the .ini file at `fullPath`, or `null` if the file couldn't be read.
+	 * @returns an `IIniObject` derived from the .ini file at `file`, or `null` if the file couldn't be read.
 	 */
-	private async getIniAtFilepath(fullPath: string) {
-		try {
-			const { iniObject, iniErrors } = await this.iniParser.parse(fullPath)
+	private getIniAtFile(file: ChartFile) {
+		const { iniObject, iniErrors } = parseIni(file)
 
-			for (const iniError of iniErrors.slice(-5)) { // Limit this if there are too many errors
-				this.addFolderIssue('badIniLine', _.truncate(iniError, { length: 200 }))
-			}
-
-			return iniObject
-		} catch (err) {
-			this.logError(`Error: Failed to read file at [${fullPath}]`, err)
-			return null
+		for (const iniError of iniErrors.slice(-5)) { // Limit this if there are too many errors
+			this.addFolderIssue('badIniLine', _.truncate(iniError, { length: 200 }))
 		}
+
+		return iniObject
 	}
 
 	/**
@@ -189,8 +165,10 @@ export class IniScanner {
 	 * Extracts `fields` from `this.metadata` using `extractFunction`.
 	 * @param fields
 	 * An array of single keys and two key tuple arrays.
-	 * With a single key, the field will be extracted from the ini file at that key. It will then be saved in the metadata object at the same key.
-	 * With an array of two keys, the field will be extracted from the ini file at both keys. (If both are defined, the second field is used)
+	 * With a single key, the field will be extracted from the ini file at that key.
+	 * It will then be saved in the metadata object at the same key.
+	 * With an array of two keys, the field will be extracted from the ini file at both keys.
+	 * (If both are defined, the second field is used)
 	 * It will then be saved in the metadata object at the second key.
 	 */
 	private extractMetadataField<I, K extends I>(
@@ -253,5 +231,15 @@ export class IniScanner {
 		if (this.metadata!.year === defaultMetadata.year) { this.metadataIssues.push('noYear') }
 		if (this.metadata!.charter === defaultMetadata.charter) { this.metadataIssues.push('noCharter') }
 		if (this.metadata!.delay !== 0) { this.metadataIssues.push('nonzeroDelay') }
+	}
+}
+
+export function scanIni(chartFolder: ChartFile[]) {
+	const iniScanner = new IniScanner()
+	iniScanner.scan(chartFolder)
+	return {
+		metadata: iniScanner.metadata,
+		folderIssues: iniScanner.folderIssues,
+		metadataIssues: iniScanner.metadataIssues,
 	}
 }

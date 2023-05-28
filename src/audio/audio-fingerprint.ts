@@ -1,13 +1,17 @@
+/* eslint-disable @typescript-eslint/no-var-requires */
+/* eslint-disable prefer-arrow/prefer-arrow-functions */
+/* eslint-disable @typescript-eslint/no-use-before-define */
 /**
  * Calculates the audio fingerprint for `audioFiles` mixed together using `audioFilter`.
  * (this function is sent to a worker thread, so it must contain all its dependencies)
  * @returns a `number[]` that contains the results of the calculation and an array of any
  * errors that occured during the calculation. If there are errors, the `number[]` will be empty.
  */
-export async function calculateFingerprint(audioFiles: string[], audioFilter: 'amix' | 'amerge') {
+export async function calculateFingerprint(audioFiles: { data: Buffer }[], audioFilter: 'amix' | 'amerge') {
 	const ffmpegPath = await require('ffmpeg-static')
 	const ffmpegProbe = await require('ffprobe-static')
 	const ffmpeg = await require('fluent-ffmpeg')
+	const stream = await require('stream')
 	const random = await require('random')
 	const seedrandom = await require('seedrandom')
 	const Codegen = require('stream-audio-fingerprint/codegen_landmark')
@@ -37,9 +41,9 @@ export async function calculateFingerprint(audioFiles: string[], audioFilter: 'a
 		const sig = newSignature(HASH_COUNT)
 
 		let dataCount = 0
-		fingerprinter.on('data', (data: any) => {
+		fingerprinter.on('data', (data: { tcodes: number[]; hcodes: number[] }) => {
 			dataCount++
-			data.hcodes.forEach((hcode: any) => {
+			data.hcodes.forEach(hcode => {
 				push(sig, hcode)
 			})
 		})
@@ -80,7 +84,7 @@ export async function calculateFingerprint(audioFiles: string[], audioFilter: 'a
 		let audioCount = 0
 		for (let i = 0; i < audioFiles.length; i++) {
 			try {
-				ffmpegCommand = ffmpegCommand.input(audioFiles[i])
+				ffmpegCommand = ffmpegCommand.input(stream.Readable.from(audioFiles[i].data))
 			} catch (err) { errors.push(`Failed to process audio file (${audioFiles[i]}):\n${err}`) }
 			audioCount++
 		}
