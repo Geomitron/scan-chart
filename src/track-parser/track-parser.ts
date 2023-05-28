@@ -81,7 +81,7 @@ export class TrackParser {
 		}
 
 		// Check for leading silence
-		if (this.groupedNotes[0].time < LEADING_SILENCE_THRESHOLD_MS) {
+		if (this.groupedNotes[0]?.time !== undefined && this.groupedNotes[0].time < LEADING_SILENCE_THRESHOLD_MS) {
 			this.addTrackIssue('smallLeadingSilence')
 		}
 

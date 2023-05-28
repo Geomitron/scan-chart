@@ -315,8 +315,7 @@ class MidiParser {
 			this.notesData.chartIssues.push('noNotes')
 			return this.notesData
 		}
-
-		if (this.tracks.find(t => t.trackName === 'PART VOCALS')?.trackEvents.length) { this.notesData.hasLyrics = true }
+		if (this.tracks.find(t => t.trackName === 'PART VOCALS')?.trackEvents?.length) { this.notesData.hasLyrics = true }
 		const sectionEvents = _.chain(this.tracks.find(t => t.trackName === 'EVENTS')?.trackEvents ?? [])
 			.map(ete => ete.data?.map(dta => String.fromCharCode(dta)).join('') ?? '')
 			.filter(name => name.includes('[section') || name.includes('[prc_'))
