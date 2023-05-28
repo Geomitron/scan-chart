@@ -1,6 +1,6 @@
 import { inspect } from 'util'
 
-import { scanCharts } from './main'
+import { scanCharts } from './'
 
 async function main() {
 	console.time('Scan function')

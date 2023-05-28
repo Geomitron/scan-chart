@@ -12,6 +12,8 @@ import { defaultMetadata, scanIni } from './ini'
 import { Chart, ChartFile, EventType, ScannedChart } from './interfaces'
 import { appearsToBeChartFolder, RequireMatchingProps, Subset } from './utils'
 
+export * from './interfaces'
+
 interface ScanChartsResultEvents {
 	'folder': (folderName: string) => void
 	'chart': (chart: ScannedChart, index: number, count: number) => void
@@ -194,7 +196,7 @@ class ChartsScanner {
 }
 
 /**
- * Scans the charts in `chartsFolder` and returns an event emitter that emits the results.
+ * Scans the charts in the `chartsFolder` directory and returns an event emitter that emits the results.
  */
 export function scanCharts(chartsFolder: string) {
 	const chartsScanner = new ChartsScanner(chartsFolder)
