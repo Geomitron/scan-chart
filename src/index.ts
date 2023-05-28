@@ -39,10 +39,11 @@ export declare interface ScanChartsResult {
 	on(event: 'error', listener: (err: Error) => void): void
 
 	/**
-	 * Registers `listener` to be called when the application has been fully synced
-	 * with the database. If this is called, the "error" event won't happen.
+	 * Registers `listener` to be called when all charts in `chartsFolder` have been scanned.
+	 * The `ScannedChart[]` is passed to `listener`.
+	 * If this is called, the "error" event won't happen.
 	 */
-	on(event: 'end', listener: (result: ScannedChart[]) => void): void
+	on(event: 'end', listener: (charts: ScannedChart[]) => void): void
 }
 
 class ChartsScanner {
