@@ -1,5 +1,11 @@
 # scan-chart
 
+## 1.1.2
+
+### Patch Changes
+
+- d5f72aa: Remove unused dependencies
+
 ## 1.1.1
 
 ### Patch Changes
