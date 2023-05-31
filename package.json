@@ -23,13 +23,10 @@
   "dependencies": {
     "bottleneck": "^2.19.5",
     "charset-detector": "^0.0.2",
-    "class-transformer": "^0.5.1",
-    "class-validator": "^0.14.0",
     "fluent-ffmpeg": "^2.1.2",
     "lodash": "^4.17.21",
     "midievents": "^2.0.0",
     "midifile": "^2.0.0",
-    "path": "^0.12.7",
     "sanitize-filename": "^1.6.3",
     "sharp": "^0.32.1",
     "stream-audio-fingerprint": "git+https://github.com/Geomitron/stream-audio-fingerprint.git",
