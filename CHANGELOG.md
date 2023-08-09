@@ -1,5 +1,11 @@
 # scan-chart
 
+## 1.1.4
+
+### Patch Changes
+
+- 0b0b185: Fixed previous patch deployment
+
 ## 1.1.3
 
 ### Patch Changes
