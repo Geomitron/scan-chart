@@ -1,5 +1,11 @@
 # scan-chart
 
+## 1.1.3
+
+### Patch Changes
+
+- 0f77cb5: Allow videos and audio files to be larger than 2 GiB
+
 ## 1.1.2
 
 ### Patch Changes
