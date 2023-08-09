@@ -1,6 +1,7 @@
 import { parse } from 'path'
 
-import { ChartFile, FolderIssueType, MetadataIssueType, NotesData } from '../interfaces'
+import { CachedFile } from 'src/cached-file'
+import { FolderIssueType, MetadataIssueType, NotesData } from '../interfaces'
 import { hasChartExtension, hasChartName } from '../utils'
 import { ChartMetadata, parseChart } from './chart-parser'
 import { parseMidi } from './midi-parser'
@@ -15,7 +16,7 @@ class ChartScanner {
 		this.folderIssues.push({ folderIssue, description })
 	}
 
-	public scan(chartFolder: ChartFile[]) {
+	public scan(chartFolder: CachedFile[]) {
 		const chartFile = this.getChartFile(chartFolder)
 		if (!chartFile) { return }
 
@@ -29,10 +30,10 @@ class ChartScanner {
 	/**
 	 * @returns the .chart/.mid file in this chart, or `null` if one wasn't found.
 	 */
-	private getChartFile(chartFolder: ChartFile[]) {
+	private getChartFile(chartFolder: CachedFile[]) {
 		let chartCount = 0
-		let bestChart: ChartFile | null = null
-		let lastChart: ChartFile | null = null
+		let bestChart: CachedFile | null = null
+		let lastChart: CachedFile | null = null
 
 		for (const file of chartFolder) {
 			if (hasChartExtension(file.name)) {
@@ -63,7 +64,7 @@ class ChartScanner {
 	/**
 	 * @returns an object derived from the .chart/.mid `file`.
 	 */
-	private getChartData(file: ChartFile) {
+	private getChartData(file: CachedFile) {
 		try {
 			if (parse(file.name).ext.toLowerCase() === '.chart') {
 				return parseChart(file.data)
@@ -78,7 +79,7 @@ class ChartScanner {
 	}
 }
 
-export function scanChart(chartFolder: ChartFile[]) {
+export function scanChart(chartFolder: CachedFile[]) {
 	const chartScanner = new ChartScanner()
 	chartScanner.scan(chartFolder)
 	const metadataIssues: MetadataIssueType[] = []

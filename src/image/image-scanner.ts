@@ -1,6 +1,7 @@
 import sharp from 'sharp'
 
-import { ChartFile, FolderIssueType } from '../interfaces'
+import { CachedFile } from 'src/cached-file'
+import { FolderIssueType } from '../interfaces'
 import { hasAlbumName } from '../utils'
 
 class ImageScanner {
@@ -12,7 +13,7 @@ class ImageScanner {
 		this.folderIssues.push({ folderIssue, description })
 	}
 
-	public async scan(chartFolder: ChartFile[]) {
+	public async scan(chartFolder: CachedFile[]) {
 		const albumFile = this.getAlbumFile(chartFolder)
 		if (!albumFile) { return }
 
@@ -25,9 +26,9 @@ class ImageScanner {
 	/**
 	 * @returns the album art file in this chart, or `null` if one wasn't found.
 	 */
-	private getAlbumFile(chartFolder: ChartFile[]) {
+	private getAlbumFile(chartFolder: CachedFile[]) {
 		let albumCount = 0
-		let lastAlbum: ChartFile | null = null
+		let lastAlbum: CachedFile | null = null
 
 		for (const file of chartFolder) {
 			if (hasAlbumName(file.name)) {
@@ -51,7 +52,7 @@ class ImageScanner {
 	/**
 	 * @returns a `Buffer` of the image data from the .jpg/.png file at `file`.
 	 */
-	private async getAlbumAtFile(file: ChartFile) {
+	private async getAlbumAtFile(file: CachedFile) {
 		try {
 			const image = sharp(file.data)
 			const metadata = await image.metadata()
@@ -70,7 +71,7 @@ class ImageScanner {
 	}
 }
 
-export async function scanImage(chartFolder: ChartFile[]) {
+export async function scanImage(chartFolder: CachedFile[]) {
 	const imageScanner = new ImageScanner()
 	await imageScanner.scan(chartFolder)
 	return {

@@ -2,14 +2,15 @@ import Bottleneck from 'bottleneck'
 import { createHash } from 'crypto'
 import EventEmitter from 'events'
 import { Dirent } from 'fs'
-import { readdir, readFile } from 'fs/promises'
+import { readdir } from 'fs/promises'
 import * as _ from 'lodash'
 import { join, parse, relative } from 'path'
 
+import { CachedFile } from './cached-file'
 import { scanChart } from './chart'
 import { scanImage } from './image'
 import { defaultMetadata, scanIni } from './ini'
-import { Chart, ChartFile, EventType, ScannedChart } from './interfaces'
+import { Chart, EventType, ScannedChart } from './interfaces'
 import { appearsToBeChartFolder, RequireMatchingProps, Subset } from './utils'
 
 export * from './interfaces'
@@ -69,10 +70,9 @@ class ChartsScanner {
 		const charts: ScannedChart[] = []
 		for (const chartFolder of chartFolders) {
 			limiter.schedule(async () => {
-				const chartFiles: ChartFile[] = []
+				const chartFiles: CachedFile[] = []
 				await Promise.all(chartFolder.files.map(async file => {
-					const fullPath = join(chartFolder.path, file.name)
-					chartFiles.push({ name: file.name, data: await readFile(fullPath) })
+					chartFiles.push(await CachedFile.build(join(chartFolder.path, file.name)))
 				}))
 				const result = {
 					chart: await this.scanChartFolder(chartFiles),
@@ -122,19 +122,14 @@ class ChartsScanner {
 		return chartFolders
 	}
 
-	private async scanChartFolder(chartFolder: ChartFile[]) {
+	private async scanChartFolder(chartFolder: CachedFile[]) {
 		const chart: RequireMatchingProps<Subset<Chart>, 'folderIssues' | 'metadataIssues' | 'playable'> = {
 			folderIssues: [],
 			metadataIssues: [],
 			playable: true,
 		}
 
-		const hash = createHash('md5')
-		for (const file of _.orderBy(chartFolder, f => f.name)) {
-			hash.update(file.name)
-			hash.update(file.data)
-		}
-		chart.md5 = hash.digest('hex')
+		chart.md5 = await this.getChartMD5(chartFolder)
 
 		const iniData = scanIni(chartFolder)
 		chart.folderIssues.push(...iniData.folderIssues)
@@ -193,6 +188,15 @@ class ChartsScanner {
 		}
 
 		return chart as Chart
+	}
+
+	private async getChartMD5(chartFolder: CachedFile[]) {
+		const hash = createHash('md5')
+		for (const file of _.orderBy(chartFolder, f => f.name)) {
+			hash.update(file.name)
+			hash.update(await file.getMD5())
+		}
+		return hash.digest('hex')
 	}
 }
 

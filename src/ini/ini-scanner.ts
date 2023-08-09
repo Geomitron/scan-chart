@@ -1,6 +1,7 @@
 import * as _ from 'lodash'
 
-import { ChartFile, FolderIssueType, MetadataIssueType } from '../interfaces'
+import { CachedFile } from 'src/cached-file'
+import { FolderIssueType, MetadataIssueType } from '../interfaces'
 import { hasIniExtension, hasIniName, isArray, removeStyleTags } from '../utils'
 import { IniObject, parseIni } from './ini-parser'
 
@@ -73,7 +74,7 @@ class IniScanner {
 	/**
 	 * Sets `this.metadata` to the ini metadata provided in `this.chartFolder`.
 	 */
-	public scan(chartFolder: ChartFile[]) {
+	public scan(chartFolder: CachedFile[]) {
 		const iniChartFile = this.getIniChartFile(chartFolder)
 		if (!iniChartFile) { return }
 
@@ -95,10 +96,10 @@ class IniScanner {
 	/**
 	 * @returns the .ini file in this chart, or `null` if one wasn't found.
 	 */
-	private getIniChartFile(chartFolder: ChartFile[]) {
+	private getIniChartFile(chartFolder: CachedFile[]) {
 		let iniCount = 0
-		let bestIni: ChartFile | null = null
-		let lastIni: ChartFile | null = null
+		let bestIni: CachedFile | null = null
+		let lastIni: CachedFile | null = null
 
 		for (const file of chartFolder) {
 			if (hasIniExtension(file.name)) {
@@ -129,7 +130,7 @@ class IniScanner {
 	/**
 	 * @returns an `IIniObject` derived from the .ini file at `file`, or `null` if the file couldn't be read.
 	 */
-	private getIniAtFile(file: ChartFile) {
+	private getIniAtFile(file: CachedFile) {
 		const { iniObject, iniErrors } = parseIni(file)
 
 		for (const iniError of iniErrors.slice(-5)) { // Limit this if there are too many errors
@@ -234,7 +235,7 @@ class IniScanner {
 	}
 }
 
-export function scanIni(chartFolder: ChartFile[]) {
+export function scanIni(chartFolder: CachedFile[]) {
 	const iniScanner = new IniScanner()
 	iniScanner.scan(chartFolder)
 	return {

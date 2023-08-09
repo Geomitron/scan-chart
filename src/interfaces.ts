@@ -1,10 +1,5 @@
 import { Overwrite } from './utils'
 
-export interface ChartFile {
-	name: string
-	data: Buffer
-}
-
 export type Instrument =
 	'guitar' |     // Lead Guitar
 	'guitarcoop' | // Co-op Guitar

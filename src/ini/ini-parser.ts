@@ -1,4 +1,4 @@
-import { ChartFile } from '../interfaces'
+import { CachedFile } from 'src/cached-file'
 import { getEncoding } from '../utils'
 
 export const $NoSection: unique symbol = Symbol('Lines before any sections')
@@ -50,7 +50,7 @@ function decode(data: string) {
  * @throws an exception if the file failed to be read.
  * @returns the `IIniObject` object corresponding with the ".ini" file at `filepath`.
  */
-export function parseIni(file: ChartFile) {
+export function parseIni(file: CachedFile) {
 	const encoding = getEncoding(file.data)
 	const iniText = file.data.toString(encoding)
 	return decode(iniText)

@@ -1,7 +1,8 @@
 import * as _ from 'lodash'
 import { parse } from 'path'
 
-import { ChartFile, FolderIssueType } from '../interfaces'
+import { CachedFile } from 'src/cached-file'
+import { FolderIssueType } from '../interfaces'
 import { hasAudioExtension, hasAudioName } from '../utils'
 import { AudioParser } from './audio-parser'
 
@@ -15,7 +16,7 @@ class AudioScanner {
 		this.folderIssues.push({ folderIssue, description })
 	}
 
-	public async scan(chartFolder: ChartFile[], max_threads: number) {
+	public async scan(chartFolder: CachedFile[], max_threads: number) {
 		const audioFiles = this.getAudioFiles(chartFolder)
 		if (audioFiles.length === 0) { return }
 
@@ -33,8 +34,8 @@ class AudioScanner {
 	/**
 	 * @returns the audio file(s) in this chart.
 	 */
-	private getAudioFiles(chartFolder: ChartFile[]) {
-		const audioFiles: ChartFile[] = []
+	private getAudioFiles(chartFolder: CachedFile[]) {
+		const audioFiles: CachedFile[] = []
 		const stemNames: string[] = []
 
 		for (const file of chartFolder) {
@@ -62,7 +63,7 @@ class AudioScanner {
 	}
 }
 
-export async function scanAudio(chartFolder: ChartFile[], max_threads: number) {
+export async function scanAudio(chartFolder: CachedFile[], max_threads: number) {
 	const audioScanner = new AudioScanner()
 	await audioScanner.scan(chartFolder, max_threads)
 	return {

@@ -7,11 +7,10 @@
  * @returns a `number[]` that contains the results of the calculation and an array of any
  * errors that occured during the calculation. If there are errors, the `number[]` will be empty.
  */
-export async function calculateFingerprint(audioFiles: { data: Buffer }[], audioFilter: 'amix' | 'amerge') {
+export async function calculateFingerprint(audioFiles: { filepath: string }[], audioFilter: 'amix' | 'amerge') {
 	const ffmpegPath = await require('ffmpeg-static')
 	const ffmpegProbe = await require('ffprobe-static')
 	const ffmpeg = await require('fluent-ffmpeg')
-	const stream = await require('stream')
 	const random = await require('random')
 	const seedrandom = await require('seedrandom')
 	const Codegen = require('stream-audio-fingerprint/codegen_landmark')
@@ -84,7 +83,7 @@ export async function calculateFingerprint(audioFiles: { data: Buffer }[], audio
 		let audioCount = 0
 		for (let i = 0; i < audioFiles.length; i++) {
 			try {
-				ffmpegCommand = ffmpegCommand.input(stream.Readable.from(audioFiles[i].data))
+				ffmpegCommand = ffmpegCommand.input(audioFiles[i].filepath)
 			} catch (err) { errors.push(`Failed to process audio file (${audioFiles[i]}):\n${err}`) }
 			audioCount++
 		}

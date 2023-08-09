@@ -2,7 +2,7 @@ import ffmpeg from 'fluent-ffmpeg'
 import { Readable } from 'stream'
 import { pool, WorkerPool } from 'workerpool'
 
-import { ChartFile } from '../interfaces'
+import { CachedFile } from 'src/cached-file'
 import { calculateFingerprint } from './audio-fingerprint'
 
 /** Maximum number of seconds of audio to analyze per stem */
@@ -34,7 +34,7 @@ export class AudioParser {
 	 * @returns the audio fingerprint and audio length of each file in `audioFiles`.
 	 * Includes any errors that occured during this process.
 	 */
-	public async getAudioFingerprint(audioFiles: ChartFile[]) {
+	public async getAudioFingerprint(audioFiles: CachedFile[]) {
 		let audioLengths: number[]
 		try {
 			audioLengths = await Promise.all(audioFiles.map(audioFile => this.getAudioLength(audioFile)))
@@ -62,7 +62,7 @@ export class AudioParser {
 	 * @returns the length of `audioFile` (in seconds).
 	 * @throws an exception if the audio file could not be parsed.
 	 */
-	private async getAudioLength(audioFile: ChartFile) {
+	private async getAudioLength(audioFile: CachedFile) {
 		return new Promise<number>((resolve, reject) => {
 			ffmpeg(Readable.from(audioFile.data)).ffprobe((err, metadata) => {
 				if (err) {
