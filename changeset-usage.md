@@ -1,4 +1,4 @@
-- Run `npx changeset`
+- Run `npx changeset` before committing changes
 - Commit to master branch
 - Wait for automatic pull request and merge it
-- Run `npx changeset publish`
+- Run `pnpm release`
