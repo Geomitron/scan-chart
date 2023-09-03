@@ -139,6 +139,8 @@ interface NotesData {
 	hasSoloSections: boolean
 	/** If the chart contains any lyric events. */
 	hasLyrics: boolean
+	/** If the chart contains a "vocals" track. */
+	hasVocals: boolean
 	/** If a forced note event occurs in any track. */
 	hasForcedNotes: boolean
 	/** If a tap note event occurs in any track. */
