@@ -62,6 +62,7 @@ class ChartParser {
 			instruments: [],
 			hasSoloSections: false,
 			hasLyrics: false,
+			hasVocals: false,
 			hasForcedNotes: false,
 			hasTapNotes: false,
 			hasOpenNotes: false,

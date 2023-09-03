@@ -47,6 +47,7 @@ class MidiParser {
 			instruments: [],
 			hasSoloSections: false,
 			hasLyrics: false,
+			hasVocals: false,
 			hasForcedNotes: false,
 			hasTapNotes: false,
 			hasOpenNotes: false,
@@ -313,7 +314,14 @@ class MidiParser {
 			this.notesData.chartIssues.push('noNotes')
 			return this.notesData
 		}
-		if (this.tracks.find(t => t.trackName === 'PART VOCALS')?.trackEvents?.length) { this.notesData.hasLyrics = true }
+
+		const vocalEvents = this.tracks.find(t => t.trackName === 'PART VOCALS')?.trackEvents
+		if (vocalEvents?.length) {
+			this.notesData.hasLyrics = true
+			if (vocalEvents.find(te => te.param1! !== 105 && te.param1! !== 106)) {
+				this.notesData.hasVocals = true
+			}
+		}
 		const sectionEvents = _.chain(this.tracks.find(t => t.trackName === 'EVENTS')?.trackEvents ?? [])
 			.map(ete => ete.data?.map(dta => String.fromCharCode(dta)).join('') ?? '')
 			.filter(name => name.includes('[section') || name.includes('[prc_'))
