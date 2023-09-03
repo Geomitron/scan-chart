@@ -81,6 +81,8 @@ interface Chart {
 	diff_guitarghl?: number
 	/** The difficulty rating of the GHL (6-fret) bass guitar chart. Usually an integer between 0 and 6 (inclusive) */
 	diff_bassghl?: number
+	/** The difficulty rating of the vocals chart. Usually an integer between 0 and 6 (inclusive) */
+	diff_vocals?: number
 	/** The number of milliseconds into the song where the chart's audio preview should start playing. */
 	preview_start_time?: number
 	/** The name of the icon to be displayed on the chart. Usually represents a charter or setlist. */

@@ -157,7 +157,8 @@ class ChartsScanner {
 				(instruments.includes('drums') && iniData.metadata.diff_drums === defaultMetadata.diff_drums) ||
 				(instruments.includes('keys') && iniData.metadata.diff_keys === defaultMetadata.diff_keys) ||
 				(instruments.includes('guitarghl') && iniData.metadata.diff_guitarghl === defaultMetadata.diff_guitarghl) ||
-				(instruments.includes('bassghl') && iniData.metadata.diff_bassghl === defaultMetadata.diff_bassghl)
+				(instruments.includes('bassghl') && iniData.metadata.diff_bassghl === defaultMetadata.diff_bassghl) ||
+				(chartData.notesData.hasVocals && iniData.metadata.diff_vocals === defaultMetadata.diff_vocals)
 			)) { chart.metadataIssues.push('missingInstrumentDiff') }
 		}
 
