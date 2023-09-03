@@ -1,5 +1,15 @@
 # scan-chart
 
+## 1.2.0
+
+### Minor Changes
+
+- bef6a54: Add hasVocals
+
+### Patch Changes
+
+- f4a12e7: Update README
+
 ## 1.1.4
 
 ### Patch Changes
