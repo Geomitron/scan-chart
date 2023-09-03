@@ -1,5 +1,11 @@
 # scan-chart
 
+## 1.4.0
+
+### Minor Changes
+
+- 88e1132: Add hasVideoBackground
+
 ## 1.3.0
 
 ### Minor Changes
