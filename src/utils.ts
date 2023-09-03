@@ -91,6 +91,13 @@ export function hasAlbumName(name: string) {
 }
 
 /**
+ * @returns `true` if `name` is a valid video filename.
+ */
+export function hasVideoName(name: string) {
+	return parse(name).name === 'video' && (['.mp4', '.avi', '.webm', '.ogv', '.mpeg'].includes(parse(name).ext))
+}
+
+/**
  * @returns `text` with all style tags removed. (e.g. "<color=#AEFFFF>Aren Eternal</color> & Geo" -> "Aren Eternal & Geo")
  */
 export function removeStyleTags(text: string) {

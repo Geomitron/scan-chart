@@ -11,7 +11,7 @@ import { scanChart } from './chart'
 import { scanImage } from './image'
 import { defaultMetadata, scanIni } from './ini'
 import { Chart, EventType, ScannedChart } from './interfaces'
-import { appearsToBeChartFolder, RequireMatchingProps, Subset } from './utils'
+import { appearsToBeChartFolder, hasVideoName, RequireMatchingProps, Subset } from './utils'
 
 export * from './interfaces'
 
@@ -187,6 +187,8 @@ class ChartsScanner {
 		if (!chartData.notesData /* TODO: || !audioData.audioHash */) {
 			chart.playable = false
 		}
+
+		chart.hasVideoBackground = chartFolder.some(file => hasVideoName(file.name))
 
 		return chart as Chart
 	}

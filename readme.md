@@ -125,6 +125,8 @@ interface Chart {
 	folderIssues: { folderIssue: FolderIssueType; description: string }[]
 	/** Issues with the chart's metadata. */
 	metadataIssues: MetadataIssueType[]
+	/** `true` if the chart has a video background. */
+	hasVideoBackground: boolean
 }
 
 interface AlbumArt {
