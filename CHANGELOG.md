@@ -1,5 +1,11 @@
 # scan-chart
 
+## 1.5.0
+
+### Minor Changes
+
+- 3ceaee6: Add chartMd5
+
 ## 1.4.0
 
 ### Minor Changes
