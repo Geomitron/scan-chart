@@ -200,6 +200,8 @@ export interface AlbumArt {
 export interface Chart {
 	/** An MD5 hash of the names and binary contents of every file in the chart. */
 	md5: string
+	/** An MD5 hash of just the chart file. If this changes, the score is reset. */
+	chartMd5: string
 	/** If the chart is able to be played in-game. This is `false` if `notesData` is `undefined`. */
 	playable: boolean
 
