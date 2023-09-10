@@ -10,8 +10,8 @@ export class CachedFile {
 	public name: string
 
 	// eslint-disable-next-line @typescript-eslint/naming-convention
-	private constructor(public filepath: string, private _data: Buffer | null = null, private _readStream: Readable | null) {
-		this.name = basename(filepath)
+	private constructor(public filepath: string, private _data: Buffer | null = null, private _readStream: Readable | null, name?: string) {
+		this.name = name ?? basename(filepath)
 	}
 
 	static async build(filepath: string) {
@@ -68,9 +68,9 @@ export class CachedFile {
 							file.fileStream.on('end', () => {
 								resolve(Buffer.concat(chunks))
 							})
-						}), null)
+						}), null, file.fileName)
 					} else {
-						return new CachedFile(filepath, null, file.fileStream)
+						return new CachedFile(filepath, null, file.fileStream, file.fileName)
 					}
 				}))
 
@@ -80,7 +80,7 @@ export class CachedFile {
 
 		return {
 			sngMetadata: sngHeader!.metadata,
-			files: await cachedFiles!
+			files: await cachedFiles!,
 		}
 	}
 

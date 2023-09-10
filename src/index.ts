@@ -148,9 +148,7 @@ class ChartsScanner {
 		chart.metadataIssues.push(...iniData.metadataIssues)
 
 		const chartData = await scanChart(chartFolder)
-		if (chartData.chartMd5) {
-			chart.chartMd5 = chartData.chartMd5
-		}
+		chart.chartMd5 = chartData.chartMd5 ?? undefined
 		chart.folderIssues.push(...chartData.folderIssues)
 		chart.metadataIssues.push(...chartData.metadataIssues)
 		if (chartData.notesData) {
