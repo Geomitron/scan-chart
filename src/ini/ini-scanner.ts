@@ -68,26 +68,26 @@ class IniScanner {
 	private addFolderIssue(folderIssue: FolderIssueType, description: string) {
 		this.folderIssues.push({ folderIssue, description })
 	}
-	private logError(description: string, err: Error) {
-		throw new Error(description + '\n' + err.message + '\n' + err.stack)
-	}
 
 	/**
 	 * Sets `this.metadata` to the ini metadata provided in `this.chartFolder`.
 	 */
-	public scan(chartFolder: CachedFile[]) {
-		const iniChartFile = this.getIniChartFile(chartFolder)
-		if (!iniChartFile) { return }
+	public scan(chartFolder: CachedFile[], sngMetadata?: { [key: string]: string }) {
+		if (sngMetadata) {
+			this.iniObject = { 'song': sngMetadata }
+		} else {
+			const iniChartFile = this.getIniChartFile(chartFolder)
+			if (!iniChartFile) { return }
 
-		const iniFile = this.getIniAtFile(iniChartFile)
-		if (!iniFile) { return }
+			const iniFile = this.getIniAtFile(iniChartFile)
+			if (!iniFile) { return }
 
-		this.iniObject = iniFile
-		this.iniObject.song = iniFile.song || iniFile.Song || iniFile.SONG
-
-		if (iniFile.song === undefined) {
-			this.addFolderIssue('invalidMetadata', `"song.ini" doesn't have a "[Song]" section`)
-			return
+			this.iniObject = iniFile
+			this.iniObject.song = iniFile.song || iniFile.Song || iniFile.SONG
+			if (iniFile.song === undefined) {
+				this.addFolderIssue('invalidMetadata', `"song.ini" doesn't have a "[Song]" section`)
+				return
+			}
 		}
 
 		this.extractIniMetadata()
@@ -236,9 +236,9 @@ class IniScanner {
 	}
 }
 
-export function scanIni(chartFolder: CachedFile[]) {
+export function scanIni(chartFolder: CachedFile[], sngMetadata?: { [key: string]: string }) {
 	const iniScanner = new IniScanner()
-	iniScanner.scan(chartFolder)
+	iniScanner.scan(chartFolder, sngMetadata)
 	return {
 		metadata: iniScanner.metadata,
 		folderIssues: iniScanner.folderIssues,

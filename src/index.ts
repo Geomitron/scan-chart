@@ -11,7 +11,7 @@ import { scanChart } from './chart'
 import { scanImage } from './image'
 import { defaultMetadata, scanIni } from './ini'
 import { Chart, EventType, ScannedChart } from './interfaces'
-import { appearsToBeChartFolder, hasVideoName, RequireMatchingProps, Subset } from './utils'
+import { appearsToBeChartFolder, hasSngExtension, hasVideoName, RequireMatchingProps, Subset } from './utils'
 
 export * from './interfaces'
 
@@ -70,15 +70,24 @@ class ChartsScanner {
 		const charts: ScannedChart[] = []
 		for (const chartFolder of chartFolders) {
 			limiter.schedule(async () => {
-				const chartFiles: CachedFile[] = []
-				await Promise.all(chartFolder.files.map(async file => {
-					chartFiles.push(await CachedFile.build(join(chartFolder.path, file.name)))
-				}))
-				const result = {
-					chart: await this.scanChartFolder(chartFiles),
-					chartPath: relative(this.chartsFolder, chartFolder.path),
+				let chart: Chart
+
+				if (chartFolder.files.length === 1 && hasSngExtension(chartFolder.files[0].name)) {
+					const { sngMetadata, files } = await CachedFile.buildFromSng(join(chartFolder.path, chartFolder.files[0].name))
+					chart = await this.scanChartFolder(files, sngMetadata)
+				} else {
+					const chartFiles: CachedFile[] = []
+					await Promise.all(chartFolder.files.map(async file => {
+						chartFiles.push(await CachedFile.build(join(chartFolder.path, file.name)))
+					}))
+					chart = await this.scanChartFolder(chartFiles)
 				}
-				if (result.chart) {
+
+				if (chart) {
+					const result = {
+						chart,
+						chartPath: relative(this.chartsFolder, chartFolder.path),
+					}
 					charts.push(result as ScannedChart)
 					this.eventEmitter.emit('chart', result, chartCounter, chartFolders.length)
 				}
@@ -107,6 +116,9 @@ class ChartsScanner {
 
 		const files = await readdir(path, { withFileTypes: true })
 
+		const sngFiles = files.filter(f => !f.isDirectory() && hasSngExtension(f.name))
+		chartFolders.push(...sngFiles.map(sf => ({ path, files: [sf] })))
+
 		if (appearsToBeChartFolder(files.map(file => parse(file.name).ext.substring(1)))) {
 			chartFolders.push({ path, files: files.filter(f => !f.isDirectory()) })
 			this.eventEmitter.emit('folder', relative(this.chartsFolder, path))
@@ -122,7 +134,7 @@ class ChartsScanner {
 		return chartFolders
 	}
 
-	private async scanChartFolder(chartFolder: CachedFile[]) {
+	private async scanChartFolder(chartFolder: CachedFile[], sngMetadata?: { [key: string]: string }) {
 		const chart: RequireMatchingProps<Subset<Chart>, 'folderIssues' | 'metadataIssues' | 'playable'> = {
 			folderIssues: [],
 			metadataIssues: [],
@@ -131,7 +143,7 @@ class ChartsScanner {
 
 		chart.md5 = await this.getChartMD5(chartFolder)
 
-		const iniData = scanIni(chartFolder)
+		const iniData = scanIni(chartFolder, sngMetadata)
 		chart.folderIssues.push(...iniData.folderIssues)
 		chart.metadataIssues.push(...iniData.metadataIssues)
 

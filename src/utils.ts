@@ -40,6 +40,13 @@ export function appearsToBeChartFolder(extensions: string[]) {
 }
 
 /**
+ * @returns `true` if `name` has a valid sng file extension.
+ */
+export function hasSngExtension(name: string) {
+	return '.sng' === parse(name.toLowerCase()).ext
+}
+
+/**
  * @returns `true` if `name` has a valid ini file extension.
  */
 export function hasIniExtension(name: string) {

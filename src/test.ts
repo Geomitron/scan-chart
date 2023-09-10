@@ -4,7 +4,7 @@ import { scanCharts } from './'
 
 async function main() {
 	console.time('Scan function')
-	const result = scanCharts('C:\\Users\\Geo\\Desktop\\clone_hero\\charts\\Fuse Box')
+	const result = scanCharts('C:\\dev\\test-scan')
 	result.on('error', err => console.log(err))
 	result.on('folder', folderName => {
 		console.log(`Scanned: ${folderName}`)
