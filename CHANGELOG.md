@@ -1,5 +1,11 @@
 # scan-chart
 
+## 1.6.1
+
+### Patch Changes
+
+- 1ba8dee: Fix .sng parsing
+
 ## 1.6.0
 
 ### Minor Changes
