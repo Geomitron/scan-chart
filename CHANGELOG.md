@@ -1,5 +1,15 @@
 # scan-chart
 
+## 1.6.0
+
+### Minor Changes
+
+- bffcd8e: Add .sng support
+
+### Patch Changes
+
+- 52d0ed3: Fix dependencies
+
 ## 1.5.0
 
 ### Minor Changes
