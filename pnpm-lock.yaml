@@ -24,8 +24,8 @@ dependencies:
     specifier: ^2.0.0
     version: 2.0.0
   parse-sng:
-    specifier: ^2.0.0
-    version: 2.0.0
+    specifier: ^3.0.0
+    version: 3.0.0
   sanitize-filename:
     specifier: ^1.6.3
     version: 1.6.3
@@ -2850,6 +2850,11 @@ packages:
     engines: {node: '>=0.10.0'}
     dev: true
 
+  /events@3.3.0:
+    resolution: {integrity: sha512-mQw+2fkQbALzQ7V0MY0IqdnXNOeTtP4r0lN9z7AAawCXgqea7bDii20AYrIBrFd/Hx0M2Ocz6S111CaFkUcb0Q==}
+    engines: {node: '>=0.8.x'}
+    dev: false
+
   /execa@5.1.1:
     resolution: {integrity: sha512-8uSpZZocAZRBAPIEINJj3Lo9HyGitllczc27Eh5YYojjMFMn8yHMDMaUHE2Jqfq05D/wucwI4JGURyXt1vchyg==}
     engines: {node: '>=10'}
@@ -4657,10 +4662,11 @@ packages:
       lines-and-columns: 1.2.4
     dev: true
 
-  /parse-sng@2.0.0:
-    resolution: {integrity: sha512-Odci+IiHoU9rpz5rxx7DurQf+Vr1ahp+GuD71570rxJ0tbcXISI37UHVbzrXX8lYEP0ydJGTG1hg1Lw5RqcmEg==}
+  /parse-sng@3.0.0:
+    resolution: {integrity: sha512-KnSZaNWKz2sknZMIePEdF0ZsgvOXQHg845OmJL01KIZ7eP61MBGv/Vn3bwEKPbCSBI2tsBWhxbID1xH1/wqbyA==}
     dependencies:
       binary-parser: 2.2.1
+      events: 3.3.0
     dev: false
 
   /path-exists@4.0.0:

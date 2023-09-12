@@ -9,8 +9,14 @@ export class CachedFile {
 
 	public name: string
 
-	// eslint-disable-next-line @typescript-eslint/naming-convention
-	private constructor(public filepath: string, private _data: Buffer | null = null, private _readStream: Readable | null, name?: string) {
+	private constructor(
+		public filepath: string,
+		// eslint-disable-next-line @typescript-eslint/naming-convention
+		private _data: Buffer | null = null,
+		// eslint-disable-next-line @typescript-eslint/naming-convention
+		private _readStream: ReadableStream<Uint8Array> | null,
+		name?: string,
+	) {
 		this.name = name ?? basename(filepath)
 	}
 
@@ -28,7 +34,7 @@ export class CachedFile {
 		if (fileSizeMiB < 2048) {
 			return new CachedFile(filepath, await readFile(filepath), null)
 		} else {
-			return new CachedFile(filepath, null, createReadStream(filepath))
+			return new CachedFile(filepath, null, Readable.toWeb(createReadStream(filepath)) as ReadableStream<Uint8Array>)
 		}
 	}
 
@@ -45,7 +51,11 @@ export class CachedFile {
 		let sngHeader: SngHeader
 		let cachedFiles: Promise<CachedFile[]>
 
-		const sngStream = new SngStream((start, end) => createReadStream(filepath, { start: Number(start), end: Number(end) || undefined }))
+		const sngStream = new SngStream(
+			(start, end) => Readable.toWeb(
+				createReadStream(filepath, { start: Number(start), end: Number(end) || undefined })
+			) as ReadableStream<Uint8Array>
+		)
 		sngStream.on('header', header => sngHeader = header)
 
 		await new Promise<void>((resolve, reject) => {
@@ -53,29 +63,36 @@ export class CachedFile {
 			sngStream.on('error', err => reject(err))
 
 			sngStream.on('files', files => {
-				cachedFiles = Promise.all(files.map(async file => {
+				cachedFiles = Promise.all(files.map(async ({ fileName, fileStream }) => {
 
-					const fileSizeMiB = Number(sngHeader.fileMeta.find(fm => fm.filename === file.fileName)!.contentsLen) / 1024 / 1024
+					const fileSizeMiB = Number(sngHeader.fileMeta.find(fm => fm.filename === fileName)!.contentsLen) / 1024 / 1024
 
 					if (fileSizeMiB < 2048) {
-						return new CachedFile(filepath, await new Promise<Buffer>((resolve, reject) => {
-							const chunks: Buffer[] = []
+						const chunks: Uint8Array[] = []
+						const reader = fileStream.getReader()
 
-							file.fileStream.on('error', reject)
-							file.fileStream.on('data', (chunk: Buffer) => {
-								chunks.push(chunk)
-							})
-							file.fileStream.on('end', () => {
-								resolve(Buffer.concat(chunks))
-							})
-						}), null, file.fileName)
+						// eslint-disable-next-line no-constant-condition
+						while (true) {
+							try {
+								const result = await reader.read()
+								if (result.done) { break }
+								chunks.push(result.value)
+							} catch (err) {
+								reject(err)
+								return new CachedFile(filepath, null, null)
+							}
+						}
+
+						return new CachedFile(filepath, Buffer.concat(chunks), null, fileName)
 					} else {
-						return new CachedFile(filepath, null, file.fileStream, file.fileName)
+						return new CachedFile(filepath, null, fileStream, fileName)
 					}
 				}))
 
 				resolve()
 			})
+
+			sngStream.start()
 		})
 
 		return {
@@ -99,7 +116,7 @@ export class CachedFile {
 	 */
 	get readStream() {
 		if (this._data) {
-			return Readable.from(this._data)
+			return Readable.toWeb(Readable.from(this._data)) as ReadableStream<Uint8Array>
 		} else {
 			return this._readStream!
 		}
@@ -108,16 +125,15 @@ export class CachedFile {
 	async getMD5() {
 		const hash = createHash('md5')
 
-		const readStream = this.readStream
+		const reader = this.readStream.getReader()
 
-		readStream.on('data', chunk => {
-			hash.update(chunk)
-		})
+		// eslint-disable-next-line no-constant-condition
+		while (true) {
+			const result = await reader.read()
+			if (result.done) { break }
+			hash.update(result.value)
+		}
 
-		return new Promise<string>(resolve => {
-			readStream.on('end', () => {
-				resolve(hash.digest('hex'))
-			})
-		})
+		return hash.digest('hex')
 	}
 }
