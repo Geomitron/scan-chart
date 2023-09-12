@@ -28,7 +28,7 @@
     "lodash": "^4.17.21",
     "midievents": "^2.0.0",
     "midifile": "^2.0.0",
-    "parse-sng": "^3.0.0",
+    "parse-sng": "^3.0.1",
     "sanitize-filename": "^1.6.3",
     "sharp": "^0.32.1",
     "stream-audio-fingerprint": "git+https://github.com/Geomitron/stream-audio-fingerprint.git",
