@@ -1,5 +1,11 @@
 # scan-chart
 
+## 1.7.0
+
+### Minor Changes
+
+- 9460c40: Use ReadableStream
+
 ## 1.6.1
 
 ### Patch Changes
