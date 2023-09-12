@@ -1,5 +1,11 @@
 # scan-chart
 
+## 1.7.1
+
+### Patch Changes
+
+- a752512: Update dependencies
+
 ## 1.7.0
 
 ### Minor Changes
