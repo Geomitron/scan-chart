@@ -1,5 +1,11 @@
 # scan-chart
 
+## 1.8.0
+
+### Minor Changes
+
+- a621e99: Added hasRollLanes
+
 ## 1.7.1
 
 ### Patch Changes
