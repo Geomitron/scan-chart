@@ -67,6 +67,7 @@ class ChartParser {
 			hasTapNotes: false,
 			hasOpenNotes: false,
 			has2xKick: false,
+			hasRollLanes: false,
 			noteIssues: [],
 			trackIssues: [],
 			chartIssues: [],
@@ -231,6 +232,8 @@ class ChartParser {
 				switch (value) {
 					case '2': return EventType.starPower
 					case '64': return EventType.activationLane
+					case '65': return EventType.rollLaneSingle
+					case '66': return EventType.rollLaneDouble
 					default: return null
 				}
 			}

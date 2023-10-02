@@ -9,7 +9,7 @@ const MIN_SUSTAIN_MS = 100
 const NPS_GROUP_SIZE_MS = 1000
 
 export class TrackParser {
-	/** Includes all track event types except `starPower`, `soloMarker`, and `activationLane`. */
+	/** Includes all track event types except `starPower`, `soloMarker`, `activationLane`, `rollLaneSingle`, and `rollLaneDouble`. */
 	private notes: TrackEvent[]
 	private groupedNotes: GroupedTrackEvent[]
 
@@ -25,7 +25,14 @@ export class TrackParser {
 	) {
 		if (!notesData.instruments.includes(this.instrument)) { notesData.instruments.push(this.instrument) }
 
-		const nonNoteEvents = [EventType.starPower, EventType.soloMarker, EventType.activationLane]
+		const nonNoteEvents = [
+			EventType.starPower,
+			EventType.soloMarker,
+			EventType.activationLane,
+			EventType.rollLaneSingle,
+			EventType.rollLaneDouble,
+		]
+
 		this.notes = trackEvents.filter(event => !nonNoteEvents.includes(event.type))
 		this.groupedNotes = _.chain(this.notes)
 			.groupBy(note => note.time)
@@ -113,6 +120,7 @@ export class TrackParser {
 			if (event.type === EventType.soloMarker && this.format === 'mid') { trackHasStarPower = true }
 			if (event.type === EventType.activationLane) { trackHasActivationLanes = true }
 			if (event.type === EventType.kick2x) { this.notesData.has2xKick = true }
+			if (event.type === EventType.rollLaneSingle || event.type === EventType.rollLaneDouble) { this.notesData.hasRollLanes = true }
 		}
 		const nonKickDrumNoteIds = [EventType.green, EventType.red, EventType.yellow, EventType.blue, EventType.orange]
 		const kickDrumNoteIds = [EventType.kick]

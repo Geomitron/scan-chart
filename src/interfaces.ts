@@ -41,6 +41,8 @@ export enum EventType {
 	activationLane,
 	kick,
 	kick2x,
+	rollLaneSingle,
+	rollLaneDouble,
 }
 
 export type FolderIssueType =
@@ -136,6 +138,8 @@ export interface NotesData {
 	hasOpenNotes: boolean
 	/** If a 2xKick event occurs in any "drums" track. */
 	has2xKick: boolean
+	/** If a single or double roll lane event occurs in any "drums" track. */
+	hasRollLanes: boolean
 	/** Issues with individual notes in the chart. */
 	noteIssues: {
 		instrument: Instrument

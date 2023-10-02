@@ -52,6 +52,7 @@ class MidiParser {
 			hasTapNotes: false,
 			hasOpenNotes: false,
 			has2xKick: false,
+			hasRollLanes: false,
 			noteIssues: [],
 			trackIssues: [],
 			chartIssues: [],
@@ -155,13 +156,17 @@ class MidiParser {
 
 		const note = event.param1!
 		const difficulty = note <= 66 ? 'easy' : note <= 78 ? 'medium' : note <= 90 ? 'hard' : note <= 102 ? 'expert' : null
-		// Instrument event (solo marker, star power, activation lane) (applies to all difficulties)
+		// Instrument event (solo marker, star power, activation lane, roll lane) (applies to all difficulties)
 		if (!difficulty) {
 			return {
 				difficulty,
 				time: event.playTime!,
-				type: note === 103 ? EventType.soloMarker : note === 116 ? EventType.starPower :
-					note >= 120 && note <= 124 ? EventType.activationLane : null,
+				type: note === 103 ? EventType.soloMarker
+					: note === 116 ? EventType.starPower
+						: note >= 120 && note <= 124 ? EventType.activationLane
+							: note === 126 ? EventType.rollLaneSingle
+								: note === 127 ? EventType.rollLaneDouble
+									: null,
 				isStart: event.subtype === EVENT_MIDI_NOTE_ON,
 			}
 		}
@@ -225,6 +230,8 @@ class MidiParser {
 				case EventType.starPower: break
 				case EventType.soloMarker: break
 				case EventType.activationLane: break
+				case EventType.rollLaneSingle: break
+				case EventType.rollLaneDouble: break
 				case EventType.force: break
 				default: {
 					if (openEnabled) { trackEventEnd.type = EventType.open }
