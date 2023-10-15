@@ -1,5 +1,11 @@
 # scan-chart
 
+## 1.8.1
+
+### Patch Changes
+
+- 1b266bb: Fix uncaught exception
+
 ## 1.8.0
 
 ### Minor Changes
