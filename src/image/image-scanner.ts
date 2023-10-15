@@ -61,7 +61,7 @@ class ImageScanner {
 				this.addFolderIssue('albumArtSize', `This chart's album art is ${heightWidth}, and should be 512x512`)
 			}
 
-			return image
+			return await image
 				.resize(500, 500)
 				.jpeg({ quality: 75 }) // Note: reducing quality is more effective than reducing image size
 				.toBuffer()
