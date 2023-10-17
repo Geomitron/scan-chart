@@ -1,5 +1,11 @@
 # scan-chart
 
+## 1.9.0
+
+### Minor Changes
+
+- 4759cb7: Add onlyScanSng
+
 ## 1.8.1
 
 ### Patch Changes
