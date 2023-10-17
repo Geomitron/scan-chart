@@ -1,5 +1,10 @@
 import { Overwrite } from './utils'
 
+export interface ScanChartsConfig {
+	/** Ignore scanning all charts except ones found in .sng files. Defaults to `false`. */
+	onlyScanSng?: boolean
+}
+
 export type Instrument =
 	'guitar' |     // Lead Guitar
 	'guitarcoop' | // Co-op Guitar

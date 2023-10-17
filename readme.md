@@ -6,7 +6,12 @@ This package scans charts for rhythm games like Clone Hero and produces useful m
 /**
  * Scans the charts in the `chartsFolder` directory and returns an event emitter that emits the results.
  */
-function scanCharts(chartsFolder: string): ScanChartsResult
+function scanCharts(chartsFolder: string, config?: ScanChartsConfig): ScanChartsResult
+
+interface ScanChartsConfig {
+	/** Ignore scanning all charts except ones found in .sng files. Defaults to `false`. */
+	onlyScanSng?: boolean
+}
 
 interface ScanChartsResult {
 	/**
