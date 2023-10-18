@@ -78,8 +78,9 @@ class ChartsScanner {
 		for (const chartFolder of chartFolders) {
 			limiter.schedule(async () => {
 				let chart: Chart
+				const isSng = chartFolder.files.length === 1 && hasSngExtension(chartFolder.files[0].name)
 
-				if (chartFolder.files.length === 1 && hasSngExtension(chartFolder.files[0].name)) {
+				if (isSng) {
 					const { sngMetadata, files } = await CachedFile.buildFromSng(join(chartFolder.path, chartFolder.files[0].name))
 					chart = await this.scanChartFolder(files, sngMetadata)
 				} else {
@@ -93,7 +94,10 @@ class ChartsScanner {
 				if (chart) {
 					const result = {
 						chart,
-						chartPath: relative(this.chartsFolder, chartFolder.path),
+						chartPath: relative(
+							this.chartsFolder,
+							isSng ? join(chartFolder.path, chartFolder.files[0].name) : chartFolder.path,
+						),
 					}
 					charts.push(result as ScannedChart)
 					this.eventEmitter.emit('chart', result, chartCounter, chartFolders.length)
