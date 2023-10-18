@@ -92,14 +92,15 @@ class ChartsScanner {
 				}
 
 				if (chart) {
-					const result = {
+					const result: ScannedChart = {
 						chart,
+						isSng,
 						chartPath: relative(
 							this.chartsFolder,
 							isSng ? join(chartFolder.path, chartFolder.files[0].name) : chartFolder.path,
 						),
 					}
-					charts.push(result as ScannedChart)
+					charts.push(result)
 					this.eventEmitter.emit('chart', result, chartCounter, chartFolders.length)
 				}
 				chartCounter++
