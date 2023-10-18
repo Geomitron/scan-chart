@@ -1,5 +1,15 @@
 # scan-chart
 
+## 1.10.0
+
+### Minor Changes
+
+- abb35a0: Add isSng
+
+### Patch Changes
+
+- 92356dd: Update chartPath for .sng files
+
 ## 1.9.0
 
 ### Minor Changes
