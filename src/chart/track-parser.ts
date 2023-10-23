@@ -159,7 +159,6 @@ export class TrackParser {
 		if (this.instrument !== 'guitarghl' && this.instrument !== 'bassghl') {
 			const fiveNoteChordIds = [EventType.green, EventType.red, EventType.yellow, EventType.blue, EventType.orange]
 			const greenBlueChordIds = [EventType.green, EventType.blue]
-			const redOrangeChordIds = [EventType.red, EventType.orange]
 			const greenOrangeChordIds = [EventType.green, EventType.orange]
 			const orangeIds = [EventType.orange]
 			const orangeBlueIds = [EventType.orange, EventType.blue]
@@ -168,8 +167,6 @@ export class TrackParser {
 				if (this.typeCount(note, fiveNoteChordIds) === 5) { this.addNoteIssue('fiveNoteChord', note.time) }
 				// Check for notes forbidden on lower difficulties
 				if (this.difficulty === 'hard') {
-					if (this.typeCount(note, greenBlueChordIds) === 2) { this.addNoteIssue('difficultyForbiddenNote', note.time) }
-					if (this.typeCount(note, redOrangeChordIds) === 2) { this.addNoteIssue('difficultyForbiddenNote', note.time) }
 					if (this.typeCount(note, greenOrangeChordIds) === 2) { this.addNoteIssue('difficultyForbiddenNote', note.time) }
 				} else if (this.difficulty === 'medium') {
 					if (this.typeCount(note, orangeIds) > 0) { this.addNoteIssue('difficultyForbiddenNote', note.time) }
