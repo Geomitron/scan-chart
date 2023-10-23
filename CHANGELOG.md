@@ -1,5 +1,11 @@
 # scan-chart
 
+## 1.11.0
+
+### Minor Changes
+
+- 9342058: Allow GB and RO chords on hard difficulty
+
 ## 1.10.0
 
 ### Minor Changes
