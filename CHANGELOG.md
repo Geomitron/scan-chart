@@ -1,5 +1,11 @@
 # scan-chart
 
+## 1.11.1
+
+### Patch Changes
+
+- c131d04: Update AlbumArt docs
+
 ## 1.11.0
 
 ### Minor Changes
