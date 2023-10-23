@@ -139,7 +139,7 @@ interface Chart {
 }
 
 interface AlbumArt {
-	/** The binary buffer of the album art image. */
+	/** The binary buffer of the album art image, in the .jpg format (quality 75%), resized to 512x512. */
 	data: Uint8Array
 	/** The MD5 hash of `data`. */
 	md5: string

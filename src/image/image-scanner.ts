@@ -62,7 +62,7 @@ class ImageScanner {
 			}
 
 			return await image
-				.resize(500, 500)
+				.resize(512, 512)
 				.jpeg({ quality: 75 }) // Note: reducing quality is more effective than reducing image size
 				.toBuffer()
 		} catch (err) {
