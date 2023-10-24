@@ -1,5 +1,11 @@
 # scan-chart
 
+## 1.11.2
+
+### Patch Changes
+
+- 8e0ae35: Update dependencies
+
 ## 1.11.1
 
 ### Patch Changes
