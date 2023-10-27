@@ -1,5 +1,11 @@
 # scan-chart
 
+## 1.11.3
+
+### Patch Changes
+
+- e5fc801: Update dependencies
+
 ## 1.11.2
 
 ### Patch Changes
