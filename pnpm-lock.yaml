@@ -24,8 +24,8 @@ dependencies:
     specifier: ^2.0.0
     version: 2.0.0
   parse-sng:
-    specifier: ^3.0.4
-    version: 3.0.4
+    specifier: ^3.0.5
+    version: 3.0.5
   sanitize-filename:
     specifier: ^1.6.3
     version: 1.6.3
@@ -4662,8 +4662,8 @@ packages:
       lines-and-columns: 1.2.4
     dev: true
 
-  /parse-sng@3.0.4:
-    resolution: {integrity: sha512-O6vxoWXX+n9Np3Ck24Rn97PPRgdRLDJrSRBDf2NdhDIm1tvm0poPm8keegWWdbEF97fOSuhIKCZVWG0/whRsLA==}
+  /parse-sng@3.0.5:
+    resolution: {integrity: sha512-RLxKkB/gC8+iqS0EXZIYalmC9UxjAp+So6C6VEMfrKmNVKeJ49Jy2R20WFUQdV2gSkOtdsgbO1/Jtr62U/VuBQ==}
     dependencies:
       binary-parser: 2.2.1
       events: 3.3.0
