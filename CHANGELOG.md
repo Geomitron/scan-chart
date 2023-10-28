@@ -1,5 +1,11 @@
 # scan-chart
 
+## 1.12.1
+
+### Patch Changes
+
+- 7f40077: Update dependencies
+
 ## 1.12.0
 
 ### Minor Changes
