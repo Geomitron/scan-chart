@@ -1,5 +1,11 @@
 # scan-chart
 
+## 1.12.2
+
+### Patch Changes
+
+- c692e79: Update dependencies
+
 ## 1.12.1
 
 ### Patch Changes
