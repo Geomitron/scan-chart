@@ -177,6 +177,7 @@ class ChartsScanner {
 			const instruments = chartData.notesData.instruments
 			if (iniData.metadata && (
 				(instruments.includes('guitar') && iniData.metadata.diff_guitar === defaultMetadata.diff_guitar) ||
+				(instruments.includes('guitarcoop') && iniData.metadata.diff_guitar_coop === defaultMetadata.diff_guitar_coop) ||
 				(instruments.includes('rhythm') && iniData.metadata.diff_rhythm === defaultMetadata.diff_rhythm) ||
 				(instruments.includes('bass') && iniData.metadata.diff_bass === defaultMetadata.diff_bass) ||
 				(instruments.includes('drums') && iniData.metadata.diff_drums === defaultMetadata.diff_drums) ||
@@ -185,6 +186,16 @@ class ChartsScanner {
 				(instruments.includes('bassghl') && iniData.metadata.diff_bassghl === defaultMetadata.diff_bassghl) ||
 				(chartData.notesData.hasVocals && iniData.metadata.diff_vocals === defaultMetadata.diff_vocals)
 			)) { chart.metadataIssues.push('missingInstrumentDiff') }
+			if (iniData.metadata && (
+				iniData.metadata.diff_guitar !== defaultMetadata.diff_guitar && !instruments.includes('guitar') ||
+				iniData.metadata.diff_guitar_coop !== defaultMetadata.diff_guitar_coop && !instruments.includes('guitarcoop') ||
+				iniData.metadata.diff_rhythm !== defaultMetadata.diff_rhythm && !instruments.includes('rhythm') ||
+				iniData.metadata.diff_bass !== defaultMetadata.diff_bass && !instruments.includes('bass') ||
+				iniData.metadata.diff_drums !== defaultMetadata.diff_drums && !instruments.includes('drums') ||
+				iniData.metadata.diff_keys !== defaultMetadata.diff_keys && !instruments.includes('keys') ||
+				iniData.metadata.diff_guitarghl !== defaultMetadata.diff_guitarghl && !instruments.includes('guitarghl') ||
+				iniData.metadata.diff_bassghl !== defaultMetadata.diff_bassghl && !instruments.includes('bassghl')
+			)) { chart.metadataIssues.push('extraInstrumentDiff') }
 		}
 
 		if (iniData.metadata) {

@@ -32,6 +32,7 @@ export const defaultMetadata = {
 	/** Units of ms */ 'song_length': 0,
 	'diff_band': -1,
 	'diff_guitar': -1,
+	'diff_guitar_coop': -1,
 	'diff_rhythm': -1,
 	'diff_bass': -1,
 	'diff_drums': -1,
@@ -154,9 +155,9 @@ class IniScanner {
 		if (this.metadata.icon === this.metadata.charter?.toLowerCase()) { this.metadata.icon = '' } // Setting `icon` can be redundant
 
 		// album_track may be stored in `this.iniFile.song.track`
-		const integers = ['song_length', 'diff_band', 'diff_guitar', 'diff_rhythm', 'diff_bass', 'diff_drums', 'diff_drums_real',
-			'diff_keys', 'diff_guitarghl', 'diff_bassghl', 'diff_vocals', 'preview_start_time', ['track', 'album_track'], 'playlist_track',
-			'delay', 'hopo_frequency', 'multiplier_note', 'video_start_time'] as const
+		const integers = ['song_length', 'diff_band', 'diff_guitar', 'diff_guitar_coop', 'diff_rhythm', 'diff_bass', 'diff_drums',
+			'diff_drums_real', 'diff_keys', 'diff_guitarghl', 'diff_bassghl', 'diff_vocals', 'preview_start_time', ['track', 'album_track'],
+			'playlist_track', 'delay', 'hopo_frequency', 'multiplier_note', 'video_start_time'] as const
 		this.extractMetadataField<CInputMetaNumberKey, CMetaNumberKey>(this.extractMetadataInteger.bind(this), integers)
 
 		const booleans = ['modchart', 'eighthnote_hopo', 'five_lane_drums', 'pro_drums', 'end_events'] as const

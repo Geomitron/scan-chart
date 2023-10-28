@@ -325,6 +325,7 @@ type MetadataIssueType =
 	'noYear' |                // Metadata is missing the "year" property
 	'noCharter' |             // Metadata is missing the "charter" property
 	'missingInstrumentDiff' | // Metadata is missing a "diff_" property
+	'extraInstrumentDiff' |   // Metadata contains a "diff_" property for an uncharted instrument
 	'nonzeroDelay' |          // Metadata contains a "delay" property that is not zero
 	'nonzeroOffset'           // Chart file contains an "Offset" property that is not zero
 ```
