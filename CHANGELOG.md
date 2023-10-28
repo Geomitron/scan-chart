@@ -1,5 +1,11 @@
 # scan-chart
 
+## 1.12.0
+
+### Minor Changes
+
+- ebf0cec: Add diff_guitar_coop and extraInstrumentDiff
+
 ## 1.11.3
 
 ### Patch Changes
