@@ -1,5 +1,11 @@
 # scan-chart
 
+## 2.0.0
+
+### Major Changes
+
+- 5f29e5a: Improved ScannedChart interface
+
 ## 1.12.2
 
 ### Patch Changes
