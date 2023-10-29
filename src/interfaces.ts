@@ -300,8 +300,12 @@ export interface Chart {
 export interface ScannedChart {
 	/** Data scanned from the chart. */
 	chart: Chart
-	/** `true` if the chart was scanned from a `.sng` file. */
-	isSng: boolean
-	/** The relative path between the chart folder and `chartsFolder`. */
+	/**
+	 * The relative path from `chartsFolder` to the folder containing the chart file(s).
+	 *
+	 * Doesn't contain `chartsFolder`, the .sng filename (if any), or leading/trailing slashes.
+	 */
 	chartPath: string
+	/** The name of the .sng file. `null` if the chart is not in the .sng format. */
+	chartFileName: string | null
 }
