@@ -125,20 +125,24 @@ class ChartsScanner {
 
 		const files = await readdir(path, { withFileTypes: true })
 
-		const sngFiles = files.filter(f => !f.isDirectory() && hasSngExtension(f.name))
-		chartFolders.push(...sngFiles.map(sf => ({ path, files: [sf] })))
-
-		if (!this.config.onlyScanSng && appearsToBeChartFolder(files.map(file => parse(file.name).ext.substring(1)))) {
-			chartFolders.push({ path, files: files.filter(f => !f.isDirectory()) })
-			this.eventEmitter.emit('folder', relative(this.chartsFolder, path))
-		}
-
 		const subfolders = _.chain(files)
 			.filter(f => f.isDirectory() && f.name !== '__MACOSX') // Apple should follow the principle of least astonishment (smh)
 			.map(f => this.getChartFolders(join(path, f.name)))
 			.value()
 
 		chartFolders.push(..._.flatMap(await Promise.all(subfolders)))
+
+		const sngFiles = files.filter(f => !f.isDirectory() && hasSngExtension(f.name))
+		chartFolders.push(...sngFiles.map(sf => ({ path, files: [sf] })))
+
+		if (
+			!this.config.onlyScanSng &&
+			appearsToBeChartFolder(files.map(file => parse(file.name).ext.substring(1))) &&
+			subfolders.length === 0 // Charts won't contain other charts
+		) {
+			chartFolders.push({ path, files: files.filter(f => !f.isDirectory()) })
+			this.eventEmitter.emit('folder', relative(this.chartsFolder, path))
+		}
 
 		return chartFolders
 	}
