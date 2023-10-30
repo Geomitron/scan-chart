@@ -1,5 +1,11 @@
 # scan-chart
 
+## 3.1.1
+
+### Patch Changes
+
+- d118b0a: Update dependencies
+
 ## 3.1.0
 
 ### Minor Changes
