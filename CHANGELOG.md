@@ -1,5 +1,11 @@
 # scan-chart
 
+## 3.0.0
+
+### Major Changes
+
+- 7347df3: Add guitarcoopghl and rhythmghl instruments
+
 ## 2.0.0
 
 ### Major Changes
