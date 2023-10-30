@@ -1,5 +1,11 @@
 # scan-chart
 
+## 3.1.0
+
+### Minor Changes
+
+- 6e969b3: Prevent scanning charts if they contain other charts in their files
+
 ## 3.0.0
 
 ### Major Changes
