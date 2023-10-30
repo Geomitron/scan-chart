@@ -16,6 +16,8 @@ const instrumentNameMap = {
 	'PART DRUMS': 'drums',
 	'PART KEYS': 'keys',
 	'PART GUITAR GHL': 'guitarghl',
+	'PART GUITAR COOP GHL': 'guitarcoopghl',
+	'PART RHYTHM GHL': 'rhythmghl',
 	'PART BASS GHL': 'bassghl',
 } as const
 /* eslint-enable @typescript-eslint/naming-convention */
@@ -174,7 +176,7 @@ class MidiParser {
 		return {
 			difficulty,
 			time: event.playTime!,
-			type: (instrument === 'guitarghl' || instrument === 'bassghl' ? this.get6FretNoteType(note, difficulty) :
+			type: (['guitarghl', 'guitarcoopghl', 'rhythmghl', 'bassghl'].includes(instrument) ? this.get6FretNoteType(note, difficulty) :
 				instrument === 'drums' ? this.getDrumsNoteType(note, difficulty) : this.get5FretNoteType(note, difficulty)) ?? null,
 			isStart: event.subtype === EVENT_MIDI_NOTE_ON,
 		}

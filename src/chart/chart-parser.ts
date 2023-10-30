@@ -40,6 +40,16 @@ const trackNameMap = {
 	MediumGHLGuitar: { instrument: 'guitarghl', difficulty: 'medium' },
 	EasyGHLGuitar: { instrument: 'guitarghl', difficulty: 'easy' },
 
+	ExpertGHLCoop: { instrument: 'guitarcoopghl', difficulty: 'expert' },
+	HardGHLCoop: { instrument: 'guitarcoopghl', difficulty: 'hard' },
+	MediumGHLCoop: { instrument: 'guitarcoopghl', difficulty: 'medium' },
+	EasyGHLCoop: { instrument: 'guitarcoopghl', difficulty: 'easy' },
+
+	ExpertGHLRhythm: { instrument: 'rhythmghl', difficulty: 'expert' },
+	HardGHLRhythm: { instrument: 'rhythmghl', difficulty: 'hard' },
+	MediumGHLRhythm: { instrument: 'rhythmghl', difficulty: 'medium' },
+	EasyGHLRhythm: { instrument: 'rhythmghl', difficulty: 'easy' },
+
 	ExpertGHLBass: { instrument: 'bassghl', difficulty: 'expert' },
 	HardGHLBass: { instrument: 'bassghl', difficulty: 'hard' },
 	MediumGHLBass: { instrument: 'bassghl', difficulty: 'medium' },
@@ -252,6 +262,8 @@ class ChartParser {
 						}
 					}
 					case 'guitarghl':
+					case 'guitarcoopghl':
+					case 'rhythmghl':
 					case 'bassghl': {
 						switch (value) {
 							case '0': return EventType.white1

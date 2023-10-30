@@ -92,6 +92,10 @@ interface Chart {
 	diff_keys?: number
 	/** The difficulty rating of the GHL (6-fret) lead guitar chart. Usually an integer between 0 and 6 (inclusive) */
 	diff_guitarghl?: number
+	/** The difficulty rating of the GHL (6-fret) co-op guitar chart. Usually an integer between 0 and 6 (inclusive) */
+	diff_guitar_coop_ghl?: number
+	/** The difficulty rating of the GHL (6-fret) rhythm guitar chart. Usually an integer between 0 and 6 (inclusive) */
+	diff_rhythm_ghl?: number
 	/** The difficulty rating of the GHL (6-fret) bass guitar chart. Usually an integer between 0 and 6 (inclusive) */
 	diff_bassghl?: number
 	/** The difficulty rating of the vocals chart. Usually an integer between 0 and 6 (inclusive) */
@@ -223,14 +227,16 @@ interface NotesData {
 }
 
 type Instrument =
-	'guitar' |     // Lead Guitar
-	'guitarcoop' | // Co-op Guitar
-	'rhythm' |     // Rhythm Guitar
-	'bass' |       // Bass Guitar
-	'drums' |      // Drums
-	'keys' |       // Keys
-	'guitarghl' |  // GHL (6-fret) Lead Guitar
-	'bassghl'      // GHL (6-fret) Bass Guitar
+	'guitar' |        // Lead Guitar
+	'guitarcoop' |    // Co-op Guitar
+	'rhythm' |        // Rhythm Guitar
+	'bass' |          // Bass Guitar
+	'drums' |         // Drums
+	'keys' |          // Keys
+	'guitarghl' |     // GHL (6-fret) Lead Guitar
+	'guitarcoopghl' | // GHL (6-fret) Co-op Guitar
+	'rhythmghl' |     // GHL (6-fret) Rhythm Guitar
+	'bassghl'         // GHL (6-fret) Bass Guitar
 
 type Difficulty =
 	'expert' |

@@ -156,7 +156,7 @@ export class TrackParser {
 		this.setSustainProperties()
 		// Calculate NPS properties
 		this.setNpsProperties()
-		if (this.instrument !== 'guitarghl' && this.instrument !== 'bassghl') {
+		if (!['guitarghl', 'guitarcoopghl', 'rhythmghl', 'bassghl'].includes(this.instrument)) {
 			const fiveNoteChordIds = [EventType.green, EventType.red, EventType.yellow, EventType.blue, EventType.orange]
 			const greenBlueChordIds = [EventType.green, EventType.blue]
 			const greenOrangeChordIds = [EventType.green, EventType.orange]

@@ -39,6 +39,8 @@ export const defaultMetadata = {
 	'diff_drums_real': -1,
 	'diff_keys': -1,
 	'diff_guitarghl': -1,
+	'diff_guitar_coop_ghl': -1,
+	'diff_rhythm_ghl': -1,
 	'diff_bassghl': -1,
 	'diff_vocals': -1,
 	/** Units of ms */ 'preview_start_time': -1,
@@ -156,8 +158,9 @@ class IniScanner {
 
 		// album_track may be stored in `this.iniFile.song.track`
 		const integers = ['song_length', 'diff_band', 'diff_guitar', 'diff_guitar_coop', 'diff_rhythm', 'diff_bass', 'diff_drums',
-			'diff_drums_real', 'diff_keys', 'diff_guitarghl', 'diff_bassghl', 'diff_vocals', 'preview_start_time', ['track', 'album_track'],
-			'playlist_track', 'delay', 'hopo_frequency', 'multiplier_note', 'video_start_time'] as const
+			'diff_drums_real', 'diff_keys', 'diff_guitarghl', 'diff_guitar_coop_ghl', 'diff_rhythm_ghl', 'diff_bassghl', 'diff_vocals',
+			'preview_start_time', ['track', 'album_track'], 'playlist_track', 'delay', 'hopo_frequency', 'multiplier_note',
+			'video_start_time'] as const
 		this.extractMetadataField<CInputMetaNumberKey, CMetaNumberKey>(this.extractMetadataInteger.bind(this), integers)
 
 		const booleans = ['modchart', 'eighthnote_hopo', 'five_lane_drums', 'pro_drums', 'end_events'] as const
