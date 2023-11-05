@@ -1,5 +1,11 @@
 # scan-chart
 
+## 3.1.2
+
+### Patch Changes
+
+- bec6244: Bugfixes
+
 ## 3.1.1
 
 ### Patch Changes
