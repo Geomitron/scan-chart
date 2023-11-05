@@ -275,6 +275,7 @@ class MidiParser {
 					length: _.round(trackEventEnd.time - lastTrackEventEnd.time, 3),
 					type: lastTrackEventEnd.type!,
 				})
+				delete lastTrackEventEnds[trackEventEnd.type!]
 			}
 		}
 		return trackEvents
@@ -386,15 +387,15 @@ class MidiParser {
 			}
 		}
 
-		let lastBeatlineTick = 0
+		let previousBeatlineTick = 0
 		for (let i = 0; i < timeSignatures.length; i++) {
-			if (_.round(lastBeatlineTick, 5) !== _.round(timeSignatures[i].tick, 5)) {
+			if (_.round(previousBeatlineTick, 5) !== _.round(timeSignatures[i].tick, 5)) {
 				this.notesData.chartIssues.push('misalignedTimeSignatures')
 				break
 			}
-			while (timeSignatures[i + 1] && lastBeatlineTick < timeSignatures[i + 1].tick) {
+			while (timeSignatures[i + 1] && previousBeatlineTick < timeSignatures[i + 1].tick) {
 				const timeSignatureFraction = timeSignatures[i].param1! / Math.pow(2, timeSignatures[i].param2!)
-				lastBeatlineTick += resolution * timeSignatureFraction * 4
+				previousBeatlineTick += resolution * timeSignatureFraction * 4
 			}
 		}
 	}

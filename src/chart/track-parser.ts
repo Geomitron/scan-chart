@@ -61,6 +61,9 @@ export class TrackParser {
 			this.parseNonDrumTrack()
 		}
 
+		// Calculate NPS properties
+		this.setNpsProperties()
+
 		// Add notes hash
 		this.notesData.hashes.push({
 			instrument: this.instrument,
@@ -78,8 +81,8 @@ export class TrackParser {
 				const previousNote = this.groupedNotes[i - 1]
 				const distance = note.time - previousNote.time
 				if (distance > 0 && distance <= 15) {
-					if (this.typeCount(note, [EventType.open]) > 0 && (_.maxBy(previousNote.events, e => e.length)?.length ?? 0) > 5) {
-						continue // Skip open notes under an extended sustain
+					if (this.typeCount(note, [EventType.open]) > 0 && this.typeCount(previousNote, [EventType.open]) === 0) {
+						continue // Skip open notes after non-open notes
 					}
 					this.addNoteIssue('brokenNote', this.groupedNotes[i].time)
 				}
@@ -138,7 +141,13 @@ export class TrackParser {
 				}
 			}
 		}
-		if (!trackHasStarPower) { this.addTrackIssue('noStarPower') }
+		if (
+			!trackHasStarPower
+			&& this.firstNote
+			&& this.lastNote
+			&& this.lastNote.time - this.firstNote.time > 60000
+			&& this.groupedNotes.length > 50
+		) { this.addTrackIssue('noStarPower') }
 		if (!trackHasActivationLanes) { this.addTrackIssue('noDrumActivationLanes') }
 	}
 
@@ -154,8 +163,6 @@ export class TrackParser {
 		}
 		// Check for sustain properties
 		this.setSustainProperties()
-		// Calculate NPS properties
-		this.setNpsProperties()
 		if (!['guitarghl', 'guitarcoopghl', 'rhythmghl', 'bassghl'].includes(this.instrument)) {
 			const fiveNoteChordIds = [EventType.green, EventType.red, EventType.yellow, EventType.blue, EventType.orange]
 			const greenBlueChordIds = [EventType.green, EventType.blue]
@@ -182,7 +189,9 @@ export class TrackParser {
 	private setSustainProperties() {
 		/** Sustain gaps at the end of notes already checked in the for loop. `startTime` is inclusive, `endTime` is exclusive. */
 		const futureSustainGaps: { startTime: number; endTime: number }[] = []
-		for (const note of this.notes) {
+		for (let i = 0; i < this.notes.length; i++) {
+			const note = this.notes[i]
+
 			_.remove(futureSustainGaps, r => r.endTime <= note.time)
 			if (futureSustainGaps.find(r => note.time >= r.startTime && note.time < r.endTime)) {
 				this.addNoteIssue('badSustainGap', note.time)
@@ -196,7 +205,19 @@ export class TrackParser {
 					})
 				}
 				if (note.length < MIN_SUSTAIN_MS) {
-					this.addNoteIssue('babySustain', note.time)
+					let overlapsHopoOpen = false
+					for (let j = i + 1; j < this.notes.length && this.notes[j].time <= note.time + note.length; j++) {
+						if (this.notes[j].type === EventType.open) {
+							const matchingEvents = this.trackEvents.filter(te => te.time === this.notes[j].time)
+							if (!matchingEvents.find(e => e.type === EventType.force)) {
+								overlapsHopoOpen = true
+							}
+						}
+					}
+
+					if (!overlapsHopoOpen) {
+						this.addNoteIssue('babySustain', note.time)
+					}
 				}
 			}
 		}

@@ -209,6 +209,8 @@ class ChartsScanner {
 		} else if (chartData.metadata) {
 			// Use metadata from .chart file if it exists
 			_.assign(chart, chartData.metadata)
+		} else { // No metadata available
+			chart.playable = false
 		}
 		chart.chart_offset = chartData.metadata?.delay ?? 0
 

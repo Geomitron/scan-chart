@@ -1,0 +1,5 @@
+---
+"scan-chart": patch
+---
+
+Bugfixes
