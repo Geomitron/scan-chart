@@ -228,7 +228,7 @@ class ChartsScanner {
 		const audioData = await scanAudio(chartFolder, cpus().length - 1)
 		chart.folderIssues.push(...audioData.folderIssues)
 
-		if (!chartData.notesData /* TODO: || !audioData.audioHash */) {
+		if (!chartData.notesData || chart.folderIssues.find(i => i!.folderIssue === 'noAudio') /* TODO: || !audioData.audioHash */) {
 			chart.playable = false
 		}
 
