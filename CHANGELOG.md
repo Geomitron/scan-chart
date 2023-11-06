@@ -1,5 +1,11 @@
 # scan-chart
 
+## 3.1.3
+
+### Patch Changes
+
+- f306f4a: Bugfixes
+
 ## 3.1.2
 
 ### Patch Changes
