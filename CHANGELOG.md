@@ -1,5 +1,11 @@
 # scan-chart
 
+## 3.1.5
+
+### Patch Changes
+
+- c07e0c4: Bugfixing
+
 ## 3.1.4
 
 ### Patch Changes
