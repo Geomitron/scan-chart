@@ -183,7 +183,13 @@ export class TrackParser {
 				}
 			}
 		}
-		if (!trackHasStarPower) { this.addTrackIssue('noStarPower') }
+		if (
+			!trackHasStarPower
+			&& this.firstNote
+			&& this.lastNote
+			&& this.lastNote.time - this.firstNote.time > 60000
+			&& this.groupedNotes.length > 50
+		) { this.addTrackIssue('noStarPower') }
 	}
 
 	private setSustainProperties() {
