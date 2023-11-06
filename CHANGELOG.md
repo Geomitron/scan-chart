@@ -1,5 +1,11 @@
 # scan-chart
 
+## 3.1.4
+
+### Patch Changes
+
+- 354e68b: Add folder issues for audio
+
 ## 3.1.3
 
 ### Patch Changes
