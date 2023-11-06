@@ -4,8 +4,10 @@ import EventEmitter from 'events'
 import { Dirent } from 'fs'
 import { readdir } from 'fs/promises'
 import * as _ from 'lodash'
+import { cpus } from 'os'
 import { join, parse, relative } from 'path'
 
+import { scanAudio } from './audio'
 import { CachedFile } from './cached-file'
 import { scanChart } from './chart'
 import { scanImage } from './image'
@@ -223,9 +225,8 @@ class ChartsScanner {
 			}
 		}
 
-		// TODO: Implement this when determining the best audio fingerprint algorithm
-		// const audioData = await scanAudio(chartFolder, cpus().length - 1)
-		// chart.folderIssues.push(...audioData.folderIssues)
+		const audioData = await scanAudio(chartFolder, cpus().length - 1)
+		chart.folderIssues.push(...audioData.folderIssues)
 
 		if (!chartData.notesData /* TODO: || !audioData.audioHash */) {
 			chart.playable = false

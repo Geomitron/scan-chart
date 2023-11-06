@@ -4,7 +4,6 @@ import { parse } from 'path'
 import { CachedFile } from 'src/cached-file'
 import { FolderIssueType } from '../interfaces'
 import { hasAudioExtension, hasAudioName } from '../utils'
-import { AudioParser } from './audio-parser'
 
 class AudioScanner {
 
@@ -20,15 +19,16 @@ class AudioScanner {
 		const audioFiles = this.getAudioFiles(chartFolder)
 		if (audioFiles.length === 0) { return }
 
-		const audioParser = new AudioParser(max_threads)
-		const { audioHash, audioLength, errors } = await audioParser.getAudioFingerprint(audioFiles)
+		// TODO: Implement this when determining the best audio fingerprint algorithm
+		// const audioParser = new AudioParser(max_threads)
+		// const { audioHash, audioLength, errors } = await audioParser.getAudioFingerprint(audioFiles)
 
-		if (errors.length) {
-			this.addFolderIssue('badAudio', `This chart's audio couldn't be parsed:\n${errors.join('\n')}`)
-		} else {
-			this.audioHash = audioHash
-			this.audioLength = audioLength
-		}
+		// if (errors.length) {
+		// 	this.addFolderIssue('badAudio', `This chart's audio couldn't be parsed:\n${errors.join('\n')}`)
+		// } else {
+		// 	this.audioHash = audioHash
+		// 	this.audioLength = audioLength
+		// }
 	}
 
 	/**
