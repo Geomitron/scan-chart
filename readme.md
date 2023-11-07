@@ -261,7 +261,8 @@ type NoteIssueType =
 type TrackIssueType =
 	'noStarPower' |           // This track has no star power
 	'noDrumActivationLanes' | // This drums track has no activation lanes
-	'smallLeadingSilence'     // This track has a note that is less than 2000ms after the start of the track
+	'smallLeadingSilence' |   // This track has a note that is less than 2000ms after the start of the track
+	'noNotesOnNonemptyTrack'  // This track has star power, solo markers, or drum lanes, but no notes
 
 type ChartIssueType =
 	'noResolution' |             // This chart has no resolution

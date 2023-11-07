@@ -64,15 +64,19 @@ export class TrackParser {
 		// Calculate NPS properties
 		this.setNpsProperties()
 
-		// Add notes hash
-		this.notesData.hashes.push({
-			instrument: this.instrument,
-			difficulty: this.difficulty,
-			hash: createHash('md5').update(this.trackEvents.map(n => `${n.time}_${n.type}_${n.length}`).join(':')).digest('hex'),
-		})
+		if (this.groupedNotes.length > 0) {
+			// Add notes hash
+			this.notesData.hashes.push({
+				instrument: this.instrument,
+				difficulty: this.difficulty,
+				hash: createHash('md5').update(this.trackEvents.map(n => `${n.time}_${n.type}_${n.length}`).join(':')).digest('hex'),
+			})
 
-		// Add note count
-		this.notesData.noteCounts.push({ instrument: this.instrument, difficulty: this.difficulty, count: this.groupedNotes.length })
+			// Add note count
+			this.notesData.noteCounts.push({ instrument: this.instrument, difficulty: this.difficulty, count: this.groupedNotes.length })
+		} else {
+			this.addTrackIssue('noNotesOnNonemptyTrack')
+		}
 
 		// Check for broken notes
 		if (this.instrument !== 'drums') {
