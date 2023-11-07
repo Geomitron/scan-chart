@@ -46,17 +46,17 @@ class AudioScanner {
 						audioFiles.push(file)
 					}
 				} else {
-					this.addFolderIssue('invalidAudio', `"${file.name}" is not a valid audio stem name`)
+					this.addFolderIssue('invalidAudio', `"${file.name}" is not a valid audio stem name.`)
 				}
 			}
 		}
 
 		if (_.uniq(stemNames).length !== stemNames.length) {
-			this.addFolderIssue('multipleAudio', `This chart has multiple audio files of the same stem`)
+			this.addFolderIssue('multipleAudio', `This chart has multiple audio files of the same stem.`)
 		}
 
 		if (audioFiles.length === 0) {
-			this.addFolderIssue('noAudio', `This chart doesn't have an audio file`)
+			this.addFolderIssue('noAudio', `This chart doesn't have an audio file.`)
 		}
 
 		return audioFiles

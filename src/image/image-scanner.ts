@@ -38,13 +38,13 @@ class ImageScanner {
 		}
 
 		if (albumCount > 1) {
-			this.addFolderIssue('multipleAlbumArt', `This chart has multiple album art files`)
+			this.addFolderIssue('multipleAlbumArt', `This chart has multiple album art files.`)
 		}
 
 		if (lastAlbum !== null) {
 			return lastAlbum
 		} else {
-			this.addFolderIssue('noAlbumArt', `This chart doesn't have album art`)
+			this.addFolderIssue('noAlbumArt', `This chart doesn't have album art.`)
 			return null
 		}
 	}
@@ -58,7 +58,7 @@ class ImageScanner {
 			const metadata = await image.metadata()
 			const heightWidth = `${metadata.height}x${metadata.width}`
 			if (heightWidth != '500x500' && heightWidth != '512x512') {
-				this.addFolderIssue('albumArtSize', `This chart's album art is ${heightWidth}, and should be 512x512`)
+				this.addFolderIssue('albumArtSize', `This chart's album art is ${heightWidth}, and should be 512x512.`)
 			}
 
 			return await image
@@ -66,7 +66,7 @@ class ImageScanner {
 				.jpeg({ quality: 75 }) // Note: reducing quality is more effective than reducing image size
 				.toBuffer()
 		} catch (err) {
-			this.addFolderIssue('badAlbumArt', `This chart's album art couldn't be parsed`)
+			this.addFolderIssue('badAlbumArt', `This chart's album art couldn't be parsed.`)
 		}
 	}
 }

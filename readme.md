@@ -325,7 +325,9 @@ type FolderIssueType =
 	'noChart' |          // This chart doesn't have "notes.chart"/"notes.mid"
 	'invalidChart' |     // .chart/.mid file is not named "notes.chart"/"notes.mid"
 	'badChart' |         // This chart's .chart/.mid file couldn't be parsed
-	'multipleChart'      // This chart has multiple .chart/.mid files
+	'multipleChart' |    // This chart has multiple .chart/.mid files
+	'badVideo' |         // This chart has a video background that will not work on Linux
+	'multipleVideo'      // This chart has multiple video background files
 
 type MetadataIssueType =
 	'noName' |                // Metadata is missing the "name" property

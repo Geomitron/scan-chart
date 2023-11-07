@@ -13,7 +13,8 @@ import { scanChart } from './chart'
 import { scanImage } from './image'
 import { defaultMetadata, scanIni } from './ini'
 import { Chart, EventType, ScanChartsConfig, ScannedChart } from './interfaces'
-import { appearsToBeChartFolder, hasSngExtension, hasVideoName, RequireMatchingProps, Subset } from './utils'
+import { appearsToBeChartFolder, hasSngExtension, RequireMatchingProps, Subset } from './utils'
+import { scanVideo } from './video'
 
 export * from './interfaces'
 
@@ -232,7 +233,9 @@ class ChartsScanner {
 			chart.playable = false
 		}
 
-		chart.hasVideoBackground = chartFolder.some(file => hasVideoName(file.name))
+		const videoData = scanVideo(chartFolder)
+		chart.folderIssues.push(...videoData.folderIssues)
+		chart.hasVideoBackground = videoData.hasVideoBackground
 
 		return chart as Chart
 	}

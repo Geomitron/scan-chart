@@ -107,7 +107,8 @@ class ChartParser {
 		const fileSectionMap: { [key: string]: string } = {}
 		for (const line of fileSection) {
 			const [key, value] = line.split(' = ').map(s => s.trim())
-			fileSectionMap[key] = value.startsWith('"') ? value.slice(1, -1) : value
+			fileSectionMap[key] = value.endsWith('"') ? value.slice(0, value.length - 1) : value
+			fileSectionMap[key] = fileSectionMap[key].startsWith('"') ? fileSectionMap[key].slice(1) : fileSectionMap[key]
 		}
 		return fileSectionMap
 	}
@@ -145,7 +146,9 @@ class ChartParser {
 			if (isNaN(tick) || isNaN(numerator) || isNaN(denominatorExp)) { continue } // Not a time signature marker
 			timeSignatures.push({ tick, value: numerator / Math.pow(2, denominatorExp) })
 		}
-		if (!timeSignatures.length) { this.notesData.chartIssues.push('noSyncTrackSection') }
+		if (!timeSignatures.length) {
+			timeSignatures.push({ tick: 0, value: 4 / 4 })
+		}
 		return timeSignatures
 	}
 

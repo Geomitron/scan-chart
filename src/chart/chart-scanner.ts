@@ -43,7 +43,7 @@ class ChartScanner {
 				chartCount++
 				lastChart = file
 				if (!hasChartName(file.name)) {
-					this.addFolderIssue('invalidChart', `"${file.name}" is not named "notes${parse(file.name).ext.toLowerCase()}"`)
+					this.addFolderIssue('invalidChart', `"${file.name}" is not named "notes${parse(file.name).ext.toLowerCase()}".`)
 				} else {
 					bestChart = file
 				}
@@ -51,7 +51,7 @@ class ChartScanner {
 		}
 
 		if (chartCount > 1) {
-			this.addFolderIssue('multipleChart', `This chart has multiple .chart/.mid files`)
+			this.addFolderIssue('multipleChart', `This chart has multiple .chart/.mid files.`)
 		}
 
 		if (bestChart !== null) {
@@ -59,7 +59,7 @@ class ChartScanner {
 		} else if (lastChart !== null) {
 			return lastChart
 		} else {
-			this.addFolderIssue('noChart', `This chart doesn't have "notes.chart"/"notes.mid"`)
+			this.addFolderIssue('noChart', `This chart doesn't have "notes.chart"/"notes.mid".`)
 			return null
 		}
 	}
@@ -76,7 +76,7 @@ class ChartScanner {
 				return { notesData, notesMetadata: {} as ChartMetadata }
 			}
 		} catch (err) {
-			this.addFolderIssue('badChart', `This chart's .chart/.mid file couldn't be parsed`)
+			this.addFolderIssue('badChart', `This chart's .chart/.mid file couldn't be parsed.`)
 			return { notesData: null, notesMetadata: null }
 		}
 	}

@@ -88,7 +88,7 @@ class IniScanner {
 			this.iniObject = iniFile
 			this.iniObject.song = iniFile.song || iniFile.Song || iniFile.SONG
 			if (iniFile.song === undefined) {
-				this.addFolderIssue('invalidMetadata', `"song.ini" doesn't have a "[Song]" section`)
+				this.addFolderIssue('invalidMetadata', `"song.ini" doesn't have a "[Song]" section.`)
 				return
 			}
 		}
@@ -110,7 +110,7 @@ class IniScanner {
 				iniCount++
 				lastIni = file
 				if (!hasIniName(file.name)) {
-					this.addFolderIssue('invalidIni', `"${file.name}" is not named "song.ini"`)
+					this.addFolderIssue('invalidIni', `"${file.name}" is not named "song.ini".`)
 				} else {
 					bestIni = file
 				}
@@ -118,7 +118,7 @@ class IniScanner {
 		}
 
 		if (iniCount > 1) {
-			this.addFolderIssue('multipleIniFiles', `This chart has multiple .ini files`)
+			this.addFolderIssue('multipleIniFiles', `This chart has multiple .ini files.`)
 		}
 
 		if (bestIni !== null) {
@@ -126,7 +126,7 @@ class IniScanner {
 		} else if (lastIni !== null) {
 			return lastIni
 		} else {
-			this.addFolderIssue('noMetadata', `This chart doesn't have "song.ini"`)
+			this.addFolderIssue('noMetadata', `This chart doesn't have "song.ini".`)
 			return null
 		}
 	}
