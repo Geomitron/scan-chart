@@ -1,5 +1,11 @@
 # scan-chart
 
+## 3.2.0
+
+### Minor Changes
+
+- fb44a5e: Add badVideo and multipleVideo issues, buxfixing
+
 ## 3.1.5
 
 ### Patch Changes
