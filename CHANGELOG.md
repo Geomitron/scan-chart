@@ -1,5 +1,11 @@
 # scan-chart
 
+## 3.3.0
+
+### Minor Changes
+
+- 268c622: Added noNotesOnNonemptyTrack track issue
+
 ## 3.2.0
 
 ### Minor Changes
