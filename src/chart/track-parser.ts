@@ -85,8 +85,9 @@ export class TrackParser {
 				const previousNote = this.groupedNotes[i - 1]
 				const distance = note.time - previousNote.time
 				if (distance > 0 && distance <= 15) {
-					if (this.typeCount(note, [EventType.open]) > 0 && this.typeCount(previousNote, [EventType.open]) === 0) {
-						continue // Skip open notes after non-open notes
+					if ((this.typeCount(note, [EventType.open]) > 0 && this.typeCount(previousNote, [EventType.open]) === 0)
+						|| (this.typeCount(previousNote, [EventType.open]) > 0 && this.typeCount(note, [EventType.open]) === 0)) {
+						continue // Skip open notes before or after non-open notes
 					}
 					this.addNoteIssue('brokenNote', this.groupedNotes[i].time)
 				}
