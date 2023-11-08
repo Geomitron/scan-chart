@@ -1,5 +1,11 @@
 # scan-chart
 
+## 3.3.2
+
+### Patch Changes
+
+- 04a1f62: Remove console log
+
 ## 3.3.1
 
 ### Patch Changes
