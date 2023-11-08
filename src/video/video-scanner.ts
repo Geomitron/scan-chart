@@ -15,7 +15,6 @@ class VideoScanner {
 		let videoCount = 0
 		for (const file of chartFolder) {
 			if (hasVideoName(file.name)) {
-				console.log('aaa', file.name)
 				videoCount++
 				if (hasBadVideoName(file.name)) {
 					this.addFolderIssue('badVideo', `"${file.name}" will not work on Linux and should be converted to .webm.`)
