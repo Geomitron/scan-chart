@@ -1,5 +1,11 @@
 # scan-chart
 
+## 3.3.1
+
+### Patch Changes
+
+- af91094: Allow more types of open chords
+
 ## 3.3.0
 
 ### Minor Changes
