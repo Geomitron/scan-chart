@@ -75,6 +75,7 @@ export class TrackParser {
 			// Add note count
 			this.notesData.noteCounts.push({ instrument: this.instrument, difficulty: this.difficulty, count: this.groupedNotes.length })
 		} else {
+			this.notesData.instruments = this.notesData.instruments.filter(i => i !== this.instrument)
 			this.addTrackIssue('noNotesOnNonemptyTrack')
 		}
 
