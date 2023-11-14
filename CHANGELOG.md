@@ -1,5 +1,11 @@
 # scan-chart
 
+## 3.3.4
+
+### Patch Changes
+
+- bb5a75b: Allow .jpeg extension
+
 ## 3.3.3
 
 ### Patch Changes
