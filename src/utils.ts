@@ -94,7 +94,7 @@ export function hasAudioName(name: string) {
  * @returns `true` if `name` is a valid album filename.
  */
 export function hasAlbumName(name: string) {
-	return ['album.jpg', 'album.png'].includes(name)
+	return ['album.jpg', 'album.jpeg', 'album.png'].includes(name)
 }
 
 /**
