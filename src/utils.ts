@@ -93,7 +93,7 @@ export function hasChartName(name: string) {
  * @returns `true` if `name` has a valid chart audio file extension.
  */
 export function hasAudioExtension(name: string) {
-	return (['.ogg', '.mp3', '.wav', '.opus'].includes(getExtension(name).toLowerCase()));
+	return (['.ogg', '.mp3', '.wav', '.opus'].includes(getExtension(name).toLowerCase()))
 }
 
 /**
