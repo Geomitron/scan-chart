@@ -1,8 +1,6 @@
-import { parse } from 'path'
-
 import { CachedFile } from 'src/cached-file'
 import { FolderIssueType, MetadataIssueType, NotesData } from '../interfaces'
-import { hasChartExtension, hasChartName } from '../utils'
+import { getExtension, hasChartExtension, hasChartName } from '../utils'
 import { ChartMetadata, parseChart } from './chart-parser'
 import { parseMidi } from './midi-parser'
 
@@ -43,7 +41,7 @@ class ChartScanner {
 				chartCount++
 				lastChart = file
 				if (!hasChartName(file.name)) {
-					this.addFolderIssue('invalidChart', `"${file.name}" is not named "notes${parse(file.name).ext.toLowerCase()}".`)
+					this.addFolderIssue('invalidChart', `"${file.name}" is not named "notes${getExtension(file.name).toLowerCase()}".`)
 				} else {
 					bestChart = file
 				}
@@ -69,7 +67,7 @@ class ChartScanner {
 	 */
 	private getChartData(file: CachedFile) {
 		try {
-			if (parse(file.name).ext.toLowerCase() === '.chart') {
+			if (getExtension(file.name).toLowerCase() === '.chart') {
 				return parseChart(file.data)
 			} else {
 				const notesData = parseMidi(file.data)

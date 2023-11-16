@@ -5,7 +5,7 @@ import { Dirent } from 'fs'
 import { readdir } from 'fs/promises'
 import * as _ from 'lodash'
 import { cpus } from 'os'
-import { join, parse, relative } from 'path'
+import { join, relative } from 'path'
 
 import { scanAudio } from './audio'
 import { CachedFile } from './cached-file'
@@ -140,7 +140,7 @@ class ChartsScanner {
 
 		if (
 			!this.config.onlyScanSng &&
-			appearsToBeChartFolder(files.map(file => parse(file.name).ext.substring(1))) &&
+			appearsToBeChartFolder(files.map(file => getExtension(file.name).substring(1))) &&
 			subfolders.length === 0 // Charts won't contain other charts
 		) {
 			chartFolders.push({ path, files: files.filter(f => !f.isDirectory()) })
