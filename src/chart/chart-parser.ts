@@ -15,6 +15,11 @@ const trackNameMap = {
 	MediumSingle: { instrument: 'guitar', difficulty: 'medium' },
 	EasySingle: { instrument: 'guitar', difficulty: 'easy' },
 
+	ExpertDoubleGuitar: { instrument: 'guitarcoop', difficulty: 'expert' },
+	HardDoubleGuitar: { instrument: 'guitarcoop', difficulty: 'hard' },
+	MediumDoubleGuitar: { instrument: 'guitarcoop', difficulty: 'medium' },
+	EasyDoubleGuitar: { instrument: 'guitarcoop', difficulty: 'easy' },
+
 	ExpertDoubleRhythm: { instrument: 'rhythm', difficulty: 'expert' },
 	HardDoubleRhythm: { instrument: 'rhythm', difficulty: 'hard' },
 	MediumDoubleRhythm: { instrument: 'rhythm', difficulty: 'medium' },

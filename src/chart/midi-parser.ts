@@ -11,6 +11,7 @@ type TrackName = InstrumentName | 'PART VOCALS' | 'EVENTS'
 type InstrumentName = keyof typeof instrumentNameMap
 const instrumentNameMap = {
 	'PART GUITAR': 'guitar',
+	'PART GUITAR COOP': 'guitarcoop',
 	'PART RHYTHM': 'rhythm',
 	'PART BASS': 'bass',
 	'PART DRUMS': 'drums',
