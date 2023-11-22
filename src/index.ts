@@ -13,7 +13,7 @@ import { scanChart } from './chart'
 import { scanImage } from './image'
 import { defaultMetadata, scanIni } from './ini'
 import { Chart, EventType, ScanChartsConfig, ScannedChart } from './interfaces'
-import { appearsToBeChartFolder, hasSngExtension, RequireMatchingProps, Subset } from './utils'
+import { appearsToBeChartFolder, getExtension, hasSngExtension, RequireMatchingProps, Subset } from './utils'
 import { scanVideo } from './video'
 
 export * from './interfaces'
