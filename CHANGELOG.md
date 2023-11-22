@@ -1,5 +1,12 @@
 # scan-chart
 
+## 3.3.5
+
+### Patch Changes
+
+- a38f98c: Fix import
+- ee16732: Internal refactor
+
 ## 3.3.4
 
 ### Patch Changes
