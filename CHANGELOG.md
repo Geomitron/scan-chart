@@ -1,5 +1,11 @@
 # scan-chart
 
+## 3.4.0
+
+### Minor Changes
+
+- 3df1a89: Added drumType and related features
+
 ## 3.3.5
 
 ### Patch Changes
