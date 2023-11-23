@@ -4,7 +4,7 @@ import { scanCharts } from './'
 
 async function main() {
 	console.time('Scan function')
-	const result = scanCharts('C:\\dev\\test-scan')
+	const result = scanCharts('C:\\dev\\test-scan-2')
 	result.on('error', err => console.log(err))
 	result.on('folder', folderName => {
 		console.log(`Scanned: ${folderName}`)

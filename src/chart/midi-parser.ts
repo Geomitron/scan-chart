@@ -48,6 +48,7 @@ class MidiParser {
 	constructor(midiFile: MIDIFile) {
 		this.notesData = {
 			instruments: [],
+			drumType: null,
 			hasSoloSections: false,
 			hasLyrics: false,
 			hasVocals: false,
@@ -164,12 +165,7 @@ class MidiParser {
 			return {
 				difficulty,
 				time: event.playTime!,
-				type: note === 103 ? EventType.soloMarker
-					: note === 116 ? EventType.starPower
-						: note >= 120 && note <= 124 ? EventType.activationLane
-							: note === 126 ? EventType.rollLaneSingle
-								: note === 127 ? EventType.rollLaneDouble
-									: null,
+				type: this.getInstrumentEventType(note),
 				isStart: event.subtype === EVENT_MIDI_NOTE_ON,
 			}
 		}
@@ -180,6 +176,24 @@ class MidiParser {
 			type: (['guitarghl', 'guitarcoopghl', 'rhythmghl', 'bassghl'].includes(instrument) ? this.get6FretNoteType(note, difficulty) :
 				instrument === 'drums' ? this.getDrumsNoteType(note, difficulty) : this.get5FretNoteType(note, difficulty)) ?? null,
 			isStart: event.subtype === EVENT_MIDI_NOTE_ON,
+		}
+	}
+
+	private getInstrumentEventType(note: number) {
+		switch (note) {
+			case 103: return EventType.soloMarker
+			case 110: return EventType.yellowTomOrCymbalMarker
+			case 111: return EventType.blueTomOrCymbalMarker
+			case 112: return EventType.greenTomOrCymbalMarker
+			case 116: return EventType.starPower
+			case 120: return EventType.activationLane
+			case 121: return EventType.activationLane
+			case 122: return EventType.activationLane
+			case 123: return EventType.activationLane
+			case 124: return EventType.activationLane
+			case 126: return EventType.rollLaneSingle
+			case 127: return EventType.rollLaneDouble
+			default: return null
 		}
 	}
 

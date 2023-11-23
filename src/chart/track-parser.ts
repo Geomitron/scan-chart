@@ -122,15 +122,35 @@ export class TrackParser {
 	private parseDrumTrack() {
 		let trackHasStarPower = false
 		let trackHasActivationLanes = false
+		let trackHasCymbalMarkers = false
+		let trackHasFiveLaneGreenNote = false
+		let trackHasSustains = false
 		// Check for drum note type properties
 		for (const event of this.trackEvents) {
 			if (event.type === EventType.starPower) { trackHasStarPower = true }
 			// GH1/GH2 charts represent star power using solo marker events
 			if (event.type === EventType.soloMarker && this.format === 'mid') { trackHasStarPower = true }
 			if (event.type === EventType.activationLane) { trackHasActivationLanes = true }
+			if (event.type === EventType.blueTomOrCymbalMarker
+				|| event.type === EventType.greenTomOrCymbalMarker
+				|| event.type === EventType.yellowTomOrCymbalMarker) { trackHasCymbalMarkers = true }
+			if (event.type === EventType.green) { trackHasFiveLaneGreenNote = true }
+			if (event.length > 0) { trackHasSustains = true }
 			if (event.type === EventType.kick2x) { this.notesData.has2xKick = true }
 			if (event.type === EventType.rollLaneSingle || event.type === EventType.rollLaneDouble) { this.notesData.hasRollLanes = true }
 		}
+
+		if (trackHasCymbalMarkers) {
+			this.notesData.drumType = 'fourLanePro'
+		} else if (trackHasFiveLaneGreenNote || trackHasSustains) {
+			this.notesData.drumType = 'fiveLane'
+		} else {
+			this.notesData.drumType = 'fourLane'
+		}
+		if (trackHasCymbalMarkers && (trackHasFiveLaneGreenNote || trackHasSustains)) {
+			this.addTrackIssue('has4And5LaneFeatures')
+		}
+
 		const nonKickDrumNoteIds = [EventType.green, EventType.red, EventType.yellow, EventType.blue, EventType.orange]
 		const kickDrumNoteIds = [EventType.kick]
 		const kick2xDrumNoteIds = [EventType.kick2x]

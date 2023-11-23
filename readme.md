@@ -156,6 +156,8 @@ interface AlbumArt {
 interface NotesData {
 	/** The list of instruments that contain more than zero track events. */
 	instruments: Instrument[]
+	/** The type of drums that are charted. `null` if drums are not charted. */
+	drumType: DrumType | null
 	/** If a solo section event occurs in any track. */
 	hasSoloSections: boolean
 	/** If the chart contains any lyric events. */
@@ -238,6 +240,11 @@ type Instrument =
 	'rhythmghl' |     // GHL (6-fret) Rhythm Guitar
 	'bassghl'         // GHL (6-fret) Bass Guitar
 
+type DrumType =
+	'fourLane' |
+	'fourLanePro' |
+	'fiveLane'
+
 type Difficulty =
 	'expert' |
 	'hard' |
@@ -261,6 +268,7 @@ type NoteIssueType =
 type TrackIssueType =
 	'noStarPower' |           // This track has no star power
 	'noDrumActivationLanes' | // This drums track has no activation lanes
+	'has4And5LaneFeatures' |  // This drums track mixes both 4-lane and 5-lane features, which is not supported
 	'smallLeadingSilence' |   // This track has a note that is less than 2000ms after the start of the track
 	'noNotesOnNonemptyTrack'  // This track has star power, solo markers, or drum lanes, but no notes
 
@@ -307,7 +315,10 @@ type EventType =
 	'kick' |
 	'kick2x' |
 	'rollLaneSingle' |
-	'rollLaneDouble'
+	'rollLaneDouble' |
+	'yellowTomOrCymbalMarker' |
+	'blueTomOrCymbalMarker' |
+	'greenTomOrCymbalMarker'
 
 type FolderIssueType =
 	'noMetadata' |       // This chart doesn't have "song.ini"
@@ -340,5 +351,6 @@ type MetadataIssueType =
 	'missingInstrumentDiff' | // Metadata is missing a "diff_" property
 	'extraInstrumentDiff' |   // Metadata contains a "diff_" property for an uncharted instrument
 	'nonzeroDelay' |          // Metadata contains a "delay" property that is not zero
+	'drumsSetTo4And5Lane' |   // Metadata indicates the drum chart is both 4-lane and 5-lane
 	'nonzeroOffset'           // Chart file contains an "Offset" property that is not zero
 ```

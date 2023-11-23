@@ -168,6 +168,8 @@ class ChartsScanner {
 		chart.folderIssues.push(...chartData.folderIssues)
 		chart.metadataIssues.push(...chartData.metadataIssues)
 		if (chartData.notesData) {
+			if (iniData.metadata?.five_lane_drums) { chartData.notesData.drumType = 'fiveLane' }
+			if (iniData.metadata?.pro_drums) { chartData.notesData.drumType = 'fourLanePro' }
 			chart.notesData = {
 				...chartData.notesData,
 				maxNps: chartData.notesData.maxNps.map(item => ({

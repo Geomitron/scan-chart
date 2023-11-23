@@ -237,6 +237,7 @@ class IniScanner {
 		if (this.metadata!.year === defaultMetadata.year) { this.metadataIssues.push('noYear') }
 		if (this.metadata!.charter === defaultMetadata.charter) { this.metadataIssues.push('noCharter') }
 		if (this.metadata!.delay !== 0) { this.metadataIssues.push('nonzeroDelay') }
+		if (this.metadata!.pro_drums && this.metadata!.five_lane_drums) { this.metadataIssues.push('drumsSetTo4And5Lane') }
 	}
 }
 
