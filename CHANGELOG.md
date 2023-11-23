@@ -1,5 +1,11 @@
 # scan-chart
 
+## 3.4.1
+
+### Patch Changes
+
+- 49816d7: Fix vocals and sustains detection
+
 ## 3.4.0
 
 ### Minor Changes
