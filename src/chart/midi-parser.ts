@@ -343,9 +343,9 @@ class MidiParser {
 		const vocalEvents = this.tracks.find(t => t.trackName === 'PART VOCALS')?.trackEvents
 		if (vocalEvents?.length) {
 			this.notesData.hasLyrics = true
-			if (vocalEvents.find(te => te.param1! !== 105 && te.param1! !== 106)) {
-				this.notesData.hasVocals = true
-			}
+			if (vocalEvents.find(
+				te => te.param1! !== 105 && te.param1! !== 106 && !(te.type === EVENT_META && te.subtype === EVENT_META_TEXT))
+			) { this.notesData.hasVocals = true }
 		}
 		const sectionEvents = _.chain(this.tracks.find(t => t.trackName === 'EVENTS')?.trackEvents ?? [])
 			.map(ete => ete.data?.map(dta => String.fromCharCode(dta)).join('') ?? '')

@@ -125,17 +125,18 @@ export class TrackParser {
 		let trackHasCymbalMarkers = false
 		let trackHasFiveLaneGreenNote = false
 		let trackHasSustains = false
+		const drumNoteIds =
+			[EventType.green, EventType.red, EventType.yellow, EventType.blue, EventType.orange, EventType.kick, EventType.kick2x]
+		const tomOrCymbalMarkerIds = [EventType.blueTomOrCymbalMarker, EventType.greenTomOrCymbalMarker, EventType.yellowTomOrCymbalMarker]
 		// Check for drum note type properties
 		for (const event of this.trackEvents) {
 			if (event.type === EventType.starPower) { trackHasStarPower = true }
 			// GH1/GH2 charts represent star power using solo marker events
 			if (event.type === EventType.soloMarker && this.format === 'mid') { trackHasStarPower = true }
 			if (event.type === EventType.activationLane) { trackHasActivationLanes = true }
-			if (event.type === EventType.blueTomOrCymbalMarker
-				|| event.type === EventType.greenTomOrCymbalMarker
-				|| event.type === EventType.yellowTomOrCymbalMarker) { trackHasCymbalMarkers = true }
+			if (tomOrCymbalMarkerIds.includes(event.type)) { trackHasCymbalMarkers = true }
 			if (event.type === EventType.green) { trackHasFiveLaneGreenNote = true }
-			if (event.length > 0) { trackHasSustains = true }
+			if (drumNoteIds.includes(event.type) && event.length > 0) { trackHasSustains = true }
 			if (event.type === EventType.kick2x) { this.notesData.has2xKick = true }
 			if (event.type === EventType.rollLaneSingle || event.type === EventType.rollLaneDouble) { this.notesData.hasRollLanes = true }
 		}
