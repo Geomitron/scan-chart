@@ -79,7 +79,7 @@ class MidiParser {
 			switch (midiEvent.type) {
 				case EVENT_META: {
 					switch (midiEvent.subtype) {
-						case EVENT_META_TRACK_NAME: trackNameEvents.push(midiEvent); break
+						case EVENT_META_TRACK_NAME: if (midiEvent.playTime === 0) { trackNameEvents.push(midiEvent) } break
 						case EVENT_META_SET_TEMPO: this.tempoMap.push(midiEvent); break
 						case EVENT_META_TIME_SIGNATURE: this.timeSignatures.push(midiEvent); break
 						case EVENT_META_LYRICS: break // Ignored
