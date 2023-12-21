@@ -1,5 +1,11 @@
 # scan-chart
 
+## 3.4.2
+
+### Patch Changes
+
+- d62a214: Ignore invalid track name meta events
+
 ## 3.4.1
 
 ### Patch Changes
