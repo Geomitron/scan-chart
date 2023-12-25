@@ -1,5 +1,11 @@
 # scan-chart
 
+## 3.4.3
+
+### Patch Changes
+
+- c5e225e: Update dependencies
+
 ## 3.4.2
 
 ### Patch Changes
