@@ -1,5 +1,11 @@
 # scan-chart
 
+## 3.4.4
+
+### Patch Changes
+
+- 8bfdb05: Improve performance
+
 ## 3.4.3
 
 ### Patch Changes
