@@ -28,18 +28,22 @@ export type Difficulty =
 	'medium' |
 	'easy'
 
+/** Note: order matters; modifiers must be first. */
 export enum EventType {
-	// 5 fret
-	starPower,
+	// Modifiers
+	activationLane,
 	tap,
 	force,
-	orange,
-	blue,
-	yellow,
-	red,
-	green,
-	open,
+	starPower,
 	soloMarker,
+
+	// 5 fret
+	open,
+	green,
+	red,
+	yellow,
+	blue,
+	orange,
 
 	// 6 fret
 	black3,
@@ -50,7 +54,6 @@ export enum EventType {
 	white1,
 
 	// Drums
-	activationLane,
 	kick,
 	kick2x,
 	rollLaneSingle,
