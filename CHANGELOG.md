@@ -1,5 +1,11 @@
 # scan-chart
 
+## 3.4.5
+
+### Patch Changes
+
+- 49dd04f: Fix open/tap/force modifiers in .mid parsing
+
 ## 3.4.4
 
 ### Patch Changes
