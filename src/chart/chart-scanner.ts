@@ -22,7 +22,7 @@ class ChartScanner {
 		this.chartMd5 = await chartFile.getMD5()
 
 		const { notesData, notesMetadata } = this.getChartData(chartFile)
-		if (!notesData || !notesMetadata) { return }
+		if (!notesData) { return }
 
 		this.notesData = notesData
 		this.chartMetadata = notesMetadata
