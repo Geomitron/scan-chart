@@ -1,5 +1,11 @@
 # scan-chart
 
+## 3.4.6
+
+### Patch Changes
+
+- a5690bf: Fix for some charts being incorrectly flagged as playable
+
 ## 3.4.5
 
 ### Patch Changes
