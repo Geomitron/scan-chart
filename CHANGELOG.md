@@ -1,5 +1,11 @@
 # scan-chart
 
+## 3.4.7
+
+### Patch Changes
+
+- 02b3a09: Fix for some charts being incorrectly flagged as unplayable
+
 ## 3.4.6
 
 ### Patch Changes
