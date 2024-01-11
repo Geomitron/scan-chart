@@ -71,7 +71,7 @@ class ChartScanner {
 				return parseChart(file.data)
 			} else {
 				const notesData = parseMidi(file.data)
-				return { notesData, notesMetadata: {} as ChartMetadata }
+				return { notesData, notesMetadata: null }
 			}
 		} catch (err) {
 			this.addFolderIssue('badChart', `This chart's .chart/.mid file couldn't be parsed.`)
