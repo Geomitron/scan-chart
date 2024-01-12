@@ -1,5 +1,11 @@
 # scan-chart
 
+## 3.4.8
+
+### Patch Changes
+
+- 7fd4f7e: Allow no notes if there is a vocals track
+
 ## 3.4.7
 
 ### Patch Changes
