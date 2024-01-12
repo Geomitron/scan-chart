@@ -377,18 +377,19 @@ class MidiParser {
 		const globalFirstNote = _.minBy(trackParsers, p => p.firstNote?.time ?? Infinity)?.firstNote ?? null
 		const globalLastNote = _.maxBy(trackParsers, p => p.lastNote?.time ?? -Infinity)?.lastNote ?? null
 
-		if (globalFirstNote === null || globalLastNote === null) {
-			this.notesData.chartIssues.push('noNotes')
-			return this.notesData
-		}
-
-		const vocalEvents = this.tracks.find(t => t.trackName === 'PART VOCALS')?.trackEvents
+		const vocalEvents = _.sortBy(this.tracks.find(t => t.trackName === 'PART VOCALS')?.trackEvents ?? [], te => te.playTime)
 		if (vocalEvents?.length) {
 			this.notesData.hasLyrics = true
 			if (vocalEvents.find(
 				te => te.param1! !== 105 && te.param1! !== 106 && !(te.type === EVENT_META && te.subtype === EVENT_META_TEXT))
 			) { this.notesData.hasVocals = true }
 		}
+
+		if ((globalFirstNote === null || globalLastNote === null) && !this.notesData.hasVocals) {
+			this.notesData.chartIssues.push('noNotes')
+			return this.notesData
+		}
+
 		const sectionEvents = _.chain(this.tracks.find(t => t.trackName === 'EVENTS')?.trackEvents ?? [])
 			.map(ete => ete.data?.map(dta => String.fromCharCode(dta)).join('') ?? '')
 			.filter(name => name.includes('[section') || name.includes('[prc_'))
@@ -405,8 +406,10 @@ class MidiParser {
 			this.notesData.chartIssues.push('isDefaultBPM')
 		}
 
-		this.notesData.length = Math.floor(globalLastNote.time)
-		this.notesData.effectiveLength = Math.floor(globalLastNote.time - globalFirstNote.time)
+		this.notesData.length = globalLastNote ? Math.floor(globalLastNote.time) : _.last(vocalEvents)!.playTime!
+		this.notesData.effectiveLength = globalLastNote && globalFirstNote ?
+			Math.floor(globalLastNote.time - globalFirstNote.time)
+			: Math.floor(_.last(vocalEvents)!.playTime! - _.first(vocalEvents)!.playTime!)
 
 		this.setMissingExperts()
 		this.setTimeSignatureProperties()
