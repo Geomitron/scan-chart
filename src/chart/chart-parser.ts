@@ -1,11 +1,8 @@
-import { createHash } from 'crypto'
 import * as _ from 'lodash'
 
-import { EventType, Instrument, NotesData, TrackEvent } from '../interfaces'
-import { getEncoding } from '../utils'
-import { TrackParser } from './track-parser'
-
-export type ChartMetadata = ReturnType<ChartParser['getMetadata']>
+import { Difficulty, Instrument } from 'src/interfaces'
+import { getEncoding } from 'src/utils'
+import { EventType, eventTypes, RawChartData } from './note-parsing-interfaces'
 
 /* eslint-disable @typescript-eslint/naming-convention */
 type TrackName = keyof typeof trackNameMap
@@ -62,307 +59,163 @@ const trackNameMap = {
 } as const
 /* eslint-enable @typescript-eslint/naming-convention */
 
-class ChartParser {
+const discoFlipDifficultyMap = ['easy', 'medium', 'hard', 'expert'] as const
 
-	private notesData: NotesData
+/**
+ * Parses `buffer` as a chart in the .chart format. Returns all the note data in `RawChartData`, but any
+ * chart format rules that apply to both .chart and .mid have not been applied. This is a partial result
+ * that can be produced by both the .chart and .mid formats so that the remaining chart rules can be parsed
+ * without code duplication.
+ *
+ * Throws an exception if `buffer` could not be parsed as a chart in the .chart format.
+ *
+ * Note: these features of .chart are ignored (for now)
+ * Versus phrase markers
+ * Tempo anchors
+ * GH1 hand animation markers
+ * Audio file paths in metadata
+ */
+export function parseNotesFromChart(data: Uint8Array): RawChartData {
+	const encoding = getEncoding(data)
+	const decoder = new TextDecoder(encoding)
+	const chartText = decoder.decode(data)
 
-	private metadata: { [key: string]: string }
-	private resolution: number
-	private tempoMap: { tick: number; time: number; bpm: number }[]
-	private timeSignatures: { tick: number; value: number }[]
-	private trackSections: { [trackName in TrackName]: string[] }
-
-	constructor(private fileSections: { [sectionName: string]: string[] }) {
-		this.notesData = {
-			instruments: [],
-			drumType: null,
-			hasSoloSections: false,
-			hasLyrics: false,
-			hasVocals: false,
-			hasForcedNotes: false,
-			hasTapNotes: false,
-			hasOpenNotes: false,
-			has2xKick: false,
-			hasRollLanes: false,
-			noteIssues: [],
-			trackIssues: [],
-			chartIssues: [],
-			noteCounts: [],
-			maxNps: [],
-			hashes: [],
-			tempoMapHash: '',
-			tempoMarkerCount: 0,
-			length: 0,
-			effectiveLength: 0,
-		}
-
-		this.metadata = this.getFileSectionMap(this.fileSections['Song'] ?? [])
-		this.resolution = this.getResolution()
-		this.tempoMap = this.getTempoMap()
-		this.timeSignatures = this.getTimeSignatures()
-		this.trackSections = _.pick(this.fileSections, _.keys(trackNameMap) as TrackName[])
+	const fileSections = getFileSections(chartText)
+	if (_.values(fileSections).length === 0) {
+		throw 'Invalid .chart file: no sections were found.'
 	}
 
-	private getResolution() {
-		const resolution = parseInt(this.metadata['Resolution'], 10)
-		if (!resolution) { this.notesData.chartIssues.push('noResolution') }
-		return resolution
+	const metadata = _.chain(fileSections['Song'])
+		.map(line => /^(.+?) = "?(.*?)"?$/.exec(line))
+		.compact()
+		.map(([, key, value]) => [key, value])
+		.fromPairs()
+		.value()
+
+	const resolution = Number(metadata['Resolution'])
+	if (!resolution) {
+		throw 'Invalid .chart file: resolution not found.'
 	}
 
-	private getFileSectionMap(fileSection: string[]) {
-		const fileSectionMap: { [key: string]: string } = {}
-		for (const line of fileSection) {
-			const [key, value] = line.split(' = ').map(s => s.trim())
-			fileSectionMap[key] = value.endsWith('"') ? value.slice(0, value.length - 1) : value
-			fileSectionMap[key] = fileSectionMap[key].startsWith('"') ? fileSectionMap[key].slice(1) : fileSectionMap[key]
-		}
-		return fileSectionMap
-	}
+	const codaEvents = _.chain(fileSections['Events'])
+		.map(line => /^(\d+) = E "\s*\[?coda\]?\s*"$/.exec(line))
+		.compact()
+		.map(([, stringTick]) => ({ tick: Number(stringTick) }))
+		.value()
+	const firstCodaTick = codaEvents[0] ? codaEvents[0].tick : null
 
-	private getTempoMap() {
-		const tempoMap: { tick: number; time: number; bpm: number }[] = []
-		const syncTrack = this.fileSections['SyncTrack'] ?? []
-		for (const line of syncTrack) {
-			const [, stringTick, stringBpm] = /\s*(\d+) = B (\d+)/.exec(line) || []
-			const tick = parseInt(stringTick, 10)
-			const bpm = parseInt(stringBpm, 10) / 1000
-			if (isNaN(tick) || isNaN(bpm)) { continue } // Not a bpm marker
-
-			const lastMarker = _.last(tempoMap)
-			let time = 0
-			if (lastMarker) {
-				// the "Resolution" parameter is the number of ticks in each beat, so `bpm * resolution` is the ticks per minute
-				const msPerTickInRegion = 60000 / (lastMarker.bpm * this.resolution)
-				time = lastMarker.time + (tick - lastMarker.tick) * msPerTickInRegion
-			}
-
-			tempoMap.push({ tick, time, bpm })
-		}
-		if (!tempoMap.length) { this.notesData.chartIssues.push('noSyncTrackSection') }
-		return tempoMap
-	}
-
-	private getTimeSignatures() {
-		const timeSignatures: { tick: number; value: number }[] = []
-		const syncTrack = this.fileSections['SyncTrack'] ?? []
-		for (const line of syncTrack) {
-			const [, stringTick, stringNumerator, stringDenominatorExp] = /\s*(\d+) = TS (\d+)(?: (\d+))?/.exec(line) || []
-			const [tick, numerator] = [parseInt(stringTick, 10), parseInt(stringNumerator, 10)]
-			const denominatorExp = stringDenominatorExp ? parseInt(stringDenominatorExp, 10) : 2
-			if (isNaN(tick) || isNaN(numerator) || isNaN(denominatorExp)) { continue } // Not a time signature marker
-			timeSignatures.push({ tick, value: numerator / Math.pow(2, denominatorExp) })
-		}
-		if (!timeSignatures.length) {
-			timeSignatures.push({ tick: 0, value: 4 / 4 })
-		}
-		return timeSignatures
-	}
-
-	public parse() {
-		if (!this.resolution || !this.tempoMap.length || !this.timeSignatures.length) {
-			return { notesData: this.notesData, notesMetadata: this.getMetadata() }
-		}
-
-		const trackParsers = _.chain(this.trackSections)
-			.entries()
-			.map(([track, lines]) => new TrackParser(
-				this.notesData,
-				trackNameMap[track as TrackName].instrument,
-				trackNameMap[track as TrackName].difficulty,
-				this.parseTrackLines(lines, trackNameMap[track as TrackName].instrument),
-				'chart'
-			))
-			.value()
-
-		trackParsers.forEach(p => p.parseTrack())
-
-		const globalFirstNote = _.minBy(trackParsers, p => p.firstNote?.time ?? Infinity)?.firstNote ?? null
-		const globalLastNote = _.maxBy(trackParsers, p => p.lastNote?.time ?? -Infinity)?.lastNote ?? null
-
-		if (globalFirstNote === null || globalLastNote === null) {
-			this.notesData.chartIssues.push('noNotes')
-			return { notesData: this.notesData, notesMetadata: this.getMetadata() }
-		}
-		this.setEventsProperties()
-		this.setMissingExperts()
-		this.setTimeSignatureProperties()
-		if (this.tempoMap.length === 1 && this.tempoMap[0].bpm === 120 && this.timeSignatures.length === 1) {
-			this.notesData.chartIssues.push('isDefaultBPM')
-		}
-
-		// Add tempo map hash
-		this.notesData.tempoMapHash = createHash('md5')
-			.update(this.tempoMap.map(t => `${t.time}_${t.bpm}`).join(':'))
-			.update(this.timeSignatures.map(t => t.value).join(':'))
-			.digest('hex')
-		this.notesData.tempoMarkerCount = this.tempoMap.length
-
-		// Add lengths
-		this.notesData.length = Math.floor(globalLastNote.time)
-		this.notesData.effectiveLength = Math.floor(globalLastNote.time - globalFirstNote.time)
-
-		return { notesData: this.notesData, notesMetadata: this.getMetadata() }
-	}
-
-	private parseTrackLines(lines: string[], instrument: Instrument) {
-		let lastBpmIndex = 0
-		const trackEvents: TrackEvent[] = []
-
-		for (const line of lines) {
-			const parsedLine = _.chain(line)
-				.trim()
-				.thru(l => /^(\d+) = ([A-Z]+) ([\d\w]+) ?(\d+)?$/.exec(l) || [] as string[])
-				.drop(1)
-				.thru(parts => ({ tick: +parts[0], typeCode: parts[1], value: parts[2], len: +parts[3] }))
-				.value()
-
-			// Update lastMarker to the closest BPM marker behind this note
-			if (this.tempoMap[lastBpmIndex + 1] && parsedLine.tick >= this.tempoMap[lastBpmIndex + 1].tick) { lastBpmIndex++ }
-
-			const time = this.timeFromTick(lastBpmIndex, parsedLine.tick)
-			const length = parsedLine.len ? this.timeFromTick(lastBpmIndex, parsedLine.tick + parsedLine.len) - time : 0
-			const type = this.getEventType(parsedLine.typeCode, parsedLine.value, instrument)
-			if (type !== null) {
-				trackEvents.push({ time, length, type })
-			}
-		}
-
-		return trackEvents
-	}
-
-	private timeFromTick(lastBpmIndex: number, tick: number) {
-		while (this.tempoMap[lastBpmIndex + 1] && this.tempoMap[lastBpmIndex + 1].tick < tick) {
-			lastBpmIndex++
-		}
-		// the "Resolution" parameter is the number of ticks in each beat, so `bpm * resolution` is the ticks per minute
-		const msPerTickInRegion = 60000 / (this.tempoMap[lastBpmIndex].bpm * this.resolution)
-		return _.round(this.tempoMap[lastBpmIndex].time + ((tick - this.tempoMap[lastBpmIndex].tick) * msPerTickInRegion), 3)
-	}
-
-	private getEventType(typeCode: string, value: string, instrument: Instrument) {
-		switch (typeCode) {
-			case 'E': {
-				switch (value) {
-					case 'solo': return EventType.soloMarker
-					default: return null
-				}
-			}
-			case 'S': {
-				switch (value) {
-					case '2': return EventType.starPower
-					case '64': return EventType.activationLane
-					case '65': return EventType.rollLaneSingle
-					case '66': return EventType.rollLaneDouble
-					default: return null
-				}
-			}
-			case 'N': {
-				switch (instrument) {
-					case 'drums': {
-						switch (value) {
-							case '0': return EventType.kick
-							case '1': return EventType.red
-							case '2': return EventType.yellow
-							case '3': return EventType.blue
-							case '4': return EventType.orange
-							case '5': return EventType.green
-							case '32': return EventType.kick2x
-							case '66': return EventType.yellowTomOrCymbalMarker
-							case '67': return EventType.blueTomOrCymbalMarker
-							case '68': return EventType.greenTomOrCymbalMarker
-							default: return null
-						}
-					}
-					case 'guitarghl':
-					case 'guitarcoopghl':
-					case 'rhythmghl':
-					case 'bassghl': {
-						switch (value) {
-							case '0': return EventType.white1
-							case '1': return EventType.white2
-							case '2': return EventType.white3
-							case '3': return EventType.black1
-							case '4': return EventType.black2
-							case '5': return EventType.force
-							case '6': return EventType.tap
-							case '7': return EventType.open
-							case '8': return EventType.black3
-							default: return null
-						}
-					}
-					default: {
-						switch (value) {
-							case '0': return EventType.green
-							case '1': return EventType.red
-							case '2': return EventType.yellow
-							case '3': return EventType.blue
-							case '4': return EventType.orange
-							case '5': return EventType.force
-							case '6': return EventType.tap
-							case '7': return EventType.open
-							default: return null
-						}
-					}
-				}
-			}
-			default: return null
-		}
-	}
-
-	private setEventsProperties() {
-		const events = this.fileSections['Events'] ?? []
-		let hasSections = false
-		for (const line of events) {
-			if (line.includes('"lyric ')) { this.notesData.hasLyrics = true }
-			if (line.includes('"section ')) { hasSections = true }
-		}
-		if (!hasSections) {
-			this.notesData.chartIssues.push('noSections')
-		}
-	}
-
-	private setMissingExperts() {
-		const missingExperts = _.chain(this.trackSections as { [trackName: string]: string[] })
-			.keys()
-			.map((key: TrackName) => trackNameMap[key])
-			.groupBy(trackSection => trackSection.instrument)
-			.mapValues(trackSections => trackSections.map(trackSection => trackSection.difficulty))
-			.toPairs()
-			.filter(([, difficulties]) => !difficulties.includes('expert') && difficulties.length > 0)
-			.map(([instrument]) => instrument as Instrument)
-			.value()
-
-		if (missingExperts.length > 0) {
-			this.notesData.chartIssues.push('noExpert')
-		}
-	}
-
-	private setTimeSignatureProperties() {
-		let lastBeatlineTick = 0
-		for (let i = 0; i < this.timeSignatures.length; i++) {
-			if (lastBeatlineTick !== this.timeSignatures[i].tick) {
-				this.notesData.chartIssues.push('misalignedTimeSignatures')
-				break
-			}
-			while (this.timeSignatures[i + 1] && lastBeatlineTick < this.timeSignatures[i + 1].tick) {
-				lastBeatlineTick += this.resolution * this.timeSignatures[i].value * 4
-			}
-		}
-	}
-
-	private getMetadata() {
-		return {
-			name: this.metadata['Name'] || undefined,
-			artist: this.metadata['Artist'] || undefined,
-			album: this.metadata['Album'] || undefined,
-			genre: this.metadata['Genre'] || undefined,
-			year: this.metadata['Year']?.slice(2) || undefined, // Thank you GHTCP, very cool
-			charter: this.metadata['Charter'] || undefined,
-			diff_guitar: parseFloat(this.metadata['Difficulty']) || undefined,
+	return {
+		chartTicksPerBeat: resolution,
+		metadata: {
+			name: metadata['Name'] || undefined,
+			artist: metadata['Artist'] || undefined,
+			album: metadata['Album'] || undefined,
+			genre: metadata['Genre'] || undefined,
+			year: metadata['Year']?.slice(2) || undefined, // Thank you GHTCP, very cool
+			charter: metadata['Charter'] || undefined,
+			diff_guitar: Number(metadata['Difficulty']) || undefined,
 			// "Offset" and "PreviewStart" are in units of seconds
-			delay: parseFloat(this.metadata['Offset']) ? parseFloat(this.metadata['Offset']) * 1000 : undefined,
-			preview_start_time: parseFloat(this.metadata['PreviewStart']) ? parseFloat(this.metadata['PreviewStart']) * 1000 : undefined,
-		}
+			delay: Number(metadata['Offset']) ? Number(metadata['Offset']) * 1000 : undefined,
+			preview_start_time: Number(metadata['PreviewStart']) ? Number(metadata['PreviewStart']) * 1000 : undefined,
+		},
+		hasLyrics: !!fileSections['Events']?.find(line => line.includes('"lyric ')),
+		hasVocals: false, // Vocals are unsupported in .chart
+		tempos: _.chain(fileSections['SyncTrack'])
+			.map(line => /^(\d+) = B (\d+)$/.exec(line))
+			.compact()
+			.map(([, stringTick, stringMillibeatsPerMinute]) => ({
+				tick: Number(stringTick),
+				millibeatsPerMinute: Number(stringMillibeatsPerMinute),
+			}))
+			.tap(tempos => {
+				if (!tempos[0] || tempos[0].tick !== 0) {
+					tempos.unshift({ tick: 0, millibeatsPerMinute: 120000 })
+				}
+			})
+			.value(),
+		timeSignatures: _.chain(fileSections['SyncTrack'])
+			.map(line => /^(\d+) = TS (\d+)(?: (\d+))?$/.exec(line))
+			.compact()
+			.map(([, stringTick, stringNumerator, stringDenominatorExp]) => ({
+				tick: Number(stringTick),
+				numerator: Number(stringNumerator),
+				denominator: stringDenominatorExp ? Math.pow(2, Number(stringDenominatorExp)) : 4,
+			}))
+			.tap(timeSignatures => {
+				if (!timeSignatures[0] || timeSignatures[0].tick !== 0) {
+					timeSignatures.unshift({ tick: 0, numerator: 4, denominator: 4 })
+				}
+			})
+			.value(),
+		sections: _.chain(fileSections['Events'])
+			.map(line => /^(\d+) = E "\[?(?:section|prc)[ _](.*?)\]?"$/.exec(line))
+			.compact()
+			.map(([, stringTick, stringName]) => ({
+				tick: Number(stringTick),
+				name: stringName,
+			}))
+			.value(),
+		endEvents: _.chain(fileSections['Events'])
+			.map(line => /^(\d+) = E "\[?end\]?"$/.exec(line))
+			.compact()
+			.map(([, stringTick]) => ({
+				tick: Number(stringTick),
+			}))
+			.value(),
+		trackData: _.chain(fileSections)
+			.pick(_.keys(trackNameMap))
+			.toPairs()
+			.map(([trackName, lines]) => {
+				const { instrument, difficulty } = trackNameMap[trackName as TrackName]
+				const trackEvents = _.chain(lines)
+					.map(line => /^(\d+) = ([A-Z]+) ([\w\s[\]]+?)( \d+)?$/.exec(line))
+					.compact()
+					.map(([, tickString, typeCode, value, lengthString]) => {
+						const type = getEventType(typeCode, value, instrument, difficulty)
+						return type !== null ? { tick: Number(tickString), type, length: Number(lengthString) || 0 } : null
+					})
+					.compact()
+					.orderBy('tick') // Most parsers reject charts that aren't already sorted, but it's easier to just sort it here
+					.thru(events => mergeSoloEvents(events))
+					.value()
+				const result: RawChartData['trackData'][number] = {
+					instrument,
+					difficulty,
+					starPowerSections: [],
+					rejectedStarPowerSections: [],
+					soloSections: [],
+					flexLanes: [],
+					drumFreestyleSections: [],
+					trackEvents: [],
+				}
+
+				for (const event of trackEvents) {
+					if (event.type === eventTypes.starPower) {
+						result.starPowerSections.push(event)
+					} else if (event.type === eventTypes.rejectedStarPower) {
+						result.rejectedStarPowerSections.push(event)
+					} else if (event.type === eventTypes.soloSection) {
+						result.soloSections.push(event)
+					} else if (event.type === eventTypes.flexLaneSingle || event.type === eventTypes.flexLaneDouble) {
+						result.flexLanes.push({
+							tick: event.tick,
+							length: event.length,
+							isDouble: event.type === eventTypes.flexLaneDouble,
+						})
+					} else if (event.type === eventTypes.freestyleSection) {
+						result.drumFreestyleSections.push({
+							tick: event.tick,
+							length: event.length,
+							isCoda: firstCodaTick === null ? false : event.tick >= firstCodaTick,
+						})
+					} else {
+						result.trackEvents.push(event)
+					}
+				}
+
+				return result
+			})
+			.value(),
 	}
 }
 
@@ -378,21 +231,35 @@ function getFileSections(chartText: string) {
 				readingSection = false
 				thisSection = chartText.slice(readStartIndex, i)
 			}
-			if (chartText[i] === '\n') { return null }
+			if (chartText[i] === '\n') {
+				throw `Invalid .chart file: unexpected new line when parsing section at index ${i}`
+			}
 			continue // Keep reading section until it ends
 		}
 
-		if (chartText[i] === '=') { skipLine = true } // Skip all user-entered values
-		if (chartText[i] === '\n') { skipLine = false }
-		if (skipLine) { continue } // Keep skipping until '\n' is found
+		if (chartText[i] === '=') {
+			skipLine = true
+		} // Skip all user-entered values
+		if (chartText[i] === '\n') {
+			skipLine = false
+		}
+		if (skipLine) {
+			continue
+		} // Keep skipping until '\n' is found
 
 		if (chartText[i] === '{') {
 			skipLine = true
 			readStartIndex = i + 1
 		} else if (chartText[i] === '}') {
-			if (!thisSection) { return null }
+			if (!thisSection) {
+				throw `Invalid .chart file: end of section reached before a section name was found at index ${i}`
+			}
 			// Trim each line because of Windows \r\n shenanigans
-			sections[thisSection] = chartText.slice(readStartIndex, i).split('\n').map(line => line.trim()).filter(line => line.length)
+			sections[thisSection] = chartText
+				.slice(readStartIndex, i)
+				.split('\n')
+				.map(line => line.trim())
+				.filter(line => line.length)
 		} else if (chartText[i] === '[') {
 			readStartIndex = i + 1
 			readingSection = true
@@ -402,12 +269,171 @@ function getFileSections(chartText: string) {
 	return sections
 }
 
+function getEventType(typeCode: string, value: string, instrument: Instrument, difficulty: Difficulty): EventType | null {
+	switch (typeCode) {
+		case 'E': {
+			switch (value) {
+				case 'solo':
+					return eventTypes.soloSectionStart
+				case 'soloend':
+					return eventTypes.soloSectionEnd
+				default: {
+					const match = value.match(/^\s*\[?mix[ _]([0-3])[ _]drums([0-5])(d|dnoflip|easy|easynokick|)\]?\s*$/)
+					if (match) {
+						const diff = discoFlipDifficultyMap[Number(match[1])]
+						const flag = match[3] as 'd' | 'dnoflip' | 'easy' | 'easynokick' | ''
+						if ((flag === '' || flag === 'd' || flag === 'dnoflip') && difficulty === diff) {
+							return (
+								flag === '' ? eventTypes.discoFlipOff
+								: flag === 'd' ? eventTypes.discoFlipOn
+								: eventTypes.discoNoFlipOn
+							)
+						}
+					}
+					return null
+				}
+			}
+		}
+		case 'S': {
+			switch (value) {
+				case '2':
+					return eventTypes.starPower
+				case '64':
+					return eventTypes.freestyleSection
+				case '65':
+					return eventTypes.flexLaneSingle
+				case '66':
+					return eventTypes.flexLaneDouble
+				default:
+					return null
+			}
+		}
+		case 'N': {
+			switch (instrument) {
+				case 'drums': {
+					switch (value) {
+						case '0':
+							return eventTypes.kick
+						case '1':
+							return eventTypes.redDrum
+						case '2':
+							return eventTypes.yellowDrum
+						case '3':
+							return eventTypes.blueDrum
+						case '4':
+							return eventTypes.fiveOrangeFourGreenDrum
+						case '5':
+							return eventTypes.fiveGreenDrum
+						case '32':
+							return eventTypes.kick2x
+						case '34':
+							return eventTypes.redAccent
+						case '35':
+							return eventTypes.yellowAccent
+						case '36':
+							return eventTypes.blueAccent
+						case '37':
+							return eventTypes.fiveOrangeFourGreenAccent
+						case '38':
+							return eventTypes.fiveGreenAccent
+						case '40':
+							return eventTypes.redGhost
+						case '41':
+							return eventTypes.yellowGhost
+						case '42':
+							return eventTypes.blueGhost
+						case '43':
+							return eventTypes.fiveOrangeFourGreenGhost
+						case '44':
+							return eventTypes.fiveGreenGhost
+						case '66':
+							return eventTypes.yellowCymbalMarker
+						case '67':
+							return eventTypes.blueCymbalMarker
+						case '68':
+							return eventTypes.greenCymbalMarker
+						default:
+							return null
+					}
+				}
+				case 'guitarghl':
+				case 'guitarcoopghl':
+				case 'rhythmghl':
+				case 'bassghl': {
+					switch (value) {
+						case '0':
+							return eventTypes.white1
+						case '1':
+							return eventTypes.white2
+						case '2':
+							return eventTypes.white3
+						case '3':
+							return eventTypes.black1
+						case '4':
+							return eventTypes.black2
+						case '5':
+							return eventTypes.forceUnnatural
+						case '6':
+							return eventTypes.forceTap
+						case '7':
+							return eventTypes.open
+						case '8':
+							return eventTypes.black3
+						default:
+							return null
+					}
+				}
+				default: {
+					switch (value) {
+						case '0':
+							return eventTypes.green
+						case '1':
+							return eventTypes.red
+						case '2':
+							return eventTypes.yellow
+						case '3':
+							return eventTypes.blue
+						case '4':
+							return eventTypes.orange
+						case '5':
+							return eventTypes.forceUnnatural
+						case '6':
+							return eventTypes.forceTap
+						case '7':
+							return eventTypes.open
+						default:
+							return null
+					}
+				}
+			}
+		}
+		default:
+			return null
+	}
+}
+
 /**
- * @returns the `notesData` and `notesMetadata` objects corresponding with the ".chart" file in `buffer`.
+ * Merge `solo` and `soloend` events into `EventType.soloSection`.
+ *
+ * Note: .chart specs say that notes in the last tick of the solo section are included, unlike most phrases.
+ * This is normalized here by increasing the length by 1.
  */
-export function parseChart(buffer: Buffer) {
-	const encoding = getEncoding(buffer)
-	const chartText = buffer.toString(encoding)
-	const fileSections = getFileSections(chartText) ?? {}
-	return new ChartParser(fileSections).parse()
+function mergeSoloEvents(events: { tick: number; type: EventType; length: number }[]) {
+	const soloSectionStartEvents: { tick: number; type: EventType; length: number }[] = []
+
+	for (const event of events) {
+		if (event.type === eventTypes.soloSectionStart) {
+			soloSectionStartEvents.push(event)
+		} else if (event.type === eventTypes.soloSectionEnd) {
+			const lastSoloSectionStartEvent = soloSectionStartEvents.pop()
+			if (lastSoloSectionStartEvent) {
+				lastSoloSectionStartEvent.type = eventTypes.soloSection
+				lastSoloSectionStartEvent.length = event.tick - lastSoloSectionStartEvent.tick + 1
+			}
+		}
+	}
+
+	_.remove(events, event => event.type === eventTypes.soloSectionStart || event.type === eventTypes.soloSectionEnd)
+
+	return events
 }

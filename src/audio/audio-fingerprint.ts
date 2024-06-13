@@ -7,7 +7,7 @@
  * @returns a `number[]` that contains the results of the calculation and an array of any
  * errors that occured during the calculation. If there are errors, the `number[]` will be empty.
  */
-export async function calculateFingerprint(audioFiles: { filepath: string }[], audioFilter: 'amix' | 'amerge') {
+export async function calculateFingerprint(audioFiles: Uint8Array[], audioFilter: 'amix' | 'amerge') {
 	const ffmpegPath = await require('ffmpeg-static')
 	const ffmpegProbe = await require('ffprobe-static')
 	const ffmpeg = await require('fluent-ffmpeg')
@@ -20,10 +20,10 @@ export async function calculateFingerprint(audioFiles: { filepath: string }[], a
 	ffmpeg.setFfmpegPath(ffmpegPath.path)
 	ffmpeg.setFfprobePath(ffmpegProbe.path)
 
-	const HASH_SIZE = 32         // Each hash is 32 bits
-	const HASH_COUNT = 9         // Number of hashes per song
-	const STREAM_DURATION = 100  // Maximum number of seconds to analyze
-	const MAX_STEMS = 4          // Maximum number of stems to process (an ffmpeg limit; increasing this causes it to crash)
+	const HASH_SIZE = 32 // Each hash is 32 bits
+	const HASH_COUNT = 9 // Number of hashes per song
+	const STREAM_DURATION = 100 // Maximum number of seconds to analyze
+	const MAX_STEMS = 4 // Maximum number of stems to process (an ffmpeg limit; increasing this causes it to crash)
 
 	try {
 		const audioHash = await getAudioFingerprint()
@@ -33,7 +33,7 @@ export async function calculateFingerprint(audioFiles: { filepath: string }[], a
 	}
 
 	async function getAudioFingerprint(): Promise<number[]> {
-		const fingerprinter = new Codegen()   // Instance of stream.Transform; a two-way stream
+		const fingerprinter = new Codegen() // Instance of stream.Transform; a two-way stream
 
 		const audioStream = getChartAudioStream()
 
@@ -50,14 +50,15 @@ export async function calculateFingerprint(audioFiles: { filepath: string }[], a
 		return new Promise<number[]>((resolve, reject) => {
 			fingerprinter.on('end', () => {
 				if (dataCount == 0) {
-					push(sig, 400); push(sig, 200) // Push some data because superMinHash doesn't work with no inputs
+					push(sig, 400)
+					push(sig, 200) // Push some data because superMinHash doesn't work with no inputs
 				}
 				for (let i = 0; i < sig.h.length; i++) {
-					sig.h[i] = Math.round(sig.h[i] * (HASH_SIZE ** 2))
+					sig.h[i] = Math.round(sig.h[i] * HASH_SIZE ** 2)
 					sig.h[i] = Math.min(sig.h[i], 2147483647) // Max int value in Postgres (in case fingerprint value is an error)
 				}
 				if (sig.h.length === 0) {
-					errors.push(`Audio hash failed to generate`)
+					errors.push('Audio hash failed to generate')
 					reject()
 				} else {
 					resolve(sig.h)
@@ -83,13 +84,15 @@ export async function calculateFingerprint(audioFiles: { filepath: string }[], a
 		let audioCount = 0
 		for (let i = 0; i < audioFiles.length; i++) {
 			try {
-				ffmpegCommand = ffmpegCommand.input(audioFiles[i].filepath)
-			} catch (err) { errors.push(`Failed to process audio file (${audioFiles[i]}):\n${err}`) }
+				ffmpegCommand = ffmpegCommand.input(audioFiles[i])
+			} catch (err) {
+				errors.push(`Failed to process audio file (${audioFiles[i]}):\n${err}`)
+			}
 			audioCount++
 		}
 
 		if (audioCount == 0) {
-			errors.push(`Failed to scan any audio files`)
+			errors.push('Failed to scan any audio files')
 			throw new Error()
 		}
 
@@ -105,12 +108,12 @@ export async function calculateFingerprint(audioFiles: { filepath: string }[], a
 	}
 
 	interface Signature {
-		outLen: number  // Length of output signature
-		h: number[]     // Array of output values (length = outLen)
+		outLen: number // Length of output signature
+		h: number[] // Array of output values (length = outLen)
 		p: number[]
 		q: number[]
 		b: number[]
-		i: number       // The index of the input value to test next
+		i: number // The index of the input value to test next
 		a: number
 	}
 

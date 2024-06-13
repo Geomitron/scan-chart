@@ -1,32 +1,46 @@
-import detect from 'charset-detector'
+import * as _ from 'lodash'
 import { parse } from 'path'
 
+declare global {
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars
+	interface ReadonlyArray<T> {
+		includes<S, R extends `${Extract<S, string>}`>(this: ReadonlyArray<R>, searchElement: S, fromIndex?: number): searchElement is R & S
+	}
+}
+
 /** Overwrites the type of a nested property in `T` with `U`. */
-export type Overwrite<T, U> = U extends object ? (
-	T extends object ? {
-		[K in keyof T]: K extends keyof U ? Overwrite<T[K], U[K]> : T[K];
-	} : U
-) : U
+export type Overwrite<T, U> =
+	U extends object ?
+		T extends object ?
+			{
+				[K in keyof T]: K extends keyof U ? Overwrite<T[K], U[K]> : T[K]
+			}
+		:	U
+	:	U
 export type Subset<K> = {
 	[attr in keyof K]?: NonNullable<K[attr]> extends object ? Subset<K[attr]> : K[attr]
 }
 export type RequireMatchingProps<T, K extends keyof T> = T & { [P in K]-?: NonNullable<T[P]> }
 export type OptionalMatchingProps<T, K extends keyof T> = Omit<T, K> & { [P in K]?: T[P] }
+export type ObjectValues<T> = T[keyof T]
 
 /**
  * @returns the most likely text encoding for text in `buffer`.
  */
-export function getEncoding(buffer: Buffer) {
-	const matchingCharset = detect(buffer)[0]
-	switch (matchingCharset.charsetName) {
-		case 'UTF-8': return 'utf8'
-		case 'ISO-8859-1': return 'latin1'
-		case 'ISO-8859-2': return 'latin1'
-		case 'ISO-8859-9': return 'utf8'
-		case 'windows-1252': return 'utf8'
-		case 'UTF-16LE': return 'utf16le'
-		default: return 'utf8'
+export function getEncoding(buffer: Uint8Array) {
+	if (buffer.length < 2) {
+		return 'utf-8'
 	}
+
+	if (buffer[0] === 0xff && buffer[1] === 0xfe) {
+		return 'utf-16le'
+	}
+
+	if (buffer[0] === 0xfe && buffer[1] === 0xff) {
+		return 'utf-16be'
+	}
+
+	return 'utf-8'
 }
 
 /**
@@ -34,9 +48,9 @@ export function getEncoding(buffer: Buffer) {
  */
 export function appearsToBeChartFolder(extensions: string[]) {
 	const ext = extensions.map(extension => extension.toLowerCase())
-	const containsNotes = (ext.includes('chart') || ext.includes('mid'))
-	const containsAudio = (ext.includes('ogg') || ext.includes('mp3') || ext.includes('wav') || ext.includes('opus'))
-	return (containsNotes || containsAudio)
+	const containsNotes = ext.includes('chart') || ext.includes('mid')
+	const containsAudio = ext.includes('ogg') || ext.includes('mp3') || ext.includes('wav') || ext.includes('opus')
+	return containsNotes || containsAudio
 }
 
 /**
@@ -65,7 +79,7 @@ export function hasSngExtension(name: string) {
  * @returns `true` if `name` has a valid ini file extension.
  */
 export function hasIniExtension(name: string) {
-	return ('.ini' === getExtension(name).toLowerCase())
+	return '.ini' === getExtension(name).toLowerCase()
 }
 
 /**
@@ -79,7 +93,7 @@ export function hasIniName(name: string) {
  * @returns `true` if `name` has a valid chart file extension.
  */
 export function hasChartExtension(name: string) {
-	return (['.chart', '.mid'].includes(getExtension(name).toLowerCase()))
+	return ['.chart', '.mid'].includes(getExtension(name).toLowerCase())
 }
 
 /**
@@ -93,16 +107,32 @@ export function hasChartName(name: string) {
  * @returns `true` if `name` has a valid chart audio file extension.
  */
 export function hasAudioExtension(name: string) {
-	return (['.ogg', '.mp3', '.wav', '.opus'].includes(getExtension(name).toLowerCase()))
+	return ['.ogg', '.mp3', '.wav', '.opus'].includes(getExtension(name).toLowerCase())
 }
 
 /**
  * @returns `true` if `name` has a valid chart audio filename.
  */
 export function hasAudioName(name: string) {
-	return (['song', 'guitar', 'bass', 'rhythm', 'keys', 'vocals', 'vocals_1', 'vocals_2',
-		'drums', 'drums_1', 'drums_2', 'drums_3', 'drums_4', 'crowd', 'preview'].includes(getBasename(name)))
-		&& (['.ogg', '.mp3', '.wav', '.opus'].includes(getExtension(name)))
+	return (
+		[
+			'song',
+			'guitar',
+			'bass',
+			'rhythm',
+			'keys',
+			'vocals',
+			'vocals_1',
+			'vocals_2',
+			'drums',
+			'drums_1',
+			'drums_2',
+			'drums_3',
+			'drums_4',
+			'crowd',
+			'preview',
+		].includes(getBasename(name)) && ['.ogg', '.mp3', '.wav', '.opus'].includes(getExtension(name))
+	)
 }
 
 /**
@@ -116,14 +146,14 @@ export function hasAlbumName(name: string) {
  * @returns `true` if `name` is a valid video filename.
  */
 export function hasVideoName(name: string) {
-	return getBasename(name) === 'video' && (['.mp4', '.avi', '.webm', '.vp8', '.ogv', '.mpeg'].includes(getExtension(name)))
+	return getBasename(name) === 'video' && ['.mp4', '.avi', '.webm', '.vp8', '.ogv', '.mpeg'].includes(getExtension(name))
 }
 
 /**
  * @returns `true` if `name` is a video filename that is not supported on Linux.
  */
 export function hasBadVideoName(name: string) {
-	return getBasename(name) === 'video' && (['.mp4', '.avi', '.mpeg'].includes(getExtension(name)))
+	return getBasename(name) === 'video' && ['.mp4', '.avi', '.mpeg'].includes(getExtension(name))
 }
 
 /**
@@ -145,4 +175,31 @@ export function removeStyleTags(text: string) {
  */
 export function isArray<T>(value: T | readonly T[]): value is readonly T[] {
 	return Array.isArray(value)
+}
+
+/**
+ * Converts `val` from the range (`fromStart`, `fromEnd`) to the range (`toStart`, `toEnd`).
+ */
+export function interpolate(val: number, fromStart: number, fromEnd: number, toStart: number, toEnd: number) {
+	return ((val - fromStart) / (fromEnd - fromStart)) * (toEnd - toStart) + toStart
+}
+
+/**
+ * @returns an string representation of `ms` that looks like HH:MM:SS.mm
+ */
+export function msToExactTime(ms: number) {
+	const seconds = _.floor((ms / 1000) % 60, 2)
+	const minutes = _.floor((ms / 1000 / 60) % 60)
+	const hours = _.floor((ms / 1000 / 60 / 60) % 24)
+	return `${hours ? `${hours}:` : ''}${_.padStart(minutes + '', 2, '0')}:${_.padStart(seconds.toFixed(2), 5, '0')}`
+}
+
+/**
+ * @returns a string representation of `ms` that looks like HH:MM:SS
+ */
+export function msToRoughTime(ms: number) {
+	const seconds = _.floor((ms / 1000) % 60)
+	const minutes = _.floor((ms / 1000 / 60) % 60)
+	const hours = _.floor((ms / 1000 / 60 / 60) % 24)
+	return `${hours ? `${hours}:` : ''}${minutes}:${_.padStart(String(seconds), 2, '0')}`
 }

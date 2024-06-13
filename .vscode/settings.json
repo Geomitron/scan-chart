@@ -3,16 +3,25 @@
 	"typescript.tsdk": "./node_modules/typescript/lib",
 	"files.encoding": "utf8",
 	"editor.rulers": [
-		140
+		150
 	],
 	"editor.tabCompletion": "on",
 	"editor.detectIndentation": false,
 	"editor.insertSpaces": false,
 	"editor.tabSize": 2,
+	"editor.formatOnType": false,
+	"editor.formatOnPaste": true,
+	"editor.formatOnSave": true,
 	"files.trimTrailingWhitespace": true,
 	"editor.trimAutoWhitespace": true,
 	"files.insertFinalNewline": true,
 	"typescript.preferences.quoteStyle": "single",
+	"json.schemas": [
+		{
+			"fileMatch": ["/.prettierrc.json"],
+			"url": "https://json.schemastore.org/prettierrc"
+		}
+	],
 	"files.exclude": {
 		"**/.git": true
 	},
@@ -28,13 +37,19 @@
 		}
 	},
 	"[typescript]": {
-		"editor.defaultFormatter": "vscode.typescript-language-features",
-		"editor.codeActionsOnSave": [ "source.fixAll.eslint" ],
-		"editor.formatOnSave": true
+		"editor.defaultFormatter": "rvest.vs-code-prettier-eslint",
+		"editor.formatOnSaveMode": "file"
 	},
 	"[css]": {
 		"editor.defaultFormatter": "sibiraj-s.vscode-scss-formatter",
 		"editor.formatOnSave": true
+	},
+	"[json]": {
+		"editor.defaultFormatter": "vscode.json-language-features",
+		"editor.quickSuggestions": {
+			"strings": true
+		},
+		"editor.suggest.insertMode": "replace"
 	},
 	"importSorter.importStringConfiguration.maximumNumberOfImportExpressionsPerLine.type": "newLineEachExpressionAfterCountLimitExceptIfOnlyOne",
 	"importSorter.generalConfiguration.sortImportsInDirectory": false,

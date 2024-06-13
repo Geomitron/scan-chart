@@ -1,4 +1,5 @@
-import { CachedFile } from 'src/cached-file'
+import * as _ from 'lodash'
+
 import { getEncoding } from '../utils'
 
 export const $NoSection: unique symbol = Symbol('Lines before any sections')
@@ -7,24 +8,30 @@ export interface IniObject {
 	[section: string]: { [key: string]: string }
 }
 
-function createParseError(line: string) {
-	return `Unsupported type of line: "${line}"`
-}
+/**
+ * @returns the `IniObject` parsed from `file`.
+ */
+export function parseIni(file: Uint8Array): { iniObject: IniObject; folderIssues: { folderIssue: 'badIniLine'; description: string }[] } {
+	const encoding = getEncoding(file)
+	const decoder = new TextDecoder(encoding)
+	const iniLines = decoder
+		.decode(file)
+		.split(/\r?\n/g)
+		.map(line => line.trim())
 
-function decode(data: string) {
 	const iniObject: IniObject = {}
-	const iniErrors: string[] = []
+	const folderIssues: { folderIssue: 'badIniLine'; description: string }[] = []
+	let currentSection: string | typeof $NoSection = $NoSection
 
-	let currentSection = ''
-
-	const lines = data.split(/\r?\n/g).map(line => line.trim())
-	for (const line of lines) {
-		if ((line.length === 0) || (line.startsWith(';'))) { continue }
+	for (const line of iniLines) {
+		if (line.length === 0 || line.startsWith(';')) {
+			continue
+		}
 
 		if (line[0].startsWith('[')) {
 			const match = /\[(.+)]$/.exec(line)
 			if (match === null) {
-				iniErrors.push(createParseError(line))
+				folderIssues.push({ folderIssue: 'badIniLine', description: `Unsupported type of line: "${_.truncate(line, { length: 200 })}"` })
 			} else {
 				currentSection = match[1].trim()
 			}
@@ -33,25 +40,11 @@ function decode(data: string) {
 			const key = line.slice(0, delimeterPos).trim()
 			const value = line.slice(delimeterPos + 1).trim()
 
-			if (currentSection === '') {
-				(iniObject[$NoSection] ??= {})[key] = value
-			} else {
-				(iniObject[currentSection] ??= {})[key] = value
-			}
+			;(iniObject[currentSection] ??= {})[key] = value
 		} else {
-			iniErrors.push(createParseError(line))
+			folderIssues.push({ folderIssue: 'badIniLine', description: `Unsupported type of line: "${_.truncate(line, { length: 200 })}"` })
 		}
 	}
 
-	return { iniObject, iniErrors }
-}
-
-/**
- * @throws an exception if the file failed to be read.
- * @returns the `IIniObject` object corresponding with the ".ini" file at `filepath`.
- */
-export function parseIni(file: CachedFile) {
-	const encoding = getEncoding(file.data)
-	const iniText = file.data.toString(encoding)
-	return decode(iniText)
+	return { iniObject, folderIssues: folderIssues.slice(-5) }
 }

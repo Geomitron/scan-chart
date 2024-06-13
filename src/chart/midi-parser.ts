@@ -1,15 +1,29 @@
-import { createHash } from 'crypto'
 import * as _ from 'lodash'
-import { EVENT_DIVSYSEX, EVENT_META, EVENT_META_END_OF_TRACK, EVENT_META_LYRICS, EVENT_META_SET_TEMPO, EVENT_META_TEXT, EVENT_META_TIME_SIGNATURE, EVENT_META_TRACK_NAME, EVENT_MIDI, EVENT_MIDI_NOTE_ON, EVENT_SYSEX, MIDIEvent } from 'midievents'
-import MIDIFile from 'midifile'
+import { MidiData, MidiEvent, MidiSetTempoEvent, MidiTextEvent, MidiTimeSignatureEvent, parseMidi } from 'midi-file'
 
-import { Difficulty, EventType, Instrument, NotesData, TrackEvent } from '../interfaces'
-import { TrackParser } from './track-parser'
+import { difficulties, Difficulty, getInstrumentType, Instrument, InstrumentType, instrumentTypes } from 'src/interfaces'
+import { EventType, eventTypes, IniChartModifiers, RawChartData } from './note-parsing-interfaces'
 
+type TrackName = (typeof trackNames)[number]
+type InstrumentTrackName = Exclude<TrackName, 'PART VOCALS' | 'EVENTS'>
+const trackNames = [
+	'T1 GEMS',
+	'PART GUITAR',
+	'PART GUITAR COOP',
+	'PART RHYTHM',
+	'PART BASS',
+	'PART DRUMS',
+	'PART KEYS',
+	'PART GUITAR GHL',
+	'PART GUITAR COOP GHL',
+	'PART RHYTHM GHL',
+	'PART BASS GHL',
+	'PART VOCALS',
+	'EVENTS',
+] as const
 /* eslint-disable @typescript-eslint/naming-convention */
-type TrackName = InstrumentName | 'PART VOCALS' | 'EVENTS'
-type InstrumentName = keyof typeof instrumentNameMap
-const instrumentNameMap = {
+const instrumentNameMap: { [key in InstrumentTrackName]: Instrument } = {
+	'T1 GEMS': 'guitar',
 	'PART GUITAR': 'guitar',
 	'PART GUITAR COOP': 'guitarcoop',
 	'PART RHYTHM': 'rhythm',
@@ -24,447 +38,654 @@ const instrumentNameMap = {
 /* eslint-enable @typescript-eslint/naming-convention */
 
 const sysExDifficultyMap = ['easy', 'medium', 'hard', 'expert'] as const
+const discoFlipDifficultyMap = ['easy', 'medium', 'hard', 'expert'] as const
 const fiveFretDiffStarts = { easy: 59, medium: 71, hard: 83, expert: 95 }
 const sixFretDiffStarts = { easy: 58, medium: 70, hard: 82, expert: 94 }
 const drumsDiffStarts = { easy: 60, medium: 72, hard: 84, expert: 96 }
 
 interface TrackEventEnd {
-	difficulty: Difficulty | null
-	time: number
-	type: EventType | null
+	tick: number
+	type: EventType
+	// Necessary because .mid stores some additional modifiers and information using velocity
+	velocity: number
+	channel: number
+	// Necessary because .mid stores track events as separate start and end events
 	isStart: boolean
 }
-interface TrackEventDiff extends TrackEvent {
-	difficulty: Difficulty | null
-}
 
-class MidiParser {
-	private notesData: NotesData
-	private tempoMap: MIDIEvent[] = []
-	private timeSignatures: MIDIEvent[] = []
-	private tracks: { trackIndex: number; trackName: TrackName; trackEvents: MIDIEvent[] }[]
-	private splitTracks: { instrument: Instrument; difficulty: Difficulty; trackEvents: TrackEvent[] }[]
+// Necessary because .mid stores some additional modifiers and information using velocity
+type MidiTrackEvent = RawChartData['trackData'][number]['trackEvents'][number] & { velocity: number; channel: number }
 
-	constructor(midiFile: MIDIFile) {
-		this.notesData = {
-			instruments: [],
-			drumType: null,
-			hasSoloSections: false,
-			hasLyrics: false,
-			hasVocals: false,
-			hasForcedNotes: false,
-			hasTapNotes: false,
-			hasOpenNotes: false,
-			has2xKick: false,
-			hasRollLanes: false,
-			noteIssues: [],
-			trackIssues: [],
-			chartIssues: [],
-			noteCounts: [],
-			maxNps: [],
-			hashes: [],
-			tempoMapHash: '',
-			tempoMarkerCount: 0,
-			length: 0,
-			effectiveLength: 0,
-		}
+/**
+ * Parses `buffer` as a chart in the .mid format. Returns all the note data in `RawChartData`, but any
+ * chart format rules that apply to both .chart and .mid have not been applied. This is a partial result
+ * that can be produced by both the .chart and .mid formats so that the remaining chart rules can be parsed
+ * without code duplication.
+ *
+ * Throws an exception if `buffer` could not be parsed as a chart in the .mid format.
+ *
+ * Note: these features of .mid are ignored (for now)
+ * Versus phrase markers
+ * Trill lanes
+ * Tremolo lanes
+ * [PART DRUMS_2X] (RBN)
+ * Real Drums (Phase Shift)
+ */
+export function parseNotesFromMidi(data: Uint8Array, iniChartModifiers: IniChartModifiers): RawChartData {
+	const midiFile = parseMidi(data)
+	if (midiFile.header.format !== 1) {
+		throw `Invavlid .mid file: unsupported format "${midiFile.header.format}"`
+	}
 
-		const trackNameEvents: MIDIEvent[] = []
-		const trackEvents: MIDIEvent[][] = []
+	if (!midiFile.header.ticksPerBeat) {
+		throw 'Invalid .mid file: resolution in ticks per SMPTE frame is not supported'
+	}
 
-		const allEvents = midiFile.getEvents()
-		for (const midiEvent of allEvents) {
-			midiEvent.playTime = _.round(midiEvent.playTime ?? -1, 3)
+	if (midiFile.tracks.length === 0) {
+		throw 'Invalid .mid file: no tracks detected'
+	}
 
-			switch (midiEvent.type) {
-				case EVENT_META: {
-					switch (midiEvent.subtype) {
-						case EVENT_META_TRACK_NAME: if (midiEvent.playTime === 0) { trackNameEvents.push(midiEvent) } break
-						case EVENT_META_SET_TEMPO: this.tempoMap.push(midiEvent); break
-						case EVENT_META_TIME_SIGNATURE: this.timeSignatures.push(midiEvent); break
-						case EVENT_META_LYRICS: break // Ignored
-						case EVENT_META_END_OF_TRACK: break // Ignored
-						case EVENT_META_TEXT: {
-							(trackEvents[midiEvent.track!] ??= []).push(midiEvent)
-							break
-						}
-					}
-					break
+	// Sets event.deltaTime to the number of ticks since the start of the track
+	convertToAbsoluteTime(midiFile)
+
+	const tracks = getTracks(midiFile)
+
+	const vocalsTrack = tracks.find(t => t.trackName === 'PART VOCALS')
+	const codaEvents =
+		tracks
+			.find(t => t.trackName === 'EVENTS')
+			?.trackEvents.filter(e => e.type === 'text' && (e.text.trim() === 'coda' || e.text.trim() === '[coda]')) ?? []
+	const firstCodaTick = codaEvents[0] ? codaEvents[0].deltaTime : null
+
+	return {
+		chartTicksPerBeat: midiFile.header.ticksPerBeat,
+		metadata: {}, // .mid does not have a mechanism for storing song metadata
+		hasLyrics: !!vocalsTrack?.trackEvents.find(e => e.type === 'lyrics' || e.type === 'text'),
+		hasVocals: !!vocalsTrack?.trackEvents.find(e => e.type === 'noteOn' && e.noteNumber <= 84 && e.noteNumber >= 36),
+		tempos: _.chain(midiFile.tracks[0])
+			.filter((e): e is MidiSetTempoEvent => e.type === 'setTempo')
+			.map(e => ({
+				tick: e.deltaTime,
+				millibeatsPerMinute: Math.floor((1000 * 60000000) / e.microsecondsPerBeat), // Precision truncated to match .chart precision
+			}))
+			.tap(tempos => {
+				if (!tempos[0] || tempos[0].tick !== 0) {
+					tempos.unshift({ tick: 0, millibeatsPerMinute: 120000 })
 				}
-				case EVENT_SYSEX:
-				case EVENT_DIVSYSEX: {
-					(trackEvents[midiEvent.track!] ??= []).push(midiEvent)
-					break
+			})
+			.value(),
+		timeSignatures: _.chain(midiFile.tracks[0])
+			.filter((e): e is MidiTimeSignatureEvent => e.type === 'timeSignature')
+			.map(e => ({
+				tick: e.deltaTime,
+				numerator: e.numerator,
+				denominator: e.denominator,
+			}))
+			.tap(timeSignatures => {
+				if (!timeSignatures[0] || timeSignatures[0].tick !== 0) {
+					timeSignatures.unshift({ tick: 0, numerator: 4, denominator: 4 })
 				}
-				case EVENT_MIDI: {
-					(trackEvents[midiEvent.track!] ??= []).push(midiEvent)
-					break
-				}
-			}
-		}
-
-		if (this.tempoMap.length === 0) {
-			this.tracks = []
-			this.splitTracks = []
-			this.notesData.chartIssues.push('noSyncTrackSection')
-			return
-		}
-
-		this.tracks = trackNameEvents.map(event => ({
-			trackIndex: event.track!,
-			trackName: event.data.map(dta => String.fromCharCode(dta)).join('').trim() as TrackName,
-			trackEvents: trackEvents[event.track!],
-		}))
-
-		this.splitTracks = _.chain(this.tracks)
+			})
+			.value(),
+		sections: _.chain(tracks)
+			.find(t => t.trackName === 'EVENTS')
+			.get('trackEvents')
+			.filter((e): e is MidiTextEvent => e.type === 'text' && /^\[?(?:section|prc)[ _](.*)\]?$/.test(e.text))
+			.map(e => ({
+				tick: e.deltaTime,
+				name: e.text.match(/^\[?(?:section|prc)[ _](.*)\]?$/)![1],
+			}))
+			.value(),
+		endEvents: _.chain(tracks)
+			.find(t => t.trackName === 'EVENTS')
+			.get('trackEvents')
+			.filter((e): e is MidiTextEvent => e.type === 'text' && /^\[?end\]?$/.test(e.text))
+			.map(e => ({
+				tick: e.deltaTime,
+			}))
+			.value(),
+		trackData: _.chain(tracks)
 			.filter(t => _.keys(instrumentNameMap).includes(t.trackName))
 			.map(t => {
-				const instrument = instrumentNameMap[t.trackName as InstrumentName]
-				const trackEventGroups = _.chain(t.trackEvents)
-					.map(te => this.getTrackEventEnds(te, instrument))
-					.filter(te => te.type !== null) // Discard unknown event types
-					.groupBy(te => te.difficulty) // Global modifiers have a difficulty of `null`. `groupBy` sets this to 'null'
-					.toPairs()
-					.thru(groups => this.distributeGlobalModifiers(groups)) // Removes group for difficulty of `null`
-					.map(([difficulty, te]) => [difficulty, this.getTrackEvents(te)] as [string, TrackEventDiff[]])
-					.thru(te => this.applyAndRemoveModifiers(te))
+				const instrument = instrumentNameMap[t.trackName as InstrumentTrackName]
+				const instrumentType = getInstrumentType(instrument)
+				const trackDifficulties = _.chain(t.trackEvents)
+					.thru(trackEvents => getTrackEventEnds(trackEvents, instrumentType))
+					.thru(eventEnds => distributeInstrumentEvents(eventEnds)) // Removes 'all' difficulty
+					.thru(eventEnds => getTrackEvents(eventEnds)) // Connects note ends together
+					.thru(events => splitMidiModifierSustains(events, instrumentType))
+					.thru(events => fixLegacyGhStarPower(events, instrumentType, iniChartModifiers))
+					.thru(events => fixFlexLaneLds(events))
 					.value()
 
-				return trackEventGroups.map(g => ({
-					instrument,
-					difficulty: g[0] as Difficulty,
-					trackEvents: g[1],
-				}))
-			})
-			.flatMap()
-			.value()
+				return difficulties.map(difficulty => {
+					const result: RawChartData['trackData'][number] = {
+						instrument,
+						difficulty,
+						starPowerSections: [],
+						rejectedStarPowerSections: [],
+						soloSections: [],
+						flexLanes: [],
+						drumFreestyleSections: [],
+						trackEvents: [],
+					}
 
-		this.applyEventLengthFix()
-	}
-
-	private getTrackEventEnds(event: MIDIEvent, instrument: Instrument): TrackEventEnd {
-		// SysEx event (tap modifier or open)
-		const eventData = event.data?.map(dta => String.fromCharCode(dta)) ?? []
-		if (event.type === EVENT_SYSEX || event.type === EVENT_DIVSYSEX) {
-			if (eventData[0] === 'P' && eventData[1] === 'S' && eventData[2] === '\0' && event.data[3] === 0x00) {
-				// Phase Shift SysEx event
-				return {
-					difficulty: event.data[4] == 0xFF ? null : sysExDifficultyMap[event.data[4]],
-					time: event.playTime!,
-					type: event.data[5] === 0x01 ? EventType.open : event.data[5] === 0x04 ? EventType.tap : null,
-					isStart: event.data[6] === 0x01,
-				}
-			}
-		}
-
-		const note = event.param1!
-		const difficulty = note <= 66 ? 'easy' : note <= 78 ? 'medium' : note <= 90 ? 'hard' : note <= 102 ? 'expert' : null
-		// Instrument event (solo marker, star power, activation lane, roll lane) (applies to all difficulties)
-		if (!difficulty) {
-			return {
-				difficulty,
-				time: event.playTime!,
-				type: this.getInstrumentEventType(note),
-				isStart: event.subtype === EVENT_MIDI_NOTE_ON,
-			}
-		}
-
-		return {
-			difficulty,
-			time: event.playTime!,
-			type: (['guitarghl', 'guitarcoopghl', 'rhythmghl', 'bassghl'].includes(instrument) ? this.get6FretNoteType(note, difficulty) :
-				instrument === 'drums' ? this.getDrumsNoteType(note, difficulty) : this.get5FretNoteType(note, difficulty)) ?? null,
-			isStart: event.subtype === EVENT_MIDI_NOTE_ON,
-		}
-	}
-
-	private getInstrumentEventType(note: number) {
-		switch (note) {
-			case 103: return EventType.soloMarker
-			case 110: return EventType.yellowTomOrCymbalMarker
-			case 111: return EventType.blueTomOrCymbalMarker
-			case 112: return EventType.greenTomOrCymbalMarker
-			case 116: return EventType.starPower
-			case 120: return EventType.activationLane
-			case 121: return EventType.activationLane
-			case 122: return EventType.activationLane
-			case 123: return EventType.activationLane
-			case 124: return EventType.activationLane
-			case 126: return EventType.rollLaneSingle
-			case 127: return EventType.rollLaneDouble
-			default: return null
-		}
-	}
-
-	private get5FretNoteType(note: number, difficulty: Difficulty) {
-		switch (note - fiveFretDiffStarts[difficulty]) {
-			case 1: return EventType.green
-			case 2: return EventType.red
-			case 3: return EventType.yellow
-			case 4: return EventType.blue
-			case 5: return EventType.orange
-			case 6: return EventType.force // Force HOPO
-			case 7: return EventType.force // Force strum
-		}
-	}
-
-	private get6FretNoteType(note: number, difficulty: Difficulty) {
-		switch (note - sixFretDiffStarts[difficulty]) {
-			case 0: return EventType.open
-			case 1: return EventType.white1
-			case 2: return EventType.white2
-			case 3: return EventType.white3
-			case 4: return EventType.black1
-			case 5: return EventType.black2
-			case 6: return EventType.black3
-			case 7: return EventType.force // Force HOPO
-			case 8: return EventType.force // Force strum
-		}
-	}
-
-	private getDrumsNoteType(note: number, difficulty: Difficulty) {
-		switch (note - drumsDiffStarts[difficulty]) {
-			case -1: return EventType.kick2x
-			case 0: return EventType.kick
-			case 1: return EventType.red
-			case 2: return EventType.yellow
-			case 3: return EventType.blue
-			case 4: return EventType.orange
-			case 5: return EventType.green
-		}
-	}
-
-	/**
-	 * Any Sysex modifiers with difficulty 0xFF are meant to apply to all charted difficulties.
-	 * In `groups`, these have difficulty `'null'`.
-	 */
-	private distributeGlobalModifiers(groups: [string, TrackEventEnd[]][]) {
-		const globalModifiers = _.remove(groups, g => g[0] === 'null')[0]?.[1] ?? []
-
-		for (const modifier of globalModifiers) {
-			for (const group of groups) {
-				const difficultyModifier = _.clone(modifier)
-				difficultyModifier.difficulty = group[0] as Difficulty
-				group[1].push(difficultyModifier)
-			}
-		}
-
-		return groups
-	}
-
-	/** Assumes `trackEventEnds` are all events belonging to the same instrument and difficulty. */
-	private getTrackEvents(trackEventEnds: TrackEventEnd[]) {
-		const trackEvents: TrackEventDiff[] = []
-		const lastTrackEventEnds: Partial<{ [type in EventType]: TrackEventEnd }> = {}
-		// Note: open, tap, and force are all "sustains" that mark notes under them as that type
-		const zeroLengthEventTypes = [EventType.soloMarker, EventType.activationLane, EventType.kick, EventType.kick2x]
-
-		for (const trackEventEnd of trackEventEnds) {
-			const lastTrackEventEnd = lastTrackEventEnds[trackEventEnd.type!]
-			if (trackEventEnd.isStart) {
-				if (zeroLengthEventTypes.includes(trackEventEnd.type!)) {
-					trackEvents.push({
-						difficulty: trackEventEnd.difficulty!,
-						time: trackEventEnd.time,
-						length: 0,
-						type: trackEventEnd.type!,
-					})
-				} else {
-					lastTrackEventEnds[trackEventEnd.type!] = trackEventEnd
-				}
-			} else if (lastTrackEventEnd) {
-				trackEvents.push({
-					difficulty: trackEventEnd.difficulty!,
-					time: lastTrackEventEnd.time,
-					length: _.round(trackEventEnd.time - lastTrackEventEnd.time, 3),
-					type: lastTrackEventEnd.type!,
-				})
-				delete lastTrackEventEnds[trackEventEnd.type!]
-			}
-		}
-
-		return _.sortBy(trackEvents, te => te.time, te => te.type)
-	}
-
-	/** Any note that begins during a modifier "sustain" is converted to that type. (open, tap, force) */
-	private applyAndRemoveModifiers(groups: [string, TrackEventDiff[]][]) {
-		for (const group of groups) {
-			const reducedTrackEventDiffs: TrackEventDiff[] = []
-			let [lastOpen, lastTap, lastForce] = [{ time: -1, length: 0 }, { time: -1, length: 0 }, { time: -1, length: 0 }]
-			let [lastTapMarkerTime, lastForceMarkerTime] = [-1, -1]
-
-			for (const trackEventDiff of group[1]) {
-				switch (trackEventDiff.type) {
-					case EventType.open: lastOpen = trackEventDiff; continue
-					case EventType.tap: lastTap = trackEventDiff; continue
-					case EventType.force: lastForce = trackEventDiff; continue
-					case EventType.starPower: break
-					case EventType.soloMarker: break
-					case EventType.activationLane: break
-					case EventType.rollLaneSingle: break
-					case EventType.rollLaneDouble: break
-					default: {
-						if (trackEventDiff.time >= lastOpen.time && trackEventDiff.time < lastOpen.time + lastOpen.length) {
-							trackEventDiff.type = EventType.open
-						} else if (trackEventDiff.time >= lastTap.time && trackEventDiff.time < lastTap.time + lastTap.length) {
-							if (lastTapMarkerTime !== trackEventDiff.time) { // Only create one tap marker per tick
-								lastTapMarkerTime = trackEventDiff.time
-								reducedTrackEventDiffs.push({
-									difficulty: trackEventDiff.difficulty,
-									time: trackEventDiff.time,
-									length: 0,
-									type: EventType.tap,
-								})
-							}
-						} else if (trackEventDiff.time >= lastForce.time && trackEventDiff.time < lastForce.time + lastForce.length) {
-							if (lastForceMarkerTime !== trackEventDiff.time) { // Only create one force marker per tick
-								lastForceMarkerTime = trackEventDiff.time
-								reducedTrackEventDiffs.push({
-									difficulty: trackEventDiff.difficulty,
-									time: trackEventDiff.time,
-									length: 0,
-									type: EventType.force,
-								})
-							}
+					for (const event of trackDifficulties[difficulty]) {
+						if (event.type === eventTypes.starPower) {
+							result.starPowerSections.push(event)
+						} else if (event.type === eventTypes.rejectedStarPower) {
+							result.rejectedStarPowerSections.push(event)
+						} else if (event.type === eventTypes.soloSection) {
+							result.soloSections.push(event)
+						} else if (event.type === eventTypes.flexLaneSingle || event.type === eventTypes.flexLaneDouble) {
+							result.flexLanes.push({
+								tick: event.tick,
+								length: event.length,
+								isDouble: event.type === eventTypes.flexLaneDouble,
+							})
+						} else if (event.type === eventTypes.freestyleSection) {
+							result.drumFreestyleSections.push({
+								tick: event.tick,
+								length: event.length,
+								isCoda: firstCodaTick === null ? false : event.tick >= firstCodaTick,
+							})
+						} else {
+							result.trackEvents.push(event)
 						}
 					}
-				}
-				reducedTrackEventDiffs.push(trackEventDiff)
-			}
 
-			group[1] = reducedTrackEventDiffs
-		}
-
-		return groups
+					return result
+				})
+			})
+			.flatMap()
+			.filter(track => track.trackEvents.length > 0)
+			.value(),
 	}
+}
 
-	/** Sustains shorter than a 1/12th step are cut off and turned into a normal (non-sustain) note. */
-	private applyEventLengthFix() {
-		const events = _.chain(this.splitTracks)
-			.flatMap(st => st.trackEvents.filter(te => te.length > 0 && te.type !== EventType.starPower))
-			.sortBy(te => te.time)
-			.value()
-
-		let currentBpmIndex = 0
-		for (const event of events) {
-			while (this.tempoMap[currentBpmIndex + 1] && this.tempoMap[currentBpmIndex + 1].playTime! <= event.time) {
-				currentBpmIndex++ // Increment currentBpmIndex to the index of the most recent BPM marker
-			}
-
-			// Assumes the BPM doesn't change across the duration of the sustain.
-			// This will rarely happen, and will be incorrectly interpreted even less often.
-			const lengthInTwelfthNotes = event.length * 1000 * (1 / this.tempoMap[currentBpmIndex].tempo!) * 3
-			if (lengthInTwelfthNotes < 1) {
-				event.length = 0
-			}
-		}
-	}
-
-	public parse(): NotesData {
-
-		const trackParsers = _.chain(this.splitTracks)
-			.map(track => new TrackParser(
-				this.notesData,
-				track.instrument,
-				track.difficulty,
-				track.trackEvents,
-				'mid'
-			))
-			.value()
-
-		trackParsers.forEach(p => p.parseTrack())
-
-		const globalFirstNote = _.minBy(trackParsers, p => p.firstNote?.time ?? Infinity)?.firstNote ?? null
-		const globalLastNote = _.maxBy(trackParsers, p => p.lastNote?.time ?? -Infinity)?.lastNote ?? null
-
-		const vocalEvents = _.sortBy(this.tracks.find(t => t.trackName === 'PART VOCALS')?.trackEvents ?? [], te => te.playTime)
-		if (vocalEvents?.length) {
-			this.notesData.hasLyrics = true
-			if (vocalEvents.find(
-				te => te.param1! !== 105 && te.param1! !== 106 && !(te.type === EVENT_META && te.subtype === EVENT_META_TEXT))
-			) { this.notesData.hasVocals = true }
-		}
-
-		if ((globalFirstNote === null || globalLastNote === null) && !this.notesData.hasVocals) {
-			this.notesData.chartIssues.push('noNotes')
-			return this.notesData
-		}
-
-		const sectionEvents = _.chain(this.tracks.find(t => t.trackName === 'EVENTS')?.trackEvents ?? [])
-			.map(ete => ete.data?.map(dta => String.fromCharCode(dta)).join('') ?? '')
-			.filter(name => name.includes('[section') || name.includes('[prc_'))
-			.value()
-		if (!sectionEvents.length) { this.notesData.chartIssues.push('noSections') }
-
-		this.notesData.tempoMapHash = createHash('md5')
-			.update(this.tempoMap.map(t => `${t.playTime}_${_.round(t.tempoBPM!, 3)}`).join(':'))
-			.update(this.timeSignatures.map(t => t.param1! / Math.pow(2, t.param2!)).join(':'))
-			.digest('hex')
-		this.notesData.tempoMarkerCount = this.tempoMap.length
-
-		if (this.tempoMap.length === 1 && _.round(this.tempoMap[0].tempoBPM!, 3) === 120 && this.timeSignatures.length === 1) {
-			this.notesData.chartIssues.push('isDefaultBPM')
-		}
-
-		this.notesData.length = globalLastNote ? Math.floor(globalLastNote.time) : _.last(vocalEvents)!.playTime!
-		this.notesData.effectiveLength = globalLastNote && globalFirstNote ?
-			Math.floor(globalLastNote.time - globalFirstNote.time)
-			: Math.floor(_.last(vocalEvents)!.playTime! - _.first(vocalEvents)!.playTime!)
-
-		this.setMissingExperts()
-		this.setTimeSignatureProperties()
-
-		return this.notesData
-	}
-
-	private setMissingExperts() {
-		const missingExperts = _.chain(this.splitTracks)
-			.groupBy(trackSection => trackSection.instrument)
-			.mapValues(trackSections => trackSections.map(trackSection => trackSection.difficulty))
-			.toPairs()
-			.filter(([, difficulties]) => !difficulties.includes('expert') && difficulties.length > 0)
-			.map(([instrument]) => instrument as Instrument)
-			.value()
-
-		if (missingExperts.length > 0) {
-			this.notesData.chartIssues.push('noExpert')
-		}
-	}
-
-	private setTimeSignatureProperties() {
-		const events = _.sortBy([..._.drop(this.tempoMap, 1), ...this.timeSignatures], e => e.playTime)
-		const timeSignatures: (MIDIEvent & { tick: number })[] = []
-		let currentTempo = this.tempoMap[0].tempo!
-		const resolution = 480 // Arbitrarily chosen value for ticks in each quarter note
+function convertToAbsoluteTime(midiData: MidiData) {
+	for (const track of midiData.tracks) {
 		let currentTick = 0
-		for (let i = 0; i < events.length; i++) {
-			const deltaTimeMs = events[i].playTime! - (events[i - 1]?.playTime ?? 0)
-			currentTick += deltaTimeMs * 1000 * (1 / currentTempo) * resolution
-			if (events[i].tempo) {
-				currentTempo = events[i].tempo!
-			} else if (events[i].param1) {
-				timeSignatures.push({ ...events[i], tick: _.round(currentTick) })
-			}
+		for (const event of track) {
+			currentTick += event.deltaTime
+			event.deltaTime = currentTick
 		}
+	}
+}
 
-		let previousBeatlineTick = 0
-		for (let i = 0; i < timeSignatures.length; i++) {
-			if (_.round(previousBeatlineTick, 5) !== _.round(timeSignatures[i].tick, 5)) {
-				this.notesData.chartIssues.push('misalignedTimeSignatures')
+function getTracks(midiData: MidiData) {
+	const tracks: { trackName: TrackName; trackEvents: MidiEvent[] }[] = []
+
+	for (const track of midiData.tracks) {
+		let trackName: string | null = null
+		for (const event of track) {
+			if (event.deltaTime !== 0) {
 				break
 			}
-			while (timeSignatures[i + 1] && previousBeatlineTick < timeSignatures[i + 1].tick) {
-				const timeSignatureFraction = timeSignatures[i].param1! / Math.pow(2, timeSignatures[i].param2!)
-				previousBeatlineTick += resolution * timeSignatureFraction * 4
+			if (event.type === 'trackName' && trackNames.includes(event.text as TrackName)) {
+				trackName = event.text
 			}
 		}
+
+		if (trackName !== null) {
+			tracks.push({
+				trackName: trackName as TrackName,
+				trackEvents: track,
+			})
+		}
+	}
+
+	return tracks
+}
+
+/** Gets the starting and ending notes for all midi events defined for the .mid chart spec. */
+function getTrackEventEnds(events: MidiEvent[], instrumentType: InstrumentType) {
+	let enhancedOpens = false
+	const trackEventEnds: { [difficulty in Difficulty | 'all']: TrackEventEnd[] } = {
+		all: [],
+		expert: [],
+		hard: [],
+		medium: [],
+		easy: [],
+	}
+
+	for (const event of events) {
+		// SysEx event (tap modifier or open)
+		if ((event.type === 'sysEx' || event.type === 'endSysEx') && event.data.length > 6) {
+			if (event.data[0] === 0x50 && event.data[1] === 0x53 && event.data[2] === 0x00 && event.data[3] === 0x00) {
+				// Phase Shift SysEx event
+				const type =
+					event.data[5] === 0x01 ? eventTypes.forceOpen
+					: event.data[5] === 0x04 ? eventTypes.forceTap
+					: null
+
+				if (type !== null) {
+					trackEventEnds[event.data[4] === 0xff ? 'all' : discoFlipDifficultyMap[event.data[4]]].push({
+						tick: event.deltaTime,
+						type,
+						channel: 1,
+						velocity: 127,
+						isStart: event.data[6] === 0x01,
+					})
+				}
+			}
+		} else if (event.type === 'noteOn' || event.type === 'noteOff') {
+			const difficulty =
+				event.noteNumber <= 66 ? 'easy'
+				: event.noteNumber <= 78 ? 'medium'
+				: event.noteNumber <= 90 ? 'hard'
+				: event.noteNumber <= 102 ? 'expert'
+				: 'all'
+			if (difficulty === 'all') {
+				// Instrument-wide event (solo marker, star power, etc...) (applies to all difficulties)
+				const type = getInstrumentEventType(event.noteNumber)
+				if (type !== null) {
+					trackEventEnds[difficulty].push({
+						tick: event.deltaTime,
+						type,
+						velocity: event.velocity,
+						channel: event.channel,
+						isStart: event.type === 'noteOn',
+					})
+				}
+			} else {
+				const type =
+					(instrumentType === instrumentTypes.sixFret ? get6FretNoteType(event.noteNumber, difficulty)
+					: instrumentType === instrumentTypes.drums ? getDrumsNoteType(event.noteNumber, difficulty)
+					: get5FretNoteType(event.noteNumber, difficulty, enhancedOpens)) ?? null
+				if (type !== null) {
+					trackEventEnds[difficulty].push({
+						tick: event.deltaTime,
+						type,
+						velocity: event.velocity,
+						channel: event.channel,
+						isStart: event.type === 'noteOn',
+					})
+				}
+			}
+		} else if (event.type === 'text') {
+			if (instrumentType === instrumentTypes.drums) {
+				const discoFlipMatch = event.text.match(/^\s*\[?mix[ _]([0-3])[ _]drums([0-5])(d|dnoflip|easy|easynokick|)\]?\s*$/)
+				if (discoFlipMatch) {
+					const difficulty = sysExDifficultyMap[Number(discoFlipMatch[1])]
+					const flag = discoFlipMatch[3] as 'd' | 'dnoflip' | 'easy' | 'easynokick' | ''
+					const eventType =
+						flag === '' ? eventTypes.discoFlipOff
+						: flag === 'd' ? eventTypes.discoFlipOn
+						: flag === 'dnoflip' ? eventTypes.discoNoFlipOn
+						: null
+					if (eventType) {
+						// Treat this like the other events that have a start and end, so it can be processed the same way later
+						trackEventEnds[difficulty].push({ tick: event.deltaTime, type: eventType, velocity: 127, channel: 1, isStart: true })
+						trackEventEnds[difficulty].push({ tick: event.deltaTime, type: eventType, velocity: 127, channel: 1, isStart: false })
+					}
+				}
+			}
+
+			if (event.text === 'ENHANCED_OPENS' || event.text === '[ENHANCED_OPENS]') {
+				enhancedOpens = true
+			} else if (event.text === 'ENABLE_CHART_DYNAMICS' || event.text === '[ENABLE_CHART_DYNAMICS]') {
+				// Treat this like the other events that have a start and end, so it can be processed the same way later
+				trackEventEnds['all'].push({ tick: event.deltaTime, type: eventTypes.enableChartDynamics, channel: 1, isStart: true, velocity: 127 })
+				trackEventEnds['all'].push({ tick: event.deltaTime, type: eventTypes.enableChartDynamics, channel: 1, isStart: false, velocity: 127 })
+			}
+		}
+	}
+
+	return trackEventEnds
+}
+
+/** These apply to the entire instrument, not specific difficulties. */
+function getInstrumentEventType(note: number) {
+	switch (note) {
+		case 103:
+			return eventTypes.soloSection
+		case 104:
+			return eventTypes.forceTap
+		case 109:
+			return eventTypes.forceFlam
+		case 110:
+			return eventTypes.yellowTomMarker
+		case 111:
+			return eventTypes.blueTomMarker
+		case 112:
+			return eventTypes.greenTomMarker
+		case 116:
+			return eventTypes.starPower
+		case 120:
+			return eventTypes.freestyleSection
+		// Note: The official spec says all five need to be active to count as a drum fill, but some charts don't do this.
+		// Most other popular parsers only check midi note 120 for better compatibility.
+		// case 121:
+		// 	return eventTypes.freestyleSection2
+		// case 122:
+		// 	return eventTypes.freestyleSection3
+		// case 123:
+		// 	return eventTypes.freestyleSection4
+		// case 124:
+		// 	return eventTypes.freestyleSection5
+		case 126:
+			return eventTypes.flexLaneSingle
+		case 127:
+			return eventTypes.flexLaneDouble
+		default:
+			return null
+	}
+}
+
+function get6FretNoteType(note: number, difficulty: Difficulty) {
+	switch (note - sixFretDiffStarts[difficulty]) {
+		case 0:
+			return eventTypes.open // Not forceOpen
+		case 1:
+			return eventTypes.white1
+		case 2:
+			return eventTypes.white2
+		case 3:
+			return eventTypes.white3
+		case 4:
+			return eventTypes.black1
+		case 5:
+			return eventTypes.black2
+		case 6:
+			return eventTypes.black3
+		case 7:
+			return eventTypes.forceHopo
+		case 8:
+			return eventTypes.forceStrum
+		default:
+			return null
+	}
+}
+
+function get5FretNoteType(note: number, difficulty: Difficulty, enhancedOpens: boolean) {
+	switch (note - fiveFretDiffStarts[difficulty]) {
+		case 0:
+			return enhancedOpens ? eventTypes.open : null // Not forceOpen
+		case 1:
+			return eventTypes.green
+		case 2:
+			return eventTypes.red
+		case 3:
+			return eventTypes.yellow
+		case 4:
+			return eventTypes.blue
+		case 5:
+			return eventTypes.orange
+		case 6:
+			return eventTypes.forceHopo
+		case 7:
+			return eventTypes.forceStrum
+		default:
+			return null
+	}
+}
+
+function getDrumsNoteType(note: number, difficulty: Difficulty) {
+	switch (note - drumsDiffStarts[difficulty]) {
+		case -1:
+			return eventTypes.kick2x
+		case 0:
+			return eventTypes.kick
+		case 1:
+			return eventTypes.redDrum
+		case 2:
+			return eventTypes.yellowDrum
+		case 3:
+			return eventTypes.blueDrum
+		case 4:
+			return eventTypes.fiveOrangeFourGreenDrum
+		case 5:
+			return eventTypes.fiveGreenDrum
+		default:
+			return null
 	}
 }
 
 /**
- * @returns the `notesData` object corresponding with the ".mid" file in `buffer`.
+ * Any Sysex modifiers with difficulty 0xFF are meant to apply to all charted difficulties.
+ * Any instrument events above midi note 102 are meant to apply to all charted difficulties.
+ * enableChartDynamics is meant to apply to all charted difficulties.
+ * Distributes all of these to each difficulty in the instrument.
  */
-export function parseMidi(buffer: Buffer) {
-	const midiFile = new MIDIFile(buffer)
-	return new MidiParser(midiFile).parse()
+function distributeInstrumentEvents(eventEnds: { [difficulty in Difficulty | 'all']: TrackEventEnd[] }) {
+	for (const instrumentEvent of eventEnds.all) {
+		for (const difficulty of difficulties) {
+			if (eventEnds[difficulty].length === 0) {
+				continue // Skip adding modifiers to uncharted difficulties
+			}
+			eventEnds[difficulty].push(_.clone(instrumentEvent))
+		}
+	}
+
+	return {
+		expert: _.orderBy(eventEnds.expert, ['tick', 'type'], ['asc', 'desc']),
+		hard: _.orderBy(eventEnds.hard, ['tick', 'type'], ['asc', 'desc']),
+		medium: _.orderBy(eventEnds.medium, ['tick', 'type'], ['asc', 'desc']),
+		easy: _.orderBy(eventEnds.easy, ['tick', 'type'], ['asc', 'desc']),
+	}
+}
+
+/**
+ * Connects together start and end events to determine event lengths.
+ */
+function getTrackEvents(trackEventEnds: { [key in Difficulty]: TrackEventEnd[] }) {
+	const trackEvents: { [key in Difficulty]: MidiTrackEvent[] } = { expert: [], hard: [], medium: [], easy: [] }
+
+	for (const difficulty of difficulties) {
+		const partialTrackEventsMap = _.chain(eventTypes)
+			.values()
+			.map(k => [k, []])
+			.fromPairs()
+			.value() as { [key in EventType]: MidiTrackEvent[] }
+
+		for (const trackEventEnd of trackEventEnds[difficulty]) {
+			const partialTrackEvents = partialTrackEventsMap[trackEventEnd.type]
+			if (trackEventEnd.isStart) {
+				const partialTrackEvent: MidiTrackEvent = {
+					tick: trackEventEnd.tick,
+					length: -1, // Represents that this is a partial track event (an end event has not been found for this yet)
+					type: trackEventEnd.type,
+					velocity: trackEventEnd.velocity,
+					channel: trackEventEnd.channel,
+				}
+				partialTrackEvents.push(partialTrackEvent)
+				trackEvents[difficulty].push(partialTrackEvent)
+			} else if (partialTrackEvents.length) {
+				let partialTrackEventIndex = partialTrackEvents.length - 1
+				while (partialTrackEventIndex >= 0 && partialTrackEvents[partialTrackEventIndex].channel !== trackEventEnd.channel) {
+					partialTrackEventIndex-- // Find the most recent partial event on the same channel
+				}
+				if (partialTrackEventIndex >= 0) {
+					const partialTrackEvent = _.pullAt(partialTrackEvents, partialTrackEventIndex)[0]
+					partialTrackEvent.length = trackEventEnd.tick - partialTrackEvent.tick
+				}
+			}
+		}
+
+		_.remove(trackEvents[difficulty], e => e.length === -1) // Remove all remaining partial events
+	}
+
+	return trackEvents
+}
+
+/**
+ * These event types are modifier sustains that apply to all notes active during them:
+ * - forceOpen
+ * - forceTap
+ * - forceStrum
+ * - forceHopo
+ * - forceFlam
+ * - yellowTomMarker
+ * - blueTomMarker
+ * - greenTomMarker
+ *
+ * Splits these modifiers into zero-length modifier events on each unique note tick under them,
+ * to mimic how .chart stores modifier events.
+ * (Note: The ending tick of the modifier phrase is excluded)
+ *
+ * There are more "modifiers" like this, but these are the ones that are midi-specific.
+ * Code to handle the remaining modifiers is shared between the .mid and .chart parsers later.
+ */
+function splitMidiModifierSustains(events: { [key in Difficulty]: MidiTrackEvent[] }, instrumentType: InstrumentType) {
+	let enableChartDynamics = false
+	const t = eventTypes
+	const modifierSustains: EventType[] =
+		instrumentType === instrumentTypes.drums ?
+			[t.forceFlam, t.yellowTomMarker, t.blueTomMarker, t.greenTomMarker]
+		:	[t.forceOpen, t.forceTap, t.forceStrum, t.forceHopo]
+	const modifiableNotes: EventType[] =
+		instrumentType === instrumentTypes.fiveFret ? [t.open, t.green, t.red, t.yellow, t.blue, t.orange]
+		: instrumentType === instrumentTypes.sixFret ? [t.open, t.black3, t.black2, t.black1, t.white3, t.white2, t.white1]
+		: [t.kick, t.kick2x, t.redDrum, t.yellowDrum, t.blueDrum, t.fiveOrangeFourGreenDrum, t.fiveGreenDrum]
+
+	const newEvents: { [key in Difficulty]: MidiTrackEvent[] } = { expert: [], hard: [], medium: [], easy: [] }
+
+	for (const difficulty of difficulties) {
+		let hasNotes = false
+		const activeModifiers: MidiTrackEvent[] = []
+		/**
+		 * A map of the last zero-length modifiers to be added to `newEvents`.
+		 * used to check that duplicates are not added at the same tick.
+		 */
+		const latestInsertedModifiers: Partial<{ [key in EventType]: MidiTrackEvent }> = {}
+
+		for (const event of events[difficulty]) {
+			if (event.type === eventTypes.enableChartDynamics) {
+				enableChartDynamics = true
+				continue
+			}
+
+			_.remove(activeModifiers, m => (m.length === 0 ? m.tick + m.length < event.tick : m.tick + m.length <= event.tick))
+
+			if (modifierSustains.includes(event.type)) {
+				activeModifiers.push(event)
+				continue // Don't add modifier sustain to final result
+			}
+
+			if (modifiableNotes.includes(event.type)) {
+				hasNotes = true
+				// Add all currently active modifiers to event, if those modifiers haven't been added here already
+				for (const activeModifier of activeModifiers) {
+					const latestInsertedModifier = latestInsertedModifiers[activeModifier.type]
+					if (!latestInsertedModifier || latestInsertedModifier.tick < event.tick) {
+						const newInsertedModifier: MidiTrackEvent = {
+							tick: event.tick,
+							length: 0,
+							type: activeModifier.type,
+							velocity: activeModifier.velocity,
+							channel: activeModifier.channel,
+						}
+						latestInsertedModifiers[activeModifier.type] = newInsertedModifier
+						newEvents[difficulty].push(newInsertedModifier)
+					}
+				}
+
+				if (enableChartDynamics && instrumentType === instrumentTypes.drums && (event.velocity === 1 || event.velocity === 127)) {
+					newEvents[difficulty].push({
+						tick: event.tick,
+						length: 0,
+						velocity: 127,
+						channel: event.channel,
+						type: event.velocity === 1 ? getDrumGhostNoteType(event.type)! : getDrumAccentNoteType(event.type)!,
+					})
+				}
+			}
+
+			newEvents[difficulty].push(event)
+		}
+
+		// Ensure that modifiers and other events are not copied into uncharted difficulties
+		if (!hasNotes) {
+			newEvents[difficulty] = []
+		}
+	}
+
+	return newEvents
+}
+
+function getDrumGhostNoteType(note: EventType) {
+	switch (note) {
+		case eventTypes.redDrum:
+			return eventTypes.redGhost
+		case eventTypes.yellowDrum:
+			return eventTypes.yellowGhost
+		case eventTypes.blueDrum:
+			return eventTypes.blueGhost
+		case eventTypes.fiveOrangeFourGreenDrum:
+			return eventTypes.fiveOrangeFourGreenGhost
+		case eventTypes.fiveGreenDrum:
+			return eventTypes.fiveGreenGhost
+		case eventTypes.kick:
+			return eventTypes.kickGhost
+		case eventTypes.kick2x:
+			return eventTypes.kickGhost
+	}
+}
+
+function getDrumAccentNoteType(note: EventType) {
+	switch (note) {
+		case eventTypes.redDrum:
+			return eventTypes.redAccent
+		case eventTypes.yellowDrum:
+			return eventTypes.yellowAccent
+		case eventTypes.blueDrum:
+			return eventTypes.blueAccent
+		case eventTypes.fiveOrangeFourGreenDrum:
+			return eventTypes.fiveOrangeFourGreenAccent
+		case eventTypes.fiveGreenDrum:
+			return eventTypes.fiveGreenAccent
+		case eventTypes.kick:
+			return eventTypes.kickAccent
+		case eventTypes.kick2x:
+			return eventTypes.kickAccent
+	}
+}
+
+function fixLegacyGhStarPower(
+	events: { [key in Difficulty]: MidiTrackEvent[] },
+	instrumentType: InstrumentType,
+	iniChartModifiers: IniChartModifiers,
+) {
+	if ((instrumentType === instrumentTypes.fiveFret || instrumentType === instrumentTypes.sixFret) && iniChartModifiers.multiplier_note !== 116) {
+		for (const difficulty of difficulties) {
+			const starPowerSections: MidiTrackEvent[] = []
+			const soloSections: MidiTrackEvent[] = []
+
+			for (const event of events[difficulty]) {
+				if (event.type === eventTypes.starPower) {
+					starPowerSections.push(event)
+				} else if (event.type === eventTypes.soloSection) {
+					soloSections.push(event)
+				}
+			}
+
+			if (iniChartModifiers.multiplier_note === 103 || (!starPowerSections.length && soloSections.length > 1)) {
+				for (const soloSection of soloSections) {
+					soloSection.type = eventTypes.starPower // GH1 and GH2 star power
+				}
+				for (const starPowerSection of starPowerSections) {
+					starPowerSection.type = eventTypes.rejectedStarPower // These should not exist; later this is used to generate issues
+				}
+			}
+		}
+	}
+	return events
+}
+
+function fixFlexLaneLds(events: { [key in Difficulty]: MidiTrackEvent[] }) {
+	_.remove(
+		events['easy'],
+		e => (e.type === eventTypes.flexLaneSingle || e.type === eventTypes.flexLaneDouble) && (e.velocity < 21 || e.velocity > 30),
+	)
+	_.remove(
+		events['medium'],
+		e => (e.type === eventTypes.flexLaneSingle || e.type === eventTypes.flexLaneDouble) && (e.velocity < 21 || e.velocity > 40),
+	)
+	_.remove(
+		events['hard'],
+		e => (e.type === eventTypes.flexLaneSingle || e.type === eventTypes.flexLaneDouble) && (e.velocity < 21 || e.velocity > 50),
+	)
+
+	return events
 }

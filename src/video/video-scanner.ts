@@ -1,42 +1,45 @@
-import { CachedFile } from 'src/cached-file'
 import { FolderIssueType } from '../interfaces'
 import { hasBadVideoName, hasVideoName } from '../utils'
 
-class VideoScanner {
+export function scanVideo(files: { filename: string; data: Uint8Array }[]) {
+	const folderIssues: { folderIssue: FolderIssueType; description: string }[] = []
 
-	public folderIssues: { folderIssue: FolderIssueType; description: string }[] = []
-	public hasVideoBackground = false
+	const findVideoDataResult = findVideoData(files)
+	folderIssues.push(...findVideoDataResult.folderIssues)
 
-	private addFolderIssue(folderIssue: FolderIssueType, description: string) {
-		this.folderIssues.push({ folderIssue, description })
-	}
-
-	public scan(chartFolder: CachedFile[]) {
-		let videoCount = 0
-		for (const file of chartFolder) {
-			if (hasVideoName(file.name)) {
-				videoCount++
-				if (hasBadVideoName(file.name)) {
-					this.addFolderIssue('badVideo', `"${file.name}" will not work on Linux and should be converted to .webm.`)
-				}
-			}
-		}
-
-		if (videoCount > 1) {
-			this.addFolderIssue('multipleVideo', `This chart has multiple video background files.`)
-		}
-
-		if (videoCount > 0) {
-			this.hasVideoBackground = true
-		}
-	}
+	return { hasVideoBackground: !!findVideoDataResult.videoData, folderIssues }
 }
 
-export function scanVideo(chartFolder: CachedFile[]) {
-	const videoScanner = new VideoScanner()
-	videoScanner.scan(chartFolder)
-	return {
-		hasVideoBackground: videoScanner.hasVideoBackground,
-		folderIssues: videoScanner.folderIssues,
+function findVideoData(files: { filename: string; data: Uint8Array }[]) {
+	const folderIssues: { folderIssue: FolderIssueType; description: string }[] = []
+	let videoCount = 0
+	let bestVideoData: Uint8Array | null = null
+	let lastVideoData: Uint8Array | null = null
+
+	for (const file of files) {
+		if (hasVideoName(file.filename)) {
+			videoCount++
+			lastVideoData = file.data
+			if (hasBadVideoName(file.filename)) {
+				folderIssues.push({
+					folderIssue: 'badVideo',
+					description: `"${file.filename}" will not work on Linux and should be converted to .webm.`,
+				})
+			} else {
+				bestVideoData = file.data
+			}
+		}
+	}
+
+	if (videoCount > 1) {
+		folderIssues.push({ folderIssue: 'multipleVideo', description: 'This chart has multiple video background files.' })
+	}
+
+	if (bestVideoData !== null) {
+		return { videoData: bestVideoData, folderIssues }
+	} else if (lastVideoData !== null) {
+		return { videoData: lastVideoData, folderIssues }
+	} else {
+		return { videoData: null, folderIssues }
 	}
 }

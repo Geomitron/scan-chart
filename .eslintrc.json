@@ -1,6 +1,11 @@
 {
 	"root": true,
 	"ignorePatterns": ["*.config"],
+	"plugins": ["prettier"],
+	"extends": [
+		"eslint:recommended",
+		"prettier"
+	],
 	"overrides": [
 		{
 			"files": ["*.ts"],
@@ -12,12 +17,16 @@
 				"prefer-arrow"
 			],
 			"extends": [
-        "eslint:recommended",
         "plugin:@typescript-eslint/recommended",
         "plugin:@angular-eslint/recommended"
 			],
 			"rules": {
 				"semi": "off",
+				"eslint-plugin-vue/comma-dangle": "off",
+				"no-mixed-spaces-and-tabs": "error",
+				"no-trailing-spaces": "error",
+				"@typescript-eslint/quotes": ["error", "single", { "avoidEscape": true }],
+				"@typescript-eslint/comma-dangle": ["error", "always-multiline"],
 				"@typescript-eslint/semi": ["error", "never"],
 				"@typescript-eslint/consistent-type-definitions": "error",
 				"@typescript-eslint/dot-notation": "off",
@@ -27,8 +36,8 @@
 						"accessibility": "explicit"
 					}
 				],
-				"@typescript-eslint/no-use-before-define": ["error", { "typedefs": false }],
-				"@typescript-eslint/no-shadow": ["off"],
+				"@typescript-eslint/no-use-before-define": ["error", { "typedefs": false, "functions": false, "classes": false }],
+				"@typescript-eslint/no-shadow": "off",
 				"@typescript-eslint/member-ordering": ["error", { "default": ["field", "public-constructor", "constructor", "method"] }],
 				"@typescript-eslint/member-delimiter-style": ["error", { "multiline": { "delimiter": "none", "requireLast": true } }],
 				"@typescript-eslint/no-non-null-assertion": "off",
@@ -40,7 +49,7 @@
 					"error",
 					{
 						"ignorePattern": "^import |^export \\{(.*?)\\}|^\\s*@inject\\(",
-						"code": 140
+						"code": 150
 					}
 				],
 				"@typescript-eslint/naming-convention": [
@@ -51,7 +60,8 @@
 							"camelCase",
 							"PascalCase",
 							"UPPER_CASE"
-						]
+						],
+        		"leadingUnderscore": "allow"
 					},
 					{
 						"selector": ["property", "parameter"],
@@ -80,26 +90,10 @@
 			}
 		},
 		{
-			"files": ["*.html"],
-			"plugins": ["prettier"],
-			"extends": ["plugin:prettier/recommended"],
-			"rules": {
-				"prettier/prettier": ["error", {
-					"parser": "angular",
-					"endOfLine": "auto",
-					"printWidth": 150,
-					"useTabs": true,
-					"singleQuote": true,
-					"htmlWhitespaceSensitivity": "css",
-					"bracketSameLine": true
-				}]
-			}
-		},
-		{
 			"files": ["*.test.ts", "*.spec.ts"],
 			"rules": {
 				"no-unused-expressions": "off",
-				"@typescript-eslint/no-unused-expressions": ["off"]
+				"@typescript-eslint/no-unused-expressions": "off"
 			}
 		}
 	]

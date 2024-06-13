@@ -1,73 +1,61 @@
 import * as _ from 'lodash'
 
-import { CachedFile } from 'src/cached-file'
 import { FolderIssueType } from '../interfaces'
 import { getBasename, hasAudioExtension, hasAudioName } from '../utils'
 
-class AudioScanner {
+// TODO: use _max_threads
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export function scanAudio(files: { filename: string; data: Uint8Array }[], _max_threads: number) {
+	const folderIssues: { folderIssue: FolderIssueType; description: string }[] = []
 
-	public audioHash: number[] | null = null
-	public audioLength: number | null = null
-	public folderIssues: { folderIssue: FolderIssueType; description: string }[] = []
-
-	private addFolderIssue(folderIssue: FolderIssueType, description: string) {
-		this.folderIssues.push({ folderIssue, description })
+	const findAudioDataResult = findAudioData(files)
+	folderIssues.push(...findAudioDataResult.folderIssues)
+	if (findAudioDataResult.audioData.length === 0) {
+		return { audioHash: null, audioLength: null, folderIssues }
 	}
 
-	public async scan(chartFolder: CachedFile[], max_threads: number) {
-		const audioFiles = this.getAudioFiles(chartFolder)
-		if (audioFiles.length === 0) { return }
+	// TODO: Implement this when determining the best audio fingerprint algorithm
+	// const audioParser = new AudioParser(max_threads)
+	// const { audioHash, audioLength, errors } = await audioParser.getAudioFingerprint(audioFiles)
 
-		// TODO: Implement this when determining the best audio fingerprint algorithm
-		// const audioParser = new AudioParser(max_threads)
-		// const { audioHash, audioLength, errors } = await audioParser.getAudioFingerprint(audioFiles)
+	// if (errors.length) {
+	// 	this.addFolderIssue('badAudio', `This chart's audio couldn't be parsed:\n${errors.join('\n')}`)
+	// } else {
+	// 	this.audioHash = audioHash
+	// 	this.audioLength = audioLength
+	// }
 
-		// if (errors.length) {
-		// 	this.addFolderIssue('badAudio', `This chart's audio couldn't be parsed:\n${errors.join('\n')}`)
-		// } else {
-		// 	this.audioHash = audioHash
-		// 	this.audioLength = audioLength
-		// }
-	}
-
-	/**
-	 * @returns the audio file(s) in this chart.
-	 */
-	private getAudioFiles(chartFolder: CachedFile[]) {
-		const audioFiles: CachedFile[] = []
-		const stemNames: string[] = []
-
-		for (const file of chartFolder) {
-			if (hasAudioExtension(file.name)) {
-				if (hasAudioName(file.name)) {
-					stemNames.push(getBasename(file.name))
-					if (!['preview', 'crowd'].includes(getBasename(file.name).toLowerCase())) {
-						audioFiles.push(file)
-					}
-				} else {
-					this.addFolderIssue('invalidAudio', `"${file.name}" is not a valid audio stem name.`)
-				}
-			}
-		}
-
-		if (_.uniq(stemNames).length !== stemNames.length) {
-			this.addFolderIssue('multipleAudio', `This chart has multiple audio files of the same stem.`)
-		}
-
-		if (audioFiles.length === 0) {
-			this.addFolderIssue('noAudio', `This chart doesn't have an audio file.`)
-		}
-
-		return audioFiles
-	}
+	return { audioHash: null, audioLength: null, folderIssues }
 }
 
-export async function scanAudio(chartFolder: CachedFile[], max_threads: number) {
-	const audioScanner = new AudioScanner()
-	await audioScanner.scan(chartFolder, max_threads)
-	return {
-		audioHash: audioScanner.audioHash,
-		audioLength: audioScanner.audioLength,
-		folderIssues: audioScanner.folderIssues,
+/**
+ * @returns the audio file(s) in this chart, or `[]` if none were found.
+ */
+function findAudioData(files: { filename: string; data: Uint8Array }[]) {
+	const folderIssues: { folderIssue: FolderIssueType; description: string }[] = []
+	const audioData: Uint8Array[] = []
+	const stemNames: string[] = []
+
+	for (const file of files) {
+		if (hasAudioExtension(file.filename)) {
+			if (hasAudioName(file.filename)) {
+				stemNames.push(getBasename(file.filename))
+				if (!['preview', 'crowd'].includes(getBasename(file.filename).toLowerCase())) {
+					audioData.push(file.data)
+				}
+			} else {
+				folderIssues.push({ folderIssue: 'invalidAudio', description: `"${file.filename}" is not a valid audio stem name.` })
+			}
+		}
 	}
+
+	if (_.uniq(stemNames).length !== stemNames.length) {
+		folderIssues.push({ folderIssue: 'multipleAudio', description: 'This chart has multiple audio files of the same stem.' })
+	}
+
+	if (audioData.length === 0) {
+		folderIssues.push({ folderIssue: 'noAudio', description: "This chart doesn't have an audio file." })
+	}
+
+	return { audioData, folderIssues }
 }
