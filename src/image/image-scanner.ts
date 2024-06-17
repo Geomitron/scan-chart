@@ -3,7 +3,7 @@ import { load } from 'exifreader'
 import { FolderIssueType } from '../interfaces'
 import { hasAlbumName } from '../utils'
 
-export function scanImage(files: { filename: string; data: Uint8Array }[]) {
+export function scanImage(files: { fileName: string; data: Uint8Array }[]) {
 	const folderIssues: { folderIssue: FolderIssueType; description: string }[] = []
 
 	const findAlbumDataResult = findAlbumData(files)
@@ -21,13 +21,13 @@ export function scanImage(files: { filename: string; data: Uint8Array }[]) {
 /**
  * @returns the album art file data in this chart, or `null` if one wasn't found.
  */
-function findAlbumData(files: { filename: string; data: Uint8Array }[]) {
+function findAlbumData(files: { fileName: string; data: Uint8Array }[]) {
 	const folderIssues: { folderIssue: FolderIssueType; description: string }[] = []
 	let albumCount = 0
 	let lastAlbumData: Uint8Array | null = null
 
 	for (const file of files) {
-		if (hasAlbumName(file.filename)) {
+		if (hasAlbumName(file.fileName)) {
 			albumCount++
 			lastAlbumData = file.data
 		}

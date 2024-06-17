@@ -5,7 +5,7 @@ import { getBasename, hasAudioExtension, hasAudioName } from '../utils'
 
 // TODO: use _max_threads
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-export function scanAudio(files: { filename: string; data: Uint8Array }[], _max_threads: number) {
+export function scanAudio(files: { fileName: string; data: Uint8Array }[], _max_threads: number) {
 	const folderIssues: { folderIssue: FolderIssueType; description: string }[] = []
 
 	const findAudioDataResult = findAudioData(files)
@@ -31,20 +31,20 @@ export function scanAudio(files: { filename: string; data: Uint8Array }[], _max_
 /**
  * @returns the audio file(s) in this chart, or `[]` if none were found.
  */
-function findAudioData(files: { filename: string; data: Uint8Array }[]) {
+function findAudioData(files: { fileName: string; data: Uint8Array }[]) {
 	const folderIssues: { folderIssue: FolderIssueType; description: string }[] = []
 	const audioData: Uint8Array[] = []
 	const stemNames: string[] = []
 
 	for (const file of files) {
-		if (hasAudioExtension(file.filename)) {
-			if (hasAudioName(file.filename)) {
-				stemNames.push(getBasename(file.filename))
-				if (!['preview', 'crowd'].includes(getBasename(file.filename).toLowerCase())) {
+		if (hasAudioExtension(file.fileName)) {
+			if (hasAudioName(file.fileName)) {
+				stemNames.push(getBasename(file.fileName))
+				if (!['preview', 'crowd'].includes(getBasename(file.fileName).toLowerCase())) {
 					audioData.push(file.data)
 				}
 			} else {
-				folderIssues.push({ folderIssue: 'invalidAudio', description: `"${file.filename}" is not a valid audio stem name.` })
+				folderIssues.push({ folderIssue: 'invalidAudio', description: `"${file.fileName}" is not a valid audio stem name.` })
 			}
 		}
 	}

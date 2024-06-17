@@ -17,7 +17,7 @@ export { calculateTrackHash } from './chart/track-hasher'
 /**
  * Scans `files` as a chart folder, and returns a `ScannedChart` object.
  */
-export function scanChartFolder(files: { filename: string; data: Uint8Array }[]): ScannedChart {
+export function scanChartFolder(files: { fileName: string; data: Uint8Array }[]): ScannedChart {
 	const chart: RequireMatchingProps<Subset<ScannedChart>, 'folderIssues' | 'metadataIssues' | 'playable'> = {
 		folderIssues: [],
 		metadataIssues: [],
@@ -119,10 +119,10 @@ export function scanChartFolder(files: { filename: string; data: Uint8Array }[])
 	return chart as ScannedChart
 }
 
-function getChartMD5(files: { filename: string; data: Uint8Array }[]) {
+function getChartMD5(files: { fileName: string; data: Uint8Array }[]) {
 	const hash = md5.create()
-	for (const file of _.orderBy(files, f => f.filename)) {
-		hash.update(file.filename)
+	for (const file of _.orderBy(files, f => f.fileName)) {
+		hash.update(file.fileName)
 		hash.update(file.data)
 	}
 	return hash.hex()

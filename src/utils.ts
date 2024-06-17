@@ -44,7 +44,7 @@ export function getEncoding(buffer: Uint8Array) {
 }
 
 /**
- * @returns true if the list of filename `extensions` appears to be intended as a chart folder.
+ * @returns true if the list of fileName `extensions` appears to be intended as a chart folder.
  */
 export function appearsToBeChartFolder(extensions: string[]) {
 	const ext = extensions.map(extension => extension.toLowerCase())
@@ -83,7 +83,7 @@ export function hasIniExtension(name: string) {
 }
 
 /**
- * @returns `true` if `name` is a valid ini filename.
+ * @returns `true` if `name` is a valid ini fileName.
  */
 export function hasIniName(name: string) {
 	return name === 'song.ini'
@@ -97,7 +97,7 @@ export function hasChartExtension(name: string) {
 }
 
 /**
- * @returns `true` if `name` is a valid chart filename.
+ * @returns `true` if `name` is a valid chart fileName.
  */
 export function hasChartName(name: string) {
 	return ['notes.chart', 'notes.mid'].includes(name)
@@ -111,7 +111,7 @@ export function hasAudioExtension(name: string) {
 }
 
 /**
- * @returns `true` if `name` has a valid chart audio filename.
+ * @returns `true` if `name` has a valid chart audio fileName.
  */
 export function hasAudioName(name: string) {
 	return (
@@ -136,26 +136,67 @@ export function hasAudioName(name: string) {
 }
 
 /**
- * @returns `true` if `name` is a valid album filename.
+ * @returns `true` if `name` is a valid album fileName.
  */
 export function hasAlbumName(name: string) {
 	return ['album.jpg', 'album.jpeg', 'album.png'].includes(name)
 }
 
 /**
- * @returns `true` if `name` is a valid video filename.
+ * @returns `true` if `name` is a valid video fileName.
  */
 export function hasVideoName(name: string) {
 	return getBasename(name) === 'video' && ['.mp4', '.avi', '.webm', '.vp8', '.ogv', '.mpeg'].includes(getExtension(name))
 }
 
 /**
- * @returns `true` if `name` is a video filename that is not supported on Linux.
+ * @returns `true` if `name` is a video fileName that is not supported on Linux.
  */
 export function hasBadVideoName(name: string) {
 	return getBasename(name) === 'video' && ['.mp4', '.avi', '.mpeg'].includes(getExtension(name))
 }
 
+const allowedTags = [
+	'align',
+	'allcaps',
+	'alpha',
+	'b',
+	'br',
+	'color',
+	'cspace',
+	'font',
+	'font-weight',
+	'gradient',
+	'i',
+	'indent',
+	'line-height',
+	'line-indent',
+	'link',
+	'lowercase',
+	'margin',
+	'mark',
+	'mspace',
+	'nobr',
+	'noparse',
+	'page',
+	'pos',
+	'rotate',
+	's',
+	'size',
+	'smallcaps',
+	'space',
+	'sprite',
+	'strikethrough',
+	'style',
+	'sub',
+	'sup',
+	'u',
+	'uppercase',
+	'voffset',
+	'width',
+	'#',
+]
+const tagPattern = allowedTags.map(tag => `\\b${tag}\\b`).join('|')
 /**
  * @returns `text` with all style tags removed. (e.g. "<color=#AEFFFF>Aren Eternal</color> & Geo" -> "Aren Eternal & Geo")
  */
@@ -164,9 +205,8 @@ export function removeStyleTags(text: string) {
 	let newText = text
 	do {
 		oldText = newText
-		newText = newText.replace(/<\s*[^>]+>(.*?)<\s*\/\s*[^>]+>/g, '$1')
-		newText = newText.replace(/<\s*\/\s*[^>]+>(.*?)<\s*[^>]+>/g, '$1')
-	} while (newText != oldText)
+		newText = newText.replace(new RegExp(`<\\s*\\/?\\s*(?:${tagPattern})[^>]*>`, 'gi'), '').trim()
+	} while (newText !== oldText)
 	return newText
 }
 

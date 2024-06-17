@@ -1,7 +1,7 @@
 import { FolderIssueType } from '../interfaces'
 import { hasBadVideoName, hasVideoName } from '../utils'
 
-export function scanVideo(files: { filename: string; data: Uint8Array }[]) {
+export function scanVideo(files: { fileName: string; data: Uint8Array }[]) {
 	const folderIssues: { folderIssue: FolderIssueType; description: string }[] = []
 
 	const findVideoDataResult = findVideoData(files)
@@ -10,20 +10,20 @@ export function scanVideo(files: { filename: string; data: Uint8Array }[]) {
 	return { hasVideoBackground: !!findVideoDataResult.videoData, folderIssues }
 }
 
-function findVideoData(files: { filename: string; data: Uint8Array }[]) {
+function findVideoData(files: { fileName: string; data: Uint8Array }[]) {
 	const folderIssues: { folderIssue: FolderIssueType; description: string }[] = []
 	let videoCount = 0
 	let bestVideoData: Uint8Array | null = null
 	let lastVideoData: Uint8Array | null = null
 
 	for (const file of files) {
-		if (hasVideoName(file.filename)) {
+		if (hasVideoName(file.fileName)) {
 			videoCount++
 			lastVideoData = file.data
-			if (hasBadVideoName(file.filename)) {
+			if (hasBadVideoName(file.fileName)) {
 				folderIssues.push({
 					folderIssue: 'badVideo',
-					description: `"${file.filename}" will not work on Linux and should be converted to .webm.`,
+					description: `"${file.fileName}" will not work on Linux and should be converted to .webm.`,
 				})
 			} else {
 				bestVideoData = file.data

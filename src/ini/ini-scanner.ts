@@ -85,7 +85,7 @@ const integerProperties: MetaNumberKey[] = [
 ]
 const requiredProperties: MetaStringKey[] = ['name', 'artist', 'album', 'genre', 'year', 'charter']
 
-export function scanIni(files: { filename: string; data: Uint8Array }[]) {
+export function scanIni(files: { fileName: string; data: Uint8Array }[]) {
 	const folderIssues: { folderIssue: FolderIssueType; description: string }[] = []
 
 	const findIniDataResult = findIniData(files)
@@ -110,7 +110,7 @@ export function scanIni(files: { filename: string; data: Uint8Array }[]) {
 /**
  * @returns the .ini file data in this chart, or `null` if one wasn't found.
  */
-function findIniData(files: { filename: string; data: Uint8Array }[]): {
+function findIniData(files: { fileName: string; data: Uint8Array }[]): {
 	iniData: Uint8Array | null
 	folderIssues: { folderIssue: FolderIssueType; description: string }[]
 } {
@@ -120,11 +120,11 @@ function findIniData(files: { filename: string; data: Uint8Array }[]): {
 	let lastIniData: Uint8Array | null = null
 
 	for (const file of files) {
-		if (hasIniExtension(file.filename)) {
+		if (hasIniExtension(file.fileName)) {
 			iniCount++
 			lastIniData = file.data
-			if (!hasIniName(file.filename)) {
-				folderIssues.push({ folderIssue: 'invalidIni', description: `"${file.filename}" is not named "song.ini".` })
+			if (!hasIniName(file.fileName)) {
+				folderIssues.push({ folderIssue: 'invalidIni', description: `"${file.fileName}" is not named "song.ini".` })
 			} else {
 				bestIniData = file.data
 			}

@@ -15,7 +15,7 @@ const MIN_SUSTAIN_GAP_MS = 40
 const MIN_SUSTAIN_MS = 100
 const NPS_GROUP_SIZE_MS = 1000
 
-export function scanChart(files: { filename: string; data: Uint8Array }[], iniChartModifiers: IniChartModifiers) {
+export function scanChart(files: { fileName: string; data: Uint8Array }[], iniChartModifiers: IniChartModifiers) {
 	const { chartData, format, folderIssues } = findChartData(files)
 
 	if (chartData) {
@@ -105,19 +105,19 @@ export function scanChart(files: { filename: string; data: Uint8Array }[], iniCh
 	return { chartHash: null, notesData: null, metadata: null, folderIssues }
 }
 
-function findChartData(files: { filename: string; data: Uint8Array }[]) {
+function findChartData(files: { fileName: string; data: Uint8Array }[]) {
 	const folderIssues: { folderIssue: FolderIssueType; description: string }[] = []
 
 	const chartFiles = _.chain(files)
-		.filter(f => hasChartExtension(f.filename))
-		.orderBy([f => hasChartName(f.filename), f => getExtension(f.filename).toLowerCase() === '.mid'], ['desc', 'desc'])
+		.filter(f => hasChartExtension(f.fileName))
+		.orderBy([f => hasChartName(f.fileName), f => getExtension(f.fileName).toLowerCase() === '.mid'], ['desc', 'desc'])
 		.value()
 
 	for (const file of chartFiles) {
-		if (!hasChartName(file.filename)) {
+		if (!hasChartName(file.fileName)) {
 			folderIssues.push({
 				folderIssue: 'invalidChart',
-				description: `"${file.filename}" is not named "notes${getExtension(file.filename).toLowerCase()}".`,
+				description: `"${file.fileName}" is not named "notes${getExtension(file.fileName).toLowerCase()}".`,
 			})
 		}
 	}
@@ -132,7 +132,7 @@ function findChartData(files: { filename: string; data: Uint8Array }[]) {
 	} else {
 		return {
 			chartData: chartFiles[0].data,
-			format: (getExtension(chartFiles[0].filename).toLowerCase() === '.mid' ? 'mid' : 'chart') as 'mid' | 'chart',
+			format: (getExtension(chartFiles[0].fileName).toLowerCase() === '.mid' ? 'mid' : 'chart') as 'mid' | 'chart',
 			folderIssues,
 		}
 	}

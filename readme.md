@@ -9,7 +9,7 @@ This has been validated on 40,000 charts, including some that were deliberately 
 /**
  * Scans `files` as a chart folder, and returns a `ScannedChart` object.
  */
-function scanChartFolder(files: { filename: string; data: Uint8Array }[]): ScannedChart
+function scanChartFolder(files: { fileName: string; data: Uint8Array }[]): ScannedChart
 function parseChartFile(data: Uint8Array, format: 'chart' | 'mid', iniChartModifiers: IniChartModifiers): ParsedChart
 function calculateTrackHash(parsedChart: ParsedChart, instrument: Instrument, difficulty: Difficulty): { hash: string, bchart: Uint8Array }
 
@@ -310,38 +310,30 @@ type NoteType =
 	| 'greenTomOrCymbalMarker'
 
 type FolderIssueType =
-	| 'noMetadata' // This chart doesn't have "song.ini"
-	| 'invalidIni' // .ini file is not named "song.ini"
-	| 'invalidMetadata' // "song.ini" doesn't have a "[Song]" section
-	| 'badIniLine' // This line in "song.ini" couldn't be parsed
-	| 'multipleIniFiles' // This chart has multiple .ini files
-	| 'noAlbumArt' // This chart doesn't have album art
-	| 'albumArtSize' // This chart's album art is not 500x500 or 512x512
-	| 'badAlbumArt' // This chart's album art couldn't be parsed
-	| 'multipleAlbumArt' // This chart has multiple album art files
-	| 'noAudio' // This chart doesn't have an audio file
-	| 'invalidAudio' // Audio file is not a valid audio stem name
-	| 'badAudio' // This chart's audio couldn't be parsed
-	| 'multipleAudio' // This chart has multiple audio files of the same stem
-	| 'noChart' // This chart doesn't have "notes.chart"/"notes.mid"
-	| 'invalidChart' // .chart/.mid file is not named "notes.chart"/"notes.mid"
-	| 'badChart' // This chart's .chart/.mid file couldn't be parsed
-	| 'multipleChart' // This chart has multiple .chart/.mid files
-	| 'badVideo' // This chart has a video background that will not work on Linux
-	| 'multipleVideo' // This chart has multiple video background files
+	| 'noMetadata'              // This chart doesn't have "song.ini"
+	| 'invalidIni'              // .ini file is not named "song.ini"
+	| 'invalidMetadata'         // "song.ini" doesn't have a "[Song]" section
+	| 'badIniLine'              // This line in "song.ini" couldn't be parsed
+	| 'multipleIniFiles'        // This chart has multiple .ini files
+	| 'noAlbumArt'              // This chart doesn't have album art
+	| 'albumArtSize'            // This chart's album art is not 500x500 or 512x512
+	| 'badAlbumArt'             // This chart's album art couldn't be parsed
+	| 'multipleAlbumArt'        // This chart has multiple album art files
+	| 'noAudio'                 // This chart doesn't have an audio file
+	| 'invalidAudio'            // Audio file is not a valid audio stem name
+	| 'badAudio'                // This chart's audio couldn't be parsed
+	| 'multipleAudio'           // This chart has multiple audio files of the same stem
+	| 'noChart'                 // This chart doesn't have "notes.chart"/"notes.mid"
+	| 'invalidChart'            // .chart/.mid file is not named "notes.chart"/"notes.mid"
+	| 'badChart'                // This chart's .chart/.mid file couldn't be parsed
+	| 'multipleChart'           // This chart has multiple .chart/.mid files
+	| 'badVideo'                // This chart has a video background that will not work on Linux
+	| 'multipleVideo'           // This chart has multiple video background files
 
 type MetadataIssueType =
-	| 'noName' // Metadata is missing the "name" property
-	| 'noArtist' // Metadata is missing the "artist" property
-	| 'noAlbum' // Metadata is missing the "album" property
-	| 'noGenre' // Metadata is missing the "genre" property
-	| 'noYear' // Metadata is missing the "year" property
-	| 'noCharter' // Metadata is missing the "charter" property
-	| 'missingInstrumentDiff' // Metadata is missing a "diff_" property
-	| 'extraInstrumentDiff' // Metadata contains a "diff_" property for an uncharted instrument
-	| 'nonzeroDelay' // Metadata contains a "delay" property that is not zero
-	| 'drumsSetTo4And5Lane' // Metadata indicates the drum chart is both 4-lane and 5-lane
-	| 'nonzeroOffset' // Chart file contains an "Offset" property that is not zero
+	| 'missingValue'            // Metadata is missing a required value
+	| 'invalidValue'            // Metadata property was set to an unsupported value
+	| 'extraValue'              // Metadata contains a property that should not be included
 
 interface ParsedChart {
 	resolution: number
