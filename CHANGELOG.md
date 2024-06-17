@@ -1,5 +1,11 @@
 # scan-chart
 
+## 4.0.1
+
+### Patch Changes
+
+- 180cfcf: Fix capitalization and improve removeStyleTags
+
 ## 4.0.0
 
 ### Major Changes
