@@ -1,5 +1,11 @@
 # scan-chart
 
+## 4.0.2
+
+### Patch Changes
+
+- 64325ec: Improve removeStyleTags
+
 ## 4.0.1
 
 ### Patch Changes
