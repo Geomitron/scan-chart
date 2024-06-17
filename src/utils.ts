@@ -194,7 +194,6 @@ const allowedTags = [
 	'uppercase',
 	'voffset',
 	'width',
-	'#',
 ]
 const tagPattern = allowedTags.map(tag => `\\b${tag}\\b`).join('|')
 /**
@@ -205,7 +204,7 @@ export function removeStyleTags(text: string) {
 	let newText = text
 	do {
 		oldText = newText
-		newText = newText.replace(new RegExp(`<\\s*\\/?\\s*(?:${tagPattern})[^>]*>`, 'gi'), '').trim()
+		newText = newText.replace(new RegExp(`<\\s*\\/?\\s*(?:#|${tagPattern})[^>]*>`, 'gi'), '').trim()
 	} while (newText !== oldText)
 	return newText
 }
