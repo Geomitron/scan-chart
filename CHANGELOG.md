@@ -1,5 +1,11 @@
 # scan-chart
 
+## 4.0.3
+
+### Patch Changes
+
+- 95cf1c2: Fix image parsing
+
 ## 4.0.2
 
 ### Patch Changes
