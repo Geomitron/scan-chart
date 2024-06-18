@@ -48,7 +48,7 @@ function findAlbumData(files: { fileName: string; data: Uint8Array }[]) {
 function extractImageMetadata(data: Uint8Array) {
 	const folderIssues: { folderIssue: FolderIssueType; description: string }[] = []
 	try {
-		const image = load(data)
+		const image = load(data.buffer)
 		const height = image.ImageHeight || image['Image Height']
 		const width = image.ImageWidth || image['Image Width']
 		const heightWidth = `${height!.value}x${width!.value}`
