@@ -234,7 +234,10 @@ function findChartIssues(
 			} else {
 				const expertHash = trackHashes.find(t => t.instrument === instrumentGroup[0].instrument && t.difficulty === 'expert')!.hash
 				for (const track of instrumentGroup.filter(t => t.difficulty !== 'expert')) {
-					if (expertHash === trackHashes.find(t => t.instrument === track.instrument && t.difficulty === track.difficulty)!.hash) {
+					if (
+						expertHash === trackHashes.find(t => t.instrument === track.instrument && t.difficulty === track.difficulty)!.hash &&
+						track.noteEventGroups.length > 20
+					) {
 						addIssue(track.instrument, track.difficulty, 'difficultyNotReduced')
 					}
 				}
@@ -294,7 +297,11 @@ function findChartIssues(
 
 		// noStarPower
 		{
-			if (track.starPowerSections.length === 0) {
+			if (
+				track.starPowerSections.length === 0 &&
+				track.noteEventGroups.length > 50 &&
+				_.last(track.noteEventGroups)![0].msTime - _.first(track.noteEventGroups)![0].msTime > 60000
+			) {
 				addIssue('noStarPower')
 			}
 		}
@@ -324,7 +331,12 @@ function findChartIssues(
 
 		// noDrumActivationLanes
 		{
-			if (track.instrument === 'drums' && track.drumFreestyleSections.length === 0) {
+			if (
+				track.instrument === 'drums' &&
+				track.drumFreestyleSections.length === 0 &&
+				track.noteEventGroups.length > 50 &&
+				_.last(track.noteEventGroups)![0].msTime - _.first(track.noteEventGroups)![0].msTime > 60000
+			) {
 				addIssue('noDrumActivationLanes')
 			}
 		}
