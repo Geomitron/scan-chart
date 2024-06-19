@@ -477,7 +477,7 @@ function findChartIssues(
 						if (note.msLength > 0 && note.type !== noteTypes.open) {
 							// ignore gaps of open sustains
 							futureSustainGaps.push({
-								startTime: note.msTime + note.msLength - 5,
+								startTime: note.msTime + note.msLength,
 								endTime: note.msTime + note.msLength + MIN_SUSTAIN_GAP_MS,
 							})
 						}
