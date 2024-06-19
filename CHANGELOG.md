@@ -1,5 +1,11 @@
 # scan-chart
 
+## 4.0.5
+
+### Patch Changes
+
+- f09f3d9: Prune unnecessary issues for short songs
+
 ## 4.0.4
 
 ### Patch Changes
