@@ -1,5 +1,11 @@
 # scan-chart
 
+## 4.0.4
+
+### Patch Changes
+
+- db01d18: Fix badSustainGap bug
+
 ## 4.0.3
 
 ### Patch Changes
