@@ -1,5 +1,11 @@
 # scan-chart
 
+## 4.1.0
+
+### Minor Changes
+
+- f318a0d: Add chord_snap_threshold
+
 ## 4.0.5
 
 ### Patch Changes
