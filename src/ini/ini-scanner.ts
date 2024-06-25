@@ -53,6 +53,7 @@ export const defaultMetadata = {
 	eighthnote_hopo: false,
 	multiplier_note: 0,
 	sustain_cutoff_threshold: -1,
+	chord_snap_threshold: 0,
 	video_start_time: 0,
 	five_lane_drums: false,
 	pro_drums: false,
@@ -81,6 +82,7 @@ const integerProperties: MetaNumberKey[] = [
 	'hopo_frequency',
 	'multiplier_note',
 	'sustain_cutoff_threshold',
+	'chord_snap_threshold',
 	'video_start_time',
 ]
 const requiredProperties: MetaStringKey[] = ['name', 'artist', 'album', 'genre', 'year', 'charter']
@@ -186,6 +188,7 @@ function extractSongMetadata(songSection: { [key: string]: string }): {
 		eighthnote_hopo: getIniBoolean(songSection, 'eighthnote_hopo'),
 		multiplier_note: getIniInteger(songSection, 'multiplier_note', 'star_power_note'),
 		sustain_cutoff_threshold: getIniInteger(songSection, 'sustain_cutoff_threshold'),
+		chord_snap_threshold: getIniInteger(songSection, 'chord_snap_threshold'),
 		video_start_time: getIniInteger(songSection, 'video_start_time'),
 		five_lane_drums: getIniBoolean(songSection, 'five_lane_drums'),
 		pro_drums: getIniBoolean(songSection, 'pro_drums'),

@@ -84,10 +84,16 @@ interface Chart {
 	/** Overrides the .mid note number for Star Power on 5-Fret Guitar. Valid values are 103 and 116. Only applies to .mid charts. */
 	multiplier_note?: number
 	/**
-	 * For .mid charts, setting this causes any sustains shorter than the threshold (in number of ticks) to be reduced to length 0.
+	 * For .mid charts, setting this causes any sustains not larger than the threshold (in number of ticks) to be reduced to length 0.
 	 * By default, this happens to .mid sustains shorter than 1/12 step.
 	 */
 	sustain_cutoff_threshold?: number
+	/**
+	 * Notes at or closer than this threshold (in number of ticks) will be merged into a chord.
+	 * All note and modifier ticks are set to the tick of the earliest merged note.
+	 * All note sustains are set to the length of the shortest merged note.
+	 */
+	chord_snap_threshold?: number
 	/**
 	 * The amount of time that should be skipped from the beginning of the video background in milliseconds.
 	 * A negative value will delay the start of the video by that many milliseconds.
@@ -308,32 +314,6 @@ type NoteType =
 	| 'yellowTomOrCymbalMarker'
 	| 'blueTomOrCymbalMarker'
 	| 'greenTomOrCymbalMarker'
-
-type FolderIssueType =
-	| 'noMetadata'              // This chart doesn't have "song.ini"
-	| 'invalidIni'              // .ini file is not named "song.ini"
-	| 'invalidMetadata'         // "song.ini" doesn't have a "[Song]" section
-	| 'badIniLine'              // This line in "song.ini" couldn't be parsed
-	| 'multipleIniFiles'        // This chart has multiple .ini files
-	| 'noAlbumArt'              // This chart doesn't have album art
-	| 'albumArtSize'            // This chart's album art is not 500x500 or 512x512
-	| 'badAlbumArt'             // This chart's album art couldn't be parsed
-	| 'multipleAlbumArt'        // This chart has multiple album art files
-	| 'noAudio'                 // This chart doesn't have an audio file
-	| 'invalidAudio'            // Audio file is not a valid audio stem name
-	| 'badAudio'                // This chart's audio couldn't be parsed
-	| 'multipleAudio'           // This chart has multiple audio files of the same stem
-	| 'noChart'                 // This chart doesn't have "notes.chart"/"notes.mid"
-	| 'invalidChart'            // .chart/.mid file is not named "notes.chart"/"notes.mid"
-	| 'badChart'                // This chart's .chart/.mid file couldn't be parsed
-	| 'multipleChart'           // This chart has multiple .chart/.mid files
-	| 'badVideo'                // This chart has a video background that will not work on Linux
-	| 'multipleVideo'           // This chart has multiple video background files
-
-type MetadataIssueType =
-	| 'missingValue'            // Metadata is missing a required value
-	| 'invalidValue'            // Metadata property was set to an unsupported value
-	| 'extraValue'              // Metadata contains a property that should not be included
 
 interface ParsedChart {
 	resolution: number

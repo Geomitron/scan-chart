@@ -1,11 +1,12 @@
 import * as _ from 'lodash'
 
-import { DrumType, drumTypes } from 'src/interfaces'
+import { DrumType, drumTypes, Instrument } from 'src/interfaces'
 import { parseNotesFromChart } from './chart-parser'
 import { parseNotesFromMidi } from './midi-parser'
 import { EventType, eventTypes, IniChartModifiers, NoteEvent, noteFlags, NoteType, noteTypes, RawChartData } from './note-parsing-interfaces'
 
-type TimedTrackEvent = RawChartData['trackData'][number]['trackEvents'][number] & { msTime: number; msLength: number }
+type TrackEvent = RawChartData['trackData'][number]['trackEvents'][number]
+type UntimedNoteEvent = Omit<NoteEvent, 'msTime' | 'msLength'>
 
 export type ParsedChart = ReturnType<typeof parseChartFile>
 
@@ -41,50 +42,44 @@ export function parseChartFile(data: Uint8Array, format: 'chart' | 'mid', iniCha
 		hasLyrics: rawChartData.hasLyrics,
 		hasVocals: rawChartData.hasVocals,
 		hasForcedNotes,
-		endEvents: getTimedEvents(rawChartData.endEvents, timedTempos, rawChartData.chartTicksPerBeat),
+		endEvents: setEventMsTimes(rawChartData.endEvents, timedTempos, rawChartData.chartTicksPerBeat),
 		tempos: timedTempos,
-		timeSignatures: getTimedEvents(rawChartData.timeSignatures, timedTempos, rawChartData.chartTicksPerBeat),
-		sections: getTimedEvents(rawChartData.sections, timedTempos, rawChartData.chartTicksPerBeat),
+		timeSignatures: setEventMsTimes(rawChartData.timeSignatures, timedTempos, rawChartData.chartTicksPerBeat),
+		sections: setEventMsTimes(rawChartData.sections, timedTempos, rawChartData.chartTicksPerBeat),
 		trackData: _.chain(rawChartData.trackData)
 			.map(track => ({
 				instrument: track.instrument,
 				difficulty: track.difficulty,
 				starPowerSections: _.chain(track.starPowerSections)
-					.thru(events => getTimedEvents(events, timedTempos, rawChartData.chartTicksPerBeat))
+					.thru(events => setEventMsTimes(events, timedTempos, rawChartData.chartTicksPerBeat))
 					.thru(events => sortAndFixInvalidEventOverlaps(events))
 					.value(),
 				rejectedStarPowerSections: _.chain(track.rejectedStarPowerSections)
-					.thru(events => getTimedEvents(events, timedTempos, rawChartData.chartTicksPerBeat))
+					.thru(events => setEventMsTimes(events, timedTempos, rawChartData.chartTicksPerBeat))
 					.value(),
 				soloSections: _.chain(track.soloSections)
-					.thru(events => getTimedEvents(events, timedTempos, rawChartData.chartTicksPerBeat))
+					.thru(events => setEventMsTimes(events, timedTempos, rawChartData.chartTicksPerBeat))
 					.thru(events => sortAndFixInvalidEventOverlaps(events))
 					.value(),
 				flexLanes: _.chain(track.flexLanes)
-					.thru(events => getTimedEvents(events, timedTempos, rawChartData.chartTicksPerBeat))
+					.thru(events => setEventMsTimes(events, timedTempos, rawChartData.chartTicksPerBeat))
 					.thru(events => sortAndFixInvalidFlexLaneOverlaps(events))
 					.value(),
-				drumFreestyleSections: getTimedEvents(track.drumFreestyleSections, timedTempos, rawChartData.chartTicksPerBeat),
-				trackEventGroups: _.chain(track.trackEvents)
-					.thru(events => getTimedEvents(events, timedTempos, rawChartData.chartTicksPerBeat))
-					.thru(events => trimSustains(events, iniChartModifiers, rawChartData.chartTicksPerBeat, format))
+				drumFreestyleSections: setEventMsTimes(track.drumFreestyleSections, timedTempos, rawChartData.chartTicksPerBeat),
+				noteEventGroups: _.chain(track.trackEvents)
+					.thru(events => trimSustains(events, iniChartModifiers.sustain_cutoff_threshold, rawChartData.chartTicksPerBeat, format))
 					.groupBy(note => note.tick)
 					.values()
+					.thru(eventGroups =>
+						track.instrument === 'drums' ?
+							resolveDrumModifiers(eventGroups, drumType!, format)
+						:	resolveFretModifiers(eventGroups, iniChartModifiers, rawChartData.chartTicksPerBeat, format),
+					)
+					.thru(noteGroups => snapChords(noteGroups, iniChartModifiers.chord_snap_threshold, track.instrument))
+					.tap(noteGroups => sortAndFixInvalidNoteOverlaps(noteGroups))
+					.thru(events => setEventGroupMsTimes(events, timedTempos, rawChartData.chartTicksPerBeat))
 					.value(),
 			}))
-			.map(track => ({
-				...track,
-				noteEventGroups:
-					track.instrument === 'drums' ?
-						resolveDrumModifiers(track.trackEventGroups, drumType!, format)
-					:	resolveFretModifiers(track.trackEventGroups, iniChartModifiers, rawChartData.chartTicksPerBeat, format),
-			}))
-			.tap(tracks => tracks.forEach(track => sortAndFixInvalidNoteOverlaps(track.noteEventGroups)))
-			.map(track => {
-				// eslint-disable-next-line @typescript-eslint/no-explicit-any
-				delete (track as any).trackEventGroups // Save memory
-				return track as Omit<typeof track, 'trackEventGroups'>
-			})
 			.value(),
 	}
 }
@@ -123,15 +118,28 @@ function isCymbalOrTomMarker(type: EventType) {
 	}
 }
 
-function getTimedEvents<T extends { tick: number; length?: number }>(
+function setEventGroupMsTimes<T extends { tick: number; length?: number }>(
+	events: T[][],
+	tempos: { tick: number; millibeatsPerMinute: number; msTime: number }[],
+	chartTicksPerBeat: number,
+) {
+	return setEventOrEventGroupMsTimes(events, tempos, chartTicksPerBeat) as (T & { msTime: number; msLength: number })[][]
+}
+function setEventMsTimes<T extends { tick: number; length?: number }>(
 	events: T[],
 	tempos: { tick: number; millibeatsPerMinute: number; msTime: number }[],
 	chartTicksPerBeat: number,
-): (T & { msTime: number; msLength: number })[] {
+) {
+	return setEventOrEventGroupMsTimes(events, tempos, chartTicksPerBeat) as (T & { msTime: number; msLength: number })[]
+}
+function setEventOrEventGroupMsTimes<T extends { tick: number; length?: number }>(
+	events: T[] | T[][],
+	tempos: { tick: number; millibeatsPerMinute: number; msTime: number }[],
+	chartTicksPerBeat: number,
+) {
 	let lastTempoIndex = 0
-	const newEvents: (T & { msTime: number; msLength: number })[] = []
 
-	for (const event of events) {
+	const processNextEvent = (event: T) => {
 		while (tempos[lastTempoIndex + 1] && tempos[lastTempoIndex + 1].tick <= event.tick) {
 			lastTempoIndex++
 		}
@@ -154,35 +162,46 @@ function getTimedEvents<T extends { tick: number; length?: number }>(
 		} else {
 			newEvent.msLength = 0
 		}
-		newEvents.push(newEvent)
 	}
 
-	return newEvents
+	if (Array.isArray(events[0])) {
+		for (const eventGroup of events as T[][]) {
+			for (const event of eventGroup) {
+				processNextEvent(event)
+			}
+		}
+	} else {
+		for (const event of events as T[]) {
+			processNextEvent(event)
+		}
+	}
+	return events as (T & { msTime: number; msLength: number })[][] | (T & { msTime: number; msLength: number })[]
 }
 
 function trimSustains(
-	trackEvents: { tick: number; length: number; type: EventType; msTime: number; msLength: number }[],
-	iniChartModifiers: IniChartModifiers,
+	trackEvents: { tick: number; length: number; type: EventType }[],
+	sustain_cutoff_threshold: number,
 	chartTicksPerBeat: number,
 	format: 'chart' | 'mid',
 ) {
 	const sustainThresholdTicks =
-		iniChartModifiers.sustain_cutoff_threshold !== -1 ? iniChartModifiers.sustain_cutoff_threshold
+		sustain_cutoff_threshold !== -1 ? sustain_cutoff_threshold
 		: format === 'mid' ? Math.floor(chartTicksPerBeat / 3) + 1
 		: 0
 
+	if (sustainThresholdTicks > 0) {
 	for (const event of trackEvents) {
 		if (event.length <= sustainThresholdTicks) {
 			event.length = 0
-			event.msLength = 0
+			}
 		}
 	}
 
 	return trackEvents
 }
 
-function resolveDrumModifiers(trackEventGroups: TimedTrackEvent[][], drumType: DrumType, format: 'chart' | 'mid'): NoteEvent[][] {
-	const noteEventGroups: NoteEvent[][] = []
+function resolveDrumModifiers(trackEventGroups: TrackEvent[][], drumType: DrumType, format: 'chart' | 'mid'): UntimedNoteEvent[][] {
+	const noteEventGroups: UntimedNoteEvent[][] = []
 	const discoFlipEventTypes = [eventTypes.discoFlipOff, eventTypes.discoFlipOn, eventTypes.discoNoFlipOn] as const
 
 	let activeDiscoFlip: (typeof discoFlipEventTypes)[number] = eventTypes.discoFlipOff
@@ -201,16 +220,14 @@ function resolveDrumModifiers(trackEventGroups: TimedTrackEvent[][], drumType: D
 			continue // Skip any event groups with only modifiers
 		}
 
-		const noteEventGroup: NoteEvent[] = []
+		const noteEventGroup: UntimedNoteEvent[] = []
 
 		const flamFlag = modifiers.find(e => e === eventTypes.forceFlam) ? noteFlags.flam : noteFlags.none
 		for (const kick of kicks) {
 			const kickTypeFlag = kick.type === eventTypes.kick ? noteFlags.none : noteFlags.doubleKick
 			noteEventGroup.push({
 				tick: kick.tick,
-				msTime: kick.msTime,
 				length: kick.length,
-				msLength: kick.msLength,
 				type: noteTypes.kick,
 				flags: flamFlag | kickTypeFlag | getGhostOrAccentFlags(kick.type, modifiers),
 			})
@@ -229,9 +246,7 @@ function resolveDrumModifiers(trackEventGroups: TimedTrackEvent[][], drumType: D
 			const baseFlags = flamFlag | discoFlag
 			noteEventGroup.push({
 				tick: note.tick,
-				msTime: note.msTime,
 				length: note.length,
-				msLength: note.msLength,
 				type,
 				flags: baseFlags | getTomOrCymbalFlags(note.type, modifiers, drumType, format) | getGhostOrAccentFlags(note.type, modifiers),
 			})
@@ -394,20 +409,20 @@ function getGhostOrAccentFlags(eventType: EventType, modifiers: EventType[]) {
 }
 
 function resolveFretModifiers(
-	trackEventGroups: TimedTrackEvent[][],
+	trackEventGroups: TrackEvent[][],
 	iniChartModifiers: IniChartModifiers,
 	chartTicksPerBeat: number,
 	format: 'chart' | 'mid',
-): NoteEvent[][] {
+): UntimedNoteEvent[][] {
 	const hopoThresholdTicks =
 		iniChartModifiers.hopo_frequency ||
 		(iniChartModifiers.eighthnote_hopo ?
 			Math.floor(1 + chartTicksPerBeat / 2)
 		:	Math.floor(format === 'mid' ? 1 + chartTicksPerBeat / 3 : (65 / 192) * chartTicksPerBeat))
 
-	const noteEventGroups: NoteEvent[][] = []
+	const noteEventGroups: UntimedNoteEvent[][] = []
 
-	let lastNotes: TimedTrackEvent[] | null = null
+	let lastNotes: TrackEvent[] | null = null
 	// trackEventGroups only contain notes and note modifiers
 	for (let i = 0; i < trackEventGroups.length; i++) {
 		const events = trackEventGroups[i]
@@ -445,9 +460,7 @@ function resolveFretModifiers(
 		noteEventGroups.push(
 			notes.map(n => ({
 				tick: n.tick,
-				msTime: n.msTime,
 				length: n.length,
-				msLength: n.msLength,
 				type: getFretNoteTypeFromEventType(n.type)!, // Should be the only event types at this point
 				flags: forceResult,
 			})),
@@ -479,7 +492,7 @@ function isFretNote(type: EventType) {
 	}
 }
 
-function isSameFretNote(note1: TimedTrackEvent[], note2: TimedTrackEvent[]) {
+function isSameFretNote(note1: TrackEvent[], note2: TrackEvent[]) {
 	for (const n1 of note1) {
 		if (!isFretNote(n1.type)) {
 			continue
@@ -515,7 +528,7 @@ function isSameFretNote(note1: TimedTrackEvent[], note2: TimedTrackEvent[]) {
 	return true
 }
 
-function isFretChord(note: TimedTrackEvent[]) {
+function isFretChord(note: TrackEvent[]) {
 	let firstNoteType: EventType | null = null
 	for (const n of note) {
 		if (isFretNote(n.type)) {
@@ -529,7 +542,7 @@ function isFretChord(note: TimedTrackEvent[]) {
 	return false
 }
 
-function isInFretNote(inNote: TimedTrackEvent[], outerNote: TimedTrackEvent[]) {
+function isInFretNote(inNote: TrackEvent[], outerNote: TrackEvent[]) {
 	return (
 		_.differenceBy(
 			inNote.filter(n => isFretNote(n.type)),
@@ -568,6 +581,68 @@ function getFretNoteTypeFromEventType(eventType: EventType): NoteType | null {
 		default:
 			return null
 	}
+}
+
+function snapChords(noteGroups: UntimedNoteEvent[][], chord_snap_threshold: number, instrument: Instrument) {
+	if (chord_snap_threshold <= 0 || noteGroups.length === 0) {
+		return noteGroups
+	}
+
+	const newNoteGroups: UntimedNoteEvent[][] = [noteGroups[0]]
+
+	for (let i = 1; i < noteGroups.length; i++) {
+		const noteGroup = noteGroups[i]
+		const lastNoteGroup = _.last(newNoteGroups)!
+
+		if (noteGroup[0].tick - lastNoteGroup[0].tick >= chord_snap_threshold) {
+			newNoteGroups.push(noteGroup)
+		} else {
+			// Resolve flag differences between the note groups
+			if (instrument === 'drums') {
+				for (const note of noteGroup) {
+					if (note.type === noteTypes.kick) {
+						const lastKickFlags = lastNoteGroup.find(n => n.type === noteTypes.kick)?.flags ?? null
+						note.flags = lastKickFlags === null ? note.flags : lastKickFlags
+					} else if (note.type === noteTypes.redDrum) {
+						const lastRedDrumFlags = lastNoteGroup.find(n => n.type === noteTypes.redDrum)?.flags ?? null
+						note.flags = lastRedDrumFlags === null ? note.flags : lastRedDrumFlags
+					} else if (note.type === noteTypes.yellowDrum) {
+						const lastYellowDrumFlags = lastNoteGroup.find(n => n.type === noteTypes.yellowDrum)?.flags ?? null
+						note.flags = lastYellowDrumFlags === null ? note.flags : lastYellowDrumFlags
+					} else if (note.type === noteTypes.blueDrum) {
+						const lastBlueDrumFlags = lastNoteGroup.find(n => n.type === noteTypes.blueDrum)?.flags ?? null
+						note.flags = lastBlueDrumFlags === null ? note.flags : lastBlueDrumFlags
+					} else if (note.type === noteTypes.greenDrum) {
+						const lastGreenDrumFlags = lastNoteGroup.find(n => n.type === noteTypes.greenDrum)?.flags ?? null
+						note.flags = lastGreenDrumFlags === null ? note.flags : lastGreenDrumFlags
+					}
+
+					// Handle edge case with resolving disco and discoNoflip modifier differences on red and yellow drum notes
+					if (note.type === noteTypes.redDrum || note.type === noteTypes.yellowDrum) {
+						const lastRedDrumFlags = lastNoteGroup.find(n => n.type === noteTypes.redDrum)?.flags ?? null
+						const lastYellowDrumFlags = lastNoteGroup.find(n => n.type === noteTypes.yellowDrum)?.flags ?? null
+						if (lastRedDrumFlags !== null || lastYellowDrumFlags !== null) {
+							const discoNoteFlags = noteFlags.disco | noteFlags.discoNoflip
+							const lastDiscoEventFlags = ((lastRedDrumFlags ?? 0) | (lastYellowDrumFlags ?? 0)) & discoNoteFlags
+							note.flags &= ~discoNoteFlags
+							note.flags |= lastDiscoEventFlags
+						}
+					}
+				}
+			} else {
+				const lastNoteGroupFlags = lastNoteGroup[0].flags
+				noteGroup.forEach(n => (n.flags = lastNoteGroupFlags))
+			}
+
+			// Snap notes to previous note group (this can cause stacked notes, but that's resolved later)
+			for (const note of noteGroup) {
+				note.tick = lastNoteGroup[0].tick
+				lastNoteGroup.push(note)
+			}
+		}
+	}
+
+	return newNoteGroups
 }
 
 function sortAndFixInvalidFlexLaneOverlaps(events: { tick: number; length: number; isDouble: boolean; msTime: number; msLength: number }[]) {
@@ -621,10 +696,10 @@ function sortAndFixInvalidEventOverlaps(events: { tick: number; length: number; 
 	return events
 }
 
-function sortAndFixInvalidNoteOverlaps(noteGroups: NoteEvent[][]) {
+function sortAndFixInvalidNoteOverlaps(noteGroups: UntimedNoteEvent[][]) {
 	for (const noteGroup of noteGroups) {
 		noteGroup.sort((a, b) => a.type - b.type || b.length - a.length || b.flags - a.flags) // Longest sustain is kept for duplicates
-		let removedNotes: NoteEvent[] | null = null
+		let removedNotes: UntimedNoteEvent[] | null = null
 		for (let i = 1; i < noteGroup.length; i++) {
 			if (noteGroup[i].type === noteGroup[i - 1].type) {
 				;(removedNotes ??= []).push(noteGroup[i])
@@ -636,16 +711,14 @@ function sortAndFixInvalidNoteOverlaps(noteGroups: NoteEvent[][]) {
 		}
 	}
 
-	const previousNotesOfType = new Map<NoteType, NoteEvent>()
+	const previousNotesOfType = new Map<NoteType, UntimedNoteEvent>()
 	for (const noteGroup of noteGroups) {
 		for (const note of noteGroup) {
 			const previousNoteOfType = previousNotesOfType.get(note.type)
 			previousNotesOfType.set(note.type, note)
 			if (previousNoteOfType && previousNoteOfType.tick + previousNoteOfType.length > note.tick) {
 				note.length = Math.max(note.length, previousNoteOfType.length - (note.tick - previousNoteOfType.tick))
-				note.msLength = Math.max(note.msLength, previousNoteOfType.msLength - (note.msTime - previousNoteOfType.msTime))
 				previousNoteOfType.length = note.tick - previousNoteOfType.tick
-				previousNoteOfType.msLength = note.msTime - previousNoteOfType.msTime
 			}
 		}
 	}

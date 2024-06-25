@@ -7,6 +7,7 @@ export interface IniChartModifiers {
 	eighthnote_hopo: boolean
 	multiplier_note: number
 	sustain_cutoff_threshold: number
+	chord_snap_threshold: number
 	five_lane_drums: boolean
 	pro_drums: boolean
 }

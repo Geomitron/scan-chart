@@ -76,6 +76,12 @@ export interface ScannedChart {
 	 */
 	sustain_cutoff_threshold?: number
 	/**
+	 * Notes at or closer than this threshold (in number of ticks) will be merged into a chord.
+	 * All note and modifier ticks are set to the tick of the earliest merged note.
+	 * All note sustains are set to the length of the shortest merged note.
+	 */
+	chord_snap_threshold?: number
+	/**
 	 * The amount of time that should be skipped from the beginning of the video background in milliseconds.
 	 * A negative value will delay the start of the video by that many milliseconds.
 	 */
