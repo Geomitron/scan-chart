@@ -4,7 +4,6 @@ import { md5 } from 'js-md5'
 import * as _ from 'lodash'
 import { base64url } from 'rfc4648'
 
-import { defaultMetadata } from 'src/ini'
 import { ChartIssueType, Difficulty, FolderIssueType, getInstrumentType, Instrument, instrumentTypes, NotesData } from '../interfaces'
 import { getExtension, hasChartExtension, hasChartName, msToExactTime } from '../utils'
 import { IniChartModifiers, NoteEvent, noteFlags, NoteType, noteTypes } from './note-parsing-interfaces'
@@ -22,11 +21,15 @@ export function scanChart(files: { fileName: string; data: Uint8Array }[], iniCh
 	if (chartData) {
 		try {
 			const result = parseChartFile(chartData, format, iniChartModifiers)
-			const trackHashes = result.trackData.map(t => ({
-				instrument: t.instrument,
-				difficulty: t.difficulty,
-				hash: calculateTrackHash(result, t.instrument, t.difficulty).hash,
-			}))
+			const trackHashes = result.trackData.map(t => {
+				const hash = calculateTrackHash(result, t.instrument, t.difficulty)
+				return {
+					instrument: t.instrument,
+					difficulty: t.difficulty,
+					hash: hash.hash,
+					bchart: hash.bchart,
+				}
+			})
 
 			let [hasTapNotes, hasOpenNotes, has2xKick] = [false, false, false]
 			for (const track of result.trackData) {
@@ -527,47 +530,18 @@ function typeCount(noteGroup: NoteEvent[], types: NoteType[]) {
 }
 
 function getChartHash(chartBytes: Uint8Array, iniChartModifiers: IniChartModifiers) {
-	const hashedIniModifiers = (
-		[
-			{ name: 'hopo_frequency', value: iniChartModifiers.hopo_frequency },
-			{ name: 'eighthnote_hopo', value: iniChartModifiers.eighthnote_hopo },
-			{ name: 'multiplier_note', value: iniChartModifiers.multiplier_note },
-			{ name: 'sustain_cutoff_threshold', value: iniChartModifiers.sustain_cutoff_threshold },
-			{ name: 'chord_snap_threshold', value: iniChartModifiers.chord_snap_threshold },
-			{ name: 'five_lane_drums', value: iniChartModifiers.five_lane_drums },
-			{ name: 'pro_drums', value: iniChartModifiers.pro_drums },
-		] as const
-	)
-		.filter(modifier => modifier.value !== defaultMetadata[modifier.name])
-		.map(modifier => ({
-			name: new TextEncoder().encode(modifier.name),
-			value: int32ToUint8Array(
-				typeof modifier.value === 'number' ? modifier.value
-				: modifier.value === true ? 1
-				: 0,
-			),
-		}))
-
-	const hashedIniModifiersLength = _.sumBy(hashedIniModifiers, modifier => modifier.name.length + modifier.value.length)
-	const buffer = new ArrayBuffer(chartBytes.length + hashedIniModifiersLength)
+	const iniChartModifierSize = 4 + 1 + 4 + 4 + 1 + 1
+	const buffer = new ArrayBuffer(chartBytes.length + iniChartModifierSize)
 	const uint8Array = new Uint8Array(buffer)
 	uint8Array.set(chartBytes)
+	const view = new DataView(buffer, chartBytes.length)
 
-	let offset = chartBytes.length
-	for (const modifier of hashedIniModifiers) {
-		uint8Array.set(modifier.name, offset)
-		offset += modifier.name.length
-		uint8Array.set(modifier.value, offset)
-		offset += modifier.value.length
-	}
+	view.setInt32(0, iniChartModifiers.hopo_frequency)
+	view.setInt8(4, iniChartModifiers.eighthnote_hopo ? 1 : 0)
+	view.setInt32(5, iniChartModifiers.multiplier_note)
+	view.setInt32(9, iniChartModifiers.sustain_cutoff_threshold)
+	view.setInt8(13, iniChartModifiers.five_lane_drums ? 1 : 0)
+	view.setInt8(14, iniChartModifiers.pro_drums ? 1 : 0)
 
 	return base64url.stringify(blake3(uint8Array))
-}
-
-function int32ToUint8Array(num: number) {
-	const buffer = new ArrayBuffer(4)
-	const view = new DataView(buffer)
-	view.setInt32(0, num, true)
-
-	return new Uint8Array(buffer)
 }

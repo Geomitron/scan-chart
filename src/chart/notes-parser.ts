@@ -46,6 +46,8 @@ export function parseChartFile(data: Uint8Array, format: 'chart' | 'mid', iniCha
 		tempos: timedTempos,
 		timeSignatures: setEventMsTimes(rawChartData.timeSignatures, timedTempos, rawChartData.chartTicksPerBeat),
 		sections: setEventMsTimes(rawChartData.sections, timedTempos, rawChartData.chartTicksPerBeat),
+		// TODO: Use this when scanning one chart and debugging a specific track
+		// trackData: _.chain(rawChartData.trackData.filter(t => t.instrument === 'drums' && t.difficulty === 'expert'))
 		trackData: _.chain(rawChartData.trackData)
 			.map(track => ({
 				instrument: track.instrument,

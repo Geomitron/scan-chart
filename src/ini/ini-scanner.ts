@@ -54,6 +54,7 @@ export const defaultMetadata = {
 	multiplier_note: 0,
 	sustain_cutoff_threshold: -1,
 	chord_snap_threshold: 0,
+	// chord_snap_threshold: 1000, //TODO: test a chord_snap_threshold override by using this instead
 	video_start_time: 0,
 	five_lane_drums: false,
 	pro_drums: false,
