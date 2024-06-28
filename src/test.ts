@@ -4,7 +4,6 @@ import * as _ from 'lodash'
 import { join } from 'path'
 import sanitize from 'sanitize-filename'
 import { scanChartFolder } from 'src'
-import { inspect } from 'util'
 
 import { Difficulty, Instrument } from './interfaces'
 import { appearsToBeChartFolder, getExtension } from './utils'
@@ -45,7 +44,6 @@ async function main() {
 		).filter(f => f?.data !== undefined) as { fileName: string; data: Buffer }[]
 
 		const result = scanChartFolder(files)
-		console.log(inspect(result, undefined, 12))
 		scanCount++
 		if (scanCount % 100 === 0) {
 			console.log(`${scanCount} scanned...`)
