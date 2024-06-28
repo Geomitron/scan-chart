@@ -455,23 +455,23 @@ function findChartIssues(
 			}
 		}
 
-			// brokenNote
-			{
-				for (let i = 1; i < track.noteEventGroups.length; i++) {
-					const note = track.noteEventGroups[i]
-					const previousNote = track.noteEventGroups[i - 1]
-					const distance = note[0].msTime - previousNote[0].msTime
-					if (distance > 0 && distance <= 15) {
-						if (
-							(typeCount(note, [noteTypes.open]) > 0 && typeCount(previousNote, [noteTypes.open]) === 0) ||
-							(typeCount(note, [noteTypes.open]) === 0 && typeCount(previousNote, [noteTypes.open]) > 0)
-						) {
-							continue // Skip if non-open is next to an open
-						}
-						addIssue('brokenNote', track.noteEventGroups[i][0].msTime)
+		// brokenNote
+		{
+			for (let i = 1; i < track.noteEventGroups.length; i++) {
+				const note = track.noteEventGroups[i]
+				const previousNote = track.noteEventGroups[i - 1]
+				const distance = note[0].msTime - previousNote[0].msTime
+				if (distance > 0 && distance <= 15) {
+					if (
+						(typeCount(note, [noteTypes.open]) > 0 && typeCount(previousNote, [noteTypes.open]) === 0) ||
+						(typeCount(note, [noteTypes.open]) === 0 && typeCount(previousNote, [noteTypes.open]) > 0)
+					) {
+						continue // Skip if non-open is next to an open
 					}
+					addIssue('brokenNote', track.noteEventGroups[i][0].msTime)
 				}
 			}
+		}
 
 		if (instrumentType !== instrumentTypes.drums) {
 			// badSustainGap, babySustain

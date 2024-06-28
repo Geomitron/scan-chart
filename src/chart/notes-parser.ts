@@ -190,9 +190,9 @@ function trimSustains(
 		: 0
 
 	if (sustainThresholdTicks > 0) {
-	for (const event of trackEvents) {
-		if (event.length <= sustainThresholdTicks) {
-			event.length = 0
+		for (const event of trackEvents) {
+			if (event.length <= sustainThresholdTicks) {
+				event.length = 0
 			}
 		}
 	}
