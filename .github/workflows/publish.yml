@@ -1,12 +1,12 @@
 name: Publish
 on:
   workflow_run:
-    workflows: ["CI"]
+    workflows: ['CI']
     types:
       - completed
   push:
     branches:
-      - "master"
+      - 'master'
 
 concurrency: ${{ github.workflow }}-${{ github.ref }}
 
@@ -16,13 +16,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - uses: pnpm/action-setup@v2
+      - uses: pnpm/action-setup@v4
         with:
           version: 7
       - uses: actions/setup-node@v3
         with:
           node-version: 18.x
-          cache: "pnpm"
+          cache: 'pnpm'
 
       - run: pnpm install --no-frozen-lockfile
       - name: Create Release Pull Request or Publish
