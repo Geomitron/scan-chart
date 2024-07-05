@@ -99,7 +99,7 @@ export function scanChart(files: { fileName: string; data: Uint8Array }[], iniCh
 				folderIssues,
 			}
 		} catch (err) {
-			folderIssues.push({ folderIssue: 'badChart', description: typeof err === 'string' ? err : JSON.stringify(err) })
+			folderIssues.push({ folderIssue: 'badChart', description: typeof err === 'string' ? err : err?.message ?? JSON.stringify(err) })
 		}
 	}
 
@@ -140,6 +140,9 @@ function findChartData(files: { fileName: string; data: Uint8Array }[]) {
 }
 
 function findMaxNps(notes: NoteEvent[][]) {
+	if (notes.length === 0) {
+		return 0
+	}
 	let notesInWindow = 0
 	let maxNotesInWindow = 0
 	let windowStartIndex = 0
