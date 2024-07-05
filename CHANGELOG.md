@@ -1,5 +1,12 @@
 # scan-chart
 
+## 4.1.1
+
+### Patch Changes
+
+- c85480f: Fix maxNps calculation
+- e35e997: Fix pnpm build
+
 ## 4.1.0
 
 ### Minor Changes
