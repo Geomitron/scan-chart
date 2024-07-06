@@ -11,6 +11,7 @@ import { RequireMatchingProps, Subset } from './utils'
 import { scanVideo } from './video'
 
 export * from './interfaces'
+export * from './chart/note-parsing-interfaces'
 export { parseChartFile } from './chart/notes-parser'
 export { calculateTrackHash } from './chart/track-hasher'
 
