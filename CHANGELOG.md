@@ -1,5 +1,11 @@
 # scan-chart
 
+## 4.1.2
+
+### Patch Changes
+
+- 5eed0b1: Export additional interfaces
+
 ## 4.1.1
 
 ### Patch Changes
