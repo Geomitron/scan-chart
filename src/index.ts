@@ -1,6 +1,5 @@
 import { md5 } from 'js-md5'
 import * as _ from 'lodash'
-import { cpus } from 'os'
 
 import { scanAudio } from './audio'
 import { scanChart } from './chart'
@@ -106,7 +105,7 @@ export function scanChartFolder(files: { fileName: string; data: Uint8Array }[])
 		}
 	}
 
-	const audioData = scanAudio(files, cpus().length - 1)
+	const audioData = scanAudio(files)
 	chart.folderIssues.push(...audioData.folderIssues)
 
 	if (!chartData.notesData || chart.folderIssues.find(i => i!.folderIssue === 'noAudio') /* TODO: || !audioData.audioHash */) {

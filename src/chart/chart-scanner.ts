@@ -111,14 +111,14 @@ function findChartData(files: { fileName: string; data: Uint8Array }[]) {
 
 	const chartFiles = _.chain(files)
 		.filter(f => hasChartExtension(f.fileName))
-		.orderBy([f => hasChartName(f.fileName), f => getExtension(f.fileName).toLowerCase() === '.mid'], ['desc', 'desc'])
+		.orderBy([f => hasChartName(f.fileName), f => getExtension(f.fileName).toLowerCase() === 'mid'], ['desc', 'desc'])
 		.value()
 
 	for (const file of chartFiles) {
 		if (!hasChartName(file.fileName)) {
 			folderIssues.push({
 				folderIssue: 'invalidChart',
-				description: `"${file.fileName}" is not named "notes${getExtension(file.fileName).toLowerCase()}".`,
+				description: `"${file.fileName}" is not named "notes.${getExtension(file.fileName).toLowerCase()}".`,
 			})
 		}
 	}
@@ -133,7 +133,7 @@ function findChartData(files: { fileName: string; data: Uint8Array }[]) {
 	} else {
 		return {
 			chartData: chartFiles[0].data,
-			format: (getExtension(chartFiles[0].fileName).toLowerCase() === '.mid' ? 'mid' : 'chart') as 'mid' | 'chart',
+			format: (getExtension(chartFiles[0].fileName).toLowerCase() === 'mid' ? 'mid' : 'chart') as 'mid' | 'chart',
 			folderIssues,
 		}
 	}

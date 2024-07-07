@@ -5,7 +5,7 @@ import { getBasename, hasAudioExtension, hasAudioName } from '../utils'
 
 // TODO: use _max_threads
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-export function scanAudio(files: { fileName: string; data: Uint8Array }[], _max_threads: number) {
+export function scanAudio(files: { fileName: string; data: Uint8Array }[]) {
 	const folderIssues: { folderIssue: FolderIssueType; description: string }[] = []
 
 	const findAudioDataResult = findAudioData(files)

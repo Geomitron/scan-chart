@@ -1,5 +1,4 @@
 import * as _ from 'lodash'
-import { parse } from 'path'
 
 declare global {
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -54,66 +53,59 @@ export function appearsToBeChartFolder(extensions: string[]) {
 }
 
 /**
- * @returns extension of a file, including the dot. (e.g. "song.ogg" -> ".ogg")
+ * @returns extension of a file, excluding the dot. (e.g. "song.ogg" -> "ogg")
  */
 export function getExtension(fileName: string) {
-	return parse(fileName).ext
+	return _.last(fileName.split('.')) ?? ''
 }
 
 /**
- *
- * @returns basename of a file, without the extension. (e.g. "song.ogg" -> "song")
+ * @returns basename of a file, excluding the dot. (e.g. "song.ogg" -> "song")
  */
 export function getBasename(fileName: string) {
-	return parse(fileName).name
+	const parts = fileName.split('.')
+	return parts.length > 1 ? parts.slice(0, -1).join('.') : fileName
 }
 
 /**
- * @returns `true` if `name` has a valid sng file extension.
+ * @returns `true` if `fileName` has a valid ini file extension.
  */
-export function hasSngExtension(name: string) {
-	return '.sng' === getExtension(name).toLowerCase()
+export function hasIniExtension(fileName: string) {
+	return 'ini' === getExtension(fileName).toLowerCase()
 }
 
 /**
- * @returns `true` if `name` has a valid ini file extension.
+ * @returns `true` if `fileName` is a valid ini fileName.
  */
-export function hasIniExtension(name: string) {
-	return '.ini' === getExtension(name).toLowerCase()
+export function hasIniName(fileName: string) {
+	return fileName === 'song.ini'
 }
 
 /**
- * @returns `true` if `name` is a valid ini fileName.
+ * @returns `true` if `fileName` has a valid chart file extension.
  */
-export function hasIniName(name: string) {
-	return name === 'song.ini'
+export function hasChartExtension(fileName: string) {
+	return ['chart', 'mid'].includes(getExtension(fileName).toLowerCase())
 }
 
 /**
- * @returns `true` if `name` has a valid chart file extension.
+ * @returns `true` if `fileName` is a valid chart fileName.
  */
-export function hasChartExtension(name: string) {
-	return ['.chart', '.mid'].includes(getExtension(name).toLowerCase())
+export function hasChartName(fileName: string) {
+	return ['notes.chart', 'notes.mid'].includes(fileName)
 }
 
 /**
- * @returns `true` if `name` is a valid chart fileName.
+ * @returns `true` if `fileName` has a valid chart audio file extension.
  */
-export function hasChartName(name: string) {
-	return ['notes.chart', 'notes.mid'].includes(name)
+export function hasAudioExtension(fileName: string) {
+	return ['ogg', 'mp3', 'wav', 'opus'].includes(getExtension(fileName).toLowerCase())
 }
 
 /**
- * @returns `true` if `name` has a valid chart audio file extension.
+ * @returns `true` if `fileName` has a valid chart audio fileName.
  */
-export function hasAudioExtension(name: string) {
-	return ['.ogg', '.mp3', '.wav', '.opus'].includes(getExtension(name).toLowerCase())
-}
-
-/**
- * @returns `true` if `name` has a valid chart audio fileName.
- */
-export function hasAudioName(name: string) {
+export function hasAudioName(fileName: string) {
 	return (
 		[
 			'song',
@@ -131,29 +123,29 @@ export function hasAudioName(name: string) {
 			'drums_4',
 			'crowd',
 			'preview',
-		].includes(getBasename(name)) && ['.ogg', '.mp3', '.wav', '.opus'].includes(getExtension(name))
+		].includes(getBasename(fileName)) && ['ogg', 'mp3', 'wav', 'opus'].includes(getExtension(fileName))
 	)
 }
 
 /**
- * @returns `true` if `name` is a valid album fileName.
+ * @returns `true` if `fileName` is a valid album fileName.
  */
-export function hasAlbumName(name: string) {
-	return ['album.jpg', 'album.jpeg', 'album.png'].includes(name)
+export function hasAlbumName(fileName: string) {
+	return ['album.jpg', 'album.jpeg', 'album.png'].includes(fileName)
 }
 
 /**
- * @returns `true` if `name` is a valid video fileName.
+ * @returns `true` if `fileName` is a valid video fileName.
  */
-export function hasVideoName(name: string) {
-	return getBasename(name) === 'video' && ['.mp4', '.avi', '.webm', '.vp8', '.ogv', '.mpeg'].includes(getExtension(name))
+export function hasVideoName(fileName: string) {
+	return getBasename(fileName) === 'video' && ['mp4', 'avi', 'webm', 'vp8', 'ogv', 'mpeg'].includes(getExtension(fileName))
 }
 
 /**
- * @returns `true` if `name` is a video fileName that is not supported on Linux.
+ * @returns `true` if `fileName` is a video fileName that is not supported on Linux.
  */
-export function hasBadVideoName(name: string) {
-	return getBasename(name) === 'video' && ['.mp4', '.avi', '.mpeg'].includes(getExtension(name))
+export function hasBadVideoName(fileName: string) {
+	return getBasename(fileName) === 'video' && ['mp4', 'avi', 'mpeg'].includes(getExtension(fileName))
 }
 
 const allowedTags = [
