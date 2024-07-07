@@ -1,5 +1,11 @@
 # scan-chart
 
+## 4.1.3
+
+### Patch Changes
+
+- 97ac4de: Remove node dependencies
+
 ## 4.1.2
 
 ### Patch Changes
