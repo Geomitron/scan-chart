@@ -1,5 +1,11 @@
 # scan-chart
 
+## 4.1.4
+
+### Patch Changes
+
+- 3166de2: Fix noNotes bug
+
 ## 4.1.3
 
 ### Patch Changes
