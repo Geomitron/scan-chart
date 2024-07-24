@@ -222,7 +222,7 @@ function findChartIssues(
 
 	// noNotes
 	{
-		if (chartData.trackData.every(track => track.noteEventGroups.length === 0)) {
+		if (chartData.trackData.every(track => track.noteEventGroups.length === 0) && !chartData.hasVocals) {
 			addIssue(null, null, 'noNotes')
 		}
 	}
