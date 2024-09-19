@@ -1,5 +1,11 @@
 # scan-chart
 
+## 4.1.5
+
+### Patch Changes
+
+- 6418ade: Fix interface name
+
 ## 4.1.4
 
 ### Patch Changes
