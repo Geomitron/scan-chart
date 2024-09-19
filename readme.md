@@ -13,7 +13,7 @@ function scanChartFolder(files: { fileName: string; data: Uint8Array }[]): Scann
 function parseChartFile(data: Uint8Array, format: 'chart' | 'mid', iniChartModifiers: IniChartModifiers): ParsedChart
 function calculateTrackHash(parsedChart: ParsedChart, instrument: Instrument, difficulty: Difficulty): { hash: string, bchart: Uint8Array }
 
-interface Chart {
+interface ScannedChart {
 	/** An MD5 hash of the names and binary contents of every file in the chart. */
 	md5: string
 	/** A blake3 hash of just the chart file and the .ini modifiers that impact chart parsing. If this changes, the in-game score is reset. */
