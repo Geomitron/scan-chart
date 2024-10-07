@@ -1,5 +1,11 @@
 # scan-chart
 
+## 4.2.0
+
+### Minor Changes
+
+- cec4a6c: Make iniChartModifiers optional
+
 ## 4.1.5
 
 ### Patch Changes
