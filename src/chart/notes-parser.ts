@@ -3,7 +3,17 @@ import * as _ from 'lodash'
 import { DrumType, drumTypes, Instrument } from 'src/interfaces'
 import { parseNotesFromChart } from './chart-parser'
 import { parseNotesFromMidi } from './midi-parser'
-import { EventType, eventTypes, IniChartModifiers, NoteEvent, noteFlags, NoteType, noteTypes, RawChartData } from './note-parsing-interfaces'
+import {
+	defaultIniChartModifiers,
+	EventType,
+	eventTypes,
+	IniChartModifiers,
+	NoteEvent,
+	noteFlags,
+	NoteType,
+	noteTypes,
+	RawChartData,
+} from './note-parsing-interfaces'
 
 type TrackEvent = RawChartData['trackData'][number]['trackEvents'][number]
 type UntimedNoteEvent = Omit<NoteEvent, 'msTime' | 'msLength'>
@@ -15,7 +25,8 @@ export type ParsedChart = ReturnType<typeof parseChartFile>
  *
  * Throws an exception if `buffer` could not be parsed as a chart in the .chart or .mid format.
  */
-export function parseChartFile(data: Uint8Array, format: 'chart' | 'mid', iniChartModifiers: IniChartModifiers) {
+export function parseChartFile(data: Uint8Array, format: 'chart' | 'mid', partialIniChartModifiers: Partial<IniChartModifiers> = {}) {
+	const iniChartModifiers = Object.assign({}, defaultIniChartModifiers, partialIniChartModifiers) as IniChartModifiers
 	const rawChartData = format === 'mid' ? parseNotesFromMidi(data, iniChartModifiers) : parseNotesFromChart(data)
 	const timedTempos = getTimedTempos(rawChartData.tempos, rawChartData.chartTicksPerBeat)
 	const drumTracks = rawChartData.trackData.filter(track => track.instrument === 'drums')

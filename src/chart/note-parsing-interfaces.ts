@@ -12,6 +12,17 @@ export interface IniChartModifiers {
 	pro_drums: boolean
 }
 
+export const defaultIniChartModifiers = {
+	song_length: 0,
+	hopo_frequency: 0,
+	eighthnote_hopo: false,
+	multiplier_note: 0,
+	sustain_cutoff_threshold: -1,
+	chord_snap_threshold: 0,
+	five_lane_drums: false,
+	pro_drums: false,
+}
+
 /**
  * This is the common format that both .mid and .chart parsers target, and is used by `parseChart()` to generate `ChartData`.
  *
