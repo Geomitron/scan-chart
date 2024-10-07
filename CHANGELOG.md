@@ -1,5 +1,11 @@
 # scan-chart
 
+## 4.2.1
+
+### Patch Changes
+
+- e44502a: Update README
+
 ## 4.2.0
 
 ### Minor Changes
