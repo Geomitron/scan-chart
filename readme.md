@@ -451,13 +451,13 @@ const noteFlags = {
 } as const
 
 interface IniChartModifiers {
-	song_length: number								// Default: 0
-	hopo_frequency: number						// Default: 0
-	eighthnote_hopo: boolean					// Default: false
-	multiplier_note: number						// Default: 0
-	sustain_cutoff_threshold: number	// Default: -1
-	chord_snap_threshold: number			// Default: 0
-	five_lane_drums: boolean					// Default: false
-	pro_drums: boolean								// Default: false
+	song_length: number               // Default: 0
+	hopo_frequency: number            // Default: 0
+	eighthnote_hopo: boolean          // Default: false
+	multiplier_note: number           // Default: 0
+	sustain_cutoff_threshold: number  // Default: -1
+	chord_snap_threshold: number      // Default: 0
+	five_lane_drums: boolean          // Default: false
+	pro_drums: boolean                // Default: false
 }
 ```
