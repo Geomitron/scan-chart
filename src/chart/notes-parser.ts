@@ -96,16 +96,16 @@ export function parseChartFile(data: Uint8Array, format: 'chart' | 'mid', partia
 }
 
 function getTimedTempos(
-	tempos: { tick: number; millibeatsPerMinute: number }[],
+	tempos: { tick: number; beatsPerMinute: number }[],
 	chartTicksPerBeat: number,
-): { tick: number; millibeatsPerMinute: number; msTime: number }[] {
-	const newTempos: { tick: number; millibeatsPerMinute: number; msTime: number }[] = [{ tick: 0, millibeatsPerMinute: 120000, msTime: 0 }]
+): { tick: number; beatsPerMinute: number; msTime: number }[] {
+	const newTempos: { tick: number; beatsPerMinute: number; msTime: number }[] = [{ tick: 0, beatsPerMinute: 120, msTime: 0 }]
 
 	for (const tempo of tempos) {
-		const newTempo = tempo as { tick: number; millibeatsPerMinute: number; msTime: number }
+		const newTempo = tempo as { tick: number; beatsPerMinute: number; msTime: number }
 		const lastTempo = newTempos[newTempos.length - 1]
 
-		newTempo.msTime = lastTempo.msTime + ((tempo.tick - lastTempo.tick) * 1000 * 60000) / (lastTempo.millibeatsPerMinute * chartTicksPerBeat)
+		newTempo.msTime = lastTempo.msTime + ((tempo.tick - lastTempo.tick) * 60000) / (lastTempo.beatsPerMinute * chartTicksPerBeat)
 		newTempos.push(newTempo)
 	}
 
@@ -131,21 +131,21 @@ function isCymbalOrTomMarker(type: EventType) {
 
 function setEventGroupMsTimes<T extends { tick: number; length?: number }>(
 	events: T[][],
-	tempos: { tick: number; millibeatsPerMinute: number; msTime: number }[],
+	tempos: { tick: number; beatsPerMinute: number; msTime: number }[],
 	chartTicksPerBeat: number,
 ) {
 	return setEventOrEventGroupMsTimes(events, tempos, chartTicksPerBeat) as (T & { msTime: number; msLength: number })[][]
 }
 function setEventMsTimes<T extends { tick: number; length?: number }>(
 	events: T[],
-	tempos: { tick: number; millibeatsPerMinute: number; msTime: number }[],
+	tempos: { tick: number; beatsPerMinute: number; msTime: number }[],
 	chartTicksPerBeat: number,
 ) {
 	return setEventOrEventGroupMsTimes(events, tempos, chartTicksPerBeat) as (T & { msTime: number; msLength: number })[]
 }
 function setEventOrEventGroupMsTimes<T extends { tick: number; length?: number }>(
 	events: T[] | T[][],
-	tempos: { tick: number; millibeatsPerMinute: number; msTime: number }[],
+	tempos: { tick: number; beatsPerMinute: number; msTime: number }[],
 	chartTicksPerBeat: number,
 ) {
 	let lastTempoIndex = 0
@@ -158,7 +158,7 @@ function setEventOrEventGroupMsTimes<T extends { tick: number; length?: number }
 		const lastTempo = tempos[lastTempoIndex]
 		const newEvent = event as T & { msTime: number; msLength: number }
 
-		newEvent.msTime = lastTempo.msTime + ((event.tick - lastTempo.tick) * 1000 * 60000) / (lastTempo.millibeatsPerMinute * chartTicksPerBeat)
+		newEvent.msTime = lastTempo.msTime + ((event.tick - lastTempo.tick) * 60000) / (lastTempo.beatsPerMinute * chartTicksPerBeat)
 
 		if (event.length) {
 			let endTempoIndex = lastTempoIndex
@@ -167,9 +167,8 @@ function setEventOrEventGroupMsTimes<T extends { tick: number; length?: number }
 			}
 			const endTempo = tempos[endTempoIndex]
 			newEvent.msLength =
-				endTempo.msTime -
-				newEvent.msTime +
-				((event.tick + event.length - endTempo.tick) * 1000 * 60000) / (endTempo.millibeatsPerMinute * chartTicksPerBeat)
+				// eslint-disable-next-line max-len
+				endTempo.msTime - newEvent.msTime + ((event.tick + event.length - endTempo.tick) * 60000) / (endTempo.beatsPerMinute * chartTicksPerBeat)
 		} else {
 			newEvent.msLength = 0
 		}

@@ -125,11 +125,11 @@ export function parseNotesFromChart(data: Uint8Array): RawChartData {
 			.compact()
 			.map(([, stringTick, stringMillibeatsPerMinute]) => ({
 				tick: Number(stringTick),
-				millibeatsPerMinute: Number(stringMillibeatsPerMinute),
+				beatsPerMinute: Number(stringMillibeatsPerMinute) / 1000,
 			}))
 			.tap(tempos => {
 				if (!tempos[0] || tempos[0].tick !== 0) {
-					tempos.unshift({ tick: 0, millibeatsPerMinute: 120000 })
+					tempos.unshift({ tick: 0, beatsPerMinute: 120 })
 				}
 			})
 			.value(),

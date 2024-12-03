@@ -339,7 +339,7 @@ interface ParsedChart {
 	}[]
 	tempos: {
 			tick: number
-			millibeatsPerMinute: number
+			beatsPerMinute: number
 			msTime: number
 	}[]
 	timeSignatures: {

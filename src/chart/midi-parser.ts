@@ -106,11 +106,12 @@ export function parseNotesFromMidi(data: Uint8Array, iniChartModifiers: IniChart
 			.filter((e): e is MidiSetTempoEvent => e.type === 'setTempo')
 			.map(e => ({
 				tick: e.deltaTime,
-				millibeatsPerMinute: Math.floor((1000 * 60000000) / e.microsecondsPerBeat), // Precision truncated to match .chart precision
+				// Note that this operation is float64 division, and is impacted by floating point precision errors
+				beatsPerMinute: 60000000 / e.microsecondsPerBeat,
 			}))
 			.tap(tempos => {
 				if (!tempos[0] || tempos[0].tick !== 0) {
-					tempos.unshift({ tick: 0, millibeatsPerMinute: 120000 })
+					tempos.unshift({ tick: 0, beatsPerMinute: 120 })
 				}
 			})
 			.value(),

@@ -35,7 +35,7 @@ export function calculateTrackHash(parsedChart: ParsedChart, instrument: Instrum
 	const notesData = _.flatten(trackData.noteEventGroups)
 
 	const headerSize = 4 + 4 + 4
-	const tempoSize = 4 + (4 + 4) * tempoData.length
+	const tempoSize = 4 + (4 + 8) * tempoData.length
 	const timeSignatureSize = 4 + (4 + 4 + 4) * timeSignatureData.length
 	const starPowerSize = 4 + (4 + 4) * starPowerData.length
 	const soloSectionSize = 4 + (4 + 4) * soloSectionData.length
@@ -57,8 +57,8 @@ export function calculateTrackHash(parsedChart: ParsedChart, instrument: Instrum
 	i += 4
 	for (const tempo of tempoData) {
 		view.setUint32(i, tempo.tick, true)
-		view.setUint32(i + 4, tempo.millibeatsPerMinute, true)
-		i += 8
+		view.setFloat64(i + 4, tempo.beatsPerMinute, true)
+		i += 12
 	}
 	view.setUint32(i, timeSignatureData.length, true)
 	i += 4

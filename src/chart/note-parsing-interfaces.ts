@@ -50,8 +50,8 @@ export interface RawChartData {
 	hasVocals: boolean
 	tempos: {
 		tick: number
-		/** BPM * 1000 (truncated to int) */
-		millibeatsPerMinute: number
+		/** double, rounded to 12 decimal places */
+		beatsPerMinute: number
 	}[]
 	timeSignatures: {
 		tick: number

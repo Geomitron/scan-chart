@@ -83,7 +83,7 @@ export function scanChart(files: { fileName: string; data: Uint8Array }[], iniCh
 					trackHashes,
 					tempoMapHash: md5
 						.create()
-						.update(result.tempos.map(t => `${t.tick}_${t.millibeatsPerMinute}`).join(':'))
+						.update(result.tempos.map(t => `${t.tick}_${t.beatsPerMinute * 1000}`).join(':'))
 						.update(result.timeSignatures.map(t => `${t.tick}_${t.numerator}_${t.denominator}`).join(':'))
 						.hex(),
 					tempoMarkerCount: result.tempos.length,
@@ -251,7 +251,7 @@ function findChartIssues(
 
 	// isDefaultBPM
 	{
-		const isDefaultTempo = chartData.tempos.length === 1 && chartData.tempos[0].millibeatsPerMinute === 120000
+		const isDefaultTempo = chartData.tempos.length === 1 && _.round(chartData.tempos[0].beatsPerMinute, 12) === 120
 		const isDefaultTimeSignature =
 			chartData.timeSignatures.length === 1 && chartData.timeSignatures[0].numerator === 4 && chartData.timeSignatures[0].denominator === 4
 		if (isDefaultTempo && isDefaultTimeSignature) {
