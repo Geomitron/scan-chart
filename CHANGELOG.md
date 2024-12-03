@@ -1,5 +1,11 @@
 # scan-chart
 
+## 5.0.0
+
+### Major Changes
+
+- 5952a81: Changed millibeatsPerMinute to beatsPerMinute, and increased .mid BPM precision
+
 ## 4.2.1
 
 ### Patch Changes
