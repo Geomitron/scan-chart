@@ -1,5 +1,11 @@
 # scan-chart
 
+## 6.0.0
+
+### Major Changes
+
+- 8d7263d: Changed tick in bchart to int64
+
 ## 5.0.0
 
 ### Major Changes
