@@ -35,13 +35,13 @@ export function calculateTrackHash(parsedChart: ParsedChart, instrument: Instrum
 	const notesData = _.flatten(trackData.noteEventGroups)
 
 	const headerSize = 4 + 4 + 4
-	const tempoSize = 4 + (4 + 8) * tempoData.length
-	const timeSignatureSize = 4 + (4 + 4 + 4) * timeSignatureData.length
-	const starPowerSize = 4 + (4 + 4) * starPowerData.length
-	const soloSectionSize = 4 + (4 + 4) * soloSectionData.length
-	const flexLanesSize = 4 + (4 + 4 + 1) * flexLanesData.length
-	const drumFreestyleSectionSize = 4 + (4 + 4 + 1) * drumFreestyleSectionData.length
-	const notesSize = 4 + (4 + 4 + 4 + 4) * notesData.length
+	const tempoSize = 4 + (8 + 8) * tempoData.length
+	const timeSignatureSize = 4 + (8 + 4 + 4) * timeSignatureData.length
+	const starPowerSize = 4 + (8 + 4) * starPowerData.length
+	const soloSectionSize = 4 + (8 + 4) * soloSectionData.length
+	const flexLanesSize = 4 + (8 + 4 + 1) * flexLanesData.length
+	const drumFreestyleSectionSize = 4 + (8 + 4 + 1) * drumFreestyleSectionData.length
+	const notesSize = 4 + (8 + 4 + 4 + 4) * notesData.length
 	const totalSize =
 		headerSize + tempoSize + timeSignatureSize + starPowerSize + soloSectionSize + flexLanesSize + drumFreestyleSectionSize + notesSize
 
@@ -56,56 +56,56 @@ export function calculateTrackHash(parsedChart: ParsedChart, instrument: Instrum
 	view.setUint32(i, tempoData.length, true)
 	i += 4
 	for (const tempo of tempoData) {
-		view.setUint32(i, tempo.tick, true)
-		view.setFloat64(i + 4, tempo.beatsPerMinute, true)
-		i += 12
+		view.setBigInt64(i, BigInt(tempo.tick), true)
+		view.setFloat64(i + 8, tempo.beatsPerMinute, true)
+		i += 16
 	}
 	view.setUint32(i, timeSignatureData.length, true)
 	i += 4
 	for (const timeSignature of timeSignatureData) {
-		view.setUint32(i, timeSignature.tick, true)
-		view.setUint32(i + 4, timeSignature.numerator, true)
-		view.setUint32(i + 8, timeSignature.denominator, true)
-		i += 12
+		view.setBigInt64(i, BigInt(timeSignature.tick), true)
+		view.setUint32(i + 8, timeSignature.numerator, true)
+		view.setUint32(i + 12, timeSignature.denominator, true)
+		i += 16
 	}
 	view.setUint32(i, starPowerData.length, true)
 	i += 4
 	for (const starPower of starPowerData) {
-		view.setUint32(i, starPower.tick, true)
-		view.setUint32(i + 4, starPower.length, true)
-		i += 8
+		view.setBigInt64(i, BigInt(starPower.tick), true)
+		view.setUint32(i + 8, starPower.length, true)
+		i += 12
 	}
 	view.setUint32(i, soloSectionData.length, true)
 	i += 4
 	for (const soloSection of soloSectionData) {
-		view.setUint32(i, soloSection.tick, true)
-		view.setUint32(i + 4, soloSection.length, true)
-		i += 8
+		view.setBigInt64(i, BigInt(soloSection.tick), true)
+		view.setUint32(i + 8, soloSection.length, true)
+		i += 12
 	}
 	view.setUint32(i, flexLanesData.length, true)
 	i += 4
 	for (const flexLane of flexLanesData) {
-		view.setUint32(i, flexLane.tick, true)
-		view.setUint32(i + 4, flexLane.length, true)
-		view.setUint8(i + 8, flexLane.isDouble ? 1 : 0)
-		i += 9
+		view.setBigInt64(i, BigInt(flexLane.tick), true)
+		view.setUint32(i + 8, flexLane.length, true)
+		view.setUint8(i + 12, flexLane.isDouble ? 1 : 0)
+		i += 13
 	}
 	view.setInt32(i, drumFreestyleSectionData.length, true)
 	i += 4
 	for (const drumFreestyleSection of drumFreestyleSectionData) {
-		view.setUint32(i, drumFreestyleSection.tick, true)
-		view.setUint32(i + 4, drumFreestyleSection.length, true)
-		view.setUint8(i + 8, drumFreestyleSection.isCoda ? 1 : 0)
-		i += 9
+		view.setBigInt64(i, BigInt(drumFreestyleSection.tick), true)
+		view.setUint32(i + 8, drumFreestyleSection.length, true)
+		view.setUint8(i + 12, drumFreestyleSection.isCoda ? 1 : 0)
+		i += 13
 	}
 	view.setInt32(i, notesData.length, true)
 	i += 4
 	for (const note of notesData) {
-		view.setUint32(i, note.tick, true)
-		view.setUint32(i + 4, note.length, true)
-		view.setUint32(i + 8, note.type, true)
-		view.setUint32(i + 12, note.flags, true)
-		i += 16
+		view.setBigInt64(i, BigInt(note.tick), true)
+		view.setUint32(i + 8, note.length, true)
+		view.setUint32(i + 12, note.type, true)
+		view.setUint32(i + 16, note.flags, true)
+		i += 20
 	}
 
 	return { hash: base64url.stringify(blake3(uint8Array)), bchart: uint8Array }
