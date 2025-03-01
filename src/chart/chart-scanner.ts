@@ -302,6 +302,7 @@ function findChartIssues(
 		// noStarPower
 		{
 			if (
+				track.instrument !== 'drums' &&
 				track.starPowerSections.length === 0 &&
 				track.noteEventGroups.length > 50 &&
 				_.last(track.noteEventGroups)![0].msTime - _.first(track.noteEventGroups)![0].msTime > 60000
