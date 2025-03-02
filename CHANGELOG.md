@@ -1,5 +1,11 @@
 # scan-chart
 
+## 6.1.0
+
+### Minor Changes
+
+- d782f39: Remove noStarPower issue on drums
+
 ## 6.0.0
 
 ### Major Changes
