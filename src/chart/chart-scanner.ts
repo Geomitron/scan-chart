@@ -303,6 +303,7 @@ function findChartIssues(
 		{
 			if (
 				track.starPowerSections.length === 0 &&
+				track.instrument !== 'drums' &&
 				track.noteEventGroups.length > 50 &&
 				_.last(track.noteEventGroups)![0].msTime - _.first(track.noteEventGroups)![0].msTime > 60000
 			) {
@@ -338,6 +339,7 @@ function findChartIssues(
 			if (
 				track.instrument === 'drums' &&
 				track.drumFreestyleSections.length === 0 &&
+				track.starPowerSections.length > 0 &&
 				track.noteEventGroups.length > 50 &&
 				_.last(track.noteEventGroups)![0].msTime - _.first(track.noteEventGroups)![0].msTime > 60000
 			) {
