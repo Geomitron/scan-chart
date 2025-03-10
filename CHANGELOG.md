@@ -1,5 +1,11 @@
 # scan-chart
 
+## 6.1.1
+
+### Patch Changes
+
+- 74f492e: Handle tracks with 0 notes in maxNps
+
 ## 6.1.0
 
 ### Minor Changes
