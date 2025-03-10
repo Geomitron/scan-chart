@@ -141,7 +141,7 @@ function findChartData(files: { fileName: string; data: Uint8Array }[]) {
 
 function findMaxNps(notes: NoteEvent[][]) {
 	if (notes.length === 0) {
-		return 0
+		return { nps: 0, time: 0 }
 	}
 	let notesInWindow = 0
 	let maxNotesInWindow = 0
