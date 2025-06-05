@@ -120,6 +120,15 @@ export function parseNotesFromChart(data: Uint8Array): RawChartData {
 		},
 		hasLyrics: !!fileSections['Events']?.find(line => line.includes('"lyric ')),
 		hasVocals: false, // Vocals are unsupported in .chart
+		lyrics: _.chain(fileSections['Events'])
+			.map(line => /^(\d+) = E "lyric (.+?)"$/.exec(line))
+			.compact()
+			.map(([, stringTick, lyricText]) => ({
+				tick: Number(stringTick),
+				length: 0, // Chart lyric events typically don't have length
+				text: lyricText,
+			}))
+			.value(),
 		tempos: _.chain(fileSections['SyncTrack'])
 			.map(line => /^(\d+) = B (\d+)$/.exec(line))
 			.compact()
