@@ -384,6 +384,12 @@ interface ParsedChart {
 			msTime: number
 			msLength: number
 	}[]
+	lyrics: {
+		tick: number
+		msTime: number
+		msLength: number
+		text: string
+	}[]
 	sections: {
 			tick: number
 			name: string
