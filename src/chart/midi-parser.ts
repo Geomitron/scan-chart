@@ -102,6 +102,14 @@ export function parseNotesFromMidi(data: Uint8Array, iniChartModifiers: IniChart
 		metadata: {}, // .mid does not have a mechanism for storing song metadata
 		hasLyrics: !!vocalsTrack?.trackEvents.find(e => e.type === 'lyrics' || e.type === 'text'),
 		hasVocals: !!vocalsTrack?.trackEvents.find(e => e.type === 'noteOn' && e.noteNumber <= 84 && e.noteNumber >= 36),
+		lyrics: _.chain(vocalsTrack?.trackEvents)
+			.filter((e): e is MidiTextEvent => e.type === 'lyrics' || (e.type === 'text' && e.text.trim() !== ''))
+			.map(e => ({
+				tick: e.deltaTime,
+				length: 0, // MIDI lyric events typically don't have length, they're instantaneous
+				text: e.text.trim(),
+			}))
+			.value(),
 		tempos: _.chain(midiFile.tracks[0])
 			.filter((e): e is MidiSetTempoEvent => e.type === 'setTempo')
 			.map(e => ({
