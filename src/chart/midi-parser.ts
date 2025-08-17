@@ -74,7 +74,7 @@ type MidiTrackEvent = RawChartData['trackData'][number]['trackEvents'][number] &
 export function parseNotesFromMidi(data: Uint8Array, iniChartModifiers: IniChartModifiers): RawChartData {
 	const midiFile = parseMidi(data)
 	if (midiFile.header.format !== 1) {
-		throw `Invavlid .mid file: unsupported format "${midiFile.header.format}"`
+		throw `Invavlid .mid file: unsupported header format "${midiFile.header.format}"`
 	}
 
 	if (!midiFile.header.ticksPerBeat) {

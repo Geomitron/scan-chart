@@ -5,7 +5,7 @@ import { scanAudio } from './audio'
 import { scanChart } from './chart'
 import { scanImage } from './image'
 import { defaultMetadata, scanIni } from './ini'
-import { Instrument, ScannedChart } from './interfaces'
+import { Instrument, ScanChartFolderConfig, ScannedChart } from './interfaces'
 import { RequireMatchingProps, Subset } from './utils'
 import { scanVideo } from './video'
 
@@ -17,20 +17,26 @@ export { calculateTrackHash } from './chart/track-hasher'
 /**
  * Scans `files` as a chart folder, and returns a `ScannedChart` object.
  */
-export function scanChartFolder(files: { fileName: string; data: Uint8Array }[]): ScannedChart {
+export function scanChartFolder(files: { fileName: string; data: Uint8Array }[], config?: ScanChartFolderConfig): ScannedChart {
+	config = {
+		includeMd5: true,
+		includeBChart: false,
+		...config,
+	}
+
 	const chart: RequireMatchingProps<Subset<ScannedChart>, 'folderIssues' | 'metadataIssues' | 'playable'> = {
 		folderIssues: [],
 		metadataIssues: [],
 		playable: true,
 	}
 
-	chart.md5 = getChartMD5(files)
+	chart.md5 = config.includeMd5 ? getChartMD5(files) : 'md5 calculation skipped'
 
 	const iniData = scanIni(files)
 	chart.folderIssues.push(...iniData.folderIssues)
 	chart.metadataIssues.push(...iniData.metadataIssues)
 
-	const chartData = scanChart(files, iniData.metadata ?? defaultMetadata)
+	const chartData = scanChart(files, iniData.metadata ?? defaultMetadata, config.includeBChart)
 	chart.chartHash = chartData.chartHash ?? undefined
 	chart.folderIssues.push(...chartData.folderIssues)
 

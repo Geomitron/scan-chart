@@ -16,17 +16,21 @@ const MIN_SUSTAIN_GAP_MS = 40
 const MIN_SUSTAIN_MS = 100
 const NPS_GROUP_SIZE_MS = 1000
 
-export function scanChart(files: { fileName: string; data: Uint8Array }[], iniChartModifiers: IniChartModifiers) {
+export function scanChart(files: { fileName: string; data: Uint8Array }[], iniChartModifiers: IniChartModifiers, includeBChart = false) {
 	const { chartData, format, folderIssues } = findChartData(files)
 
 	if (chartData) {
 		try {
 			const result = parseChartFile(chartData, format, iniChartModifiers)
-			const trackHashes = result.trackData.map(t => ({
-				instrument: t.instrument,
-				difficulty: t.difficulty,
-				hash: calculateTrackHash(result, t.instrument, t.difficulty).hash,
-			}))
+			const trackHashes = result.trackData.map(t => {
+				const hash = calculateTrackHash(result, t.instrument, t.difficulty)
+				return {
+					instrument: t.instrument,
+					difficulty: t.difficulty,
+					hash: hash.hash,
+					bchart: includeBChart ? hash.bchart : null,
+				}
+			})
 
 			let [hasTapNotes, hasOpenNotes, has2xKick] = [false, false, false]
 			for (const track of result.trackData) {
@@ -575,4 +579,25 @@ function int32ToUint8Array(num: number) {
 	view.setInt32(0, num, true)
 
 	return new Uint8Array(buffer)
+}
+
+/**
+ * Included for legacy testing purposes
+ */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function legacyGetChartHash(chartBytes: Uint8Array, iniChartModifiers: IniChartModifiers) {
+	const iniChartModifierSize = 4 + 1 + 4 + 4 + 1 + 1
+	const buffer = new ArrayBuffer(chartBytes.length + iniChartModifierSize)
+	const uint8Array = new Uint8Array(buffer)
+	uint8Array.set(chartBytes)
+	const view = new DataView(buffer, chartBytes.length)
+
+	view.setInt32(0, iniChartModifiers.hopo_frequency)
+	view.setInt8(4, iniChartModifiers.eighthnote_hopo ? 1 : 0)
+	view.setInt32(5, iniChartModifiers.multiplier_note)
+	view.setInt32(9, iniChartModifiers.sustain_cutoff_threshold)
+	view.setInt8(13, iniChartModifiers.five_lane_drums ? 1 : 0)
+	view.setInt8(14, iniChartModifiers.pro_drums ? 1 : 0)
+
+	return base64url.stringify(blake3(uint8Array))
 }

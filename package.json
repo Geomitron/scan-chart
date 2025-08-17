@@ -10,6 +10,7 @@
 	"scripts": {
 		"build": "tsup src/index.ts --format cjs,esm --dts",
 		"release": "pnpm run build && changeset publish",
+		"test": "npx tsx src/test.ts",
 		"lint": "tsc"
 	},
 	"repository": {
@@ -29,6 +30,7 @@
 		"lodash": "^4.17.21",
 		"midi-file": "^1.2.4",
 		"rfc4648": "^1.5.3",
+		"sanitize-filename": "^1.6.3",
 		"stream-audio-fingerprint": "git+https://github.com/Geomitron/stream-audio-fingerprint.git",
 		"workerpool": "^6.4.0"
 	},
@@ -43,8 +45,8 @@
 		"@types/fluent-ffmpeg": "^2.1.21",
 		"@types/js-md5": "^0.7.2",
 		"@types/lodash": "^4.14.194",
-		"@types/node": "^18.16.16",
 		"@types/workerpool": "^6.4.0",
+		"@types/yargs": "^17.0.33",
 		"@typescript-eslint/eslint-plugin": "^7.8.0",
 		"@typescript-eslint/parser": "^7.8.0",
 		"eslint": "^8.57.0",
@@ -56,6 +58,8 @@
 		"prettier": "^3.2.5",
 		"prettier-eslint": "^16.3.0",
 		"tsup": "^6.7.0",
-		"typescript": "^4.7.4"
+		"tsx": "^4.20.4",
+		"typescript": "^5.9.2",
+		"yargs": "^18.0.0"
 	}
 }

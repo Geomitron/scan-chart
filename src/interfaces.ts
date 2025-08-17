@@ -1,5 +1,21 @@
 import { ObjectValues } from './utils'
 
+export interface ScanChartFolderConfig {
+	/**
+	 * Set this to false to skip calculating `ScannedChart.md5`. It will be set to 'md5 calculation skipped' instead.
+	 *
+	 * Default: `true`.
+	 */
+	includeMd5: boolean
+
+	/**
+	 * Set this to true to calculate `ScannedChart.notesData.trackHashes[].bchart`. Otherwise, it will have the value `null`.
+	 *
+	 * Default: `false`.
+	 */
+	includeBChart: boolean
+}
+
 export interface ScannedChart {
 	/** An MD5 hash of the names and binary contents of every file in the chart. */
 	md5: string
@@ -170,6 +186,8 @@ export interface NotesData {
 		instrument: Instrument
 		difficulty: Difficulty
 		hash: string
+		/** The full chart representation for this track. `hash` is derived from this. `null` if `ScanChartFolderConfig.includeBChart` is `false`. */
+		bchart: Uint8Array<ArrayBuffer> | null
 	}[]
 	/** MD5 hash of the chart's tempo map, including BPM markers and time signature markers. */
 	tempoMapHash: string

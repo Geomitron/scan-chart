@@ -3,15 +3,48 @@ This package scans charts for rhythm games like Clone Hero and produces useful m
 `parseChartFile` has been designed to produce the exact same result as Clone Hero.
 This has been validated on 40,000 charts, including some that were deliberately designed to test parsing edge cases.
 
+# Testing
+
+Before running tests, you need the following:
+
+- Locally clone the repository
+- Install NodeJS >= v24.6.0
+- Run `npm i -G pnpm`
+- Run `pnpm i`
+
+To run tests, use:
+
+```bash
+$ npx tsx src/test.ts
+```
+
+Note: running this will print usage information. Add command line arguments to this to specify testing parameters.
+
 # API
 
 ```ts
 /**
  * Scans `files` as a chart folder, and returns a `ScannedChart` object.
  */
-function scanChartFolder(files: { fileName: string; data: Uint8Array }[]): ScannedChart
+function scanChartFolder(files: { fileName: string; data: Uint8Array }[], config?: ScanChartFolderConfig): ScannedChart
 function parseChartFile(data: Uint8Array, format: 'chart' | 'mid', iniChartModifiers: IniChartModifiers): ParsedChart
 function calculateTrackHash(parsedChart: ParsedChart, instrument: Instrument, difficulty: Difficulty): { hash: string, bchart: Uint8Array }
+
+interface ScanChartFolderConfig {
+	/**
+	 * Set this to false to skip calculating `ScannedChart.md5`. It will be set to 'md5 calculation skipped' instead.
+	 *
+	 * Default: `true`.
+	 */
+	includeMd5: boolean
+
+	/**
+   * Set this to true to calculate `ScannedChart.notesData.trackHashes[].bchart`. Otherwise, it will have the value `null`.
+   *
+   * Default: `false`.
+   */
+  includeBChart: boolean
+}
 
 interface ScannedChart {
 	/** An MD5 hash of the names and binary contents of every file in the chart. */
@@ -183,6 +216,8 @@ interface interface NotesData {
 		instrument: Instrument
 		difficulty: Difficulty
 		hash: string
+		/** The full chart representation for this track. `hash` is derived from this. `null` if `ScanChartFolderConfig.includeBChart` is `false`. */
+		bchart: Uint8Array<ArrayBuffer> | null
 	}[]
 	/** MD5 hash of the chart's tempo map, including BPM markers and time signature markers. */
 	tempoMapHash: string
