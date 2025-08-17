@@ -1,5 +1,11 @@
 # scan-chart
 
+## 6.2.0
+
+### Minor Changes
+
+- f9562d5: Add scan config and test scripts
+
 ## 6.1.1
 
 ### Patch Changes
