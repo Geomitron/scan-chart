@@ -1,5 +1,11 @@
 # scan-chart
 
+## 7.0.0
+
+### Major Changes
+
+- e28bec6: Update bchart calculation
+
 ## 6.2.0
 
 ### Minor Changes
