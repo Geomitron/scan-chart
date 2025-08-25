@@ -37,11 +37,11 @@ export function calculateTrackHash(parsedChart: ParsedChart, instrument: Instrum
 	const headerSize = 4 + 4 + 4
 	const tempoSize = 4 + (8 + 8) * tempoData.length
 	const timeSignatureSize = 4 + (8 + 4 + 4) * timeSignatureData.length
-	const starPowerSize = 4 + (8 + 4) * starPowerData.length
-	const soloSectionSize = 4 + (8 + 4) * soloSectionData.length
-	const flexLanesSize = 4 + (8 + 4 + 1) * flexLanesData.length
-	const drumFreestyleSectionSize = 4 + (8 + 4 + 1) * drumFreestyleSectionData.length
-	const notesSize = 4 + (8 + 4 + 4 + 4) * notesData.length
+	const starPowerSize = 4 + (8 + 8) * starPowerData.length
+	const soloSectionSize = 4 + (8 + 8) * soloSectionData.length
+	const flexLanesSize = 4 + (8 + 8 + 1) * flexLanesData.length
+	const drumFreestyleSectionSize = 4 + (8 + 8 + 1) * drumFreestyleSectionData.length
+	const notesSize = 4 + (8 + 8 + 4 + 4) * notesData.length
 	const totalSize =
 		headerSize + tempoSize + timeSignatureSize + starPowerSize + soloSectionSize + flexLanesSize + drumFreestyleSectionSize + notesSize
 
@@ -72,40 +72,40 @@ export function calculateTrackHash(parsedChart: ParsedChart, instrument: Instrum
 	i += 4
 	for (const starPower of starPowerData) {
 		view.setBigInt64(i, BigInt(starPower.tick), true)
-		view.setUint32(i + 8, starPower.length, true)
-		i += 12
+		view.setBigInt64(i + 8, BigInt(starPower.length), true)
+		i += 16
 	}
 	view.setUint32(i, soloSectionData.length, true)
 	i += 4
 	for (const soloSection of soloSectionData) {
 		view.setBigInt64(i, BigInt(soloSection.tick), true)
-		view.setUint32(i + 8, soloSection.length, true)
-		i += 12
+		view.setBigInt64(i + 8, BigInt(soloSection.length), true)
+		i += 16
 	}
 	view.setUint32(i, flexLanesData.length, true)
 	i += 4
 	for (const flexLane of flexLanesData) {
 		view.setBigInt64(i, BigInt(flexLane.tick), true)
-		view.setUint32(i + 8, flexLane.length, true)
-		view.setUint8(i + 12, flexLane.isDouble ? 1 : 0)
-		i += 13
+		view.setBigInt64(i + 8, BigInt(flexLane.length), true)
+		view.setUint8(i + 16, flexLane.isDouble ? 1 : 0)
+		i += 17
 	}
 	view.setInt32(i, drumFreestyleSectionData.length, true)
 	i += 4
 	for (const drumFreestyleSection of drumFreestyleSectionData) {
 		view.setBigInt64(i, BigInt(drumFreestyleSection.tick), true)
-		view.setUint32(i + 8, drumFreestyleSection.length, true)
-		view.setUint8(i + 12, drumFreestyleSection.isCoda ? 1 : 0)
-		i += 13
+		view.setBigInt64(i + 8, BigInt(drumFreestyleSection.length), true)
+		view.setUint8(i + 16, drumFreestyleSection.isCoda ? 1 : 0)
+		i += 17
 	}
 	view.setInt32(i, notesData.length, true)
 	i += 4
 	for (const note of notesData) {
 		view.setBigInt64(i, BigInt(note.tick), true)
-		view.setUint32(i + 8, note.length, true)
-		view.setUint32(i + 12, note.type, true)
-		view.setUint32(i + 16, note.flags, true)
-		i += 20
+		view.setBigInt64(i + 8, BigInt(note.length), true)
+		view.setUint32(i + 16, note.type, true)
+		view.setUint32(i + 20, note.flags, true)
+		i += 24
 	}
 
 	return { hash: base64url.stringify(blake3(uint8Array)), bchart: uint8Array }
