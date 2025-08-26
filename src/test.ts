@@ -86,7 +86,7 @@ async function main() {
 			console.log(`${scanCount} scanned...`)
 		}
 		if (result.notesData) {
-			const song = `${result.artist} - ${result.name} (${result.charter})`
+			const song = `${result.artist?.substring(0, 50)} - ${result.name?.substring(0, 50)} (${result.charter?.substring(0, 50)})`
 			inputHashes[result.chartHash] = {
 				song,
 				trackHashes: result.notesData.trackHashes.map(t => ({
