@@ -213,7 +213,7 @@ function findChartIssues(
 		const timeSignatures = _.clone(chartData.timeSignatures)
 		let lastBeatlineTick = 0
 		for (let i = 0; i < timeSignatures.length; i++) {
-			if (lastBeatlineTick !== timeSignatures[i].tick || timeSignatures[i].numerator === 0 || timeSignatures[i].denominator === 0) {
+			if (lastBeatlineTick !== timeSignatures[i].tick) {
 				addIssue(null, null, 'misalignedTimeSignature', timeSignatures[i].msTime)
 				_.pullAt(timeSignatures, i) // Treat misaligned time signature like it was removed to discover future misaligned time signatures
 				i--

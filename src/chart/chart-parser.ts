@@ -128,6 +128,10 @@ export function parseNotesFromChart(data: Uint8Array): RawChartData {
 				beatsPerMinute: Number(stringMillibeatsPerMinute) / 1000,
 			}))
 			.tap(tempos => {
+				const zeroTempo = tempos.find(tempo => tempo.beatsPerMinute === 0)
+				if (zeroTempo) {
+					throw `Invalid .chart file: Tempo at tick ${zeroTempo.tick} was zero.`
+				}
 				if (!tempos[0] || tempos[0].tick !== 0) {
 					tempos.unshift({ tick: 0, beatsPerMinute: 120 })
 				}
@@ -142,6 +146,14 @@ export function parseNotesFromChart(data: Uint8Array): RawChartData {
 				denominator: stringDenominatorExp ? Math.pow(2, Number(stringDenominatorExp)) : 4,
 			}))
 			.tap(timeSignatures => {
+				const zeroTimeSignatureN = timeSignatures.find(timeSignature => timeSignature.numerator === 0)
+				const zeroTimeSignatureD = timeSignatures.find(timeSignature => timeSignature.denominator === 0)
+				if (zeroTimeSignatureN) {
+					throw `Invalid .mid file: Time signature numerator at tick ${zeroTimeSignatureN.tick} was zero.`
+				}
+				if (zeroTimeSignatureD) {
+					throw `Invalid .mid file: Time signature denominator at tick ${zeroTimeSignatureD.tick} was zero.`
+				}
 				if (!timeSignatures[0] || timeSignatures[0].tick !== 0) {
 					timeSignatures.unshift({ tick: 0, numerator: 4, denominator: 4 })
 				}
