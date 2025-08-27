@@ -86,6 +86,7 @@ async function main() {
 			console.log(`${scanCount} scanned...`)
 		}
 		if (result.notesData) {
+			// eslint-disable-next-line max-len
 			const song = `${result.artist?.substring(0, 50)} - ${result.name?.substring(0, 50)} (${result.charter?.substring(0, 50)})`
 			inputHashes[result.chartHash] = {
 				song,
@@ -98,7 +99,8 @@ async function main() {
 			if (config.createBChartFiles) {
 				for (const trackHash of result.notesData.trackHashes) {
 					await writeFile(
-						join(config.outputFolder, `${sanitizeNonemptyFilename(song)} [${trackHash.instrument}] [${trackHash.difficulty}]`),
+						// eslint-disable-next-line max-len
+						join(config.outputFolder, `${sanitizeNonemptyFilename(song).substring(0, 100)} [${trackHash.instrument}] [${trackHash.difficulty}]`),
 						trackHash.bchart!,
 					)
 				}
