@@ -1,5 +1,11 @@
 # scan-chart
 
+## 7.0.1
+
+### Patch Changes
+
+- 0aba310: Fix edge case crashes and infinite loops
+
 ## 7.0.0
 
 ### Major Changes

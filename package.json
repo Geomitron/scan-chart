@@ -1,6 +1,6 @@
 {
 	"name": "scan-chart",
-	"version": "7.0.0",
+	"version": "7.0.1",
 	"author": "Geo",
 	"license": "MIT",
 	"main": "dist/index.js",
