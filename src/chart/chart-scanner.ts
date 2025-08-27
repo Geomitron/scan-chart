@@ -592,10 +592,10 @@ function legacyGetChartHash(chartBytes: Uint8Array, iniChartModifiers: IniChartM
 	uint8Array.set(chartBytes)
 	const view = new DataView(buffer, chartBytes.length)
 
-	view.setInt32(0, iniChartModifiers.hopo_frequency)
+	view.setInt32(0, iniChartModifiers.hopo_frequency, true)
 	view.setInt8(4, iniChartModifiers.eighthnote_hopo ? 1 : 0)
-	view.setInt32(5, iniChartModifiers.multiplier_note)
-	view.setInt32(9, iniChartModifiers.sustain_cutoff_threshold)
+	view.setInt32(5, iniChartModifiers.multiplier_note, true)
+	view.setInt32(9, iniChartModifiers.sustain_cutoff_threshold, true)
 	view.setInt8(13, iniChartModifiers.five_lane_drums ? 1 : 0)
 	view.setInt8(14, iniChartModifiers.pro_drums ? 1 : 0)
 
