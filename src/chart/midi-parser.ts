@@ -143,10 +143,10 @@ export function parseNotesFromMidi(data: Uint8Array, iniChartModifiers: IniChart
 		sections: _.chain(tracks)
 			.find(t => t.trackName === 'EVENTS')
 			.get('trackEvents')
-			.filter((e): e is MidiTextEvent => e.type === 'text' && /^\[?(?:section|prc)[ _](.*)\]?$/.test(e.text))
+			.filter((e): e is MidiTextEvent => e.type === 'text' && /^\[?(?:section|prc)[ _]([^\]]*)\]?$/.test(e.text))
 			.map(e => ({
 				tick: e.deltaTime,
-				name: e.text.match(/^\[?(?:section|prc)[ _](.*)\]?$/)![1],
+				name: e.text.match(/^\[?(?:section|prc)[ _]([^\]]*)\]?$/)![1],
 			}))
 			.value(),
 		endEvents: _.chain(tracks)
