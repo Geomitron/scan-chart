@@ -176,6 +176,16 @@ export interface NotesData {
 		/** The notes-per-second in this region. */
 		nps: number
 	}[]
+	/** Lyric events with timing information. */
+	lyrics: {
+		tick: number
+		/** Time of the lyric in milliseconds. Rounded to 3 decimal places. */
+		msTime: number
+		/** Length of the lyric in milliseconds. Generally 0 as lyrics are instantaneous. */
+		msLength: number
+		/** The lyric text. */
+		text: string
+	}[]
 	/**
 	 * Hashes of each track. This is specifically designed to change if and only if the chart changes in a way that impacts scoring or difficulty.
 	 * This means it is useful for games to use this to determine which charts should share the same leaderboard.
