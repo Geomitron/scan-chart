@@ -1,5 +1,11 @@
 # scan-chart
 
+## 7.0.2
+
+### Patch Changes
+
+- 615a96b: Fix section names for .mid charts to not include trailing closing bracket
+
 ## 7.0.1
 
 ### Patch Changes
