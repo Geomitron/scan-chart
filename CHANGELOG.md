@@ -1,5 +1,15 @@
 # scan-chart
 
+## 8.0.0
+
+### Major Changes
+
+- e55f2af: Rename chart to track, update NoteType values, drop pnpm
+
+### Patch Changes
+
+- 615a96b: Fix section names for .mid charts to not include trailing closing bracket
+
 ## 7.0.1
 
 ### Patch Changes
