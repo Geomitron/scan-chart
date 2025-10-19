@@ -9,11 +9,11 @@ export interface ScanChartFolderConfig {
 	includeMd5: boolean
 
 	/**
-	 * Set this to true to calculate `ScannedChart.notesData.trackHashes[].bchart`. Otherwise, it will have the value `null`.
+	 * Set this to true to calculate `ScannedChart.notesData.trackHashes[].btrack`. Otherwise, it will have the value `null`.
 	 *
 	 * Default: `false`.
 	 */
-	includeBChart: boolean
+	includeBTrack: boolean
 }
 
 export interface ScannedChart {
@@ -186,8 +186,8 @@ export interface NotesData {
 		instrument: Instrument
 		difficulty: Difficulty
 		hash: string
-		/** The full chart representation for this track. `hash` is derived from this. `null` if `ScanChartFolderConfig.includeBChart` is `false`. */
-		bchart: Uint8Array<ArrayBuffer> | null
+		/** The full btrack data for this track. `hash` is derived from this. `null` if `ScanChartFolderConfig.includeBTrack` is `false`. */
+		btrack: Uint8Array<ArrayBuffer> | null
 	}[]
 	/** MD5 hash of the chart's tempo map, including BPM markers and time signature markers. */
 	tempoMapHash: string

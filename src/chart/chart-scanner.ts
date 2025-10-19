@@ -16,7 +16,7 @@ const MIN_SUSTAIN_GAP_MS = 40
 const MIN_SUSTAIN_MS = 100
 const NPS_GROUP_SIZE_MS = 1000
 
-export function scanChart(files: { fileName: string; data: Uint8Array }[], iniChartModifiers: IniChartModifiers, includeBChart = false) {
+export function scanChart(files: { fileName: string; data: Uint8Array }[], iniChartModifiers: IniChartModifiers, includeBTrack = false) {
 	const { chartData, format, folderIssues } = findChartData(files)
 
 	if (chartData) {
@@ -28,7 +28,7 @@ export function scanChart(files: { fileName: string; data: Uint8Array }[], iniCh
 					instrument: t.instrument,
 					difficulty: t.difficulty,
 					hash: hash.hash,
-					bchart: includeBChart ? hash.bchart : null,
+					btrack: includeBTrack ? hash.btrack : null,
 				}
 			})
 
@@ -103,7 +103,7 @@ export function scanChart(files: { fileName: string; data: Uint8Array }[], iniCh
 				folderIssues,
 			}
 		} catch (err) {
-			folderIssues.push({ folderIssue: 'badChart', description: typeof err === 'string' ? err : err?.message ?? JSON.stringify(err) })
+			folderIssues.push({ folderIssue: 'badChart', description: typeof err === 'string' ? err : (err?.message ?? JSON.stringify(err)) })
 		}
 	}
 

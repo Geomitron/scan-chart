@@ -22,15 +22,15 @@ const argv = yargs(hideBin(process.argv))
 		outputFolder: {
 			alias: 'o',
 			type: 'string',
-			describe: 'Folder to place hashes.json and bchart files.',
+			describe: 'Folder to place hashes.json and btrack files.',
 			demandOption: true,
 			normalize: true,
 		},
-		createBChartFiles: {
+		createBTrackFiles: {
 			alias: 'b',
 			type: 'boolean',
 			default: false,
-			describe: 'If bchart files should be generated for each scanned chart.',
+			describe: 'If btrack files should be generated for each scanned chart.',
 		},
 		formatHashesJson: {
 			alias: 'f',
@@ -80,7 +80,7 @@ async function main() {
 			)
 		).filter(f => f?.data !== undefined) as { fileName: string; data: Uint8Array<ArrayBufferLike> }[]
 
-		const result = scanChartFolder(files, { includeBChart: config.createBChartFiles, includeMd5: false })
+		const result = scanChartFolder(files, { includeBTrack: config.createBTrackFiles, includeMd5: false })
 		scanCount++
 		if (scanCount % 100 === 0 && !config.silent) {
 			console.log(`${scanCount} scanned...`)
@@ -96,12 +96,12 @@ async function main() {
 					trackHash: t.hash,
 				})),
 			}
-			if (config.createBChartFiles) {
+			if (config.createBTrackFiles) {
 				for (const trackHash of result.notesData.trackHashes) {
 					await writeFile(
 						// eslint-disable-next-line max-len
 						join(config.outputFolder, `${sanitizeNonemptyFilename(song).substring(0, 100)} [${trackHash.instrument}] [${trackHash.difficulty}]`),
-						trackHash.bchart!,
+						trackHash.btrack!,
 					)
 				}
 			}

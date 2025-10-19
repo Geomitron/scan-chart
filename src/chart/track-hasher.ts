@@ -108,7 +108,7 @@ export function calculateTrackHash(parsedChart: ParsedChart, instrument: Instrum
 		i += 24
 	}
 
-	return { hash: base64url.stringify(blake3(uint8Array)), bchart: uint8Array }
+	return { hash: base64url.stringify(blake3(uint8Array)), btrack: uint8Array }
 }
 
 export function pruneEmptyPhrases<T extends { tick: number; length: number }>(

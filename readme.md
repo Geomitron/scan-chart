@@ -9,8 +9,7 @@ Before running tests, you need the following:
 
 - Locally clone the repository
 - Install NodeJS >= v24.6.0
-- Run `npm i -G pnpm`
-- Run `pnpm i`
+- Run `npm i`
 
 To run tests, use:
 
@@ -28,7 +27,7 @@ Note: running this will print usage information. Add command line arguments to t
  */
 function scanChartFolder(files: { fileName: string; data: Uint8Array }[], config?: ScanChartFolderConfig): ScannedChart
 function parseChartFile(data: Uint8Array, format: 'chart' | 'mid', iniChartModifiers: IniChartModifiers): ParsedChart
-function calculateTrackHash(parsedChart: ParsedChart, instrument: Instrument, difficulty: Difficulty): { hash: string, bchart: Uint8Array }
+function calculateTrackHash(parsedChart: ParsedChart, instrument: Instrument, difficulty: Difficulty): { hash: string, btrack: Uint8Array }
 
 interface ScanChartFolderConfig {
 	/**
@@ -39,11 +38,11 @@ interface ScanChartFolderConfig {
 	includeMd5: boolean
 
 	/**
-   * Set this to true to calculate `ScannedChart.notesData.trackHashes[].bchart`. Otherwise, it will have the value `null`.
+   * Set this to true to calculate `ScannedChart.notesData.trackHashes[].btrack`. Otherwise, it will have the value `null`.
    *
    * Default: `false`.
    */
-  includeBChart: boolean
+  includeBTrack: boolean
 }
 
 interface ScannedChart {
@@ -216,8 +215,8 @@ interface interface NotesData {
 		instrument: Instrument
 		difficulty: Difficulty
 		hash: string
-		/** The full chart representation for this track. `hash` is derived from this. `null` if `ScanChartFolderConfig.includeBChart` is `false`. */
-		bchart: Uint8Array<ArrayBuffer> | null
+		/** The full btrack data for this track. `hash` is derived from this. `null` if `ScanChartFolderConfig.includeBTrack` is `false`. */
+		btrack: Uint8Array<ArrayBuffer> | null
 	}[]
 	/** MD5 hash of the chart's tempo map, including BPM markers and time signature markers. */
 	tempoMapHash: string
@@ -446,27 +445,27 @@ interface NoteEvent {
 type NoteType = ObjectValues<typeof noteTypes>
 const noteTypes = {
 	// 5 fret
-	open: 0,
-	green: 1,
-	red: 2,
-	yellow: 3,
-	blue: 4,
-	orange: 5,
+	open: 1,
+	green: 2,
+	red: 3,
+	yellow: 4,
+	blue: 5,
+	orange: 6,
 
 	// 6 fret
-	black1: 6,
-	black2: 7,
-	black3: 8,
-	white1: 9,
-	white2: 10,
-	white3: 11,
+	black1: 7,
+	black2: 8,
+	black3: 9,
+	white1: 10,
+	white2: 11,
+	white3: 12,
 
 	// Drums
-	kick: 12,
-	redDrum: 13,
-	yellowDrum: 14,
-	blueDrum: 15,
-	greenDrum: 16,
+	kick: 13,
+	redDrum: 14,
+	yellowDrum: 15,
+	blueDrum: 16,
+	greenDrum: 17,
 } as const
 
 /** Note: specific values here are standardized; they are constants used in the track hash calculation. */

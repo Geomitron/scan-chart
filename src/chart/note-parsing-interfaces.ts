@@ -197,27 +197,27 @@ export interface NoteEvent {
 export type NoteType = ObjectValues<typeof noteTypes>
 export const noteTypes = {
 	// 5 fret
-	open: 0,
-	green: 1,
-	red: 2,
-	yellow: 3,
-	blue: 4,
-	orange: 5,
+	open: 1,
+	green: 2,
+	red: 3,
+	yellow: 4,
+	blue: 5,
+	orange: 6,
 
 	// 6 fret
-	black1: 6,
-	black2: 7,
-	black3: 8,
-	white1: 9,
-	white2: 10,
-	white3: 11,
+	black1: 7,
+	black2: 8,
+	black3: 9,
+	white1: 10,
+	white2: 11,
+	white3: 12,
 
 	// Drums
-	kick: 12,
-	redDrum: 13,
-	yellowDrum: 14,
-	blueDrum: 15,
-	greenDrum: 16,
+	kick: 13,
+	redDrum: 14,
+	yellowDrum: 15,
+	blueDrum: 16,
+	greenDrum: 17,
 } as const
 
 /** Note: specific values here are standardized; they are constants used in the track hash calculation. */

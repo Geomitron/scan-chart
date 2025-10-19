@@ -20,7 +20,7 @@ export { calculateTrackHash } from './chart/track-hasher'
 export function scanChartFolder(files: { fileName: string; data: Uint8Array }[], config?: ScanChartFolderConfig): ScannedChart {
 	config = {
 		includeMd5: true,
-		includeBChart: false,
+		includeBTrack: false,
 		...config,
 	}
 
@@ -36,7 +36,7 @@ export function scanChartFolder(files: { fileName: string; data: Uint8Array }[],
 	chart.folderIssues.push(...iniData.folderIssues)
 	chart.metadataIssues.push(...iniData.metadataIssues)
 
-	const chartData = scanChart(files, iniData.metadata ?? defaultMetadata, config.includeBChart)
+	const chartData = scanChart(files, iniData.metadata ?? defaultMetadata, config.includeBTrack)
 	chart.chartHash = chartData.chartHash ?? undefined
 	chart.folderIssues.push(...chartData.folderIssues)
 
