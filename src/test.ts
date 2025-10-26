@@ -10,7 +10,7 @@ import { hideBin } from 'yargs/helpers'
 import { Difficulty, Instrument } from './interfaces'
 import { appearsToBeChartFolder, getExtension } from './utils'
 
-const argv = yargs(hideBin(process.argv))
+const config = yargs(hideBin(process.argv))
 	.options({
 		inputFolder: {
 			alias: 'i',
@@ -46,7 +46,7 @@ const argv = yargs(hideBin(process.argv))
 		},
 	})
 	.help()
-	.parse()
+	.parseSync()
 
 interface InputHashes {
 	[chartHash: string]: {
@@ -62,8 +62,6 @@ interface InputHashes {
 main()
 let scanCount = 0
 async function main() {
-	const config = await argv
-
 	const inputHashes: InputHashes = {}
 	for (const folder of await getChartFolders(config.inputFolder)) {
 		const files = (
