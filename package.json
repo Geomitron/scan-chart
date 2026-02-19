@@ -9,7 +9,7 @@
 	"description": "A library that scans charts for rhythm games like Clone Hero.",
 	"scripts": {
 		"build": "tsup src/index.ts --format cjs,esm --dts",
-		"release": "pnpm run build && changeset publish",
+		"release": "npm run build && changeset publish",
 		"test": "npx tsx src/test.ts",
 		"lint": "tsc"
 	},
