@@ -1,5 +1,11 @@
 # scan-chart
 
+## 8.0.1
+
+### Patch Changes
+
+- bc3171a: Ignore end events past the end of the song
+
 ## 8.0.0
 
 ### Major Changes
