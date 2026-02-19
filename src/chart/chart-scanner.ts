@@ -281,9 +281,6 @@ function findChartIssues(
 		if (lastNoteTick && chartData.endEvents[0] && chartData.endEvents[0].tick < lastNoteTick) {
 			addIssue(null, null, 'badEndEvent', chartData.endEvents[0].msTime)
 		}
-		if (chartData.endEvents[0] && chartData.endEvents[0].msTime > songLength) {
-			addIssue(null, null, 'badEndEvent', chartData.endEvents[0].msTime)
-		}
 	}
 
 	for (const track of chartData.trackData) {
