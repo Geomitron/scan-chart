@@ -64,6 +64,11 @@ export function scanChart(files: { fileName: string; data: Uint8Array }[], iniCh
 							.value() > 0,
 					hasLyrics: result.hasLyrics,
 					hasVocals: result.hasVocals,
+					lyrics: result.lyrics.map(lyric => ({
+						msTime: _.round(lyric.msTime, 3),
+						msLength: _.round(lyric.msLength, 3),
+						text: lyric.text,
+					})),
 					hasForcedNotes: result.hasForcedNotes,
 					hasTapNotes,
 					hasOpenNotes,

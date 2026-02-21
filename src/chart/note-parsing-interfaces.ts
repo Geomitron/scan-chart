@@ -48,6 +48,11 @@ export interface RawChartData {
 	}
 	hasLyrics: boolean
 	hasVocals: boolean
+	lyrics: {
+		tick: number
+		length: number
+		text: string
+	}[]
 	tempos: {
 		tick: number
 		/** double, rounded to 12 decimal places */
