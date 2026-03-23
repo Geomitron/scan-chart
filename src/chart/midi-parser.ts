@@ -110,6 +110,7 @@ export function parseNotesFromMidi(data: Uint8Array, iniChartModifiers: IniChart
 				text: e.text.trim(),
 			}))
 			.value(),
+		vocalPhrases: getVocalPhrases(vocalsTrack?.trackEvents ?? []),
 		tempos: _.chain(midiFile.tracks[0])
 			.filter((e): e is MidiSetTempoEvent => e.type === 'setTempo')
 			.map(e => ({
@@ -709,4 +710,36 @@ function fixFlexLaneLds(events: { [key in Difficulty]: MidiTrackEvent[] }) {
 	)
 
 	return events
+}
+
+/**
+ * Extracts vocal phrase boundaries from MIDI notes 105 and 106 on the PART VOCALS track.
+ * These notes define phrase regions as note-on/note-off pairs.
+ */
+function getVocalPhrases(trackEvents: MidiEvent[]): { tick: number; length: number }[] {
+	const phraseStarts: Map<number, number> = new Map() // noteNumber -> startTick
+	const phrases: { tick: number; length: number }[] = []
+
+	for (const event of trackEvents) {
+		if (event.type === 'noteOn' && (event.noteNumber === 105 || event.noteNumber === 106)) {
+			if (event.velocity > 0) {
+				phraseStarts.set(event.noteNumber, event.deltaTime)
+			} else {
+				// velocity 0 noteOn = noteOff
+				const startTick = phraseStarts.get(event.noteNumber)
+				if (startTick !== undefined) {
+					phrases.push({ tick: startTick, length: event.deltaTime - startTick })
+					phraseStarts.delete(event.noteNumber)
+				}
+			}
+		} else if (event.type === 'noteOff' && (event.noteNumber === 105 || event.noteNumber === 106)) {
+			const startTick = phraseStarts.get(event.noteNumber)
+			if (startTick !== undefined) {
+				phrases.push({ tick: startTick, length: event.deltaTime - startTick })
+				phraseStarts.delete(event.noteNumber)
+			}
+		}
+	}
+
+	return _.sortBy(phrases, 'tick')
 }

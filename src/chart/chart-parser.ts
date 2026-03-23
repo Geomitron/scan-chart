@@ -129,6 +129,7 @@ export function parseNotesFromChart(data: Uint8Array): RawChartData {
 				text: lyricText,
 			}))
 			.value(),
+		vocalPhrases: getChartVocalPhrases(fileSections['Events'] ?? []),
 		tempos: _.chain(fileSections['SyncTrack'])
 			.map(line => /^(\d+) = B (\d+)$/.exec(line))
 			.compact()
@@ -457,4 +458,42 @@ function mergeSoloEvents(events: { tick: number; type: EventType; length: number
 	_.remove(events, event => event.type === eventTypes.soloSectionStart || event.type === eventTypes.soloSectionEnd)
 
 	return events
+}
+
+/**
+ * Extracts vocal phrase boundaries from phrase_start/phrase_end events in the [Events] section.
+ */
+function getChartVocalPhrases(eventLines: string[]): { tick: number; length: number }[] {
+	const phraseStartRegex = /^(\d+) = E "phrase_start"$/
+	const phraseEndRegex = /^(\d+) = E "phrase_end"$/
+
+	const starts: number[] = []
+	const ends: number[] = []
+
+	for (const line of eventLines) {
+		const startMatch = phraseStartRegex.exec(line)
+		if (startMatch) {
+			starts.push(Number(startMatch[1]))
+			continue
+		}
+		const endMatch = phraseEndRegex.exec(line)
+		if (endMatch) {
+			ends.push(Number(endMatch[1]))
+		}
+	}
+
+	// Pair each phrase_start with the next phrase_end
+	const phrases: { tick: number; length: number }[] = []
+	let endIdx = 0
+	for (const start of starts) {
+		while (endIdx < ends.length && ends[endIdx] <= start) {
+			endIdx++
+		}
+		if (endIdx < ends.length) {
+			phrases.push({ tick: start, length: ends[endIdx] - start })
+			endIdx++
+		}
+	}
+
+	return phrases
 }

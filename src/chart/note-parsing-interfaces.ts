@@ -53,6 +53,12 @@ export interface RawChartData {
 		length: number
 		text: string
 	}[]
+	/** Vocal phrase boundaries from MIDI notes 105/106 or .chart phrase_start/phrase_end events. */
+	vocalPhrases: {
+		tick: number
+		/** Number of ticks */
+		length: number
+	}[]
 	tempos: {
 		tick: number
 		/** double, rounded to 12 decimal places */

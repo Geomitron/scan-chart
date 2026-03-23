@@ -186,6 +186,13 @@ export interface NotesData {
 		/** The lyric text. */
 		text: string
 	}[]
+	/** Vocal phrase boundaries that define lyric line groupings. From MIDI notes 105/106 or .chart phrase_start/phrase_end events. */
+	vocalPhrases: {
+		/** Time of the phrase start in milliseconds. Rounded to 3 decimal places. */
+		msTime: number
+		/** Duration of the phrase in milliseconds. Rounded to 3 decimal places. */
+		msLength: number
+	}[]
 	/**
 	 * Hashes of each track. This is specifically designed to change if and only if the chart changes in a way that impacts scoring or difficulty.
 	 * This means it is useful for games to use this to determine which charts should share the same leaderboard.
