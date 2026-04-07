@@ -190,6 +190,7 @@ export function parseNotesFromChart(data: Uint8Array): RawChartData {
 			}))
 			.value(),
 		globalEvents: extractChartGlobalEvents(fileSections['Events'] ?? []),
+		venue: [], // VENUE is MIDI-only
 		trackData: _.chain(fileSections)
 			.pick(_.keys(trackNameMap))
 			.toPairs()

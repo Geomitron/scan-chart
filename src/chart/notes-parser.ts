@@ -64,6 +64,7 @@ export function parseChartFile(data: Uint8Array, format: 'chart' | 'mid', partia
 		vocalTracks: normalizeVocalTracks(rawChartData.vocalTracks, timedTempos, rawChartData.chartTicksPerBeat),
 		endEvents: setEventMsTimes(rawChartData.endEvents, timedTempos, rawChartData.chartTicksPerBeat),
 		globalEvents: setEventMsTimes(rawChartData.globalEvents, timedTempos, rawChartData.chartTicksPerBeat),
+		venue: setEventMsTimes(rawChartData.venue, timedTempos, rawChartData.chartTicksPerBeat),
 		tempos: timedTempos,
 		timeSignatures: setEventMsTimes(rawChartData.timeSignatures, timedTempos, rawChartData.chartTicksPerBeat),
 		sections: setEventMsTimes(rawChartData.sections, timedTempos, rawChartData.chartTicksPerBeat),

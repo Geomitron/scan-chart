@@ -2,7 +2,7 @@ import * as _ from 'lodash'
 import { MidiData, MidiEvent, MidiSetTempoEvent, MidiTextEvent, MidiTimeSignatureEvent, parseMidi } from 'midi-file'
 
 import { difficulties, Difficulty, getInstrumentType, Instrument, InstrumentType, instrumentTypes } from 'src/interfaces'
-import { EventType, eventTypes, IniChartModifiers, RawChartData, VocalTrackData } from './note-parsing-interfaces'
+import { EventType, eventTypes, IniChartModifiers, RawChartData, VenueEvent, VocalTrackData } from './note-parsing-interfaces'
 import { extractMidiLyrics, extractMidiVocalPhrases, extractMidiVocalNotes, extractMidiVocalStarPower, extractMidiRangeShifts, extractMidiLyricShifts } from './lyric-parser'
 
 type TrackName = (typeof trackNames)[number]
@@ -31,6 +31,7 @@ const trackNames = [
 	'PART REAL_KEYS_E',
 	'PART ELITE_DRUMS',
 	'PART REAL_DRUMS_PS',
+	'VENUE',
 	'PART VOCALS',
 	'HARM1',
 	'HARM2',
@@ -242,6 +243,7 @@ export function parseNotesFromMidi(data: Uint8Array, iniChartModifiers: IniChart
 			}))
 			.value(),
 		globalEvents: extractGlobalEvents(tracks),
+		venue: extractVenueEvents(tracks),
 		trackData: _.chain(tracks)
 			.filter(t => _.keys(instrumentNameMap).includes(t.trackName))
 			.map(t => {
@@ -1132,3 +1134,208 @@ function extractGlobalEvents(tracks: { trackName: TrackName; trackEvents: MidiEv
 	}
 	return globalEvents
 }
+
+// ---------------------------------------------------------------------------
+// VENUE track parsing
+// ---------------------------------------------------------------------------
+
+/** VENUE MIDI note → event. */
+const venueNoteLookup: { [note: number]: VenueEvent | undefined } = {
+	// Post-processing (96-110)
+	96: { tick: 0, type: 'postProcessing', name: 'default' },
+	97: { tick: 0, type: 'postProcessing', name: 'polarized_black_white' },
+	98: { tick: 0, type: 'postProcessing', name: 'grainy_film' },
+	99: { tick: 0, type: 'postProcessing', name: 'sepiatone' },
+	100: { tick: 0, type: 'postProcessing', name: 'silvertone' },
+	101: { tick: 0, type: 'postProcessing', name: 'photonegative' },
+	102: { tick: 0, type: 'postProcessing', name: 'choppy_black_white' },
+	103: { tick: 0, type: 'postProcessing', name: 'bloom' },
+	104: { tick: 0, type: 'postProcessing', name: 'desaturated_red' },
+	105: { tick: 0, type: 'postProcessing', name: 'mirror' },
+	106: { tick: 0, type: 'postProcessing', name: 'scanlines_blue' },
+	107: { tick: 0, type: 'postProcessing', name: 'scanlines' },
+	108: { tick: 0, type: 'postProcessing', name: 'scanlines_black_white' },
+	109: { tick: 0, type: 'postProcessing', name: 'scanlines_security' },
+	110: { tick: 0, type: 'postProcessing', name: 'trails_long' },
+	// Singalong (85-87)
+	85: { tick: 0, type: 'singalong', name: 'bass' },
+	86: { tick: 0, type: 'singalong', name: 'drums' },
+	87: { tick: 0, type: 'singalong', name: 'guitar' },
+	// Camera cut constraints (70-73)
+	70: { tick: 0, type: 'cameraCutConstraint', name: 'no_behind' },
+	71: { tick: 0, type: 'cameraCutConstraint', name: 'only_far' },
+	72: { tick: 0, type: 'cameraCutConstraint', name: 'only_close' },
+	73: { tick: 0, type: 'cameraCutConstraint', name: 'no_close' },
+	// Camera cuts (60-64)
+	60: { tick: 0, type: 'cameraCut', name: 'random' },
+	61: { tick: 0, type: 'cameraCut', name: 'directed_bass' },
+	62: { tick: 0, type: 'cameraCut', name: 'directed_drums' },
+	63: { tick: 0, type: 'cameraCut', name: 'directed_guitar' },
+	64: { tick: 0, type: 'cameraCut', name: 'directed_vocals' },
+	// Lighting keyframes (48-50)
+	48: { tick: 0, type: 'lighting', name: 'next' },
+	49: { tick: 0, type: 'lighting', name: 'previous' },
+	50: { tick: 0, type: 'lighting', name: 'first' },
+	// Spotlights (37-41)
+	37: { tick: 0, type: 'spotlight', name: 'bass' },
+	38: { tick: 0, type: 'spotlight', name: 'drums' },
+	39: { tick: 0, type: 'spotlight', name: 'guitar' },
+	40: { tick: 0, type: 'spotlight', name: 'vocals' },
+	41: { tick: 0, type: 'spotlight', name: 'keys' },
+}
+
+/** VENUE text events: lighting presets via "lighting (TYPE)". */
+const venueLightingLookup: { [key: string]: string } = {
+	'': 'default', 'chorus': 'chorus', 'dischord': 'dischord',
+	'manual_cool': 'cool_manual', 'manual_warm': 'warm_manual', 'stomp': 'stomp',
+	'verse': 'verse', 'blackout_fast': 'blackout_fast', 'blackout_slow': 'blackout_slow',
+	'blackout_spot': 'blackout_spotlight', 'bre': 'big_rock_ending',
+	'flare_fast': 'flare_fast', 'flare_slow': 'flare_slow', 'frenzy': 'frenzy',
+	'harmony': 'harmony', 'intro': 'intro', 'loop_cool': 'cool_automatic',
+	'loop_warm': 'warm_automatic', 'searchlights': 'searchlights',
+	'silhouettes': 'silhouettes', 'silhouettes_spot': 'silhouettes_spotlight',
+	'strobe_fast': 'strobe_fast', 'strobe_slow': 'strobe_slow', 'sweep': 'sweep',
+}
+
+/** VENUE text events: post-processing effects via "[xxx.pp]". */
+const venuePostProcessingLookup: { [key: string]: string } = {
+	'bloom.pp': 'bloom', 'bright.pp': 'bright', 'clean_trails.pp': 'trails',
+	'contrast_a.pp': 'polarized_black_white', 'desat_blue.pp': 'desaturated_blue',
+	'desat_posterize_trails.pp': 'trails_desaturated', 'film_contrast.pp': 'contrast',
+	'film_b+w.pp': 'black_white', 'film_sepia_ink.pp': 'sepiatone',
+	'film_silvertone.pp': 'silvertone', 'film_contrast_red.pp': 'contrast_red',
+	'film_contrast_green.pp': 'contrast_green', 'film_contrast_blue.pp': 'contrast_blue',
+	'film_16mm.pp': 'grainy_film', 'film_blue_filter.pp': 'scanlines_blue',
+	'flicker_trails.pp': 'trails_flickery', 'horror_movie_special.pp': 'photonegative_red_black',
+	'photocopy.pp': 'choppy_black_white', 'photo_negative.pp': 'photonegative',
+	'posterize.pp': 'posterize', 'ProFilm_a.pp': 'default', 'ProFilm_b.pp': 'desaturated_red',
+	'ProFilm_mirror_a.pp': 'mirror', 'ProFilm_psychedelic_blue_red.pp': 'polarized_red_blue',
+	'shitty_tv.pp': 'grainy_chromatic_abberation', 'space_woosh.pp': 'trails_spacey',
+	'video_a.pp': 'scanlines', 'video_bw.pp': 'scanlines_black_white',
+	'video_security.pp': 'scanlines_security', 'video_trails.pp': 'trails_long',
+}
+
+/** VENUE text events: directed camera cuts via "[directed_*]". */
+const venueDirectedCutLookup: { [key: string]: string } = {
+	'directed_guitar': 'directed_guitar', 'directed_bass': 'directed_bass',
+	'directed_drums': 'directed_drums', 'directed_vocals': 'directed_vocals',
+	'directed_stagedive': 'directed_stagedive', 'directed_crowdsurf': 'directed_crowdsurf',
+	'directed_all': 'directed_all', 'directed_bre': 'directed_bre',
+	'directed_brej': 'directed_brej', 'directed_guitar_cam': 'directed_guitar_cam',
+	'directed_bass_cam': 'directed_bass_cam', 'directed_drums_kd': 'directed_drums_kd',
+	'directed_drums_lt': 'directed_drums_lt', 'directed_drums_np': 'directed_drums_np',
+	'directed_crowd_g': 'directed_crowd_g', 'directed_crowd_b': 'directed_crowd_b',
+	'directed_crowd_pnt': 'directed_crowd_pnt', 'directed_duo_drums': 'directed_duo_drums',
+	'directed_guitar_cls': 'directed_guitar_cls', 'directed_bass_cls': 'directed_bass_cls',
+	'directed_vocals_cam': 'directed_vocals_cam', 'directed_vocals_cls': 'directed_vocals_cls',
+	'directed_all_cam': 'directed_all_cam', 'directed_all_lt': 'directed_all_lt',
+	'directed_all_yeah': 'directed_all_yeah', 'directed_guitar_np': 'directed_guitar_np',
+	'directed_bass_np': 'directed_bass_np', 'directed_vocals_np': 'directed_vocals_np',
+	'directed_drums_pnt': 'directed_drums_pnt',
+}
+
+/** VENUE text events: RBN2 coop camera cuts via "[coop_*_*]". */
+const venueCoopCutLookup: { [key: string]: string } = {
+	'all_behind': 'all_behind', 'all_far': 'all_far', 'all_near': 'all_near',
+	'front_behind': 'front_behind', 'front_near': 'front_near',
+	'd_behind': 'd_behind', 'd_near': 'd_near',
+	'v_behind': 'v_behind', 'v_near': 'v_near',
+	'b_behind': 'b_behind', 'b_near': 'b_near',
+	'g_behind': 'g_behind', 'g_near': 'g_near',
+	'k_behind': 'k_behind', 'k_near': 'k_near',
+	'd_closeup_hand': 'd_closeup_hand', 'd_closeup_head': 'd_closeup_head',
+	'v_closeup': 'v_closeup',
+	'b_closeup_hand': 'b_closeup_hand', 'b_closeup_head': 'b_closeup_head',
+	'g_closeup_hand': 'g_closeup_hand', 'g_closeup_head': 'g_closeup_head',
+	'k_closeup_hand': 'k_closeup_hand', 'k_closeup_head': 'k_closeup_head',
+	'dv_near': 'dv_near', 'bd_near': 'bd_near', 'dg_near': 'dg_near',
+	'bv_behind': 'bv_behind', 'bv_near': 'bv_near',
+	'gv_behind': 'gv_behind', 'gv_near': 'gv_near',
+	'kv_behind': 'kv_behind', 'kv_near': 'kv_near',
+	'bg_behind': 'bg_behind', 'bg_near': 'bg_near',
+	'bk_behind': 'bk_behind', 'bk_near': 'bk_near',
+	'gk_behind': 'gk_behind', 'gk_near': 'gk_near',
+}
+
+/** Standalone venue text events (direct text → event mapping). */
+const venueStandaloneTextLookup: { [key: string]: VenueEvent | undefined } = {
+	'first': { tick: 0, type: 'lighting', name: 'first' },
+	'next': { tick: 0, type: 'lighting', name: 'next' },
+	'prev': { tick: 0, type: 'lighting', name: 'previous' },
+	'verse': { tick: 0, type: 'lighting', name: 'verse' },
+	'chorus': { tick: 0, type: 'lighting', name: 'chorus' },
+	'bonusfx': { tick: 0, type: 'stageEffect', name: 'bonus_fx' },
+	'bonusfx_optional': { tick: 0, type: 'stageEffect', name: 'optional bonus_fx' },
+	'FogOn': { tick: 0, type: 'stageEffect', name: 'fog_on' },
+	'FogOff': { tick: 0, type: 'stageEffect', name: 'fog_off' },
+}
+
+/**
+ * Extract all venue events from the VENUE MIDI track.
+ * Handles both note-based events and text-based events.
+ */
+function extractVenueEvents(tracks: { trackName: TrackName; trackEvents: MidiEvent[] }[]): VenueEvent[] {
+	const venueTrack = tracks.find(t => t.trackName === 'VENUE')
+	if (!venueTrack) return []
+
+	const events: VenueEvent[] = []
+
+	for (const event of venueTrack.trackEvents) {
+		// Note-based events
+		if (event.type === 'noteOn' && (event as { velocity: number }).velocity > 0) {
+			const noteNumber = (event as { noteNumber: number }).noteNumber
+			const template = venueNoteLookup[noteNumber]
+			if (template) {
+				events.push({ tick: event.deltaTime, type: template.type, name: template.name })
+			}
+		}
+
+		// Text-based events
+		if (isTextLikeEvent(event)) {
+			let text = event.text
+			if (text.startsWith('[') && text.endsWith(']')) text = text.slice(1, -1)
+			text = text.trim()
+
+			// Lighting: "lighting (TYPE)"
+			const lightingMatch = /^lighting\s+\((.*)\)$/.exec(text)
+			if (lightingMatch) {
+				const name = venueLightingLookup[lightingMatch[1]]
+				if (name) events.push({ tick: event.deltaTime, type: 'lighting', name })
+				continue
+			}
+
+			// Post-processing: "*.pp"
+			if (text.endsWith('.pp')) {
+				const name = venuePostProcessingLookup[text]
+				if (name) events.push({ tick: event.deltaTime, type: 'postProcessing', name })
+				continue
+			}
+
+			// Directed camera cuts: "directed_*"
+			const directedMatch = /^(directed_\w+)$/.exec(text)
+			if (directedMatch) {
+				const name = venueDirectedCutLookup[directedMatch[1]]
+				if (name) events.push({ tick: event.deltaTime, type: 'cameraCut', name })
+				continue
+			}
+
+			// Coop camera cuts: "coop_*_*"
+			const coopMatch = /^coop_(\w+_\w+)$/.exec(text)
+			if (coopMatch) {
+				const name = venueCoopCutLookup[coopMatch[1]]
+				if (name) events.push({ tick: event.deltaTime, type: 'cameraCut', name })
+				continue
+			}
+
+			// Standalone text events
+			const standalone = venueStandaloneTextLookup[text]
+			if (standalone) {
+				events.push({ tick: event.deltaTime, type: standalone.type, name: standalone.name })
+			}
+		}
+	}
+
+	events.sort((a, b) => a.tick - b.tick)
+	return events
+}
+
