@@ -2,11 +2,12 @@ import * as _ from 'lodash'
 import { MidiData, MidiEvent, MidiSetTempoEvent, MidiTextEvent, MidiTimeSignatureEvent, parseMidi } from 'midi-file'
 
 import { difficulties, Difficulty, getInstrumentType, Instrument, InstrumentType, instrumentTypes } from 'src/interfaces'
-import { EventType, eventTypes, IniChartModifiers, RawChartData } from './note-parsing-interfaces'
+import { EventType, eventTypes, IniChartModifiers, RawChartData, VocalTrackData } from './note-parsing-interfaces'
 import { extractMidiLyrics, extractMidiVocalPhrases } from './lyric-parser'
 
 type TrackName = (typeof trackNames)[number]
-type InstrumentTrackName = Exclude<TrackName, 'PART VOCALS' | 'EVENTS'>
+type VocalTrackName = 'PART VOCALS' | 'HARM1' | 'HARM2' | 'HARM3' | 'PART HARM1' | 'PART HARM2' | 'PART HARM3'
+type InstrumentTrackName = Exclude<TrackName, VocalTrackName | 'EVENTS'>
 const trackNames = [
 	'T1 GEMS',
 	'PART GUITAR',
@@ -20,8 +21,24 @@ const trackNames = [
 	'PART RHYTHM GHL',
 	'PART BASS GHL',
 	'PART VOCALS',
+	'HARM1',
+	'HARM2',
+	'HARM3',
+	'PART HARM1',
+	'PART HARM2',
+	'PART HARM3',
 	'EVENTS',
 ] as const
+
+const vocalTrackNameMap: { [key in VocalTrackName]: string } = {
+	'PART VOCALS': 'vocals',
+	'HARM1': 'harmony1',
+	'HARM2': 'harmony2',
+	'HARM3': 'harmony3',
+	'PART HARM1': 'harmony1',
+	'PART HARM2': 'harmony2',
+	'PART HARM3': 'harmony3',
+} as const
 /* eslint-disable @typescript-eslint/naming-convention */
 const instrumentNameMap: { [key in InstrumentTrackName]: Instrument } = {
 	'T1 GEMS': 'guitar',
@@ -91,7 +108,32 @@ export function parseNotesFromMidi(data: Uint8Array, iniChartModifiers: IniChart
 
 	const tracks = getTracks(midiFile)
 
-	const vocalsTrack = tracks.find(t => t.trackName === 'PART VOCALS')
+	// Build vocalTracks from PART VOCALS and HARM1/HARM2/HARM3
+	const vocalTracks: { [part: string]: VocalTrackData } = {}
+	for (const track of tracks) {
+		const partName = vocalTrackNameMap[track.trackName as VocalTrackName]
+		if (partName && !vocalTracks[partName]) {
+			const events = track.trackEvents
+			vocalTracks[partName] = {
+				lyrics: extractMidiLyrics(events),
+				vocalPhrases: extractMidiVocalPhrases(events),
+			}
+		}
+	}
+
+	// YARG CopyDownPhrases: HARM2/HARM3 scoring phrases come from HARM1, not their own track.
+	// HARM2 keeps its own StaticLyricPhrase (not modeled here yet), replaces scoring phrases with HARM1's.
+	// HARM3 does the same.
+	if (vocalTracks.harmony1) {
+		const harm1Phrases = vocalTracks.harmony1.vocalPhrases
+		if (vocalTracks.harmony2) {
+			vocalTracks.harmony2.vocalPhrases = harm1Phrases.map(p => ({ ...p }))
+		}
+		if (vocalTracks.harmony3) {
+			vocalTracks.harmony3.vocalPhrases = harm1Phrases.map(p => ({ ...p }))
+		}
+	}
+
 	const codaEvents =
 		tracks
 			.find(t => t.trackName === 'EVENTS')
@@ -101,10 +143,7 @@ export function parseNotesFromMidi(data: Uint8Array, iniChartModifiers: IniChart
 	return {
 		chartTicksPerBeat: midiFile.header.ticksPerBeat,
 		metadata: {}, // .mid does not have a mechanism for storing song metadata
-		hasLyrics: !!vocalsTrack?.trackEvents.find(e => e.type === 'lyrics' || e.type === 'text'),
-		hasVocals: !!vocalsTrack?.trackEvents.find(e => e.type === 'noteOn' && e.noteNumber <= 84 && e.noteNumber >= 36),
-		lyrics: extractMidiLyrics(vocalsTrack?.trackEvents ?? []),
-		vocalPhrases: extractMidiVocalPhrases(vocalsTrack?.trackEvents ?? []),
+		vocalTracks,
 		tempos: _.chain(midiFile.tracks[0])
 			.filter((e): e is MidiSetTempoEvent => e.type === 'setTempo')
 			.map(e => ({
