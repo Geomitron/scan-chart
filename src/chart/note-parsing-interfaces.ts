@@ -130,6 +130,24 @@ export interface VocalTrackData {
 		length: number
 		noteNumber?: number
 	}[]
+	notes: import('./lyric-parser').VocalNote[]
+	starPowerSections: {
+		tick: number
+		length: number
+	}[]
+	rangeShifts: {
+		tick: number
+		length: number
+	}[]
+	lyricShifts: {
+		tick: number
+		length: number
+	}[]
+	/** HARM2/3 static lyric phrase boundaries (distinct from scoring phrases). */
+	staticLyricPhrases: {
+		tick: number
+		length: number
+	}[]
 }
 
 export type EventType = ObjectValues<typeof eventTypes>

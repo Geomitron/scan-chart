@@ -207,54 +207,130 @@ export function extractMidiLyrics(trackEvents: MidiLyricEvent[]): { tick: number
 	return lyrics
 }
 
+// ---------------------------------------------------------------------------
+// Generic MIDI note-on/note-off pair extraction
+// ---------------------------------------------------------------------------
+
 /**
- * Extract vocal phrase boundaries from MIDI notes 105/106 on PART VOCALS.
- * These notes define phrase regions as note-on/note-off pairs.
+ * Extract note-on/note-off pairs for the given MIDI note numbers.
+ * Handles: velocity-0 noteOn as noteOff, noteOff-before-noteOn sort at same tick,
+ * duplicate noteOn skip (matching YARG's ProcessNoteEvent).
  * Events must already be in absolute time (deltaTime = absolute tick).
  */
-export function extractMidiVocalPhrases(trackEvents: MidiLyricEvent[]): { tick: number; length: number; noteNumber: number }[] {
-	// Collect 105/106 note events, then sort so noteOffs come before noteOns at the same tick.
-	// This matches YARG behavior: when noteOff and noteOn share a tick, the old phrase closes
-	// before the new one starts, giving the new phrase a proper length.
-	const noteEvents: { tick: number; type: 'noteOn' | 'noteOff'; noteNumber: number; velocity: number }[] = []
+function extractMidiNotePairs(
+	trackEvents: MidiLyricEvent[],
+	noteFilter: (noteNumber: number) => boolean,
+): { tick: number; length: number; noteNumber: number }[] {
+	const noteEvents: { tick: number; type: 'noteOn' | 'noteOff'; noteNumber: number }[] = []
 	for (const event of trackEvents) {
-		if ((event.type === 'noteOn' || event.type === 'noteOff') && (event.noteNumber === 105 || event.noteNumber === 106)) {
+		if ((event.type === 'noteOn' || event.type === 'noteOff') && event.noteNumber !== undefined && noteFilter(event.noteNumber)) {
 			const isOff = event.type === 'noteOff' || (event.type === 'noteOn' && event.velocity === 0)
 			noteEvents.push({
 				tick: event.deltaTime,
 				type: isOff ? 'noteOff' : 'noteOn',
 				noteNumber: event.noteNumber,
-				velocity: event.velocity,
 			})
 		}
 	}
 	// Stable sort: same tick → noteOff before noteOn
 	noteEvents.sort((a, b) => {
 		if (a.tick !== b.tick) return a.tick - b.tick
-		// noteOff (0) before noteOn (1)
-		const aOrd = a.type === 'noteOff' ? 0 : 1
-		const bOrd = b.type === 'noteOff' ? 0 : 1
-		return aOrd - bOrd
+		return (a.type === 'noteOff' ? 0 : 1) - (b.type === 'noteOff' ? 0 : 1)
 	})
 
 	const phraseStarts: Map<number, number> = new Map()
-	const phrases: { tick: number; length: number; noteNumber: number }[] = []
+	const results: { tick: number; length: number; noteNumber: number }[] = []
 
 	for (const event of noteEvents) {
 		if (event.type === 'noteOn') {
 			// YARG ignores duplicate noteOns — if a note is already open, skip.
-			// (MidReader.ProcessNoteEvent: TryFindMatchingNote → log duplicate, don't add)
 			if (phraseStarts.has(event.noteNumber)) continue
 			phraseStarts.set(event.noteNumber, event.tick)
 		} else {
 			const startTick = phraseStarts.get(event.noteNumber)
 			if (startTick !== undefined) {
-				phrases.push({ tick: startTick, length: event.tick - startTick, noteNumber: event.noteNumber })
+				results.push({ tick: startTick, length: event.tick - startTick, noteNumber: event.noteNumber })
 				phraseStarts.delete(event.noteNumber)
 			}
 		}
 	}
 
-	phrases.sort((a, b) => a.tick - b.tick)
-	return phrases
+	results.sort((a, b) => a.tick - b.tick)
+	return results
+}
+
+// ---------------------------------------------------------------------------
+// MIDI vocal phrase extraction
+// ---------------------------------------------------------------------------
+
+/**
+ * Extract vocal phrase boundaries from MIDI notes 105/106 on PART VOCALS.
+ * Events must already be in absolute time (deltaTime = absolute tick).
+ */
+export function extractMidiVocalPhrases(trackEvents: MidiLyricEvent[]): { tick: number; length: number; noteNumber: number }[] {
+	return extractMidiNotePairs(trackEvents, n => n === 105 || n === 106)
+}
+
+// ---------------------------------------------------------------------------
+// MIDI vocal notes (pitch 36-84, percussion 96/97)
+// ---------------------------------------------------------------------------
+
+export type VocalNoteType = 'pitched' | 'percussion' | 'percussionHidden'
+
+export interface VocalNote {
+	tick: number
+	length: number
+	pitch: number
+	type: VocalNoteType
+}
+
+function noteNumberToVocalType(noteNumber: number): VocalNoteType | null {
+	if (noteNumber >= 36 && noteNumber <= 84) return 'pitched'
+	if (noteNumber === 96) return 'percussion'
+	if (noteNumber === 97) return 'percussionHidden'
+	return null
+}
+
+/**
+ * Extract vocal notes (pitched 36-84, percussion 96/97) from a MIDI vocal track.
+ * Events must already be in absolute time (deltaTime = absolute tick).
+ */
+export function extractMidiVocalNotes(trackEvents: MidiLyricEvent[]): VocalNote[] {
+	const pairs = extractMidiNotePairs(
+		trackEvents,
+		n => (n >= 36 && n <= 84) || n === 96 || n === 97,
+	)
+	return pairs.map(p => ({
+		tick: p.tick,
+		length: p.length,
+		pitch: p.noteNumber,
+		type: noteNumberToVocalType(p.noteNumber)!,
+	}))
+}
+
+// ---------------------------------------------------------------------------
+// MIDI vocal star power, range shifts, lyric shifts
+// ---------------------------------------------------------------------------
+
+/**
+ * Extract star power sections from note 116 on a MIDI vocal track.
+ */
+export function extractMidiVocalStarPower(trackEvents: MidiLyricEvent[]): { tick: number; length: number }[] {
+	return extractMidiNotePairs(trackEvents, n => n === 116)
+}
+
+/**
+ * Extract range shift markers from note 0 on a MIDI vocal track.
+ * Length determines the shift speed (gradual transition).
+ */
+export function extractMidiRangeShifts(trackEvents: MidiLyricEvent[]): { tick: number; length: number }[] {
+	return extractMidiNotePairs(trackEvents, n => n === 0)
+}
+
+/**
+ * Extract lyric shift markers from note 1 on a MIDI vocal track.
+ * Used for static lyric display scrolling within a phrase.
+ */
+export function extractMidiLyricShifts(trackEvents: MidiLyricEvent[]): { tick: number; length: number }[] {
+	return extractMidiNotePairs(trackEvents, n => n === 1)
 }
