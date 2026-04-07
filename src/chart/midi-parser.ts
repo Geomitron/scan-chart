@@ -215,8 +215,10 @@ export function parseNotesFromMidi(data: Uint8Array, iniChartModifiers: IniChart
 			.map(t => {
 				const instrument = instrumentNameMap[t.trackName as InstrumentTrackName]
 				const instrumentType = getInstrumentType(instrument)
-				const trackDifficulties = _.chain(t.trackEvents)
-					.thru(trackEvents => getTrackEventEnds(trackEvents, instrumentType))
+				// Single scan pass extracts note-shaped events AND the
+				// data-carrying ones (text, versus, animations).
+				const { eventEnds, textEvents, versusPhrases, animations } = scanInstrumentTrack(t.trackEvents, instrumentType, t.trackName)
+				const trackDifficulties = _.chain(eventEnds)
 					.thru(eventEnds => distributeInstrumentEvents(eventEnds)) // Removes 'all' difficulty
 					.thru(eventEnds => getTrackEvents(eventEnds)) // Connects note ends together
 					.thru(events => splitMidiModifierSustains(events, instrumentType))
@@ -234,6 +236,9 @@ export function parseNotesFromMidi(data: Uint8Array, iniChartModifiers: IniChart
 						flexLanes: [],
 						drumFreestyleSections: [],
 						trackEvents: [],
+						textEvents,
+						versusPhrases,
+						animations,
 					}
 
 					for (const event of trackDifficulties[difficulty]) {
@@ -304,16 +309,46 @@ function getTracks(midiData: MidiData) {
 	return tracks
 }
 
-/** Gets the starting and ending notes for all midi events defined for the .mid chart spec. */
-function getTrackEventEnds(events: MidiEvent[], instrumentType: InstrumentType) {
+interface TrackScanResult {
+	eventEnds: { [difficulty in Difficulty | 'all']: TrackEventEnd[] }
+	textEvents: { tick: number; text: string }[]
+	versusPhrases: { tick: number; length: number; isPlayer2: boolean }[]
+	animations: { tick: number; length: number; noteNumber: number }[]
+}
+
+/**
+ * Scans a MIDI instrument track and produces:
+ *   - note-shaped events grouped by difficulty (further processed by
+ *     `distributeInstrumentEvents` / `getTrackEvents`)
+ *   - data-carrying events that ride alongside the notes: `textEvents`,
+ *     `versusPhrases` (notes 105/106), `animations` (notes 24-51 drums,
+ *     40-59 fret)
+ *
+ * Versus phrases and animations live in the same MIDI event stream as the
+ * playable notes, so they're emitted from this single iteration.
+ */
+function scanInstrumentTrack(
+	events: MidiEvent[],
+	instrumentType: InstrumentType,
+	trackName: string,
+): TrackScanResult {
 	let enhancedOpens = false
-	const trackEventEnds: { [difficulty in Difficulty | 'all']: TrackEventEnd[] } = {
+	const eventEnds: { [difficulty in Difficulty | 'all']: TrackEventEnd[] } = {
 		all: [],
 		expert: [],
 		hard: [],
 		medium: [],
 		easy: [],
 	}
+	const textEvents: { tick: number; text: string }[] = []
+	// Versus phrase + animation collectors need note-on/note-off pairing.
+	const versusStarts = new Map<number, number>() // noteNumber → startTick
+	const versusPhrases: { tick: number; length: number; isPlayer2: boolean }[] = []
+	const animStarts = new Map<number, number>() // noteNumber → startTick
+	const animations: { tick: number; length: number; noteNumber: number }[] = []
+	const animationFilter = instrumentType === instrumentTypes.drums
+		? (n: number) => n >= 24 && n <= 51
+		: (n: number) => n >= 40 && n <= 59
 
 	for (const event of events) {
 		// SysEx event (tap modifier or open)
@@ -326,7 +361,7 @@ function getTrackEventEnds(events: MidiEvent[], instrumentType: InstrumentType) 
 					: null
 
 				if (type !== null) {
-					trackEventEnds[event.data[4] === 0xff ? 'all' : discoFlipDifficultyMap[event.data[4]]].push({
+					eventEnds[event.data[4] === 0xff ? 'all' : discoFlipDifficultyMap[event.data[4]]].push({
 						tick: event.deltaTime,
 						type,
 						channel: 1,
@@ -336,6 +371,43 @@ function getTrackEventEnds(events: MidiEvent[], instrumentType: InstrumentType) 
 				}
 			}
 		} else if (event.type === 'noteOn' || event.type === 'noteOff') {
+			const isOff = event.type === 'noteOff' || (event.type === 'noteOn' && event.velocity === 0)
+
+			// Collect versus phrase markers (notes 105/106). These don't overlap
+			// with any note-shaped events, so we don't fall through.
+			if (event.noteNumber === 105 || event.noteNumber === 106) {
+				if (!isOff) {
+					if (!versusStarts.has(event.noteNumber)) {
+						versusStarts.set(event.noteNumber, event.deltaTime)
+					}
+				} else {
+					const startTick = versusStarts.get(event.noteNumber)
+					if (startTick !== undefined) {
+						versusPhrases.push({ tick: startTick, length: event.deltaTime - startTick, isPlayer2: event.noteNumber === 106 })
+						versusStarts.delete(event.noteNumber)
+					}
+				}
+				continue
+			}
+
+			// Collect animation events (notes 24-51 drums, 40-59 fret). These
+			// overlap with easy-difficulty playable notes (60-66), so the event
+			// must also fall through to the difficulty-based dispatch below.
+			if (animationFilter(event.noteNumber)) {
+				if (!isOff) {
+					if (!animStarts.has(event.noteNumber)) {
+						animStarts.set(event.noteNumber, event.deltaTime)
+					}
+				} else {
+					const startTick = animStarts.get(event.noteNumber)
+					if (startTick !== undefined) {
+						animations.push({ tick: startTick, length: event.deltaTime - startTick, noteNumber: event.noteNumber })
+						animStarts.delete(event.noteNumber)
+					}
+				}
+				// fall through — animation note ranges overlap easy-difficulty notes
+			}
+
 			const difficulty =
 				event.noteNumber <= 66 ? 'easy'
 				: event.noteNumber <= 78 ? 'medium'
@@ -346,7 +418,7 @@ function getTrackEventEnds(events: MidiEvent[], instrumentType: InstrumentType) 
 				// Instrument-wide event (solo marker, star power, etc...) (applies to all difficulties)
 				const type = getInstrumentEventType(event.noteNumber)
 				if (type !== null) {
-					trackEventEnds[difficulty].push({
+					eventEnds[difficulty].push({
 						tick: event.deltaTime,
 						type,
 						velocity: event.velocity,
@@ -360,7 +432,7 @@ function getTrackEventEnds(events: MidiEvent[], instrumentType: InstrumentType) 
 					: instrumentType === instrumentTypes.drums ? getDrumsNoteType(event.noteNumber, difficulty)
 					: get5FretNoteType(event.noteNumber, difficulty, enhancedOpens)) ?? null
 				if (type !== null) {
-					trackEventEnds[difficulty].push({
+					eventEnds[difficulty].push({
 						tick: event.deltaTime,
 						type,
 						velocity: event.velocity,
@@ -370,6 +442,7 @@ function getTrackEventEnds(events: MidiEvent[], instrumentType: InstrumentType) 
 				}
 			}
 		} else if (event.type === 'text') {
+			let consumedAsNote = false
 			if (instrumentType === instrumentTypes.drums) {
 				const discoFlipMatch = event.text.match(/^\s*\[?mix[ _]([0-3])[ _]drums([0-5])(d|dnoflip|easy|easynokick|)\]?\s*$/)
 				if (discoFlipMatch) {
@@ -382,23 +455,34 @@ function getTrackEventEnds(events: MidiEvent[], instrumentType: InstrumentType) 
 						: null
 					if (eventType) {
 						// Treat this like the other events that have a start and end, so it can be processed the same way later
-						trackEventEnds[difficulty].push({ tick: event.deltaTime, type: eventType, velocity: 127, channel: 1, isStart: true })
-						trackEventEnds[difficulty].push({ tick: event.deltaTime, type: eventType, velocity: 127, channel: 1, isStart: false })
+						eventEnds[difficulty].push({ tick: event.deltaTime, type: eventType, velocity: 127, channel: 1, isStart: true })
+						eventEnds[difficulty].push({ tick: event.deltaTime, type: eventType, velocity: 127, channel: 1, isStart: false })
+						consumedAsNote = true
 					}
 				}
 			}
 
 			if (event.text === 'ENHANCED_OPENS' || event.text === '[ENHANCED_OPENS]') {
 				enhancedOpens = true
+				consumedAsNote = true
 			} else if (event.text === 'ENABLE_CHART_DYNAMICS' || event.text === '[ENABLE_CHART_DYNAMICS]') {
 				// Treat this like the other events that have a start and end, so it can be processed the same way later
-				trackEventEnds['all'].push({ tick: event.deltaTime, type: eventTypes.enableChartDynamics, channel: 1, isStart: true, velocity: 127 })
-				trackEventEnds['all'].push({ tick: event.deltaTime, type: eventTypes.enableChartDynamics, channel: 1, isStart: false, velocity: 127 })
+				eventEnds['all'].push({ tick: event.deltaTime, type: eventTypes.enableChartDynamics, channel: 1, isStart: true, velocity: 127 })
+				eventEnds['all'].push({ tick: event.deltaTime, type: eventTypes.enableChartDynamics, channel: 1, isStart: false, velocity: 127 })
+				consumedAsNote = true
+			}
+
+			if (!consumedAsNote) {
+				// Skip tick-0 text events that duplicate the track name
+				if (event.deltaTime === 0 && event.text === trackName) continue
+				textEvents.push({ tick: event.deltaTime, text: event.text })
 			}
 		}
 	}
 
-	return trackEventEnds
+	versusPhrases.sort((a, b) => a.tick - b.tick)
+	animations.sort((a, b) => a.tick - b.tick)
+	return { eventEnds, textEvents, versusPhrases, animations }
 }
 
 /** These apply to the entire instrument, not specific difficulties. */

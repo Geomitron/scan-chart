@@ -116,6 +116,31 @@ export interface RawChartData {
 			length: number
 			type: EventType
 		}[]
+		/** Per-track text events (FF 01 text on MIDI instrument tracks, E events in .chart).
+		 * Does not include events already consumed by other fields (disco flip, ENHANCED_OPENS, etc.). */
+		textEvents: {
+			tick: number
+			text: string
+		}[]
+		/** Player 1/2 versus phrase markers (MIDI notes 105/106, S 0/1 in .chart). */
+		versusPhrases: {
+			tick: number
+			/** Number of ticks */
+			length: number
+			/** true = player 2 (note 106 / S 1), false = player 1 (note 105 / S 0) */
+			isPlayer2: boolean
+		}[]
+		/**
+		 * Note-based animation events (guitar left hand positions: MIDI 40-59,
+		 * drum pad animations: MIDI 24-51). Not present in .chart format.
+		 */
+		animations: {
+			tick: number
+			/** Number of ticks */
+			length: number
+			/** The MIDI note number identifying the animation */
+			noteNumber: number
+		}[]
 	}[]
 }
 
