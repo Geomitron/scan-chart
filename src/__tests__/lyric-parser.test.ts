@@ -11,6 +11,10 @@ import {
 	extractMidiLyricText,
 	extractMidiLyrics,
 	extractMidiVocalPhrases,
+	extractMidiVocalNotes,
+	extractMidiVocalStarPower,
+	extractMidiRangeShifts,
+	extractMidiLyricShifts,
 } from '../chart/lyric-parser'
 
 // ---------------------------------------------------------------------------
@@ -825,5 +829,169 @@ describe('MIDI text encoding: Latin-1 fallback', () => {
 		const vocalsTrack = parsed.tracks[1]
 		const lyricEvent = vocalsTrack.find(e => e.type === 'lyrics')
 		expect((lyricEvent ).text).toBe('Hello')
+	})
+})
+
+// ---------------------------------------------------------------------------
+// extractMidiVocalNotes
+// ---------------------------------------------------------------------------
+
+describe('extractMidiVocalNotes', () => {
+	it('extracts pitched notes (36-84)', () => {
+		const events = [
+			{ deltaTime: 480, type: 'noteOn' as const, noteNumber: 60, velocity: 100 },
+			{ deltaTime: 720, type: 'noteOff' as const, noteNumber: 60, velocity: 0 },
+			{ deltaTime: 960, type: 'noteOn' as const, noteNumber: 72, velocity: 100 },
+			{ deltaTime: 1200, type: 'noteOff' as const, noteNumber: 72, velocity: 0 },
+		]
+		const notes = extractMidiVocalNotes(events)
+		expect(notes).toHaveLength(2)
+		expect(notes[0]).toEqual({ tick: 480, length: 240, pitch: 60, type: 'pitched' })
+		expect(notes[1]).toEqual({ tick: 960, length: 240, pitch: 72, type: 'pitched' })
+	})
+
+	it('extracts displayed percussion (note 96)', () => {
+		const events = [
+			{ deltaTime: 480, type: 'noteOn' as const, noteNumber: 96, velocity: 100 },
+			{ deltaTime: 720, type: 'noteOff' as const, noteNumber: 96, velocity: 0 },
+		]
+		const notes = extractMidiVocalNotes(events)
+		expect(notes).toHaveLength(1)
+		expect(notes[0]).toEqual({ tick: 480, length: 240, pitch: 96, type: 'percussion' })
+	})
+
+	it('extracts hidden percussion (note 97)', () => {
+		const events = [
+			{ deltaTime: 480, type: 'noteOn' as const, noteNumber: 97, velocity: 100 },
+			{ deltaTime: 720, type: 'noteOff' as const, noteNumber: 97, velocity: 0 },
+		]
+		const notes = extractMidiVocalNotes(events)
+		expect(notes).toHaveLength(1)
+		expect(notes[0]).toEqual({ tick: 480, length: 240, pitch: 97, type: 'percussionHidden' })
+	})
+
+	it('ignores notes outside vocal range (35, 85, 105, 106)', () => {
+		const events = [
+			{ deltaTime: 480, type: 'noteOn' as const, noteNumber: 35, velocity: 100 },
+			{ deltaTime: 720, type: 'noteOff' as const, noteNumber: 35, velocity: 0 },
+			{ deltaTime: 960, type: 'noteOn' as const, noteNumber: 85, velocity: 100 },
+			{ deltaTime: 1200, type: 'noteOff' as const, noteNumber: 85, velocity: 0 },
+			{ deltaTime: 1440, type: 'noteOn' as const, noteNumber: 105, velocity: 100 },
+			{ deltaTime: 1680, type: 'noteOff' as const, noteNumber: 105, velocity: 0 },
+		]
+		expect(extractMidiVocalNotes(events)).toHaveLength(0)
+	})
+
+	it('handles velocity-0 noteOn as noteOff', () => {
+		const events = [
+			{ deltaTime: 480, type: 'noteOn' as const, noteNumber: 60, velocity: 100 },
+			{ deltaTime: 720, type: 'noteOn' as const, noteNumber: 60, velocity: 0 },
+		]
+		const notes = extractMidiVocalNotes(events)
+		expect(notes).toHaveLength(1)
+		expect(notes[0]).toEqual({ tick: 480, length: 240, pitch: 60, type: 'pitched' })
+	})
+
+	it('handles mixed pitched and percussion notes', () => {
+		const events = [
+			{ deltaTime: 480, type: 'noteOn' as const, noteNumber: 60, velocity: 100 },
+			{ deltaTime: 480, type: 'noteOn' as const, noteNumber: 96, velocity: 100 },
+			{ deltaTime: 720, type: 'noteOff' as const, noteNumber: 60, velocity: 0 },
+			{ deltaTime: 720, type: 'noteOff' as const, noteNumber: 96, velocity: 0 },
+		]
+		const notes = extractMidiVocalNotes(events)
+		expect(notes).toHaveLength(2)
+	})
+
+	it('extracts boundary pitches (36 and 84)', () => {
+		const events = [
+			{ deltaTime: 480, type: 'noteOn' as const, noteNumber: 36, velocity: 100 },
+			{ deltaTime: 720, type: 'noteOff' as const, noteNumber: 36, velocity: 0 },
+			{ deltaTime: 960, type: 'noteOn' as const, noteNumber: 84, velocity: 100 },
+			{ deltaTime: 1200, type: 'noteOff' as const, noteNumber: 84, velocity: 0 },
+		]
+		const notes = extractMidiVocalNotes(events)
+		expect(notes).toHaveLength(2)
+		expect(notes[0].type).toBe('pitched')
+		expect(notes[1].type).toBe('pitched')
+	})
+})
+
+// ---------------------------------------------------------------------------
+// extractMidiVocalStarPower
+// ---------------------------------------------------------------------------
+
+describe('extractMidiVocalStarPower', () => {
+	it('extracts star power from note 116', () => {
+		const events = [
+			{ deltaTime: 480, type: 'noteOn' as const, noteNumber: 116, velocity: 100 },
+			{ deltaTime: 1440, type: 'noteOff' as const, noteNumber: 116, velocity: 0 },
+		]
+		const sp = extractMidiVocalStarPower(events)
+		expect(sp).toHaveLength(1)
+		expect(sp[0]).toMatchObject({ tick: 480, length: 960 })
+	})
+
+	it('extracts multiple star power sections', () => {
+		const events = [
+			{ deltaTime: 480, type: 'noteOn' as const, noteNumber: 116, velocity: 100 },
+			{ deltaTime: 960, type: 'noteOff' as const, noteNumber: 116, velocity: 0 },
+			{ deltaTime: 1920, type: 'noteOn' as const, noteNumber: 116, velocity: 100 },
+			{ deltaTime: 2880, type: 'noteOff' as const, noteNumber: 116, velocity: 0 },
+		]
+		const sp = extractMidiVocalStarPower(events)
+		expect(sp).toHaveLength(2)
+	})
+
+	it('ignores non-116 notes', () => {
+		const events = [
+			{ deltaTime: 480, type: 'noteOn' as const, noteNumber: 60, velocity: 100 },
+			{ deltaTime: 720, type: 'noteOff' as const, noteNumber: 60, velocity: 0 },
+		]
+		expect(extractMidiVocalStarPower(events)).toHaveLength(0)
+	})
+})
+
+// ---------------------------------------------------------------------------
+// extractMidiRangeShifts / extractMidiLyricShifts
+// ---------------------------------------------------------------------------
+
+describe('extractMidiRangeShifts', () => {
+	it('extracts range shift from note 0', () => {
+		const events = [
+			{ deltaTime: 480, type: 'noteOn' as const, noteNumber: 0, velocity: 100 },
+			{ deltaTime: 960, type: 'noteOff' as const, noteNumber: 0, velocity: 0 },
+		]
+		const shifts = extractMidiRangeShifts(events)
+		expect(shifts).toHaveLength(1)
+		expect(shifts[0]).toMatchObject({ tick: 480, length: 480 })
+	})
+
+	it('ignores non-zero notes', () => {
+		const events = [
+			{ deltaTime: 480, type: 'noteOn' as const, noteNumber: 1, velocity: 100 },
+			{ deltaTime: 960, type: 'noteOff' as const, noteNumber: 1, velocity: 0 },
+		]
+		expect(extractMidiRangeShifts(events)).toHaveLength(0)
+	})
+})
+
+describe('extractMidiLyricShifts', () => {
+	it('extracts lyric shift from note 1', () => {
+		const events = [
+			{ deltaTime: 480, type: 'noteOn' as const, noteNumber: 1, velocity: 100 },
+			{ deltaTime: 960, type: 'noteOff' as const, noteNumber: 1, velocity: 0 },
+		]
+		const shifts = extractMidiLyricShifts(events)
+		expect(shifts).toHaveLength(1)
+		expect(shifts[0]).toMatchObject({ tick: 480, length: 480 })
+	})
+
+	it('ignores note 0', () => {
+		const events = [
+			{ deltaTime: 480, type: 'noteOn' as const, noteNumber: 0, velocity: 100 },
+			{ deltaTime: 960, type: 'noteOff' as const, noteNumber: 0, velocity: 0 },
+		]
+		expect(extractMidiLyricShifts(events)).toHaveLength(0)
 	})
 })

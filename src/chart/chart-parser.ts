@@ -123,6 +123,11 @@ export function parseNotesFromChart(data: Uint8Array): RawChartData {
 			vocals: {
 				lyrics: extractChartLyrics(fileSections['Events'] ?? []),
 				vocalPhrases: extractChartVocalPhrases(fileSections['Events'] ?? []),
+				notes: [],
+				starPowerSections: [],
+				rangeShifts: [],
+				lyricShifts: [],
+				staticLyricPhrases: [],
 			},
 		},
 		tempos: _.chain(fileSections['SyncTrack'])
