@@ -231,6 +231,14 @@ export function getInstrumentType(instrument: Instrument) {
 	}
 }
 
+export type GameMode = (typeof gameModes)[number]
+export const gameModes = ['fiveFret', 'sixFret', 'drums'] as const
+export function getGameMode(instrument: Instrument): GameMode {
+	if (instrument === 'drums') return 'drums'
+	if (instrument === 'guitarghl' || instrument === 'guitarcoopghl' || instrument === 'rhythmghl' || instrument === 'bassghl') return 'sixFret'
+	return 'fiveFret'
+}
+
 export type DrumType = ObjectValues<typeof drumTypes>
 export const drumTypes = {
 	fourLane: 0,

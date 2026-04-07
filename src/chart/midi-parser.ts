@@ -148,7 +148,7 @@ export function parseNotesFromMidi(data: Uint8Array, iniChartModifiers: IniChart
 	const codaEvents =
 		tracks
 			.find(t => t.trackName === 'EVENTS')
-			?.trackEvents.filter(e => e.type === 'text' && (e.text.trim() === 'coda' || e.text.trim() === '[coda]')) ?? []
+			?.trackEvents.filter(e => isTextLikeEvent(e) && (e.text.trim() === 'coda' || e.text.trim() === '[coda]')) ?? []
 	const firstCodaTick = codaEvents[0] ? codaEvents[0].deltaTime : null
 
 	return {
@@ -196,7 +196,7 @@ export function parseNotesFromMidi(data: Uint8Array, iniChartModifiers: IniChart
 		sections: _.chain(tracks)
 			.find(t => t.trackName === 'EVENTS')
 			.get('trackEvents')
-			.filter((e): e is MidiTextEvent => e.type === 'text' && /^\[?(?:section|prc)[ _]([^\]]*)\]?$/.test(e.text))
+			.filter((e): e is MidiTextEvent => isTextLikeEvent(e) && /^\[?(?:section|prc)[ _]([^\]]*)\]?$/.test(e.text))
 			.map(e => ({
 				tick: e.deltaTime,
 				name: e.text.match(/^\[?(?:section|prc)[ _]([^\]]*)\]?$/)![1],
@@ -205,11 +205,12 @@ export function parseNotesFromMidi(data: Uint8Array, iniChartModifiers: IniChart
 		endEvents: _.chain(tracks)
 			.find(t => t.trackName === 'EVENTS')
 			.get('trackEvents')
-			.filter((e): e is MidiTextEvent => e.type === 'text' && /^\[?end\]?$/.test(e.text))
+			.filter((e): e is MidiTextEvent => isTextLikeEvent(e) && /^\[?end\]?$/.test(e.text))
 			.map(e => ({
 				tick: e.deltaTime,
 			}))
 			.value(),
+		globalEvents: extractGlobalEvents(tracks),
 		trackData: _.chain(tracks)
 			.filter(t => _.keys(instrumentNameMap).includes(t.trackName))
 			.map(t => {
@@ -840,5 +841,46 @@ function extractAnimations(events: MidiEvent[], instrumentType: InstrumentType):
 		return extractMidiInstrumentNotePairs(events, n => n >= 24 && n <= 51)
 	}
 	return extractMidiInstrumentNotePairs(events, n => n >= 40 && n <= 59)
+}
+
+/**
+ * YARG/MoonSong reads text-like events from multiple MIDI meta event types:
+ * text (FF 01), lyrics (FF 05), marker (FF 06), cuePoint (FF 07).
+ * trackName (FF 03) and instrumentName (FF 04) are excluded.
+ */
+function isTextLikeEvent(event: MidiEvent): event is MidiTextEvent {
+	return event.type === 'text' || event.type === 'lyrics' || event.type === 'marker' || event.type === 'cuePoint'
+}
+
+/** Patterns for events already extracted into dedicated fields. */
+const sectionRegex = /^\[?(?:section|prc)[ _]/
+const endRegex = /^\[?end\]?$/
+const codaRegex = /^\[?coda\]?$/
+const lyricRegex = /^\[?\s*lyric[ \t]/
+const phraseStartRegex = /^\[?phrase_start\]?$/
+const phraseEndRegex = /^\[?phrase_end\]?$/
+
+/**
+ * Extract global text events from EVENTS track, excluding events already
+ * extracted into sections, endEvents, vocalTracks (lyrics, phrase_start/end), and coda.
+ * Reads from all text-like event types (text, lyrics, marker, cuePoint).
+ */
+function extractGlobalEvents(tracks: { trackName: TrackName; trackEvents: MidiEvent[] }[]): { tick: number; text: string }[] {
+	const eventsTrack = tracks.find(t => t.trackName === 'EVENTS')
+	if (!eventsTrack) return []
+
+	const globalEvents: { tick: number; text: string }[] = []
+	for (const event of eventsTrack.trackEvents) {
+		if (!isTextLikeEvent(event)) continue
+		const text = event.text
+		if (sectionRegex.test(text)) continue
+		if (endRegex.test(text)) continue
+		if (codaRegex.test(text)) continue
+		if (lyricRegex.test(text)) continue
+		if (phraseStartRegex.test(text)) continue
+		if (phraseEndRegex.test(text)) continue
+		globalEvents.push({ tick: event.deltaTime, text })
+	}
+	return globalEvents
 }
 

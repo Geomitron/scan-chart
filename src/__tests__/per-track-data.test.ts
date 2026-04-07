@@ -7,6 +7,7 @@ import { describe, it, expect } from 'vitest'
 import { writeMidi, MidiData } from 'midi-file'
 import { parseNotesFromMidi } from '../chart/midi-parser'
 import { parseNotesFromChart } from '../chart/chart-parser'
+import { parseChartFile } from '../chart/notes-parser'
 import { defaultIniChartModifiers } from '../chart/note-parsing-interfaces'
 
 // ---------------------------------------------------------------------------
@@ -721,5 +722,255 @@ describe('per-track data edge cases', () => {
 		expect(track.textEvents).toEqual([])
 		expect(track.versusPhrases).toEqual([])
 		expect(track.animations).toEqual([])
+	})
+})
+
+// ---------------------------------------------------------------------------
+// MIDI: Global Events
+// ---------------------------------------------------------------------------
+
+describe('MIDI: global events', () => {
+	it('captures crowd and music events from EVENTS track', () => {
+		const events: MidiData['tracks'][number] = [
+			{ deltaTime: 0, type: 'trackName', text: 'EVENTS' },
+			{ deltaTime: 0, type: 'text', text: '[crowd_normal]' },
+			{ deltaTime: 480, type: 'text', text: '[music_start]' },
+			{ deltaTime: 960, type: 'text', text: '[music_end]' },
+			{ deltaTime: 0, type: 'endOfTrack' },
+		]
+
+		const midi = buildMidi(480, [tempoTrack(), events])
+		const result = parseNotesFromMidi(midi, defaultIniChartModifiers)
+		expect(result.globalEvents).toEqual([
+			{ tick: 0, text: '[crowd_normal]' },
+			{ tick: 480, text: '[music_start]' },
+			{ tick: 1440, text: '[music_end]' },
+		])
+	})
+
+	it('excludes sections from globalEvents', () => {
+		const events: MidiData['tracks'][number] = [
+			{ deltaTime: 0, type: 'trackName', text: 'EVENTS' },
+			{ deltaTime: 0, type: 'text', text: '[section intro]' },
+			{ deltaTime: 480, type: 'text', text: '[crowd_intense]' },
+			{ deltaTime: 480, type: 'text', text: '[section verse]' },
+			{ deltaTime: 0, type: 'endOfTrack' },
+		]
+
+		const midi = buildMidi(480, [tempoTrack(), events])
+		const result = parseNotesFromMidi(midi, defaultIniChartModifiers)
+		expect(result.globalEvents).toEqual([
+			{ tick: 480, text: '[crowd_intense]' },
+		])
+	})
+
+	it('excludes end events, coda, lyrics, and phrase markers from globalEvents', () => {
+		const events: MidiData['tracks'][number] = [
+			{ deltaTime: 0, type: 'trackName', text: 'EVENTS' },
+			{ deltaTime: 480, type: 'text', text: '[end]' },
+			{ deltaTime: 0, type: 'text', text: '[coda]' },
+			{ deltaTime: 480, type: 'text', text: '[crowd_clap]' },
+			{ deltaTime: 0, type: 'endOfTrack' },
+		]
+
+		const midi = buildMidi(480, [tempoTrack(), events])
+		const result = parseNotesFromMidi(midi, defaultIniChartModifiers)
+		expect(result.globalEvents).toEqual([
+			{ tick: 960, text: '[crowd_clap]' },
+		])
+	})
+
+	it('excludes lyric and phrase events from globalEvents', () => {
+		const events: MidiData['tracks'][number] = [
+			{ deltaTime: 0, type: 'trackName', text: 'EVENTS' },
+			{ deltaTime: 480, type: 'text', text: 'lyric Hello' },
+			{ deltaTime: 480, type: 'text', text: 'phrase_start' },
+			{ deltaTime: 480, type: 'text', text: 'phrase_end' },
+			{ deltaTime: 480, type: 'text', text: '[music_end]' },
+			{ deltaTime: 0, type: 'endOfTrack' },
+		]
+
+		const midi = buildMidi(480, [tempoTrack(), events])
+		const result = parseNotesFromMidi(midi, defaultIniChartModifiers)
+		expect(result.globalEvents).toEqual([
+			{ tick: 1920, text: '[music_end]' },
+		])
+	})
+
+	it('reads from lyrics, marker, and cuePoint event types (not just text)', () => {
+		const events: MidiData['tracks'][number] = [
+			{ deltaTime: 0, type: 'trackName', text: 'EVENTS' },
+			{ deltaTime: 0, type: 'text', text: '[crowd_normal]' },
+			{ deltaTime: 480, type: 'lyrics', text: '[music_start]' },
+			{ deltaTime: 480, type: 'marker', text: '[crowd_clap]' },
+			{ deltaTime: 480, type: 'cuePoint', text: '[music_end]' },
+			{ deltaTime: 0, type: 'endOfTrack' },
+		]
+
+		const midi = buildMidi(480, [tempoTrack(), events])
+		const result = parseNotesFromMidi(midi, defaultIniChartModifiers)
+		expect(result.globalEvents).toEqual([
+			{ tick: 0, text: '[crowd_normal]' },
+			{ tick: 480, text: '[music_start]' },
+			{ tick: 960, text: '[crowd_clap]' },
+			{ tick: 1440, text: '[music_end]' },
+		])
+	})
+
+	it('reads sections from lyrics/marker event types', () => {
+		const events: MidiData['tracks'][number] = [
+			{ deltaTime: 0, type: 'trackName', text: 'EVENTS' },
+			{ deltaTime: 0, type: 'lyrics', text: '[section intro]' },
+			{ deltaTime: 480, type: 'marker', text: '[section verse]' },
+			{ deltaTime: 0, type: 'endOfTrack' },
+		]
+
+		const midi = buildMidi(480, [tempoTrack(), events])
+		const result = parseNotesFromMidi(midi, defaultIniChartModifiers)
+		expect(result.sections).toEqual([
+			{ tick: 0, name: 'intro' },
+			{ tick: 480, name: 'verse' },
+		])
+		expect(result.globalEvents).toEqual([])
+	})
+
+	it('reads end events from lyrics event type', () => {
+		const events: MidiData['tracks'][number] = [
+			{ deltaTime: 0, type: 'trackName', text: 'EVENTS' },
+			{ deltaTime: 960, type: 'lyrics', text: '[end]' },
+			{ deltaTime: 0, type: 'endOfTrack' },
+		]
+
+		const midi = buildMidi(480, [tempoTrack(), events])
+		const result = parseNotesFromMidi(midi, defaultIniChartModifiers)
+		expect(result.endEvents).toEqual([{ tick: 960 }])
+		expect(result.globalEvents).toEqual([])
+	})
+
+	it('returns empty array when no EVENTS track', () => {
+		const midi = buildMidi(480, [tempoTrack()])
+		const result = parseNotesFromMidi(midi, defaultIniChartModifiers)
+		expect(result.globalEvents).toEqual([])
+	})
+})
+
+// ---------------------------------------------------------------------------
+// .chart: Global Events
+// ---------------------------------------------------------------------------
+
+describe('.chart: global events', () => {
+	it('captures non-section/end/lyric/phrase events from [Events]', () => {
+		const chart = buildChart({
+			Song: ['Resolution = 192'],
+			SyncTrack: ['0 = B 120000', '0 = TS 4'],
+			Events: [
+				'0 = E "crowd_normal"',
+				'192 = E "music_start"',
+				'384 = E "section intro"',
+				'768 = E "music_end"',
+			],
+		})
+
+		const result = parseNotesFromChart(chart)
+		expect(result.globalEvents).toEqual([
+			{ tick: 0, text: 'crowd_normal' },
+			{ tick: 192, text: 'music_start' },
+			{ tick: 768, text: 'music_end' },
+		])
+	})
+
+	it('excludes end events, coda, lyrics, and phrase markers', () => {
+		const chart = buildChart({
+			Song: ['Resolution = 192'],
+			SyncTrack: ['0 = B 120000', '0 = TS 4'],
+			Events: [
+				'0 = E "end"',
+				'0 = E "coda"',
+				'192 = E "lyric Hello"',
+				'384 = E "phrase_start"',
+				'576 = E "phrase_end"',
+				'768 = E "crowd_clap"',
+			],
+		})
+
+		const result = parseNotesFromChart(chart)
+		expect(result.globalEvents).toEqual([
+			{ tick: 768, text: 'crowd_clap' },
+		])
+	})
+
+	it('returns empty array when no Events section', () => {
+		const chart = buildChart({
+			Song: ['Resolution = 192'],
+			SyncTrack: ['0 = B 120000', '0 = TS 4'],
+			ExpertSingle: ['0 = N 0 0'],
+		})
+
+		const result = parseNotesFromChart(chart)
+		expect(result.globalEvents).toEqual([])
+	})
+})
+
+// ---------------------------------------------------------------------------
+// gameMode
+// ---------------------------------------------------------------------------
+
+describe('gameMode on ParsedChart trackData', () => {
+	it('sets fiveFret for guitar', () => {
+		const chart = buildChart({
+			Song: ['Resolution = 192'],
+			SyncTrack: ['0 = B 120000', '0 = TS 4'],
+			Events: [],
+			ExpertSingle: ['0 = N 0 0'],
+		})
+
+		const parsed = parseChartFile(chart, 'chart')
+		const track = parsed.trackData.find(t => t.instrument === 'guitar' && t.difficulty === 'expert')!
+		expect(track.gameMode).toBe('fiveFret')
+	})
+
+	it('sets sixFret for GHL instruments', () => {
+		const chart = buildChart({
+			Song: ['Resolution = 192'],
+			SyncTrack: ['0 = B 120000', '0 = TS 4'],
+			Events: [],
+			ExpertGHLGuitar: ['0 = N 0 0'],
+		})
+
+		const parsed = parseChartFile(chart, 'chart')
+		const track = parsed.trackData.find(t => t.instrument === 'guitarghl' && t.difficulty === 'expert')!
+		expect(track.gameMode).toBe('sixFret')
+	})
+
+	it('sets drums for drum tracks', () => {
+		const chart = buildChart({
+			Song: ['Resolution = 192'],
+			SyncTrack: ['0 = B 120000', '0 = TS 4'],
+			Events: [],
+			ExpertDrums: ['0 = N 0 0'],
+		})
+
+		const parsed = parseChartFile(chart, 'chart')
+		const track = parsed.trackData.find(t => t.instrument === 'drums' && t.difficulty === 'expert')!
+		expect(track.gameMode).toBe('drums')
+	})
+
+	it('sets gameMode from MIDI tracks', () => {
+		const midi = buildMidi(480, [
+			tempoTrack(),
+			eventsTrack(),
+			instrumentTrack('PART GUITAR', {
+				notes: [{ tick: 480, noteNumber: 96, length: 120 }],
+			}),
+			instrumentTrack('PART DRUMS', {
+				notes: [{ tick: 480, noteNumber: 97, length: 120 }],
+			}),
+		])
+
+		const parsed = parseChartFile(midi, 'mid')
+		const gtr = parsed.trackData.find(t => t.instrument === 'guitar' && t.difficulty === 'expert')!
+		const drums = parsed.trackData.find(t => t.instrument === 'drums' && t.difficulty === 'expert')!
+		expect(gtr.gameMode).toBe('fiveFret')
+		expect(drums.gameMode).toBe('drums')
 	})
 })

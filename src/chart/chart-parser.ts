@@ -184,6 +184,7 @@ export function parseNotesFromChart(data: Uint8Array): RawChartData {
 				tick: Number(stringTick),
 			}))
 			.value(),
+		globalEvents: extractChartGlobalEvents(fileSections['Events'] ?? []),
 		trackData: _.chain(fileSections)
 			.pick(_.keys(trackNameMap))
 			.toPairs()
@@ -511,5 +512,33 @@ function extractChartVersusPhrases(lines: string[]): { tick: number; length: num
 		})
 	}
 	return phrases
+}
+
+/** Patterns for .chart [Events] lines already extracted into dedicated fields. */
+const chartSectionRegex = /^(\d+) = E "\[?(?:section|prc)[ _]/
+const chartEndRegex = /^(\d+) = E "\[?end\]?"$/
+const chartCodaRegex = /^(\d+) = E "\s*\[?coda\]?\s*"$/
+const chartLyricRegex = /^(\d+) = E "\s*lyric[ \t]/
+const chartPhraseRegex = /^(\d+) = E "(?:phrase_start|phrase_end)"$/
+
+/**
+ * Extract global text events from .chart [Events] section, excluding events
+ * already extracted into sections, endEvents, vocalTracks (lyrics, phrases), and coda.
+ */
+function extractChartGlobalEvents(eventLines: string[]): { tick: number; text: string }[] {
+	const globalEvents: { tick: number; text: string }[] = []
+	for (const line of eventLines) {
+		const match = /^(\d+) = E "([^\r\n]*?)"$/.exec(line)
+		if (!match) continue
+		const tick = Number(match[1])
+		const text = match[2]
+		if (chartSectionRegex.test(line)) continue
+		if (chartEndRegex.test(line)) continue
+		if (chartCodaRegex.test(line)) continue
+		if (chartLyricRegex.test(line)) continue
+		if (chartPhraseRegex.test(line)) continue
+		globalEvents.push({ tick, text })
+	}
+	return globalEvents
 }
 

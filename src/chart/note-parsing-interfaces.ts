@@ -73,6 +73,15 @@ export interface RawChartData {
 	endEvents: {
 		tick: number
 	}[]
+	/**
+	 * Text events from the EVENTS track that aren't already extracted into
+	 * sections, endEvents, or vocalTracks (e.g. crowd events, music_start/end,
+	 * drums mix events, coda markers).
+	 */
+	globalEvents: {
+		tick: number
+		text: string
+	}[]
 	trackData: {
 		instrument: Instrument
 		difficulty: Difficulty

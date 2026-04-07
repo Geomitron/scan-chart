@@ -1,6 +1,6 @@
 import * as _ from 'lodash'
 
-import { DrumType, drumTypes, Instrument } from 'src/interfaces'
+import { DrumType, drumTypes, getGameMode, Instrument } from 'src/interfaces'
 import { parseNotesFromChart } from './chart-parser'
 import { parseNotesFromMidi } from './midi-parser'
 import {
@@ -63,6 +63,7 @@ export function parseChartFile(data: Uint8Array, format: 'chart' | 'mid', partia
 		hasForcedNotes,
 		vocalTracks: normalizeVocalTracks(rawChartData.vocalTracks, timedTempos, rawChartData.chartTicksPerBeat),
 		endEvents: setEventMsTimes(rawChartData.endEvents, timedTempos, rawChartData.chartTicksPerBeat),
+		globalEvents: setEventMsTimes(rawChartData.globalEvents, timedTempos, rawChartData.chartTicksPerBeat),
 		tempos: timedTempos,
 		timeSignatures: setEventMsTimes(rawChartData.timeSignatures, timedTempos, rawChartData.chartTicksPerBeat),
 		sections: setEventMsTimes(rawChartData.sections, timedTempos, rawChartData.chartTicksPerBeat),
@@ -70,6 +71,7 @@ export function parseChartFile(data: Uint8Array, format: 'chart' | 'mid', partia
 			.map(track => ({
 				instrument: track.instrument,
 				difficulty: track.difficulty,
+				gameMode: getGameMode(track.instrument),
 				starPowerSections: _.chain(track.starPowerSections)
 					.thru(events => setEventMsTimes(events, timedTempos, rawChartData.chartTicksPerBeat))
 					.thru(events => sortAndFixInvalidEventOverlaps(events))
