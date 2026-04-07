@@ -158,12 +158,35 @@ export interface RawChartData {
 			length: number
 			/** The MIDI note number identifying the animation */
 			noteNumber: number
+			/** Semantic name (set by notes-parser): e.g. 'leftHandPosition5', 'kick', 'snareLHHard' */
+			name?: string
 		}[]
 		/**
 		 * Pro Keys range shift markers (MIDI notes 0/2/4/5/7/9). Each shift
 		 * changes which 10-key portion of the 25-key range is visible.
 		 * Only present on prokeys instrument tracks.
 		 */
+		/** Typed hand map events parsed from text events matching 'map HandMap_*'. */
+		handMaps: {
+			tick: number
+			type: 'default' | 'noChords' | 'allChords' | 'allBend' | 'solo' | 'dropD' | 'dropD2' | 'chordC' | 'chordD' | 'chordA'
+		}[]
+		/** Typed strum map events parsed from text events matching 'map StrumMap_*'. */
+		strumMaps: {
+			tick: number
+			type: 'default' | 'pick' | 'slapBass'
+		}[]
+		/** Typed character state events parsed from text events ([idle], [play], etc.). */
+		characterStates: {
+			tick: number
+			type: 'idle' | 'idleIntense' | 'idleRealtime' | 'play' | 'playSolo' | 'intense' | 'mellow'
+		}[]
+		/** Pro Keys glissando markers (MIDI note 126 on pro keys tracks). */
+		glissandoSections: {
+			tick: number
+			/** Number of ticks */
+			length: number
+		}[]
 		proKeysRangeShifts: {
 			tick: number
 			/** Number of ticks */
@@ -172,20 +195,32 @@ export interface RawChartData {
 			noteNumber: number
 		}[]
 		/**
-		 * Raw MIDI note data for instruments whose note format is not yet fully parsed
-		 * into NoteEvent (pro guitar/bass, pro keys, elite drums). Contains all per-difficulty
-		 * noteOn/noteOff pairs with full MIDI properties for roundtrip writing.
+		 * Raw MIDI note data for new instruments (pro guitar/bass, pro keys, elite drums).
+		 * Contains per-difficulty noteOn/noteOff pairs with MIDI properties + semantic labels.
 		 */
 		rawNotes: {
 			tick: number
 			/** Number of ticks */
 			length: number
-			/** The MIDI note number (instrument-type-specific meaning) */
+			/** The MIDI note number */
 			noteNumber: number
-			/** MIDI velocity (pro guitar: fret + 100; elite drums: 1=ghost, 127=accent) */
+			/** MIDI velocity */
 			velocity: number
-			/** MIDI channel (pro guitar: 0=normal, 1=ghost, 2=bend, 3=muted, 4=tapped, 5=harmonics, 6=pinch harmonics) */
+			/** MIDI channel */
 			channel: number
+
+			// ── Semantic labels (set by notes-parser based on instrument type) ──
+
+			/** Pro Guitar/Bass: string index (0=low E, 1=A, 2=D, 3=G, 4=B, 5=high E) */
+			string?: number
+			/** Pro Guitar/Bass: fret number (0=open, 1-17 or 1-22) */
+			fret?: number
+			/** Pro Guitar/Bass: note modifier derived from MIDI channel */
+			noteModifier?: 'normal' | 'ghost' | 'bend' | 'muted' | 'tapped' | 'harmonics' | 'pinchHarmonics'
+			/** Pro Keys: key index (0-24, where 0=C1, 24=C3) */
+			key?: number
+			/** Elite Drums: pad name derived from noteNumber offset */
+			pad?: 'hatPedal' | 'kick' | 'snare' | 'hiHat' | 'leftCrash' | 'tom1' | 'tom2' | 'tom3' | 'ride' | 'rightCrash'
 		}[]
 	}[]
 }
@@ -288,6 +323,9 @@ export const eventTypes = {
 
 	// Toggle
 	enableChartDynamics: 54,
+
+	// Pro Keys
+	glissando: 55,
 } as const
 
 /** A single event in a chart's track. Note that more than one event can occur at the same time. */

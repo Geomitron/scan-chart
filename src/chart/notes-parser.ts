@@ -1,6 +1,6 @@
 import * as _ from 'lodash'
 
-import { DrumType, drumTypes, Instrument } from 'src/interfaces'
+import { Difficulty, DrumType, drumTypes, getInstrumentType, Instrument, instrumentTypes } from 'src/interfaces'
 import { parseNotesFromChart } from './chart-parser'
 import { parseNotesFromMidi } from './midi-parser'
 import {
@@ -83,16 +83,29 @@ export function parseChartFile(data: Uint8Array, format: 'chart' | 'mid', partia
 					.thru(events => setEventMsTimes(events, timedTempos, rawChartData.chartTicksPerBeat))
 					.thru(events => sortAndFixInvalidEventOverlaps(events))
 					.value(),
+				glissandoSections: setEventMsTimes(track.glissandoSections, timedTempos, rawChartData.chartTicksPerBeat),
 				flexLanes: _.chain(track.flexLanes)
 					.thru(events => setEventMsTimes(events, timedTempos, rawChartData.chartTicksPerBeat))
 					.thru(events => sortAndFixInvalidFlexLaneOverlaps(events))
 					.value(),
 				drumFreestyleSections: setEventMsTimes(track.drumFreestyleSections, timedTempos, rawChartData.chartTicksPerBeat),
 				textEvents: setEventMsTimes(track.textEvents, timedTempos, rawChartData.chartTicksPerBeat),
+				handMaps: setEventMsTimes(track.handMaps, timedTempos, rawChartData.chartTicksPerBeat),
+				strumMaps: setEventMsTimes(track.strumMaps, timedTempos, rawChartData.chartTicksPerBeat),
+				characterStates: setEventMsTimes(track.characterStates, timedTempos, rawChartData.chartTicksPerBeat),
 				versusPhrases: setEventMsTimes(track.versusPhrases, timedTempos, rawChartData.chartTicksPerBeat),
-				animations: setEventMsTimes(track.animations, timedTempos, rawChartData.chartTicksPerBeat),
+				animations: setEventMsTimes(
+						nameAnimations(track.animations, track.instrument),
+						timedTempos, rawChartData.chartTicksPerBeat,
+					),
 				proKeysRangeShifts: setEventMsTimes(track.proKeysRangeShifts, timedTempos, rawChartData.chartTicksPerBeat),
-				rawNotes: setEventMsTimes(track.rawNotes, timedTempos, rawChartData.chartTicksPerBeat),
+				rawNotes: setEventMsTimes(
+						interpretRawNotes(
+							trimRawNoteSustains(track.rawNotes, iniChartModifiers.sustain_cutoff_threshold, rawChartData.chartTicksPerBeat, format),
+							track.instrument, track.difficulty,
+						),
+						timedTempos, rawChartData.chartTicksPerBeat,
+					),
 				noteEventGroups: _.chain(track.trackEvents)
 					.thru(events => trimSustains(events, iniChartModifiers.sustain_cutoff_threshold, rawChartData.chartTicksPerBeat, format))
 					.groupBy(note => note.tick)
@@ -978,4 +991,122 @@ function sortAndFixInvalidNoteOverlaps(noteGroups: UntimedNoteEvent[][]) {
 			}
 		}
 	}
+}
+
+// ---------------------------------------------------------------------------
+// Raw note semantic interpretation for new instruments
+// ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// Raw note sustain trimming (same logic as standard instruments)
+// ---------------------------------------------------------------------------
+
+function trimRawNoteSustains(
+	rawNotes: RawNote[],
+	sustain_cutoff_threshold: number,
+	chartTicksPerBeat: number,
+	format: 'chart' | 'mid',
+) {
+	// Pro instruments use a slightly different threshold than standard instruments:
+	// resolution/3 with strict < (vs standard's resolution/3 + 1 with <=)
+	const sustainThresholdTicks =
+		sustain_cutoff_threshold !== -1 ? sustain_cutoff_threshold
+		: format === 'mid' ? Math.floor(chartTicksPerBeat / 3)
+		: 0
+
+	if (sustainThresholdTicks > 0) {
+		for (const note of rawNotes) {
+			if (note.length < sustainThresholdTicks) {
+				note.length = 0
+			}
+		}
+	}
+
+	return rawNotes
+}
+
+// ---------------------------------------------------------------------------
+// Animation naming
+// ---------------------------------------------------------------------------
+
+/** Drum animation MIDI note → semantic name (YARG AnimationLookup). */
+const drumAnimationNames: { [noteNumber: number]: string } = {
+	24: 'kick', 25: 'hiHatOpen', 26: 'snareLHHard', 27: 'snareRHHard',
+	28: 'snareLHSoft', 29: 'snareRHSoft', 30: 'hiHatLeft', 31: 'hiHatRight',
+	32: 'percussionRight',
+	34: 'crash1LHHard', 35: 'crash1LHSoft', 36: 'crash1RHHard', 37: 'crash1RHSoft',
+	38: 'crash2RHHard', 39: 'crash2RHSoft', 40: 'crash1Choke', 41: 'crash2Choke',
+	42: 'rideRight', 43: 'rideLeft', 44: 'crash2LHHard', 45: 'crash2LHSoft',
+	46: 'tom1Left', 47: 'tom1Right', 48: 'tom2Left', 49: 'tom2Right',
+	50: 'floorTomLeft', 51: 'floorTomRight',
+}
+
+/** Guitar/bass/keys animation MIDI note → semantic name. */
+function getGuitarAnimationName(noteNumber: number): string | undefined {
+	if (noteNumber >= 40 && noteNumber <= 59) {
+		return `leftHandPosition${noteNumber - 39}`
+	}
+	return undefined
+}
+
+type AnimationEntry = RawChartData['trackData'][number]['animations'][number]
+
+function nameAnimations(animations: AnimationEntry[], instrument: Instrument): AnimationEntry[] {
+	const instrumentType = getInstrumentType(instrument)
+	for (const anim of animations) {
+		if (instrumentType === instrumentTypes.drums) {
+			anim.name = drumAnimationNames[anim.noteNumber]
+		} else {
+			anim.name = getGuitarAnimationName(anim.noteNumber)
+		}
+	}
+	return animations
+}
+
+// ---------------------------------------------------------------------------
+// Raw note semantic interpretation for new instruments
+// ---------------------------------------------------------------------------
+
+const proGuitarDiffStarts: { [key in Difficulty]: number } = { easy: 24, medium: 48, hard: 72, expert: 96 }
+const eliteDrumsDiffStarts: { [key in Difficulty]: number } = { easy: 2, medium: 26, hard: 50, expert: 74 }
+const proGuitarChannelModifiers: { [channel: number]: RawChartData['trackData'][number]['rawNotes'][number]['noteModifier'] } = {
+	0: 'normal', 1: 'ghost', 2: 'bend', 3: 'muted', 4: 'tapped', 5: 'harmonics', 6: 'pinchHarmonics',
+}
+/** Elite Drums: MIDI note offset from difficulty start → pad name. Offset -2=hatPedal, 0=kick, etc. */
+const eliteDrumsPadByOffset: { [offset: number]: RawChartData['trackData'][number]['rawNotes'][number]['pad'] } = {
+	[-2]: 'hatPedal', 0: 'kick', 1: 'snare', 2: 'hiHat', 3: 'leftCrash',
+	4: 'tom1', 5: 'tom2', 6: 'tom3', 7: 'ride', 8: 'rightCrash',
+}
+
+type RawNote = RawChartData['trackData'][number]['rawNotes'][number]
+
+function interpretRawNotes(rawNotes: RawNote[], instrument: Instrument, difficulty: Difficulty): RawNote[] {
+	const instrumentType = getInstrumentType(instrument)
+
+	if (instrumentType === instrumentTypes.proGuitar) {
+		const diffStart = proGuitarDiffStarts[difficulty]
+		const maxFret = instrument === 'proguitar22' || instrument === 'probass22' ? 22 : 17
+		for (const note of rawNotes) {
+			const offset = note.noteNumber - diffStart
+			if (offset >= 0 && offset <= 5) {
+				note.string = offset
+				note.fret = Math.min(Math.max(0, note.velocity - 100), maxFret)
+			}
+			note.noteModifier = proGuitarChannelModifiers[note.channel] ?? 'normal'
+		}
+	} else if (instrumentType === instrumentTypes.proKeys) {
+		for (const note of rawNotes) {
+			if (note.noteNumber >= 48 && note.noteNumber <= 72) {
+				note.key = note.noteNumber - 48
+			}
+		}
+	} else if (instrumentType === instrumentTypes.eliteDrums) {
+		const diffStart = eliteDrumsDiffStarts[difficulty]
+		for (const note of rawNotes) {
+			const offset = note.noteNumber - diffStart
+			note.pad = eliteDrumsPadByOffset[offset]
+		}
+	}
+
+	return rawNotes
 }

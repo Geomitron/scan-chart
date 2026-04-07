@@ -202,10 +202,14 @@ export function parseNotesFromChart(data: Uint8Array): RawChartData {
 					starPowerSections: [],
 					rejectedStarPowerSections: [],
 					soloSections: [],
+					glissandoSections: [],
 					flexLanes: [],
 					drumFreestyleSections: [],
 					trackEvents: [],
 					textEvents: [],
+					handMaps: [],     // HandMap/StrumMap/CharacterState are rare in .chart
+					strumMaps: [],
+					characterStates: [],
 					versusPhrases: [],
 					animations: [], // .chart format does not have note-based animations
 					proKeysRangeShifts: [], // Pro instruments are MIDI-only
@@ -563,6 +567,9 @@ function scanEventsSection(eventLines: string[]): ChartEventsScanResult {
 		}
 		if (/^\s*\[?coda\]?\s*$/.test(text)) {
 			result.codaEvents.push({ tick })
+			// Coda is also exposed in unrecognizedEvents for consumer visibility
+			// (matching YARG/MoonSong behavior where coda appears in globalEvents).
+			result.unrecognizedEvents.push({ tick, text })
 			continue
 		}
 		// Lyrics and phrase markers are extracted by the vocal parsing path — skip here

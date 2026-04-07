@@ -263,6 +263,9 @@ export function parseNotesFromMidi(data: Uint8Array, iniChartModifiers: IniChart
 					.thru(events => fixFlexLaneLds(events))
 					.value()
 
+				// Typed HandMap / StrumMap / CharacterState text events (same across difficulties).
+				const { handMaps, strumMaps, characterStates } = extractTypedTextEvents(t.trackEvents)
+
 				// Pro Keys uses one MIDI track per difficulty; other instruments
 				// have all 4 difficulties on one track.
 				const fixedDifficulty = proKeysDifficultyMap[t.trackName as string]
@@ -275,10 +278,14 @@ export function parseNotesFromMidi(data: Uint8Array, iniChartModifiers: IniChart
 						starPowerSections: [],
 						rejectedStarPowerSections: [],
 						soloSections: [],
+						glissandoSections: [],
 						flexLanes: [],
 						drumFreestyleSections: [],
 						trackEvents: [],
 						textEvents,
+						handMaps,
+						strumMaps,
+						characterStates,
 						versusPhrases,
 						animations,
 						proKeysRangeShifts,
@@ -292,6 +299,8 @@ export function parseNotesFromMidi(data: Uint8Array, iniChartModifiers: IniChart
 							result.rejectedStarPowerSections.push(event)
 						} else if (event.type === eventTypes.soloSection) {
 							result.soloSections.push(event)
+						} else if (event.type === eventTypes.glissando) {
+							result.glissandoSections.push({ tick: event.tick, length: event.length })
 						} else if (event.type === eventTypes.flexLaneSingle || event.type === eventTypes.flexLaneDouble) {
 							result.flexLanes.push({
 								tick: event.tick,
@@ -647,7 +656,8 @@ function getInstrumentEventType(note: number, instrumentType: InstrumentType) {
 		// case 124:
 		// 	return eventTypes.freestyleSection5
 		case 126:
-			return eventTypes.flexLaneSingle
+			// Pro Keys: glissando. All others: tremolo/single roll lane.
+			return instrumentType === instrumentTypes.proKeys ? eventTypes.glissando : eventTypes.flexLaneSingle
 		case 127:
 			return eventTypes.flexLaneDouble
 		default:
@@ -1029,6 +1039,62 @@ function getRawNoteDifficulty(
 	return null
 }
 
+const handMapLookup: { [key: string]: RawChartData['trackData'][number]['handMaps'][number]['type'] } = {
+	'HandMap_Default': 'default', 'HandMap_NoChords': 'noChords', 'HandMap_AllChords': 'allChords',
+	'HandMap_AllBend': 'allBend', 'HandMap_Solo': 'solo', 'HandMap_DropD': 'dropD',
+	'HandMap_DropD2': 'dropD2', 'HandMap_Chord_C': 'chordC', 'HandMap_Chord_D': 'chordD',
+	'HandMap_Chord_A': 'chordA',
+}
+const strumMapLookup: { [key: string]: RawChartData['trackData'][number]['strumMaps'][number]['type'] } = {
+	'StrumMap_Default': 'default', 'StrumMap_Pick': 'pick', 'StrumMap_SlapBass': 'slapBass',
+}
+const characterStateLookup: { [key: string]: RawChartData['trackData'][number]['characterStates'][number]['type'] } = {
+	'idle': 'idle', 'idle_intense': 'idleIntense', 'idle_realtime': 'idleRealtime',
+	'play': 'play', 'play_solo': 'playSolo', 'intense': 'intense', 'mellow': 'mellow',
+}
+
+/**
+ * Extract HandMap, StrumMap, and CharacterState events from text events on instrument tracks.
+ * These are text events that YARG interprets into typed animation objects.
+ * YARG strips brackets before matching, so we normalize here.
+ */
+function extractTypedTextEvents(events: MidiEvent[]) {
+	const handMaps: RawChartData['trackData'][number]['handMaps'] = []
+	const strumMaps: RawChartData['trackData'][number]['strumMaps'] = []
+	const characterStates: RawChartData['trackData'][number]['characterStates'] = []
+
+	for (const event of events) {
+		if (!isTextLikeEvent(event)) continue
+		let text = event.text
+		// YARG's NormalizeTextEvent strips brackets
+		if (text.startsWith('[') && text.endsWith(']')) text = text.slice(1, -1)
+		text = text.trim()
+
+		// HandMap: "map HandMap_*"
+		const handMapMatch = /^map (HandMap_\w+)$/.exec(text)
+		if (handMapMatch) {
+			const type = handMapLookup[handMapMatch[1]]
+			if (type) handMaps.push({ tick: event.deltaTime, type })
+			continue
+		}
+
+		// StrumMap: "map StrumMap_*"
+		const strumMapMatch = /^map (StrumMap_\w+)$/.exec(text)
+		if (strumMapMatch) {
+			const type = strumMapLookup[strumMapMatch[1]]
+			if (type) strumMaps.push({ tick: event.deltaTime, type })
+			continue
+		}
+
+		// CharacterState: bare text matching known states
+		const charState = characterStateLookup[text]
+		if (charState) {
+			characterStates.push({ tick: event.deltaTime, type: charState })
+		}
+	}
+
+	return { handMaps, strumMaps, characterStates }
+}
 
 /**
  * YARG copies star power and solo sections from the Pro Keys expert track to all other
@@ -1068,8 +1134,10 @@ interface EventsScanResult {
 	sections: { tick: number; name: string }[]
 	endEvents: { tick: number }[]
 	codaEvents: { tick: number }[]
-	/** All remaining text-like events not recognized as sections/endEvents/coda/lyrics/phrases.
-	 *  Lyrics and phrase_start/phrase_end are extracted separately by the vocals path. */
+	/** All remaining text-like events not recognized as sections/endEvents/lyrics/phrases.
+	 *  Coda events are included here as well (for consumer visibility) in addition to
+	 *  codaEvents. Lyrics and phrase_start/phrase_end are extracted separately by the
+	 *  vocals path. */
 	unrecognizedEvents: { tick: number; text: string }[]
 	/** Issues raised while classifying EVENTS track text events (e.g. stray lyric/phrase
 	 *  events that belong on PART VOCALS, not EVENTS). */
@@ -1114,6 +1182,9 @@ function scanEventsTrack(tracks: { trackName: TrackName; trackEvents: MidiEvent[
 		}
 		if (/^\s*\[?coda\]?\s*$/.test(text)) {
 			result.codaEvents.push({ tick })
+			// Coda is also exposed in unrecognizedEvents for consumer visibility
+			// (matching YARG/MoonSong behavior where coda appears in globalEvents).
+			result.unrecognizedEvents.push({ tick, text })
 			continue
 		}
 		// Lyrics and phrase markers belong on PART VOCALS in .mid charts, not on
@@ -1133,4 +1204,3 @@ function scanEventsTrack(tracks: { trackName: TrackName; trackEvents: MidiEvent[
 	}
 	return result
 }
-
