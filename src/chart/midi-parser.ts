@@ -145,11 +145,10 @@ export function parseNotesFromMidi(data: Uint8Array, iniChartModifiers: IniChart
 		}
 	}
 
-	const codaEvents =
-		tracks
-			.find(t => t.trackName === 'EVENTS')
-			?.trackEvents.filter(e => e.type === 'text' && (e.text.trim() === 'coda' || e.text.trim() === '[coda]')) ?? []
-	const firstCodaTick = codaEvents[0] ? codaEvents[0].deltaTime : null
+	// Classify each text-like event on the EVENTS track into one of:
+	// sections, endEvents, codaEvents, or unrecognizedEvents (the remainder).
+	const eventsScan = scanEventsTrack(tracks)
+	const firstCodaTick = eventsScan.codaEvents[0]?.tick ?? null
 
 	return {
 		chartTicksPerBeat: midiFile.header.ticksPerBeat,
@@ -193,24 +192,10 @@ export function parseNotesFromMidi(data: Uint8Array, iniChartModifiers: IniChart
 				}
 			})
 			.value(),
-		sections: _.chain(tracks)
-			.find(t => t.trackName === 'EVENTS')
-			.get('trackEvents')
-			.filter((e): e is MidiTextEvent => e.type === 'text' && /^\[?(?:section|prc)[ _]([^\]]*)\]?$/.test(e.text))
-			.map(e => ({
-				tick: e.deltaTime,
-				name: e.text.match(/^\[?(?:section|prc)[ _]([^\]]*)\]?$/)![1],
-			}))
-			.value(),
-		endEvents: _.chain(tracks)
-			.find(t => t.trackName === 'EVENTS')
-			.get('trackEvents')
-			.filter((e): e is MidiTextEvent => e.type === 'text' && /^\[?end\]?$/.test(e.text))
-			.map(e => ({
-				tick: e.deltaTime,
-			}))
-			.value(),
-		parseIssues: [],
+		sections: eventsScan.sections,
+		endEvents: eventsScan.endEvents,
+		unrecognizedEvents: eventsScan.unrecognizedEvents,
+		parseIssues: eventsScan.parseIssues,
 		trackData: _.chain(tracks)
 			.filter(t => _.keys(instrumentNameMap).includes(t.trackName))
 			.map(t => {
@@ -839,5 +824,84 @@ function fixFlexLaneLds(events: { [key in Difficulty]: MidiTrackEvent[] }) {
 	)
 
 	return events
+}
+
+/**
+ * YARG/MoonSong reads text-like events from multiple MIDI meta event types:
+ * text (FF 01), lyrics (FF 05), marker (FF 06), cuePoint (FF 07).
+ * trackName (FF 03) and instrumentName (FF 04) are excluded.
+ */
+function isTextLikeEvent(event: MidiEvent): event is MidiTextEvent {
+	return event.type === 'text' || event.type === 'lyrics' || event.type === 'marker' || event.type === 'cuePoint'
+}
+
+interface EventsScanResult {
+	sections: { tick: number; name: string }[]
+	endEvents: { tick: number }[]
+	codaEvents: { tick: number }[]
+	/** All remaining text-like events not recognized as sections/endEvents/coda/lyrics/phrases.
+	 *  Lyrics and phrase_start/phrase_end are extracted separately by the vocals path. */
+	unrecognizedEvents: { tick: number; text: string }[]
+	/** Issues raised while classifying EVENTS track text events (e.g. stray lyric/phrase
+	 *  events that belong on PART VOCALS, not EVENTS). */
+	parseIssues: RawChartData['parseIssues']
+}
+
+/**
+ * Single-pass scan of the EVENTS track that classifies each text-like event
+ * into one of {section, endEvent, coda, lyric, phrase, unrecognized}. Lyrics
+ * and phrase_start/phrase_end are consumed by the vocal parsing path — we
+ * don't re-emit them here. Everything else that matches a recognized pattern
+ * goes into its typed array; all remaining text-like events fall through to
+ * `unrecognizedEvents`.
+ *
+ * Reads from all text-like event types (text, lyrics, marker, cuePoint),
+ * matching YARG.Core's MoonText behavior.
+ */
+function scanEventsTrack(tracks: { trackName: TrackName; trackEvents: MidiEvent[] }[]): EventsScanResult {
+	const result: EventsScanResult = {
+		sections: [],
+		endEvents: [],
+		codaEvents: [],
+		unrecognizedEvents: [],
+		parseIssues: [],
+	}
+	const eventsTrack = tracks.find(t => t.trackName === 'EVENTS')
+	if (!eventsTrack) return result
+
+	for (const event of eventsTrack.trackEvents) {
+		if (!isTextLikeEvent(event)) continue
+		const text = event.text
+		const tick = event.deltaTime
+
+		const sectionMatch = /^\[?(?:section|prc)[ _]([^\]]*)\]?$/.exec(text)
+		if (sectionMatch) {
+			result.sections.push({ tick, name: sectionMatch[1] })
+			continue
+		}
+		if (/^\[?end\]?$/.test(text)) {
+			result.endEvents.push({ tick })
+			continue
+		}
+		if (/^\s*\[?coda\]?\s*$/.test(text)) {
+			result.codaEvents.push({ tick })
+			continue
+		}
+		// Lyrics and phrase markers belong on PART VOCALS in .mid charts, not on
+		// the EVENTS track. Game engines silently drop them when they show up
+		// here. Record a parse issue so consumers can surface the misplacement,
+		// then fall through to unrecognizedEvents so the value round-trips back
+		// out — users can move it to PART VOCALS manually.
+		if (/^\[?\s*lyric[ \t]/.test(text)) {
+			result.parseIssues.push({ instrument: null, difficulty: null, noteIssue: 'invalidLyric' })
+		} else if (/^\[?phrase_start\]?$/.test(text)) {
+			result.parseIssues.push({ instrument: null, difficulty: null, noteIssue: 'invalidPhraseStart' })
+		} else if (/^\[?phrase_end\]?$/.test(text)) {
+			result.parseIssues.push({ instrument: null, difficulty: null, noteIssue: 'invalidPhraseEnd' })
+		}
+
+		result.unrecognizedEvents.push({ tick, text })
+	}
+	return result
 }
 
