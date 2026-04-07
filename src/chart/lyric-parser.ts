@@ -1,4 +1,20 @@
-import type { MidiEvent, MidiTextEvent } from 'midi-file'
+/** Minimal MIDI event shape for lyric/text extraction. */
+export interface MidiTextLikeEvent {
+	type: string
+	deltaTime: number
+	text?: string
+}
+
+/** Minimal MIDI event shape for note-based extraction (vocal phrases). */
+export interface MidiNoteLikeEvent {
+	type: string
+	deltaTime: number
+	noteNumber?: number
+	velocity?: number
+}
+
+/** Union of fields used by all MIDI lyric/phrase functions. */
+export type MidiLyricEvent = MidiTextLikeEvent & MidiNoteLikeEvent
 
 // ---------------------------------------------------------------------------
 // .chart lyric parsing
@@ -104,14 +120,14 @@ export function extractChartVocalPhrases(eventLines: string[]): { tick: number; 
  * - Bracketed text [play], [idle], [annotation] are NOT lyrics
  * - Space-only text is NOT a lyric (YARG's NormalizeTextEvent trims it to empty)
  */
-export function isMidiVocalLyric(event: { type: string; text?: string }): boolean {
+export function isMidiVocalLyric(event: MidiTextLikeEvent): boolean {
 	// YARG's ProcessTextEvent processes BaseTextEvent types (except trackName and copyrightNotice).
 	// instrumentName (FF 04) contains the track name, not lyric content.
 	const isTextLike = event.type === 'lyrics' || event.type === 'text' ||
 		event.type === 'marker' || event.type === 'cuePoint'
 	if (!isTextLike) return false
 
-	const text = (event as MidiTextEvent).text
+	const text = event.text
 	if (text === undefined || text === null) return false
 
 	const trimmed = text.replace(/^[\x00-\x20]+|[\x00-\x20]+$/g, '') // TrimAscii
@@ -135,8 +151,8 @@ export function normalizeLyricText(text: string): string {
  * Extract the lyric text from a MIDI event.
  * Preserves original text — the MIDI file's raw text content.
  */
-export function extractMidiLyricText(event: MidiTextEvent): string {
-	return event.text
+export function extractMidiLyricText(event: MidiTextLikeEvent): string {
+	return event.text ?? ''
 }
 
 /**
@@ -144,19 +160,19 @@ export function extractMidiLyricText(event: MidiTextEvent): string {
  * Events must already be in absolute time (deltaTime = absolute tick).
  * Deduplicates by tick+text (matching MoonSong InsertionEquals).
  */
-export function extractMidiLyrics(trackEvents: MidiEvent[]): { tick: number; length: number; text: string }[] {
+export function extractMidiLyrics(trackEvents: MidiLyricEvent[]): { tick: number; length: number; text: string }[] {
 	// Find the track name so we can skip tick-0 text events that duplicate it.
 	// Some MIDI files have an FF 01 text event "PART VOCALS" at tick 0 which is
 	// a duplicate of the FF 03 trackName — not a real lyric. YARG keeps these
 	// (a YARG bug), but we filter them out.
-	const trackNameEvent = trackEvents.find(e => e.type === 'trackName') as MidiTextEvent | undefined
+	const trackNameEvent = trackEvents.find(e => e.type === 'trackName')
 	const trackName = trackNameEvent?.text
 
 	const lyrics: { tick: number; length: number; text: string }[] = []
 	const seen = new Set<string>()
 	for (const event of trackEvents) {
 		if (isMidiVocalLyric(event)) {
-			const text = extractMidiLyricText(event as MidiTextEvent)
+			const text = extractMidiLyricText(event)
 			// Skip tick-0 text events that match the track name (instrumentName duplicate)
 			if (event.deltaTime === 0 && text === trackName && event.type === 'text') continue
 			const key = `${event.deltaTime}:${text}`
@@ -173,7 +189,7 @@ export function extractMidiLyrics(trackEvents: MidiEvent[]): { tick: number; len
  * These notes define phrase regions as note-on/note-off pairs.
  * Events must already be in absolute time (deltaTime = absolute tick).
  */
-export function extractMidiVocalPhrases(trackEvents: MidiEvent[]): { tick: number; length: number; noteNumber: number }[] {
+export function extractMidiVocalPhrases(trackEvents: MidiLyricEvent[]): { tick: number; length: number; noteNumber: number }[] {
 	// Collect 105/106 note events, then sort so noteOffs come before noteOns at the same tick.
 	// This matches YARG behavior: when noteOff and noteOn share a tick, the old phrase closes
 	// before the new one starts, giving the new phrase a proper length.

@@ -350,7 +350,7 @@ describe('extractMidiLyrics', () => {
 			{ deltaTime: 480, type: 'lyrics' as const, text: 'Hel+' },
 			{ deltaTime: 960, type: 'lyrics' as const, text: 'lo' },
 		]
-		const lyrics = extractMidiLyrics(events as any)
+		const lyrics = extractMidiLyrics(events )
 		expect(lyrics).toHaveLength(2)
 		expect(lyrics[0]).toEqual({ tick: 480, length: 0, text: 'Hel+' })
 		expect(lyrics[1]).toEqual({ tick: 960, length: 0, text: 'lo' })
@@ -362,7 +362,7 @@ describe('extractMidiLyrics', () => {
 			{ deltaTime: 480, type: 'text' as const, text: 'Life' },
 			{ deltaTime: 960, type: 'text' as const, text: 'is' },
 		]
-		const lyrics = extractMidiLyrics(events as any)
+		const lyrics = extractMidiLyrics(events )
 		expect(lyrics).toHaveLength(2)
 		expect(lyrics[0]).toEqual({ tick: 480, length: 0, text: 'Life' })
 	})
@@ -373,7 +373,7 @@ describe('extractMidiLyrics', () => {
 			{ deltaTime: 480, type: 'lyrics' as const, text: '[play]' },
 			{ deltaTime: 960, type: 'lyrics' as const, text: 'Hello' },
 		]
-		const lyrics = extractMidiLyrics(events as any)
+		const lyrics = extractMidiLyrics(events )
 		expect(lyrics).toHaveLength(1)
 		expect(lyrics[0]).toEqual({ tick: 960, length: 0, text: 'Hello' })
 	})
@@ -382,7 +382,7 @@ describe('extractMidiLyrics', () => {
 		const events = [
 			{ deltaTime: 480, type: 'lyrics' as const, text: ' hey^ ' },
 		]
-		const lyrics = extractMidiLyrics(events as any)
+		const lyrics = extractMidiLyrics(events )
 		expect(lyrics).toHaveLength(1)
 		expect(lyrics[0].text).toBe(' hey^ ')
 	})
@@ -396,7 +396,7 @@ describe('extractMidiLyrics', () => {
 			{ deltaTime: 960, type: 'lyrics' as const, text: 'is' },
 			{ deltaTime: 1440, type: 'text' as const, text: '[idle]' },
 		]
-		const lyrics = extractMidiLyrics(events as any)
+		const lyrics = extractMidiLyrics(events )
 		expect(lyrics).toHaveLength(2)
 		expect(lyrics[0]).toEqual({ tick: 480, length: 0, text: 'Life' })
 		expect(lyrics[1]).toEqual({ tick: 960, length: 0, text: 'is' })
@@ -413,7 +413,7 @@ describe('extractMidiVocalPhrases', () => {
 			{ deltaTime: 480, type: 'noteOn' as const, channel: 0, noteNumber: 105, velocity: 100 },
 			{ deltaTime: 1440, type: 'noteOff' as const, channel: 0, noteNumber: 105, velocity: 0 },
 		]
-		const phrases = extractMidiVocalPhrases(events as any)
+		const phrases = extractMidiVocalPhrases(events )
 		expect(phrases).toHaveLength(1)
 		expect(phrases[0]).toEqual({ tick: 480, length: 960, noteNumber: 105 })
 	})
@@ -423,7 +423,7 @@ describe('extractMidiVocalPhrases', () => {
 			{ deltaTime: 480, type: 'noteOn' as const, channel: 0, noteNumber: 106, velocity: 100 },
 			{ deltaTime: 960, type: 'noteOff' as const, channel: 0, noteNumber: 106, velocity: 0 },
 		]
-		const phrases = extractMidiVocalPhrases(events as any)
+		const phrases = extractMidiVocalPhrases(events )
 		expect(phrases).toHaveLength(1)
 		expect(phrases[0]).toEqual({ tick: 480, length: 480, noteNumber: 106 })
 	})
@@ -433,7 +433,7 @@ describe('extractMidiVocalPhrases', () => {
 			{ deltaTime: 480, type: 'noteOn' as const, channel: 0, noteNumber: 105, velocity: 100 },
 			{ deltaTime: 960, type: 'noteOn' as const, channel: 0, noteNumber: 105, velocity: 0 },
 		]
-		const phrases = extractMidiVocalPhrases(events as any)
+		const phrases = extractMidiVocalPhrases(events )
 		expect(phrases).toHaveLength(1)
 		expect(phrases[0]).toEqual({ tick: 480, length: 480, noteNumber: 105 })
 	})
@@ -445,7 +445,7 @@ describe('extractMidiVocalPhrases', () => {
 			{ deltaTime: 960, type: 'noteOff' as const, channel: 0, noteNumber: 105, velocity: 0 },
 			{ deltaTime: 1200, type: 'noteOff' as const, channel: 0, noteNumber: 106, velocity: 0 },
 		]
-		const phrases = extractMidiVocalPhrases(events as any)
+		const phrases = extractMidiVocalPhrases(events )
 		expect(phrases).toHaveLength(2)
 		expect(phrases[0]).toEqual({ tick: 480, length: 480, noteNumber: 105 })
 		expect(phrases[1]).toEqual({ tick: 720, length: 480, noteNumber: 106 })
@@ -458,7 +458,7 @@ describe('extractMidiVocalPhrases', () => {
 			{ deltaTime: 960, type: 'noteOn' as const, channel: 0, noteNumber: 105, velocity: 100 },  // duplicate, ignored
 			{ deltaTime: 1440, type: 'noteOff' as const, channel: 0, noteNumber: 105, velocity: 0 },
 		]
-		const phrases = extractMidiVocalPhrases(events as any)
+		const phrases = extractMidiVocalPhrases(events )
 		expect(phrases).toHaveLength(1)
 		expect(phrases[0]).toEqual({ tick: 480, length: 960, noteNumber: 105 })
 	})
@@ -468,7 +468,7 @@ describe('extractMidiVocalPhrases', () => {
 			{ deltaTime: 480, type: 'noteOn' as const, channel: 0, noteNumber: 60, velocity: 100 },
 			{ deltaTime: 960, type: 'noteOff' as const, channel: 0, noteNumber: 60, velocity: 0 },
 		]
-		const phrases = extractMidiVocalPhrases(events as any)
+		const phrases = extractMidiVocalPhrases(events )
 		expect(phrases).toHaveLength(0)
 	})
 
@@ -477,7 +477,7 @@ describe('extractMidiVocalPhrases', () => {
 			{ deltaTime: 480, type: 'noteOn' as const, channel: 0, noteNumber: 105, velocity: 100 },
 			// No noteOff
 		]
-		const phrases = extractMidiVocalPhrases(events as any)
+		const phrases = extractMidiVocalPhrases(events )
 		expect(phrases).toHaveLength(0)
 	})
 })
@@ -492,7 +492,7 @@ describe('extractMidiLyrics edge cases', () => {
 			{ deltaTime: 480, type: 'lyrics' as const, text: '+' },
 			{ deltaTime: 480, type: 'lyrics' as const, text: '+' },
 		]
-		const lyrics = extractMidiLyrics(events as any)
+		const lyrics = extractMidiLyrics(events )
 		expect(lyrics).toHaveLength(1)
 	})
 
@@ -502,7 +502,7 @@ describe('extractMidiLyrics edge cases', () => {
 			{ deltaTime: 0, type: 'text' as const, text: 'PART VOCALS' },
 			{ deltaTime: 480, type: 'lyrics' as const, text: 'Hello' },
 		]
-		const lyrics = extractMidiLyrics(events as any)
+		const lyrics = extractMidiLyrics(events )
 		expect(lyrics).toHaveLength(1)
 		expect(lyrics[0].text).toBe('Hello')
 	})
@@ -513,7 +513,7 @@ describe('extractMidiLyrics edge cases', () => {
 			{ deltaTime: 0, type: 'text' as const, text: 'intro' },
 			{ deltaTime: 480, type: 'lyrics' as const, text: 'Hello' },
 		]
-		const lyrics = extractMidiLyrics(events as any)
+		const lyrics = extractMidiLyrics(events )
 		expect(lyrics).toHaveLength(2)
 		expect(lyrics[0].text).toBe('intro')
 	})
@@ -524,7 +524,7 @@ describe('extractMidiLyrics edge cases', () => {
 			{ deltaTime: 0, type: 'lyrics' as const, text: 'PART VOCALS' },
 			{ deltaTime: 480, type: 'lyrics' as const, text: 'Hello' },
 		]
-		const lyrics = extractMidiLyrics(events as any)
+		const lyrics = extractMidiLyrics(events )
 		expect(lyrics).toHaveLength(2)
 	})
 
@@ -534,7 +534,7 @@ describe('extractMidiLyrics edge cases', () => {
 			{ deltaTime: 480, type: 'text' as const, text: 'PART VOCALS' },
 			{ deltaTime: 960, type: 'lyrics' as const, text: 'Hello' },
 		]
-		const lyrics = extractMidiLyrics(events as any)
+		const lyrics = extractMidiLyrics(events )
 		expect(lyrics).toHaveLength(2)
 		expect(lyrics[0].text).toBe('PART VOCALS')
 	})
@@ -544,7 +544,7 @@ describe('extractMidiLyrics edge cases', () => {
 			{ deltaTime: 480, type: 'lyrics' as const, text: '' },
 			{ deltaTime: 960, type: 'lyrics' as const, text: 'hello' },
 		]
-		const lyrics = extractMidiLyrics(events as any)
+		const lyrics = extractMidiLyrics(events )
 		expect(lyrics).toHaveLength(2)
 		expect(lyrics[0].text).toBe('')
 		expect(lyrics[1].text).toBe('hello')
@@ -555,7 +555,7 @@ describe('extractMidiLyrics edge cases', () => {
 			{ deltaTime: 480, type: 'lyrics' as const, text: ' ' },
 			{ deltaTime: 960, type: 'lyrics' as const, text: 'hello' },
 		]
-		const lyrics = extractMidiLyrics(events as any)
+		const lyrics = extractMidiLyrics(events )
 		expect(lyrics).toHaveLength(2)
 		expect(lyrics[0].text).toBe(' ')
 		expect(lyrics[1].text).toBe('hello')
@@ -566,7 +566,7 @@ describe('extractMidiLyrics edge cases', () => {
 			{ deltaTime: 480, type: 'lyrics' as const, text: 'a' },
 			{ deltaTime: 480, type: 'lyrics' as const, text: 'b' },
 		]
-		const lyrics = extractMidiLyrics(events as any)
+		const lyrics = extractMidiLyrics(events )
 		expect(lyrics).toHaveLength(2)
 	})
 
@@ -574,7 +574,7 @@ describe('extractMidiLyrics edge cases', () => {
 		const events = [
 			{ deltaTime: 480, type: 'lyrics' as const, text: 'hello ' },
 		]
-		const lyrics = extractMidiLyrics(events as any)
+		const lyrics = extractMidiLyrics(events )
 		expect(lyrics[0].text).toBe('hello ')
 	})
 
@@ -582,7 +582,7 @@ describe('extractMidiLyrics edge cases', () => {
 		const events = [
 			{ deltaTime: 480, type: 'lyrics' as const, text: ' hey^' },
 		]
-		const lyrics = extractMidiLyrics(events as any)
+		const lyrics = extractMidiLyrics(events )
 		expect(lyrics[0].text).toBe(' hey^')
 	})
 
@@ -590,7 +590,7 @@ describe('extractMidiLyrics edge cases', () => {
 		const events = [
 			{ deltaTime: 480, type: 'lyrics' as const, text: 'hello world' },
 		]
-		const lyrics = extractMidiLyrics(events as any)
+		const lyrics = extractMidiLyrics(events )
 		expect(lyrics[0].text).toBe('hello world')
 	})
 })
@@ -725,7 +725,7 @@ describe('MIDI text encoding: Latin-1 fallback', () => {
 		const vocalsTrack = parsed.tracks[1]
 		const lyricEvent = vocalsTrack.find(e => e.type === 'lyrics')
 		expect(lyricEvent).toBeDefined()
-		expect((lyricEvent as any).text).toBe('ñ')
+		expect((lyricEvent ).text).toBe('ñ')
 	})
 
 	it('decodes valid UTF-8 multibyte text (é = C3 A9)', () => {
@@ -733,7 +733,7 @@ describe('MIDI text encoding: Latin-1 fallback', () => {
 		const parsed = parseMidi(midi)
 		const vocalsTrack = parsed.tracks[1]
 		const lyricEvent = vocalsTrack.find(e => e.type === 'lyrics')
-		expect((lyricEvent as any).text).toBe('té')
+		expect((lyricEvent ).text).toBe('té')
 	})
 
 	it('falls back to Latin-1 for invalid UTF-8 (ó = F3 in Latin-1)', () => {
@@ -744,7 +744,7 @@ describe('MIDI text encoding: Latin-1 fallback', () => {
 		const parsed = parseMidi(midi)
 		const vocalsTrack = parsed.tracks[1]
 		const lyricEvent = vocalsTrack.find(e => e.type === 'lyrics')
-		expect((lyricEvent as any).text).toBe('Só')
+		expect((lyricEvent ).text).toBe('Só')
 	})
 
 	it('falls back to Latin-1 for invalid UTF-8 (é = E9 in Latin-1)', () => {
@@ -753,7 +753,7 @@ describe('MIDI text encoding: Latin-1 fallback', () => {
 		const parsed = parseMidi(midi)
 		const vocalsTrack = parsed.tracks[1]
 		const lyricEvent = vocalsTrack.find(e => e.type === 'lyrics')
-		expect((lyricEvent as any).text).toBe('qué')
+		expect((lyricEvent ).text).toBe('qué')
 	})
 
 	it('falls back to Latin-1 for invalid UTF-8 (ë = EB in Latin-1)', () => {
@@ -762,7 +762,7 @@ describe('MIDI text encoding: Latin-1 fallback', () => {
 		const parsed = parseMidi(midi)
 		const vocalsTrack = parsed.tracks[1]
 		const lyricEvent = vocalsTrack.find(e => e.type === 'lyrics')
-		expect((lyricEvent as any).text).toBe('një')
+		expect((lyricEvent ).text).toBe('një')
 	})
 
 	it('Latin-1 lyrics pass through extractMidiLyrics correctly', () => {
@@ -771,7 +771,7 @@ describe('MIDI text encoding: Latin-1 fallback', () => {
 			{ deltaTime: 0, type: 'trackName' as const, text: 'PART VOCALS' },
 			{ deltaTime: 480, type: 'lyrics' as const, text: 'Só' }, // Latin-1 decoded
 		]
-		const lyrics = extractMidiLyrics(events as any)
+		const lyrics = extractMidiLyrics(events )
 		expect(lyrics).toHaveLength(1)
 		expect(lyrics[0].text).toBe('Só')
 	})
@@ -781,6 +781,6 @@ describe('MIDI text encoding: Latin-1 fallback', () => {
 		const parsed = parseMidi(midi)
 		const vocalsTrack = parsed.tracks[1]
 		const lyricEvent = vocalsTrack.find(e => e.type === 'lyrics')
-		expect((lyricEvent as any).text).toBe('Hello')
+		expect((lyricEvent ).text).toBe('Hello')
 	})
 })
