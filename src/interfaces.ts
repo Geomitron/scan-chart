@@ -213,6 +213,13 @@ export const instruments = [
 	'guitarcoopghl', // GHL (6-fret) Co-op Guitar
 	'rhythmghl', // GHL (6-fret) Rhythm Guitar
 	'bassghl', // GHL (6-fret) Bass Guitar
+	'keysghl', // GHL (6-fret) Keys
+	'proguitar', // Pro Guitar (17-fret)
+	'proguitar22', // Pro Guitar (22-fret)
+	'probass', // Pro Bass (17-fret)
+	'probass22', // Pro Bass (22-fret)
+	'prokeys', // Pro Keys
+	'elitedrums', // Elite Drums
 ] as const
 
 export type InstrumentType = ObjectValues<typeof instrumentTypes>
@@ -220,23 +227,46 @@ export const instrumentTypes = {
 	sixFret: 0,
 	fiveFret: 1,
 	drums: 2,
+	proGuitar: 3,
+	proKeys: 4,
+	eliteDrums: 5,
 } as const
-export function getInstrumentType(instrument: Instrument) {
-	if (instrument === 'drums') {
-		return instrumentTypes.drums
-	} else if (instrument === 'guitarghl' || instrument === 'guitarcoopghl' || instrument === 'rhythmghl' || instrument === 'bassghl') {
-		return instrumentTypes.sixFret
-	} else {
-		return instrumentTypes.fiveFret
+export function getInstrumentType(instrument: Instrument): InstrumentType {
+	switch (instrument) {
+		case 'drums': return instrumentTypes.drums
+		case 'guitarghl':
+		case 'guitarcoopghl':
+		case 'rhythmghl':
+		case 'bassghl':
+		case 'keysghl': return instrumentTypes.sixFret
+		case 'proguitar':
+		case 'proguitar22':
+		case 'probass':
+		case 'probass22': return instrumentTypes.proGuitar
+		case 'prokeys': return instrumentTypes.proKeys
+		case 'elitedrums': return instrumentTypes.eliteDrums
+		default: return instrumentTypes.fiveFret
 	}
 }
 
 export type GameMode = (typeof gameModes)[number]
-export const gameModes = ['fiveFret', 'sixFret', 'drums'] as const
+export const gameModes = ['fiveFret', 'sixFret', 'drums', 'proGuitar', 'proKeys', 'eliteDrums'] as const
 export function getGameMode(instrument: Instrument): GameMode {
-	if (instrument === 'drums') return 'drums'
-	if (instrument === 'guitarghl' || instrument === 'guitarcoopghl' || instrument === 'rhythmghl' || instrument === 'bassghl') return 'sixFret'
-	return 'fiveFret'
+	switch (instrument) {
+		case 'drums': return 'drums'
+		case 'guitarghl':
+		case 'guitarcoopghl':
+		case 'rhythmghl':
+		case 'bassghl':
+		case 'keysghl': return 'sixFret'
+		case 'proguitar':
+		case 'proguitar22':
+		case 'probass':
+		case 'probass22': return 'proGuitar'
+		case 'prokeys': return 'proKeys'
+		case 'elitedrums': return 'eliteDrums'
+		default: return 'fiveFret'
+	}
 }
 
 export type DrumType = ObjectValues<typeof drumTypes>

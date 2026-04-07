@@ -91,6 +91,8 @@ export function parseChartFile(data: Uint8Array, format: 'chart' | 'mid', partia
 				textEvents: setEventMsTimes(track.textEvents, timedTempos, rawChartData.chartTicksPerBeat),
 				versusPhrases: setEventMsTimes(track.versusPhrases, timedTempos, rawChartData.chartTicksPerBeat),
 				animations: setEventMsTimes(track.animations, timedTempos, rawChartData.chartTicksPerBeat),
+				proKeysRangeShifts: setEventMsTimes(track.proKeysRangeShifts, timedTempos, rawChartData.chartTicksPerBeat),
+				rawNotes: setEventMsTimes(track.rawNotes, timedTempos, rawChartData.chartTicksPerBeat),
 				noteEventGroups: _.chain(track.trackEvents)
 					.thru(events => trimSustains(events, iniChartModifiers.sustain_cutoff_threshold, rawChartData.chartTicksPerBeat, format))
 					.groupBy(note => note.tick)
