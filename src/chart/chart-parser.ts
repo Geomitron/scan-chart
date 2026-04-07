@@ -200,6 +200,13 @@ export function parseNotesFromChart(data: Uint8Array): RawChartData {
 					.orderBy('tick') // Most parsers reject charts that aren't already sorted, but it's easier to just sort it here
 					.thru(events => mergeSoloEvents(events))
 					.value()
+
+				// Extract text events: E events not consumed by getEventType (solo, disco flip)
+				const textEvents = extractChartTrackTextEvents(lines)
+
+				// Extract versus phrases: S 0 (player 1), S 1 (player 2)
+				const versusPhrases = extractChartVersusPhrases(lines)
+
 				const result: RawChartData['trackData'][number] = {
 					instrument,
 					difficulty,
@@ -209,6 +216,9 @@ export function parseNotesFromChart(data: Uint8Array): RawChartData {
 					flexLanes: [],
 					drumFreestyleSections: [],
 					trackEvents: [],
+					textEvents,
+					versusPhrases,
+					animations: [], // .chart format does not have note-based animations
 				}
 
 				for (const event of trackEvents) {
@@ -458,5 +468,48 @@ function mergeSoloEvents(events: { tick: number; type: EventType; length: number
 	_.remove(events, event => event.type === eventTypes.soloSectionStart || event.type === eventTypes.soloSectionEnd)
 
 	return events
+}
+
+/** Regex for disco flip mix events consumed by getEventType. */
+const chartDiscoFlipRegex = /^\s*\[?mix[ _][0-3][ _]drums[0-5](d|dnoflip|easy|easynokick|)\]?\s*$/
+
+/**
+ * Extract text events from .chart instrument section lines.
+ * Captures E events that aren't consumed by getEventType (solo, soloend, disco flip)
+ * or by other chart processing logic (ENABLE_CHART_DYNAMICS, ENHANCED_OPENS).
+ */
+function extractChartTrackTextEvents(lines: string[]): { tick: number; text: string }[] {
+	const textEvents: { tick: number; text: string }[] = []
+	for (const line of lines) {
+		const match = /^(\d+) = E ([^\r\n]+?)$/.exec(line)
+		if (!match) continue
+		const text = match[2]
+		// Skip events consumed by getEventType
+		if (text === 'solo' || text === 'soloend') continue
+		if (chartDiscoFlipRegex.test(text)) continue
+		// Skip directives consumed by chart processing (not stored as text events)
+		const stripped = text.replace(/^\[/, '').replace(/\]$/, '').trim()
+		if (stripped === 'ENABLE_CHART_DYNAMICS' || stripped === 'ENHANCED_OPENS') continue
+		textEvents.push({ tick: Number(match[1]), text })
+	}
+	return textEvents
+}
+
+/**
+ * Extract versus phrases from .chart instrument section lines.
+ * S 0 = player 1, S 1 = player 2.
+ */
+function extractChartVersusPhrases(lines: string[]): { tick: number; length: number; isPlayer2: boolean }[] {
+	const phrases: { tick: number; length: number; isPlayer2: boolean }[] = []
+	for (const line of lines) {
+		const match = /^(\d+) = S ([01]) (\d+)$/.exec(line)
+		if (!match) continue
+		phrases.push({
+			tick: Number(match[1]),
+			length: Number(match[3]),
+			isPlayer2: match[2] === '1',
+		})
+	}
+	return phrases
 }
 

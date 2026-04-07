@@ -224,6 +224,11 @@ export function parseNotesFromMidi(data: Uint8Array, iniChartModifiers: IniChart
 					.thru(events => fixFlexLaneLds(events))
 					.value()
 
+				// Extract instrument-wide data (same for all difficulties)
+				const textEvents = extractInstrumentTextEvents(t.trackEvents, instrumentType, t.trackName)
+				const versusPhrases = extractVersusPhrases(t.trackEvents)
+				const animations = extractAnimations(t.trackEvents, instrumentType)
+
 				return difficulties.map(difficulty => {
 					const result: RawChartData['trackData'][number] = {
 						instrument,
@@ -234,6 +239,9 @@ export function parseNotesFromMidi(data: Uint8Array, iniChartModifiers: IniChart
 						flexLanes: [],
 						drumFreestyleSections: [],
 						trackEvents: [],
+						textEvents,
+						versusPhrases,
+						animations,
 					}
 
 					for (const event of trackDifficulties[difficulty]) {
@@ -754,5 +762,83 @@ function fixFlexLaneLds(events: { [key in Difficulty]: MidiTrackEvent[] }) {
 	)
 
 	return events
+}
+
+/** Regex matching disco flip mix events that are consumed by the existing drum parsing logic. */
+const discoFlipRegex = /^\s*\[?mix[ _][0-3][ _]drums[0-5](d|dnoflip|easy|easynokick|)\]?\s*$/
+
+/**
+ * Extract text events from a MIDI instrument track that aren't already consumed
+ * by other parsing logic (disco flip, ENHANCED_OPENS, ENABLE_CHART_DYNAMICS).
+ * Also filters tick-0 text events that duplicate the track name.
+ */
+function extractInstrumentTextEvents(events: MidiEvent[], instrumentType: InstrumentType, trackName: string): { tick: number; text: string }[] {
+	const textEvents: { tick: number; text: string }[] = []
+	for (const event of events) {
+		if (event.type !== 'text') continue
+		const text = (event as MidiTextEvent).text
+		if (text === 'ENHANCED_OPENS' || text === '[ENHANCED_OPENS]') continue
+		if (text === 'ENABLE_CHART_DYNAMICS' || text === '[ENABLE_CHART_DYNAMICS]') continue
+		if (instrumentType === instrumentTypes.drums && discoFlipRegex.test(text)) continue
+		// Skip tick-0 text events that duplicate the track name (same as vocal lyric filter)
+		if (event.deltaTime === 0 && text === trackName) continue
+		textEvents.push({ tick: event.deltaTime, text })
+	}
+	return textEvents
+}
+
+/**
+ * Extract note-on/note-off pairs from a MIDI track for the given note number filter.
+ * Handles velocity-0 noteOn as noteOff, duplicate noteOn skip.
+ * Events must already be in absolute time.
+ */
+function extractMidiInstrumentNotePairs(
+	events: MidiEvent[],
+	noteFilter: (noteNumber: number) => boolean,
+): { tick: number; length: number; noteNumber: number }[] {
+	const starts = new Map<number, number>()
+	const results: { tick: number; length: number; noteNumber: number }[] = []
+
+	for (const event of events) {
+		if (event.type !== 'noteOn' && event.type !== 'noteOff') continue
+		const noteNumber = (event as { noteNumber: number }).noteNumber
+		if (noteNumber === undefined || !noteFilter(noteNumber)) continue
+
+		const isOff = event.type === 'noteOff' || (event.type === 'noteOn' && (event as { velocity: number }).velocity === 0)
+		if (!isOff) {
+			if (!starts.has(noteNumber)) {
+				starts.set(noteNumber, event.deltaTime)
+			}
+		} else {
+			const startTick = starts.get(noteNumber)
+			if (startTick !== undefined) {
+				results.push({ tick: startTick, length: event.deltaTime - startTick, noteNumber })
+				starts.delete(noteNumber)
+			}
+		}
+	}
+
+	results.sort((a, b) => a.tick - b.tick)
+	return results
+}
+
+/**
+ * Extract versus phrase markers (notes 105/106) from a MIDI instrument track.
+ */
+function extractVersusPhrases(events: MidiEvent[]): { tick: number; length: number; isPlayer2: boolean }[] {
+	return extractMidiInstrumentNotePairs(events, n => n === 105 || n === 106)
+		.map(p => ({ tick: p.tick, length: p.length, isPlayer2: p.noteNumber === 106 }))
+}
+
+/**
+ * Extract animation note events from a MIDI instrument track.
+ * Guitar/bass/keys: left hand positions (notes 40-59)
+ * Drums: pad animations (notes 24-51)
+ */
+function extractAnimations(events: MidiEvent[], instrumentType: InstrumentType): { tick: number; length: number; noteNumber: number }[] {
+	if (instrumentType === instrumentTypes.drums) {
+		return extractMidiInstrumentNotePairs(events, n => n >= 24 && n <= 51)
+	}
+	return extractMidiInstrumentNotePairs(events, n => n >= 40 && n <= 59)
 }
 
