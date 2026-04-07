@@ -176,6 +176,7 @@ export function parseNotesFromChart(data: Uint8Array): RawChartData {
 		endEvents: eventsScan.endEvents,
 		unrecognizedEvents: eventsScan.unrecognizedEvents,
 		parseIssues: [],
+		venue: [], // VENUE is MIDI-only
 		trackData: _.chain(fileSections)
 			.pick(_.keys(trackNameMap))
 			.toPairs()

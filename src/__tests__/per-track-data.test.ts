@@ -1616,3 +1616,59 @@ describe('Pro Keys glissando', () => {
 	})
 })
 
+// ---------------------------------------------------------------------------
+// VENUE track
+// ---------------------------------------------------------------------------
+
+describe('VENUE track parsing', () => {
+	it('extracts note-based venue events', () => {
+		const venue: MidiData['tracks'][number] = [
+			{ deltaTime: 0, type: 'trackName', text: 'VENUE' },
+			{ deltaTime: 480, type: 'noteOn', channel: 0, noteNumber: 48, velocity: 100 },  // lighting: next
+			{ deltaTime: 0, type: 'noteOn', channel: 0, noteNumber: 103, velocity: 100 },   // postProcessing: bloom
+			{ deltaTime: 0, type: 'noteOn', channel: 0, noteNumber: 39, velocity: 100 },    // spotlight: guitar
+			{ deltaTime: 0, type: 'noteOn', channel: 0, noteNumber: 60, velocity: 100 },    // cameraCut: random
+			{ deltaTime: 0, type: 'noteOn', channel: 0, noteNumber: 70, velocity: 100 },    // constraint: no_behind
+			{ deltaTime: 0, type: 'noteOn', channel: 0, noteNumber: 86, velocity: 100 },    // singalong: drums
+			{ deltaTime: 0, type: 'endOfTrack' },
+		]
+
+		const midi = buildMidi(480, [tempoTrack(), eventsTrack(), venue])
+		const result = parseNotesFromMidi(midi, defaultIniChartModifiers)
+		expect(result.venue).toHaveLength(6)
+		expect(result.venue).toContainEqual({ tick: 480, type: 'lighting', name: 'next' })
+		expect(result.venue).toContainEqual({ tick: 480, type: 'postProcessing', name: 'bloom' })
+		expect(result.venue).toContainEqual({ tick: 480, type: 'spotlight', name: 'guitar' })
+		expect(result.venue).toContainEqual({ tick: 480, type: 'cameraCut', name: 'random' })
+		expect(result.venue).toContainEqual({ tick: 480, type: 'cameraCutConstraint', name: 'no_behind' })
+		expect(result.venue).toContainEqual({ tick: 480, type: 'singalong', name: 'drums' })
+	})
+
+	it('extracts text-based venue events', () => {
+		const venue: MidiData['tracks'][number] = [
+			{ deltaTime: 0, type: 'trackName', text: 'VENUE' },
+			{ deltaTime: 480, type: 'text', text: '[lighting (verse)]' },
+			{ deltaTime: 480, type: 'text', text: '[bloom.pp]' },
+			{ deltaTime: 480, type: 'text', text: '[directed_guitar]' },
+			{ deltaTime: 0, type: 'text', text: '[coop_v_closeup]' },
+			{ deltaTime: 480, type: 'text', text: '[FogOn]' },
+			{ deltaTime: 0, type: 'endOfTrack' },
+		]
+
+		const midi = buildMidi(480, [tempoTrack(), eventsTrack(), venue])
+		const result = parseNotesFromMidi(midi, defaultIniChartModifiers)
+		expect(result.venue).toEqual([
+			{ tick: 480, type: 'lighting', name: 'verse' },
+			{ tick: 960, type: 'postProcessing', name: 'bloom' },
+			{ tick: 1440, type: 'cameraCut', name: 'directed_guitar' },
+			{ tick: 1440, type: 'cameraCut', name: 'v_closeup' },
+			{ tick: 1920, type: 'stageEffect', name: 'fog_on' },
+		])
+	})
+
+	it('returns empty array when no VENUE track', () => {
+		const midi = buildMidi(480, [tempoTrack(), eventsTrack()])
+		const result = parseNotesFromMidi(midi, defaultIniChartModifiers)
+		expect(result.venue).toEqual([])
+	})
+})

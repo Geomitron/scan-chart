@@ -91,6 +91,8 @@ export interface RawChartData {
 	 * away, malformed events that get dropped).
 	 */
 	parseIssues: Omit<NotesData['chartIssues'][number], 'description'>[]
+	/** VENUE track events: lighting, camera, post-processing, spotlights, singalongs, stage effects. */
+	venue: VenueEvent[]
 	trackData: {
 		instrument: Instrument
 		difficulty: Difficulty
@@ -254,6 +256,14 @@ export interface VocalTrackData {
 		tick: number
 		length: number
 	}[]
+}
+
+export type VenueEventType = 'lighting' | 'postProcessing' | 'cameraCut' | 'cameraCutConstraint' | 'spotlight' | 'singalong' | 'stageEffect'
+export interface VenueEvent {
+	tick: number
+	type: VenueEventType
+	/** Semantic name of the event (e.g. 'verse', 'bloom', 'directed_guitar', 'bass') */
+	name: string
 }
 
 export type EventType = ObjectValues<typeof eventTypes>
