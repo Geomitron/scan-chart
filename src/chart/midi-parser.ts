@@ -3,6 +3,7 @@ import { MidiData, MidiEvent, MidiSetTempoEvent, MidiTextEvent, MidiTimeSignatur
 
 import { difficulties, Difficulty, getInstrumentType, Instrument, InstrumentType, instrumentTypes } from 'src/interfaces'
 import { EventType, eventTypes, IniChartModifiers, RawChartData } from './note-parsing-interfaces'
+import { extractMidiLyrics, extractMidiVocalPhrases } from './lyric-parser'
 
 type TrackName = (typeof trackNames)[number]
 type InstrumentTrackName = Exclude<TrackName, 'PART VOCALS' | 'EVENTS'>
@@ -102,6 +103,8 @@ export function parseNotesFromMidi(data: Uint8Array, iniChartModifiers: IniChart
 		metadata: {}, // .mid does not have a mechanism for storing song metadata
 		hasLyrics: !!vocalsTrack?.trackEvents.find(e => e.type === 'lyrics' || e.type === 'text'),
 		hasVocals: !!vocalsTrack?.trackEvents.find(e => e.type === 'noteOn' && e.noteNumber <= 84 && e.noteNumber >= 36),
+		lyrics: extractMidiLyrics(vocalsTrack?.trackEvents ?? []),
+		vocalPhrases: extractMidiVocalPhrases(vocalsTrack?.trackEvents ?? []),
 		tempos: _.chain(midiFile.tracks[0])
 			.filter((e): e is MidiSetTempoEvent => e.type === 'setTempo')
 			.map(e => ({
@@ -702,3 +705,4 @@ function fixFlexLaneLds(events: { [key in Difficulty]: MidiTrackEvent[] }) {
 
 	return events
 }
+
