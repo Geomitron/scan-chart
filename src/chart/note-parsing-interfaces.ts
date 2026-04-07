@@ -46,23 +46,16 @@ export interface RawChartData {
 		delay?: number
 		preview_start_time?: number
 	}
-	hasLyrics: boolean
-	hasVocals: boolean
-	/** Lyric events from MIDI PART VOCALS (FF 05 lyrics) or .chart [Events] "lyric" E events. */
-	lyrics: {
-		tick: number
-		/** Length in ticks. Generally 0 for instantaneous lyric events. */
-		length: number
-		text: string
-	}[]
-	/** Vocal phrase boundaries from MIDI notes 105/106 on PART VOCALS, or .chart phrase_start/phrase_end. */
-	vocalPhrases: {
-		tick: number
-		/** Length in ticks. */
-		length: number
-		/** MIDI note number (105 or 106). Only present for MIDI-sourced phrases. */
-		noteNumber?: number
-	}[]
+	/**
+	 * Vocal track data keyed by part name.
+	 * 'vocals' = PART VOCALS / .chart [Events]
+	 * 'harmony1' = HARM1 / PART HARM1
+	 * 'harmony2' = HARM2 / PART HARM2
+	 * 'harmony3' = HARM3 / PART HARM3
+	 */
+	vocalTracks: {
+		[part: string]: VocalTrackData
+	}
 	tempos: {
 		tick: number
 		/** double, rounded to 12 decimal places */
@@ -123,6 +116,19 @@ export interface RawChartData {
 			length: number
 			type: EventType
 		}[]
+	}[]
+}
+
+export interface VocalTrackData {
+	lyrics: {
+		tick: number
+		length: number
+		text: string
+	}[]
+	vocalPhrases: {
+		tick: number
+		length: number
+		noteNumber?: number
 	}[]
 }
 
