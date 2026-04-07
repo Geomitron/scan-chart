@@ -219,14 +219,18 @@ export function parseNotesFromChart(data: Uint8Array): RawChartData {
 					starPowerSections: [],
 					rejectedStarPowerSections: [],
 					soloSections: [],
+					glissandoSections: [],
 					flexLanes: [],
 					drumFreestyleSections: [],
 					trackEvents: [],
 					textEvents,
+					handMaps: [],     // HandMap/StrumMap/CharacterState are rare in .chart
+					strumMaps: [],
+					characterStates: [],
 					versusPhrases,
-					animations: [], // .chart format does not have note-based animations
-					proKeysRangeShifts: [], // Pro instruments are MIDI-only
-					rawNotes: [], // Pro instruments are MIDI-only
+					animations: [],
+					proKeysRangeShifts: [],
+					rawNotes: [],
 				}
 
 				for (const event of trackEvents) {
@@ -530,7 +534,8 @@ const chartPhraseRegex = /^(\d+) = E "(?:phrase_start|phrase_end)"$/
 
 /**
  * Extract global text events from .chart [Events] section, excluding events
- * already extracted into sections, endEvents, vocalTracks (lyrics, phrases), and coda.
+ * already extracted into sections, endEvents, and vocalTracks (lyrics, phrases).
+ * Coda events are included (consumers use them for gameplay and venue).
  */
 function extractChartGlobalEvents(eventLines: string[]): { tick: number; text: string }[] {
 	const globalEvents: { tick: number; text: string }[] = []
@@ -541,7 +546,6 @@ function extractChartGlobalEvents(eventLines: string[]): { tick: number; text: s
 		const text = match[2]
 		if (chartSectionRegex.test(line)) continue
 		if (chartEndRegex.test(line)) continue
-		if (chartCodaRegex.test(line)) continue
 		if (chartLyricRegex.test(line)) continue
 		if (chartPhraseRegex.test(line)) continue
 		globalEvents.push({ tick, text })

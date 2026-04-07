@@ -764,7 +764,7 @@ describe('MIDI: global events', () => {
 		])
 	})
 
-	it('excludes end events, coda, lyrics, and phrase markers from globalEvents', () => {
+	it('excludes end events, lyrics, and phrase markers from globalEvents (keeps coda)', () => {
 		const events: MidiData['tracks'][number] = [
 			{ deltaTime: 0, type: 'trackName', text: 'EVENTS' },
 			{ deltaTime: 480, type: 'text', text: '[end]' },
@@ -776,6 +776,7 @@ describe('MIDI: global events', () => {
 		const midi = buildMidi(480, [tempoTrack(), events])
 		const result = parseNotesFromMidi(midi, defaultIniChartModifiers)
 		expect(result.globalEvents).toEqual([
+			{ tick: 480, text: '[coda]' },
 			{ tick: 960, text: '[crowd_clap]' },
 		])
 	})
@@ -879,7 +880,7 @@ describe('.chart: global events', () => {
 		])
 	})
 
-	it('excludes end events, coda, lyrics, and phrase markers', () => {
+	it('excludes end events, lyrics, and phrase markers (keeps coda)', () => {
 		const chart = buildChart({
 			Song: ['Resolution = 192'],
 			SyncTrack: ['0 = B 120000', '0 = TS 4'],
@@ -895,6 +896,7 @@ describe('.chart: global events', () => {
 
 		const result = parseNotesFromChart(chart)
 		expect(result.globalEvents).toEqual([
+			{ tick: 0, text: 'coda' },
 			{ tick: 768, text: 'crowd_clap' },
 		])
 	})
@@ -1305,3 +1307,339 @@ describe('.chart: GHL Keys', () => {
 		expect(track.trackEvents.length).toBeGreaterThan(0)
 	})
 })
+
+// ---------------------------------------------------------------------------
+// Semantic labels on rawNotes
+// ---------------------------------------------------------------------------
+
+describe('rawNotes semantic labels', () => {
+	it('adds string/fret/noteModifier for Pro Guitar', () => {
+		const midi = buildMidi(480, [
+			tempoTrack(),
+			eventsTrack(),
+			instrumentTrack('PART REAL_GUITAR', {
+				notes: [
+					{ tick: 480, noteNumber: 98, length: 120, velocity: 107 }, // expert, string 2 (D), fret 7
+				],
+			}),
+		])
+
+		const parsed = parseChartFile(midi, 'mid')
+		const track = parsed.trackData.find(t => t.instrument === 'proguitar' && t.difficulty === 'expert')!
+		expect(track.rawNotes[0]).toMatchObject({ string: 2, fret: 7, noteModifier: 'normal' })
+	})
+
+	it('maps MIDI channel to pro guitar note modifier', () => {
+		// Build MIDI with channel 3 (muted)
+		const track: MidiData['tracks'][number] = [
+			{ deltaTime: 0, type: 'trackName', text: 'PART REAL_GUITAR' },
+			{ deltaTime: 0, type: 'noteOn', channel: 3, noteNumber: 96, velocity: 103 },
+			{ deltaTime: 120, type: 'noteOff', channel: 3, noteNumber: 96, velocity: 0 },
+			{ deltaTime: 0, type: 'endOfTrack' },
+		]
+
+		const midi = buildMidi(480, [tempoTrack(), eventsTrack(), track])
+		const parsed = parseChartFile(midi, 'mid')
+		const gtr = parsed.trackData.find(t => t.instrument === 'proguitar' && t.difficulty === 'expert')!
+		expect(gtr.rawNotes[0]).toMatchObject({ string: 0, fret: 3, noteModifier: 'muted' })
+	})
+
+	it('adds key index for Pro Keys', () => {
+		const midi = buildMidi(480, [
+			tempoTrack(),
+			eventsTrack(),
+			instrumentTrack('PART REAL_KEYS_X', {
+				notes: [{ tick: 480, noteNumber: 60, length: 120 }], // C2 = key 12
+			}),
+		])
+
+		const parsed = parseChartFile(midi, 'mid')
+		const track = parsed.trackData.find(t => t.instrument === 'prokeys' && t.difficulty === 'expert')!
+		expect(track.rawNotes[0]).toMatchObject({ key: 12 })
+	})
+
+	it('adds pad name for Elite Drums', () => {
+		const midi = buildMidi(480, [
+			tempoTrack(),
+			eventsTrack(),
+			instrumentTrack('PART ELITE_DRUMS', {
+				notes: [
+					{ tick: 480, noteNumber: 74, length: 0 },  // expert kick (base=74, offset 0)
+					{ tick: 480, noteNumber: 72, length: 0 },  // expert hatPedal (base=74, offset -2)
+					{ tick: 480, noteNumber: 75, length: 0 },  // expert snare (offset 1)
+				],
+			}),
+		])
+
+		const parsed = parseChartFile(midi, 'mid')
+		const track = parsed.trackData.find(t => t.instrument === 'elitedrums' && t.difficulty === 'expert')!
+		expect(track.rawNotes[0]).toMatchObject({ pad: 'hatPedal' })
+		expect(track.rawNotes[1]).toMatchObject({ pad: 'kick' })
+		expect(track.rawNotes[2]).toMatchObject({ pad: 'snare' })
+	})
+})
+
+// ---------------------------------------------------------------------------
+// Pro instrument sustain trimming and fret capping
+// ---------------------------------------------------------------------------
+
+describe('Pro instrument sustain trimming', () => {
+	it('trims short sustains to 0 on Pro Keys (length < resolution/3)', () => {
+		// resolution=480 → threshold=160 → notes with length < 160 are trimmed
+		const midi = buildMidi(480, [
+			tempoTrack(),
+			eventsTrack(),
+			instrumentTrack('PART REAL_KEYS_X', {
+				notes: [
+					{ tick: 480, noteNumber: 60, length: 60 },   // 60 < 160 → trimmed to 0
+					{ tick: 960, noteNumber: 60, length: 120 },  // 120 < 160 → trimmed to 0
+				],
+			}),
+		])
+
+		const parsed = parseChartFile(midi, 'mid')
+		const track = parsed.trackData.find(t => t.instrument === 'prokeys' && t.difficulty === 'expert')!
+		expect(track.rawNotes[0].length).toBe(0)
+		expect(track.rawNotes[1].length).toBe(0)
+	})
+
+	it('preserves sustains at exactly resolution/3 on Pro instruments', () => {
+		// resolution=480 → threshold=160 → length 160 is NOT trimmed (strict <)
+		const midi = buildMidi(480, [
+			tempoTrack(),
+			eventsTrack(),
+			instrumentTrack('PART REAL_KEYS_X', {
+				notes: [{ tick: 480, noteNumber: 60, length: 160 }], // 160 is NOT < 160 → kept
+			}),
+		])
+
+		const parsed = parseChartFile(midi, 'mid')
+		const track = parsed.trackData.find(t => t.instrument === 'prokeys' && t.difficulty === 'expert')!
+		expect(track.rawNotes[0].length).toBe(160)
+	})
+
+	it('trims short sustains on Pro Guitar', () => {
+		const midi = buildMidi(480, [
+			tempoTrack(),
+			eventsTrack(),
+			instrumentTrack('PART REAL_GUITAR', {
+				notes: [
+					{ tick: 480, noteNumber: 96, length: 100, velocity: 105 }, // 100 < 160 → trimmed
+					{ tick: 960, noteNumber: 96, length: 200, velocity: 105 }, // 200 > 160 → kept
+				],
+			}),
+		])
+
+		const parsed = parseChartFile(midi, 'mid')
+		const track = parsed.trackData.find(t => t.instrument === 'proguitar' && t.difficulty === 'expert')!
+		expect(track.rawNotes[0].length).toBe(0)
+		expect(track.rawNotes[1].length).toBe(200)
+	})
+})
+
+describe('Pro Guitar fret capping', () => {
+	it('caps 17-fret guitar at fret 17', () => {
+		const midi = buildMidi(480, [
+			tempoTrack(),
+			eventsTrack(),
+			instrumentTrack('PART REAL_GUITAR', {
+				notes: [
+					{ tick: 480, noteNumber: 96, length: 0, velocity: 120 }, // fret = 120-100 = 20, capped to 17
+				],
+			}),
+		])
+
+		const parsed = parseChartFile(midi, 'mid')
+		const track = parsed.trackData.find(t => t.instrument === 'proguitar' && t.difficulty === 'expert')!
+		expect(track.rawNotes[0].fret).toBe(17)
+	})
+
+	it('caps 22-fret guitar at fret 22', () => {
+		const midi = buildMidi(480, [
+			tempoTrack(),
+			eventsTrack(),
+			instrumentTrack('PART REAL_GUITAR_22', {
+				notes: [
+					{ tick: 480, noteNumber: 96, length: 0, velocity: 123 }, // fret = 23, capped to 22
+				],
+			}),
+		])
+
+		const parsed = parseChartFile(midi, 'mid')
+		const track = parsed.trackData.find(t => t.instrument === 'proguitar22' && t.difficulty === 'expert')!
+		expect(track.rawNotes[0].fret).toBe(22)
+	})
+
+	it('does not cap frets within valid range', () => {
+		const midi = buildMidi(480, [
+			tempoTrack(),
+			eventsTrack(),
+			instrumentTrack('PART REAL_GUITAR_22', {
+				notes: [
+					{ tick: 480, noteNumber: 96, length: 0, velocity: 100 }, // fret 0 (open)
+					{ tick: 960, noteNumber: 96, length: 0, velocity: 112 }, // fret 12
+					{ tick: 1440, noteNumber: 96, length: 0, velocity: 122 }, // fret 22
+				],
+			}),
+		])
+
+		const parsed = parseChartFile(midi, 'mid')
+		const track = parsed.trackData.find(t => t.instrument === 'proguitar22' && t.difficulty === 'expert')!
+		expect(track.rawNotes[0].fret).toBe(0)
+		expect(track.rawNotes[1].fret).toBe(12)
+		expect(track.rawNotes[2].fret).toBe(22)
+	})
+})
+
+// ---------------------------------------------------------------------------
+// Animation naming
+// ---------------------------------------------------------------------------
+
+describe('animation semantic names', () => {
+	it('names guitar animations as left hand positions', () => {
+		const midi = buildMidi(480, [
+			tempoTrack(),
+			eventsTrack(),
+			instrumentTrack('PART GUITAR', {
+				notes: [
+					{ tick: 480, noteNumber: 96, length: 120 },
+					{ tick: 480, noteNumber: 45, length: 120 },
+				],
+			}),
+		])
+
+		const parsed = parseChartFile(midi, 'mid')
+		const track = parsed.trackData.find(t => t.instrument === 'guitar' && t.difficulty === 'expert')!
+		expect(track.animations[0]).toMatchObject({ noteNumber: 45, name: 'leftHandPosition6' })
+	})
+
+	it('names drum animations', () => {
+		const midi = buildMidi(480, [
+			tempoTrack(),
+			eventsTrack(),
+			instrumentTrack('PART DRUMS', {
+				notes: [
+					{ tick: 480, noteNumber: 97, length: 120 },
+					{ tick: 480, noteNumber: 24, length: 120 },
+					{ tick: 480, noteNumber: 27, length: 120 },
+				],
+			}),
+		])
+
+		const parsed = parseChartFile(midi, 'mid')
+		const track = parsed.trackData.find(t => t.instrument === 'drums' && t.difficulty === 'expert')!
+		expect(track.animations[0]).toMatchObject({ noteNumber: 24, name: 'kick' })
+		expect(track.animations[1]).toMatchObject({ noteNumber: 27, name: 'snareRHHard' })
+	})
+})
+
+// ---------------------------------------------------------------------------
+// HandMap, StrumMap, CharacterState
+// ---------------------------------------------------------------------------
+
+describe('HandMap, StrumMap, CharacterState parsing', () => {
+	it('parses HandMap from text events', () => {
+		const midi = buildMidi(480, [
+			tempoTrack(),
+			eventsTrack(),
+			instrumentTrack('PART GUITAR', {
+				notes: [{ tick: 480, noteNumber: 96, length: 120 }],
+				textEvents: [
+					{ tick: 0, text: '[map HandMap_Default]' },
+					{ tick: 480, text: '[map HandMap_Solo]' },
+				],
+			}),
+		])
+
+		const result = parseNotesFromMidi(midi, defaultIniChartModifiers)
+		const track = getTrack(result, 'guitar')!
+		expect(track.handMaps).toEqual([
+			{ tick: 0, type: 'default' },
+			{ tick: 480, type: 'solo' },
+		])
+	})
+
+	it('parses StrumMap from text events', () => {
+		const midi = buildMidi(480, [
+			tempoTrack(),
+			eventsTrack(),
+			instrumentTrack('PART BASS', {
+				notes: [{ tick: 480, noteNumber: 96, length: 120 }],
+				textEvents: [{ tick: 0, text: '[map StrumMap_SlapBass]' }],
+			}),
+		])
+
+		const result = parseNotesFromMidi(midi, defaultIniChartModifiers)
+		const track = getTrack(result, 'bass')!
+		expect(track.strumMaps).toEqual([{ tick: 0, type: 'slapBass' }])
+	})
+
+	it('parses CharacterState from text events', () => {
+		const midi = buildMidi(480, [
+			tempoTrack(),
+			eventsTrack(),
+			instrumentTrack('PART GUITAR', {
+				notes: [{ tick: 480, noteNumber: 96, length: 120 }],
+				textEvents: [
+					{ tick: 0, text: '[idle]' },
+					{ tick: 480, text: '[play]' },
+					{ tick: 960, text: '[intense]' },
+				],
+			}),
+		])
+
+		const result = parseNotesFromMidi(midi, defaultIniChartModifiers)
+		const track = getTrack(result, 'guitar')!
+		expect(track.characterStates).toEqual([
+			{ tick: 0, type: 'idle' },
+			{ tick: 480, type: 'play' },
+			{ tick: 960, type: 'intense' },
+		])
+	})
+})
+
+// ---------------------------------------------------------------------------
+// Pro Keys glissando
+// ---------------------------------------------------------------------------
+
+describe('Pro Keys glissando', () => {
+	it('extracts note 126 as glissando on Pro Keys (not flexLane)', () => {
+		const midi = buildMidi(480, [
+			tempoTrack(),
+			eventsTrack(),
+			instrumentTrack('PART REAL_KEYS_X', {
+				notes: [
+					{ tick: 480, noteNumber: 116, length: 1920 }, // star power (so track is included)
+					{ tick: 480, noteNumber: 126, length: 960 },  // glissando on pro keys
+					{ tick: 480, noteNumber: 127, length: 960 },  // trill (flexLaneDouble)
+				],
+			}),
+		])
+
+		const result = parseNotesFromMidi(midi, defaultIniChartModifiers)
+		const track = getTrack(result, 'prokeys', 'expert')!
+		expect(track.glissandoSections).toHaveLength(1)
+		expect(track.glissandoSections[0]).toMatchObject({ tick: 480, length: 960 })
+		// Note 127 should be a flex lane (trill)
+		expect(track.flexLanes).toHaveLength(1)
+	})
+
+	it('keeps note 126 as flexLane on standard guitar', () => {
+		const midi = buildMidi(480, [
+			tempoTrack(),
+			eventsTrack(),
+			instrumentTrack('PART GUITAR', {
+				notes: [
+					{ tick: 480, noteNumber: 96, length: 120 },
+					{ tick: 480, noteNumber: 126, length: 960 },
+				],
+			}),
+		])
+
+		const result = parseNotesFromMidi(midi, defaultIniChartModifiers)
+		const track = getTrack(result, 'guitar')!
+		expect(track.flexLanes).toHaveLength(1)
+		expect(track.glissandoSections).toHaveLength(0)
+	})
+})
+
