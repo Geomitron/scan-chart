@@ -57,6 +57,11 @@ export function parseChartFile(data: Uint8Array, format: 'chart' | 'mid', partia
 			Object.entries(rawChartData.vocalTracks).map(([part, data]) => [part, {
 				lyrics: setEventMsTimes(data.lyrics, timedTempos, rawChartData.chartTicksPerBeat),
 				vocalPhrases: setEventMsTimes(data.vocalPhrases, timedTempos, rawChartData.chartTicksPerBeat),
+				notes: setEventMsTimes(data.notes, timedTempos, rawChartData.chartTicksPerBeat),
+				starPowerSections: setEventMsTimes(data.starPowerSections, timedTempos, rawChartData.chartTicksPerBeat),
+				rangeShifts: setEventMsTimes(data.rangeShifts, timedTempos, rawChartData.chartTicksPerBeat),
+				lyricShifts: setEventMsTimes(data.lyricShifts, timedTempos, rawChartData.chartTicksPerBeat),
+				staticLyricPhrases: setEventMsTimes(data.staticLyricPhrases, timedTempos, rawChartData.chartTicksPerBeat),
 			}]),
 		),
 		endEvents: setEventMsTimes(rawChartData.endEvents, timedTempos, rawChartData.chartTicksPerBeat),

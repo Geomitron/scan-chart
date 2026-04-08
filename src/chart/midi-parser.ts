@@ -3,7 +3,7 @@ import { MidiData, MidiEvent, MidiSetTempoEvent, MidiTextEvent, MidiTimeSignatur
 
 import { difficulties, Difficulty, getInstrumentType, Instrument, InstrumentType, instrumentTypes } from 'src/interfaces'
 import { EventType, eventTypes, IniChartModifiers, RawChartData, VocalTrackData } from './note-parsing-interfaces'
-import { extractMidiLyrics, extractMidiVocalPhrases } from './lyric-parser'
+import { extractMidiLyrics, extractMidiVocalPhrases, extractMidiVocalNotes, extractMidiVocalStarPower, extractMidiRangeShifts, extractMidiLyricShifts } from './lyric-parser'
 
 type TrackName = (typeof trackNames)[number]
 type VocalTrackName = 'PART VOCALS' | 'HARM1' | 'HARM2' | 'HARM3' | 'PART HARM1' | 'PART HARM2' | 'PART HARM3'
@@ -117,20 +117,31 @@ export function parseNotesFromMidi(data: Uint8Array, iniChartModifiers: IniChart
 			vocalTracks[partName] = {
 				lyrics: extractMidiLyrics(events),
 				vocalPhrases: extractMidiVocalPhrases(events),
+				notes: extractMidiVocalNotes(events),
+				starPowerSections: extractMidiVocalStarPower(events),
+				rangeShifts: extractMidiRangeShifts(events),
+				lyricShifts: extractMidiLyricShifts(events),
+				staticLyricPhrases: [],
 			}
 		}
 	}
 
-	// YARG CopyDownPhrases: HARM2/HARM3 scoring phrases come from HARM1, not their own track.
-	// HARM2 keeps its own StaticLyricPhrase (not modeled here yet), replaces scoring phrases with HARM1's.
-	// HARM3 does the same.
+	// YARG CopyDownPhrases: HARM2/HARM3 get scoring phrases AND star power from HARM1.
+	// HARM2 keeps its own note-105 phrases as staticLyricPhrases (for lyric display),
+	// then replaces vocalPhrases (scoring) and starPowerSections with HARM1's.
+	// HARM3 clones HARM2's staticLyricPhrases and also gets HARM1's scoring/starpower.
 	if (vocalTracks.harmony1) {
 		const harm1Phrases = vocalTracks.harmony1.vocalPhrases
+		const harm1StarPower = vocalTracks.harmony1.starPowerSections
 		if (vocalTracks.harmony2) {
+			vocalTracks.harmony2.staticLyricPhrases = vocalTracks.harmony2.vocalPhrases.map(p => ({ tick: p.tick, length: p.length }))
 			vocalTracks.harmony2.vocalPhrases = harm1Phrases.map(p => ({ ...p }))
+			vocalTracks.harmony2.starPowerSections = harm1StarPower.map(p => ({ ...p }))
 		}
 		if (vocalTracks.harmony3) {
+			vocalTracks.harmony3.staticLyricPhrases = (vocalTracks.harmony2?.staticLyricPhrases ?? []).map(p => ({ ...p }))
 			vocalTracks.harmony3.vocalPhrases = harm1Phrases.map(p => ({ ...p }))
+			vocalTracks.harmony3.starPowerSections = harm1StarPower.map(p => ({ ...p }))
 		}
 	}
 
