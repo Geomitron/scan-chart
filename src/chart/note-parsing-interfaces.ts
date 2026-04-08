@@ -48,6 +48,21 @@ export interface RawChartData {
 	}
 	hasLyrics: boolean
 	hasVocals: boolean
+	/** Lyric events from MIDI PART VOCALS (FF 05 lyrics) or .chart [Events] "lyric" E events. */
+	lyrics: {
+		tick: number
+		/** Length in ticks. Generally 0 for instantaneous lyric events. */
+		length: number
+		text: string
+	}[]
+	/** Vocal phrase boundaries from MIDI notes 105/106 on PART VOCALS, or .chart phrase_start/phrase_end. */
+	vocalPhrases: {
+		tick: number
+		/** Length in ticks. */
+		length: number
+		/** MIDI note number (105 or 106). Only present for MIDI-sourced phrases. */
+		noteNumber?: number
+	}[]
 	tempos: {
 		tick: number
 		/** double, rounded to 12 decimal places */
