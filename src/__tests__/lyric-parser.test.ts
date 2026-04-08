@@ -6,6 +6,7 @@ import {
 	extractChartLyrics,
 	extractChartVocalPhrases,
 	isMidiVocalLyric,
+	isBracketedControlEvent,
 	normalizeLyricText,
 	extractMidiLyricText,
 	extractMidiLyrics,
@@ -143,30 +144,35 @@ describe('extractChartLyrics', () => {
 		expect(extractChartLyrics(lines)).toHaveLength(0)
 	})
 
-	it('filters bracketed annotations from lyrics', () => {
+	it('keeps lyrics with brackets (they are real lyric content)', () => {
 		const lines = [
 			'480 = E "lyric Hello"',
 			'960 = E "lyric [Everyone liked that]"',
 			'1440 = E "lyric World"',
 		]
 		const lyrics = extractChartLyrics(lines)
-		expect(lyrics).toHaveLength(2)
+		expect(lyrics).toHaveLength(3)
 		expect(lyrics[0].text).toBe('Hello')
-		expect(lyrics[1].text).toBe('World')
+		expect(lyrics[1].text).toBe('[Everyone liked that]')
+		expect(lyrics[2].text).toBe('World')
 	})
 
-	it('filters lyrics with brackets mid-text', () => {
+	it('keeps lyrics with brackets mid-text', () => {
 		const lines = [
 			'480 = E "lyric [screams for eight seconds]"',
 		]
-		expect(extractChartLyrics(lines)).toHaveLength(0)
+		const lyrics = extractChartLyrics(lines)
+		expect(lyrics).toHaveLength(1)
+		expect(lyrics[0].text).toBe('[screams for eight seconds]')
 	})
 
-	it('filters lyrics with featuring annotation in brackets', () => {
+	it('keeps lyrics with featuring annotation in brackets', () => {
 		const lines = [
 			'480 = E "lyric Single: December (again) [feat. Mark Hoppus]"',
 		]
-		expect(extractChartLyrics(lines)).toHaveLength(0)
+		const lyrics = extractChartLyrics(lines)
+		expect(lyrics).toHaveLength(1)
+		expect(lyrics[0].text).toBe('Single: December (again) [feat. Mark Hoppus]')
 	})
 
 	it('deduplicates exact duplicate lyrics at same tick', () => {
@@ -330,8 +336,8 @@ describe('isMidiVocalLyric', () => {
 		expect(isMidiVocalLyric({ type: 'text', text: ' hey^' })).toBe(true)
 	})
 
-	it('bracketed annotation in lyrics type is NOT a lyric', () => {
-		expect(isMidiVocalLyric({ type: 'lyrics', text: '[Everyone liked that]' })).toBe(false)
+	it('bracketed lyrics with unknown content ARE lyrics (not control events)', () => {
+		expect(isMidiVocalLyric({ type: 'lyrics', text: '[Everyone liked that]' })).toBe(true)
 	})
 
 	it('text starting with HTML tags is still a lyric (HTML not stripped at parse time)', () => {
@@ -605,15 +611,15 @@ describe('normalizeLyricText', () => {
 		expect(normalizeLyricText('\x00hello\x1f')).toBe('\x00hello\x1f')
 	})
 
-	it('returns empty for entirely bracketed text', () => {
+	it('returns empty for known control event', () => {
 		expect(normalizeLyricText('[play]')).toBe('')
 	})
 
-	it('returns empty for bracketed annotation', () => {
-		expect(normalizeLyricText('[Everyone liked that]')).toBe('')
+	it('preserves bracketed lyric content (not a control event)', () => {
+		expect(normalizeLyricText('[Everyone liked that]')).toBe('[Everyone liked that]')
 	})
 
-	it('returns empty for bracketed with leading whitespace', () => {
+	it('returns empty for known control event with leading whitespace', () => {
 		expect(normalizeLyricText(' [idle] ')).toBe('')
 	})
 
@@ -635,38 +641,74 @@ describe('normalizeLyricText', () => {
 })
 
 describe('isMidiVocalLyric bracket and space filtering', () => {
-	it('bracketed after trim is not a lyric', () => {
+	it('known control event with whitespace is not a lyric', () => {
 		expect(isMidiVocalLyric({ type: 'lyrics', text: ' [play] ' })).toBe(false)
 	})
 
-	it('text with only control chars is a lyric (non-empty, non-bracket)', () => {
+	it('text with only control chars is a lyric (non-empty, not a control event)', () => {
 		expect(isMidiVocalLyric({ type: 'lyrics', text: '\x00\x01' })).toBe(true)
 	})
 
-	it('space-only text event IS a lyric (TrimAscii → empty, not bracketed)', () => {
+	it('space-only text event IS a lyric (not a control event)', () => {
 		expect(isMidiVocalLyric({ type: 'text', text: '   ' })).toBe(true)
 	})
 
-	// These are YARG bugs — YARG incorrectly skips lyrics containing brackets.
-	// scan-chart correctly treats them as lyrics because they're real lyric content.
-	it('MIDI lyric with emoticon bracket :=[ is a lyric (YARG bug skips these)', () => {
+	it('MIDI lyric with emoticon bracket :=[ is a lyric', () => {
 		expect(isMidiVocalLyric({ type: 'lyrics', text: ':=[' })).toBe(true)
 	})
 
 	it('MIDI lyric with featuring info in brackets is a lyric', () => {
-		// Note: this is a MIDI lyric (FF 05), not a .chart event.
-		// In MIDI, the bracket check uses TrimAscii'd text.startsWith('[').
-		// "[feat. X]" starts with [ → filtered. But "Song [feat. X]" doesn't start with [.
 		expect(isMidiVocalLyric({ type: 'lyrics', text: 'Song [feat. Mark]' })).toBe(true)
 	})
 
-	it('MIDI lyric starting with [ IS filtered (annotation/control)', () => {
-		expect(isMidiVocalLyric({ type: 'lyrics', text: '[I Like It, Though]' })).toBe(false)
+	it('unknown bracketed text IS a lyric (not a known control event)', () => {
+		expect(isMidiVocalLyric({ type: 'lyrics', text: '[I Like It, Though]' })).toBe(true)
 	})
 })
 
 // ---------------------------------------------------------------------------
 // MIDI text encoding: Latin-1 fallback via midi-file patch
+// ---------------------------------------------------------------------------
+// isBracketedControlEvent
+// ---------------------------------------------------------------------------
+
+describe('isBracketedControlEvent', () => {
+	it('recognizes known control events', () => {
+		expect(isBracketedControlEvent('[play]')).toBe(true)
+		expect(isBracketedControlEvent('[idle]')).toBe(true)
+		expect(isBracketedControlEvent('[idle_realtime]')).toBe(true)
+		expect(isBracketedControlEvent('[idle_intense]')).toBe(true)
+		expect(isBracketedControlEvent('[play_solo]')).toBe(true)
+		expect(isBracketedControlEvent('[mellow]')).toBe(true)
+		expect(isBracketedControlEvent('[intense]')).toBe(true)
+		expect(isBracketedControlEvent('[tambourine_start]')).toBe(true)
+		expect(isBracketedControlEvent('[tambourine_end]')).toBe(true)
+		expect(isBracketedControlEvent('[cowbell_start]')).toBe(true)
+		expect(isBracketedControlEvent('[cowbell_end]')).toBe(true)
+		expect(isBracketedControlEvent('[clap_start]')).toBe(true)
+		expect(isBracketedControlEvent('[clap_end]')).toBe(true)
+	})
+
+	it('rejects unknown bracketed text', () => {
+		expect(isBracketedControlEvent('[Everyone liked that]')).toBe(false)
+		expect(isBracketedControlEvent('[screams for eight seconds]')).toBe(false)
+		expect(isBracketedControlEvent('[I Like It, Though]')).toBe(false)
+		expect(isBracketedControlEvent('[feat. Mark Hoppus]')).toBe(false)
+		expect(isBracketedControlEvent('[REIMAGINED]')).toBe(false)
+	})
+
+	it('rejects non-bracketed text', () => {
+		expect(isBracketedControlEvent('play')).toBe(false)
+		expect(isBracketedControlEvent('hello')).toBe(false)
+		expect(isBracketedControlEvent(':=[')).toBe(false)
+	})
+
+	it('handles whitespace around brackets (TrimAscii)', () => {
+		expect(isBracketedControlEvent(' [play] ')).toBe(true)
+		expect(isBracketedControlEvent(' [Everyone liked that] ')).toBe(false)
+	})
+})
+
 // ---------------------------------------------------------------------------
 
 /**

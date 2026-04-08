@@ -55,7 +55,8 @@ export function parseChartVocalPhraseLine(line: string): { tick: number; type: '
 
 /**
  * Extract all lyrics from .chart [Events] lines.
- * Filters out bracketed annotations (matching YARG NormalizeTextEvent behavior).
+ * The "lyric" prefix is definitive — all lyric events are real lyrics, even if
+ * they contain brackets (e.g. "[Everyone liked that]" is a Fallout reference).
  * Deduplicates by tick+text (matching YARG MoonText InsertionEquals).
  */
 export function extractChartLyrics(eventLines: string[]): { tick: number; length: number; text: string }[] {
@@ -64,10 +65,6 @@ export function extractChartLyrics(eventLines: string[]): { tick: number; length
 	for (const line of eventLines) {
 		const result = parseChartLyricLine(line)
 		if (result) {
-			// YARG's NormalizeTextEvent runs on "lyric TEXT" and if brackets are found
-			// ANYWHERE in the full text, it extracts bracket content and sets hadBrackets=true,
-			// making it NOT a lyric. Check if the lyric text contains brackets.
-			if (result.text.includes('[') && result.text.includes(']')) continue
 			// Dedup by tick + normalized text (YARG's InsertionEquals compares tick + text,
 			// and NormalizeTextEvent applies TrimAscii, so "_ " and "_" are equivalent)
 			const normalizedText = result.text.replace(/[\x00-\x20]+$/, '')
@@ -115,13 +112,38 @@ export function extractChartVocalPhrases(eventLines: string[]): { tick: number; 
 // ---------------------------------------------------------------------------
 
 /**
+ * Known bracketed control events on PART VOCALS that are NOT lyrics.
+ * These control character animation and percussion instrument switching.
+ */
+export const knownVocalControlEvents = new Set([
+	'idle', 'idle_realtime', 'idle_intense',
+	'play', 'play_solo',
+	'mellow', 'intense',
+	'tambourine_start', 'tambourine_end',
+	'cowbell_start', 'cowbell_end',
+	'clap_start', 'clap_end',
+])
+
+/**
+ * Check if text is a known bracketed control event (e.g. "[play]", "[idle]").
+ * Only filters known control events — unknown bracketed text like "[Everyone liked that]"
+ * is treated as real lyric content.
+ */
+export function isBracketedControlEvent(text: string): boolean {
+	const trimmed = text.replace(/^[\x00-\x20]+|[\x00-\x20]+$/g, '') // TrimAscii
+	if (!trimmed.startsWith('[') || !trimmed.endsWith(']')) return false
+	const inner = trimmed.slice(1, -1)
+	return knownVocalControlEvents.has(inner)
+}
+
+/**
  * Determine if a MIDI event on PART VOCALS is a lyric.
  *
- * Rules (matching YARG MoonSong behavior):
- * - FF 05 (lyrics type): always included (even if empty — YARG keeps empty lyrics)
- * - FF 01 (text type): only if text doesn't start with [ after trim
- * - Bracketed text [play], [idle], [annotation] are NOT lyrics
- * - Space-only text is NOT a lyric (YARG's NormalizeTextEvent trims it to empty)
+ * Rules:
+ * - FF 05 (lyrics), FF 01 (text), FF 06 (marker), FF 07 (cuePoint): included
+ * - Known bracketed control events ([play], [idle], etc.) are NOT lyrics
+ * - Unknown bracketed text ([Everyone liked that]) IS a lyric
+ * - Empty text is a valid lyric (empty lyrics show in game)
  */
 export function isMidiVocalLyric(event: MidiTextLikeEvent): boolean {
 	// YARG's ProcessTextEvent processes BaseTextEvent types (except trackName and copyrightNotice).
@@ -133,20 +155,18 @@ export function isMidiVocalLyric(event: MidiTextLikeEvent): boolean {
 	const text = event.text
 	if (text === undefined || text === null) return false
 
-	const trimmed = text.replace(/^[\x00-\x20]+|[\x00-\x20]+$/g, '') // TrimAscii
-	// Bracketed text is a control/annotation event, not a lyric
-	if (trimmed.startsWith('[')) return false
+	// Only filter known control events, not arbitrary bracketed text
+	if (isBracketedControlEvent(text)) return false
 	return true
 }
 
 /**
  * Normalize lyric text for MIDI events.
  * Preserves original text including whitespace — YARG ChartDump preserves it.
- * Bracketed text returns empty (filtered by isMidiVocalLyric before reaching here).
+ * Known control events return empty (filtered by isMidiVocalLyric before reaching here).
  */
 export function normalizeLyricText(text: string): string {
-	const trimmed = text.trim()
-	if (trimmed.startsWith('[')) return ''
+	if (isBracketedControlEvent(text)) return ''
 	return text
 }
 
