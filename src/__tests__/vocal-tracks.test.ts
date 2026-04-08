@@ -43,8 +43,7 @@ type TimedEvent = { absTick: number; event: MidiData['tracks'][number][number] }
 function vocalTrack(name: string, opts: {
 	notes?: { tick: number; pitch: number; length: number }[]
 	lyrics?: { tick: number; text: string }[]
-	phrases105?: { tick: number; length: number }[]
-	phrases106?: { tick: number; length: number }[]
+	phrases?: { tick: number; length: number }[]
 }): MidiData['tracks'][number] {
 	const track: MidiData['tracks'][number] = [
 		{ deltaTime: 0, type: 'trackName', text: name },
@@ -70,7 +69,7 @@ function vocalTrack(name: string, opts: {
 		})
 	}
 
-	for (const p of opts.phrases105 ?? []) {
+	for (const p of opts.phrases ?? []) {
 		timedEvents.push({
 			absTick: p.tick,
 			event: { deltaTime: 0, type: 'noteOn', channel: 0, noteNumber: 105, velocity: 100 },
@@ -78,17 +77,6 @@ function vocalTrack(name: string, opts: {
 		timedEvents.push({
 			absTick: p.tick + p.length,
 			event: { deltaTime: 0, type: 'noteOff', channel: 0, noteNumber: 105, velocity: 0 },
-		})
-	}
-
-	for (const p of opts.phrases106 ?? []) {
-		timedEvents.push({
-			absTick: p.tick,
-			event: { deltaTime: 0, type: 'noteOn', channel: 0, noteNumber: 106, velocity: 100 },
-		})
-		timedEvents.push({
-			absTick: p.tick + p.length,
-			event: { deltaTime: 0, type: 'noteOff', channel: 0, noteNumber: 106, velocity: 0 },
 		})
 	}
 
@@ -132,7 +120,7 @@ describe('vocalTracks: PART VOCALS', () => {
 					{ tick: 960, text: 'lo' },
 				],
 				notes: [{ tick: 480, pitch: 60, length: 240 }],
-				phrases105: [{ tick: 480, length: 720 }],
+				phrases: [{ tick: 480, length: 720 }],
 			}),
 		])
 
@@ -167,12 +155,12 @@ describe('vocalTracks: harmonies', () => {
 			vocalTrack('PART VOCALS', {
 				lyrics: [{ tick: 480, text: 'main' }],
 				notes: [{ tick: 480, pitch: 60, length: 240 }],
-				phrases105: [{ tick: 480, length: 480 }],
+				phrases: [{ tick: 480, length: 480 }],
 			}),
 			vocalTrack('HARM1', {
 				lyrics: [{ tick: 480, text: 'harm1' }],
 				notes: [{ tick: 480, pitch: 62, length: 240 }],
-				phrases105: [{ tick: 480, length: 480 }],
+				phrases: [{ tick: 480, length: 480 }],
 			}),
 			vocalTrack('HARM2', {
 				lyrics: [{ tick: 480, text: 'harm2' }],
@@ -214,7 +202,7 @@ describe('vocalTracks: harmonies', () => {
 			vocalTrack('PART HARM1', {
 				lyrics: [{ tick: 480, text: 'h1' }],
 				notes: [{ tick: 480, pitch: 60, length: 240 }],
-				phrases105: [{ tick: 480, length: 480 }],
+				phrases: [{ tick: 480, length: 480 }],
 			}),
 			vocalTrack('PART HARM2', {
 				lyrics: [{ tick: 480, text: 'h2' }],
@@ -240,7 +228,7 @@ describe('vocalTracks: harmonies', () => {
 			vocalTrack('HARM1', {
 				lyrics: [{ tick: 480, text: 'solo harmony' }],
 				notes: [{ tick: 480, pitch: 60, length: 240 }],
-				phrases105: [{ tick: 480, length: 480 }],
+				phrases: [{ tick: 480, length: 480 }],
 			}),
 		])
 
@@ -262,7 +250,7 @@ describe('vocalTracks: CopyDownPhrases', () => {
 			eventsTrack(),
 			vocalTrack('HARM1', {
 				notes: [{ tick: 480, pitch: 60, length: 240 }],
-				phrases105: [
+				phrases: [
 					{ tick: 480, length: 480 },
 					{ tick: 1920, length: 480 },
 				],
@@ -270,7 +258,7 @@ describe('vocalTracks: CopyDownPhrases', () => {
 			vocalTrack('HARM2', {
 				notes: [{ tick: 480, pitch: 62, length: 240 }],
 				// HARM2 has its own single phrase in the MIDI, but it gets replaced
-				phrases105: [{ tick: 480, length: 240 }],
+				phrases: [{ tick: 480, length: 240 }],
 			}),
 		])
 
@@ -287,7 +275,7 @@ describe('vocalTracks: CopyDownPhrases', () => {
 			eventsTrack(),
 			vocalTrack('HARM1', {
 				notes: [{ tick: 480, pitch: 60, length: 240 }],
-				phrases105: [
+				phrases: [
 					{ tick: 480, length: 480 },
 					{ tick: 1920, length: 960 },
 				],
@@ -309,11 +297,11 @@ describe('vocalTracks: CopyDownPhrases', () => {
 			eventsTrack(),
 			vocalTrack('HARM1', {
 				notes: [{ tick: 480, pitch: 60, length: 240 }],
-				phrases105: [{ tick: 480, length: 480 }],
+				phrases: [{ tick: 480, length: 480 }],
 			}),
 			vocalTrack('HARM2', {
 				notes: [{ tick: 480, pitch: 62, length: 240 }],
-				phrases105: [
+				phrases: [
 					{ tick: 480, length: 240 },
 					{ tick: 960, length: 240 },
 					{ tick: 1440, length: 240 },
@@ -333,7 +321,7 @@ describe('vocalTracks: CopyDownPhrases', () => {
 			eventsTrack(),
 			vocalTrack('HARM2', {
 				notes: [{ tick: 480, pitch: 62, length: 240 }],
-				phrases105: [{ tick: 480, length: 240 }],
+				phrases: [{ tick: 480, length: 240 }],
 			}),
 		])
 
@@ -349,7 +337,7 @@ describe('vocalTracks: CopyDownPhrases', () => {
 			eventsTrack(),
 			vocalTrack('HARM1', {
 				notes: [{ tick: 480, pitch: 60, length: 240 }],
-				phrases105: [{ tick: 480, length: 480 }],
+				phrases: [{ tick: 480, length: 480 }],
 			}),
 			vocalTrack('HARM2', {
 				notes: [{ tick: 480, pitch: 62, length: 240 }],
