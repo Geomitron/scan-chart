@@ -252,15 +252,16 @@ describe('extractChartVocalPhrases', () => {
 		expect(phrases[1]).toEqual({ tick: 960, length: 480 })
 	})
 
-	it('ignores orphaned phrase_end', () => {
+	it('keeps orphaned phrase_end (creates phrase from tick 0)', () => {
 		const lines = [
 			'480 = E "phrase_end"',
 			'960 = E "phrase_start"',
 			'1440 = E "phrase_end"',
 		]
 		const phrases = extractChartVocalPhrases(lines)
-		expect(phrases).toHaveLength(1)
-		expect(phrases[0]).toEqual({ tick: 960, length: 480 })
+		expect(phrases).toHaveLength(2)
+		expect(phrases[0]).toEqual({ tick: 0, length: 480 })
+		expect(phrases[1]).toEqual({ tick: 960, length: 480 })
 	})
 })
 

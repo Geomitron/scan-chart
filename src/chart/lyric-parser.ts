@@ -97,10 +97,13 @@ export function extractChartVocalPhrases(eventLines: string[]): { tick: number; 
 			}
 			currentStart = result.tick
 		} else {
-			if (currentStart !== null) {
-				phrases.push({ tick: currentStart, length: result.tick - currentStart })
-				currentStart = null
+			// If no phrase_start is open, treat as starting from tick 0.
+			// Orphaned phrase_ends are kept so editors can surface them for manual fixing.
+			if (currentStart === null) {
+				currentStart = 0
 			}
+			phrases.push({ tick: currentStart, length: result.tick - currentStart })
+			currentStart = null
 		}
 	}
 
