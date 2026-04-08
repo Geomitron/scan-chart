@@ -10,8 +10,11 @@
 	"scripts": {
 		"build": "tsup src/index.ts --format cjs,esm --dts",
 		"release": "npm run build && changeset publish",
-		"test": "npx tsx src/test.ts",
-		"lint": "tsc"
+		"test": "npx vitest run",
+		"test:watch": "npx vitest",
+		"test:cli": "npx tsx src/test.ts",
+		"lint": "tsc",
+		"postinstall": "patch-package"
 	},
 	"repository": {
 		"type": "git",
@@ -60,6 +63,7 @@
 		"tsup": "^6.7.0",
 		"tsx": "^4.20.4",
 		"typescript": "^5.9.2",
+		"vitest": "^4.1.2",
 		"yargs": "^18.0.0"
 	}
 }

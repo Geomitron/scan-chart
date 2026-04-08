@@ -3,6 +3,7 @@ import * as _ from 'lodash'
 import { Difficulty, Instrument } from 'src/interfaces'
 import { getEncoding } from 'src/utils'
 import { EventType, eventTypes, RawChartData } from './note-parsing-interfaces'
+import { extractChartLyrics, extractChartVocalPhrases } from './lyric-parser'
 
 /* eslint-disable @typescript-eslint/naming-convention */
 type TrackName = keyof typeof trackNameMap
@@ -120,6 +121,8 @@ export function parseNotesFromChart(data: Uint8Array): RawChartData {
 		},
 		hasLyrics: !!fileSections['Events']?.find(line => line.includes('"lyric ')),
 		hasVocals: false, // Vocals are unsupported in .chart
+		lyrics: extractChartLyrics(fileSections['Events'] ?? []),
+		vocalPhrases: extractChartVocalPhrases(fileSections['Events'] ?? []),
 		tempos: _.chain(fileSections['SyncTrack'])
 			.map(line => /^(\d+) = B (\d+)$/.exec(line))
 			.compact()
@@ -449,3 +452,4 @@ function mergeSoloEvents(events: { tick: number; type: EventType; length: number
 
 	return events
 }
+
