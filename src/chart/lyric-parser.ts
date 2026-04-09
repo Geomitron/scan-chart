@@ -220,6 +220,10 @@ export function extractMidiLyrics(trackEvents: MidiLyricEvent[]): { tick: number
 function extractMidiNotePairs(
 	trackEvents: MidiLyricEvent[],
 	noteFilter: (noteNumber: number) => boolean,
+	/** If true, preserve MIDI event order at the same tick (noteOn before noteOff).
+	 *  If false (default), sort noteOff before noteOn at the same tick.
+	 *  Vocal notes need MIDI order to handle zero-length notes correctly (matching YARG). */
+	preserveMidiOrder = false,
 ): { tick: number; length: number; noteNumber: number }[] {
 	const noteEvents: { tick: number; type: 'noteOn' | 'noteOff'; noteNumber: number }[] = []
 	for (const event of trackEvents) {
@@ -232,11 +236,16 @@ function extractMidiNotePairs(
 			})
 		}
 	}
-	// Stable sort: same tick → noteOff before noteOn
-	noteEvents.sort((a, b) => {
-		if (a.tick !== b.tick) return a.tick - b.tick
-		return (a.type === 'noteOff' ? 0 : 1) - (b.type === 'noteOff' ? 0 : 1)
-	})
+	if (preserveMidiOrder) {
+		// Sort by tick only, preserving original order within same tick
+		noteEvents.sort((a, b) => a.tick - b.tick)
+	} else {
+		// Sort: same tick → noteOff before noteOn (for phrase boundaries)
+		noteEvents.sort((a, b) => {
+			if (a.tick !== b.tick) return a.tick - b.tick
+			return (a.type === 'noteOff' ? 0 : 1) - (b.type === 'noteOff' ? 0 : 1)
+		})
+	}
 
 	const phraseStarts: Map<number, number> = new Map()
 	const results: { tick: number; length: number; noteNumber: number }[] = []
@@ -299,6 +308,7 @@ export function extractMidiVocalNotes(trackEvents: MidiLyricEvent[]): VocalNote[
 	const pairs = extractMidiNotePairs(
 		trackEvents,
 		n => (n >= 36 && n <= 84) || n === 96 || n === 97,
+		true, // preserve MIDI order for correct zero-length note handling (matching YARG)
 	)
 	return pairs.map(p => ({
 		tick: p.tick,
@@ -333,4 +343,104 @@ export function extractMidiRangeShifts(trackEvents: MidiLyricEvent[]): { tick: n
  */
 export function extractMidiLyricShifts(trackEvents: MidiLyricEvent[]): { tick: number; length: number }[] {
 	return extractMidiNotePairs(trackEvents, n => n === 1)
+}
+
+// ---------------------------------------------------------------------------
+// Lyric symbol parsing (for normalization)
+// ---------------------------------------------------------------------------
+
+import { lyricFlags } from './note-parsing-interfaces'
+
+/** Symbols that set flags when found at the end of a lyric (scanned right-to-left). */
+const trailingSymbolFlags: Record<string, number> = {
+	'-': lyricFlags.joinWithNext,
+	'=': lyricFlags.hyphenateWithNext,
+	'+': lyricFlags.pitchSlide,
+	'#': lyricFlags.nonPitched,
+	'^': lyricFlags.nonPitched | lyricFlags.lenientScoring,
+	'*': lyricFlags.nonPitched,
+	'%': lyricFlags.rangeShift,
+	'/': lyricFlags.staticShift,
+	'$': lyricFlags.harmonyHidden,
+}
+
+/** Symbols stripped from display text everywhere they appear. */
+const stripSymbols = new Set(['+', '#', '^', '*', '%', '/', '$', '"'])
+
+/** Trailing flag symbols that are stripped from display (YARG VOCALS_STRIP_SYMBOLS).
+ *  '-' and '=' are NOT in this set — '-' is kept, '=' is replaced with '-'. */
+const trailingStripSymbols = new Set(['+', '#', '^', '*', '%', '/', '$'])
+
+/** Known rich text tag names (matching YARG RichTextUtils.RICH_TEXT_TAGS). */
+const richTextTagNames = [
+	'align', 'allcaps', 'alpha', 'b', 'br', 'color', 'cspace', 'font', 'font-weight',
+	'gradient', 'i', 'indent', 'line-height', 'line-indent', 'link', 'lowercase',
+	'margin', 'mark', 'mspace', 'noparse', 'nobr', 'page', 'pos', 'rotate', 'size',
+	'smallcaps', 'space', 'sprite', 's', 'style', 'sub', 'sup', 'u', 'uppercase', 'voffset', 'width',
+]
+/** Regex matching opening and closing rich text tags: <tag>, </tag>, <tag=value>, etc. */
+const richTextTagRegex = new RegExp(
+	`<\\/?(${richTextTagNames.join('|')})(=[^>]*)?>`, 'gi',
+)
+
+/**
+ * Parse lyric symbol flags from a lyric text string.
+ * Matches YARG's LyricSymbols.GetLyricFlags(): scans from end consuming flag symbols,
+ * and checks start for '$' (harmony hidden).
+ */
+export function parseLyricFlags(text: string): number {
+	let flags = 0
+	if (text.length === 0) return flags
+
+	// '$' at start = harmony hidden
+	if (text[0] === '$') flags |= lyricFlags.harmonyHidden
+
+	// Scan trailing symbols right-to-left
+	let i = text.length - 1
+	while (i >= 0) {
+		const flag = trailingSymbolFlags[text[i]]
+		if (flag === undefined) break
+		flags |= flag
+		i--
+	}
+
+	return flags
+}
+
+/**
+ * Strip lyric symbols from text for display.
+ * Matches YARG's StripForVocals: strips VOCALS_STRIP_SYMBOLS (+, #, ^, *, %, /, $, "),
+ * removes known rich text tags, and trims leading ASCII whitespace.
+ * Trailing '-' is kept (it's a display character). Trailing '=' is replaced with '-'.
+ * Keeps '_' and '§' as-is (consumer decides display replacement).
+ */
+export function stripLyricSymbols(text: string): string {
+	// Strip known rich text tags (matching YARG's RichTextUtils.StripRichTextTags).
+	// Only strips recognized tags — unknown tags like <scatting> are preserved.
+	text = text.replace(richTextTagRegex, '')
+	// Trim leading ASCII whitespace (matching YARG's TrimStartAscii in ProcessLyric)
+	text = text.replace(/^[\x00-\x20]+/, '')
+	// Find the boundary between content and trailing flag symbols.
+	// Trailing flags are consumed right-to-left by parseLyricFlags.
+	let trailEnd = text.length
+	while (trailEnd > 0 && trailingSymbolFlags[text[trailEnd - 1]] !== undefined) {
+		trailEnd--
+	}
+
+	let result = ''
+	// Process non-trailing portion: strip symbols that are in VOCALS_STRIP_SYMBOLS
+	for (let i = 0; i < trailEnd; i++) {
+		const ch = text[i]
+		if (stripSymbols.has(ch)) continue
+		if (ch === '=') { result += '-'; continue }
+		result += ch
+	}
+	// Process trailing portion: only strip the ones YARG strips, keep '-', replace '='
+	for (let i = trailEnd; i < text.length; i++) {
+		const ch = text[i]
+		if (trailingStripSymbols.has(ch)) continue
+		if (ch === '=') { result += '-'; continue }
+		result += ch // only '-' reaches here
+	}
+	return result
 }

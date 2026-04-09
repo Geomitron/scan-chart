@@ -15,7 +15,10 @@ import {
 	extractMidiVocalStarPower,
 	extractMidiRangeShifts,
 	extractMidiLyricShifts,
+	parseLyricFlags,
+	stripLyricSymbols,
 } from '../chart/lyric-parser'
+import { lyricFlags } from '../chart/note-parsing-interfaces'
 
 // ---------------------------------------------------------------------------
 // parseChartLyricLine
@@ -892,6 +895,56 @@ describe('extractMidiVocalNotes', () => {
 		expect(notes[0]).toEqual({ tick: 480, length: 240, pitch: 60, type: 'pitched' })
 	})
 
+	it('extracts consecutive same-pitch notes (noteOff then noteOn)', () => {
+		// Real case: "The Lumineers - Ho Hey" has two note-60 back-to-back:
+		// noteOn 60 at 54880, noteOff 60 at 55080, noteOn 60 at 55120
+		const events = [
+			{ deltaTime: 480, type: 'noteOn' as const, noteNumber: 60, velocity: 100 },
+			{ deltaTime: 680, type: 'noteOff' as const, noteNumber: 60, velocity: 100 },
+			{ deltaTime: 720, type: 'noteOn' as const, noteNumber: 60, velocity: 100 },
+			{ deltaTime: 960, type: 'noteOff' as const, noteNumber: 60, velocity: 0 },
+		]
+		const notes = extractMidiVocalNotes(events)
+		expect(notes).toHaveLength(2)
+		expect(notes[0]).toEqual({ tick: 480, length: 200, pitch: 60, type: 'pitched' })
+		expect(notes[1]).toEqual({ tick: 720, length: 240, pitch: 60, type: 'pitched' })
+	})
+
+	it('handles zero-length note (noteOn+noteOff at same tick) followed by new note', () => {
+		// Real case: "The Lumineers - Ho Hey" has noteOn+noteOff at tick 49840 (zero-length),
+		// then a real noteOn at 54880. YARG ignores the duplicate noteOn at 49840 (already open
+		// from earlier), then the noteOff closes the note. The noteOn at 54880 opens a new note.
+		// With incorrect noteOff-before-noteOn sorting, the zero-length note steals the noteOff
+		// at 55080, causing the noteOn at 54880 to be treated as a duplicate.
+		const events = [
+			{ deltaTime: 480, type: 'noteOn' as const, noteNumber: 60, velocity: 100 },
+			// Zero-length note at tick 680: noteOn then noteOff at same tick
+			{ deltaTime: 680, type: 'noteOn' as const, noteNumber: 60, velocity: 100 },
+			{ deltaTime: 680, type: 'noteOff' as const, noteNumber: 60, velocity: 100 },
+			// New note at tick 960
+			{ deltaTime: 960, type: 'noteOn' as const, noteNumber: 60, velocity: 100 },
+			{ deltaTime: 1200, type: 'noteOff' as const, noteNumber: 60, velocity: 0 },
+		]
+		const notes = extractMidiVocalNotes(events)
+		// Should produce 2 notes: 480-680 and 960-1200
+		// (zero-length noteOn at 680 is duplicate → ignored; noteOff at 680 closes note at 480)
+		expect(notes).toHaveLength(2)
+		expect(notes[0]).toMatchObject({ tick: 480, length: 200 })
+		expect(notes[1]).toMatchObject({ tick: 960, length: 240 })
+	})
+
+	it('extracts same-pitch notes with noteOff velocity > 0', () => {
+		// FreeStyleGames charts use noteOff with velocity > 0 (e.g. vel=100)
+		const events = [
+			{ deltaTime: 480, type: 'noteOn' as const, noteNumber: 60, velocity: 100 },
+			{ deltaTime: 680, type: 'noteOff' as const, noteNumber: 60, velocity: 100 },  // vel > 0
+			{ deltaTime: 720, type: 'noteOn' as const, noteNumber: 60, velocity: 100 },
+			{ deltaTime: 960, type: 'noteOff' as const, noteNumber: 60, velocity: 100 },
+		]
+		const notes = extractMidiVocalNotes(events)
+		expect(notes).toHaveLength(2)
+	})
+
 	it('handles mixed pitched and percussion notes', () => {
 		const events = [
 			{ deltaTime: 480, type: 'noteOn' as const, noteNumber: 60, velocity: 100 },
@@ -993,5 +1046,179 @@ describe('extractMidiLyricShifts', () => {
 			{ deltaTime: 960, type: 'noteOff' as const, noteNumber: 0, velocity: 0 },
 		]
 		expect(extractMidiLyricShifts(events)).toHaveLength(0)
+	})
+})
+
+// ---------------------------------------------------------------------------
+// parseLyricFlags
+// ---------------------------------------------------------------------------
+
+describe('parseLyricFlags', () => {
+	it('returns none for plain text', () => {
+		expect(parseLyricFlags('Hello')).toBe(lyricFlags.none)
+	})
+
+	it('detects pitch slide (+)', () => {
+		expect(parseLyricFlags('Hel+')).toBe(lyricFlags.pitchSlide)
+	})
+
+	it('detects join with next (-)', () => {
+		expect(parseLyricFlags('to-')).toBe(lyricFlags.joinWithNext)
+	})
+
+	it('detects hyphenate with next (=)', () => {
+		expect(parseLyricFlags('word=')).toBe(lyricFlags.hyphenateWithNext)
+	})
+
+	it('detects non-pitched (#)', () => {
+		expect(parseLyricFlags('Cha#')).toBe(lyricFlags.nonPitched)
+	})
+
+	it('detects non-pitched lenient (^)', () => {
+		expect(parseLyricFlags('oh^')).toBe(lyricFlags.nonPitched | lyricFlags.lenientScoring)
+	})
+
+	it('detects non-pitched unknown (*)', () => {
+		expect(parseLyricFlags('hm*')).toBe(lyricFlags.nonPitched)
+	})
+
+	it('detects range shift (%)', () => {
+		expect(parseLyricFlags('go%')).toBe(lyricFlags.rangeShift)
+	})
+
+	it('detects static shift (/)', () => {
+		expect(parseLyricFlags('hey/')).toBe(lyricFlags.staticShift)
+	})
+
+	it('detects harmony hidden ($) at start', () => {
+		expect(parseLyricFlags('$hey')).toBe(lyricFlags.harmonyHidden)
+	})
+
+	it('detects multiple trailing flags', () => {
+		expect(parseLyricFlags('+-')).toBe(lyricFlags.pitchSlide | lyricFlags.joinWithNext)
+	})
+
+	it('detects $ prefix combined with trailing flags', () => {
+		expect(parseLyricFlags('$oh+')).toBe(lyricFlags.harmonyHidden | lyricFlags.pitchSlide)
+	})
+
+	it('returns none for empty string', () => {
+		expect(parseLyricFlags('')).toBe(lyricFlags.none)
+	})
+
+	it('handles symbol-only string (+)', () => {
+		expect(parseLyricFlags('+')).toBe(lyricFlags.pitchSlide)
+	})
+
+	it('does not treat mid-text symbols as flags', () => {
+		// '_' and '§' are not flag symbols
+		expect(parseLyricFlags('wor_ld')).toBe(lyricFlags.none)
+		expect(parseLyricFlags('a§b')).toBe(lyricFlags.none)
+	})
+})
+
+// ---------------------------------------------------------------------------
+// stripLyricSymbols
+// ---------------------------------------------------------------------------
+
+describe('stripLyricSymbols', () => {
+	it('returns plain text unchanged', () => {
+		expect(stripLyricSymbols('Hello')).toBe('Hello')
+	})
+
+	it('strips trailing + (pitch slide)', () => {
+		expect(stripLyricSymbols('Hel+')).toBe('Hel')
+	})
+
+	it('keeps trailing - (join flag, but displayed as-is)', () => {
+		expect(stripLyricSymbols('to-')).toBe('to-')
+	})
+
+	it('replaces trailing = with - (hyphenate)', () => {
+		expect(stripLyricSymbols('word=')).toBe('word-')
+	})
+
+	it('strips trailing # (non-pitched)', () => {
+		expect(stripLyricSymbols('Cha#')).toBe('Cha')
+	})
+
+	it('strips trailing ^ (non-pitched lenient)', () => {
+		expect(stripLyricSymbols('oh^')).toBe('oh')
+	})
+
+	it('strips trailing % (range shift)', () => {
+		expect(stripLyricSymbols('go%')).toBe('go')
+	})
+
+	it('strips $ prefix (harmony hidden)', () => {
+		expect(stripLyricSymbols('$hey')).toBe('hey')
+	})
+
+	it('strips + but keeps - in multiple trailing flags', () => {
+		expect(stripLyricSymbols('+-')).toBe('-')
+	})
+
+	it('strips " from text', () => {
+		expect(stripLyricSymbols('"Hello"')).toBe('Hello')
+	})
+
+	it('returns empty for symbol-only string', () => {
+		expect(stripLyricSymbols('+')).toBe('')
+	})
+
+	it('returns empty for empty string', () => {
+		expect(stripLyricSymbols('')).toBe('')
+	})
+
+	// '_' is kept as-is. YARG replaces '_' → ' ' but that's lossy —
+	// real charts use '_' as an apostrophe substitute (e.g. "it_s", "can_t").
+	it('keeps _ as-is (YARG replaces with space, but that is lossy)', () => {
+		expect(stripLyricSymbols('wor_ld')).toBe('wor_ld')
+		expect(stripLyricSymbols('it_s')).toBe('it_s')
+	})
+
+	// '§' is kept as-is. YARG replaces '§' → '‿' (joined syllable display).
+	it('keeps § as-is (YARG replaces with ‿, but that is lossy)', () => {
+		expect(stripLyricSymbols('a§b')).toBe('a§b')
+	})
+
+	it('strips $ prefix and trailing + but keeps content', () => {
+		expect(stripLyricSymbols('$oh+')).toBe('oh')
+	})
+
+	it('strips $ and keeps trailing -', () => {
+		expect(stripLyricSymbols('$hid-')).toBe('hid-')
+	})
+
+	it('replaces = with - even in middle of text (matching YARG StripForVocals)', () => {
+		expect(stripLyricSymbols('a=b')).toBe('a-b')
+	})
+
+	it('strips known rich text tags', () => {
+		// YARG's StripForVocals strips known rich text tags only.
+		expect(stripLyricSymbols('<i>Back')).toBe('Back')
+		expect(stripLyricSymbols('<b>loud</b>')).toBe('loud')
+		expect(stripLyricSymbols('<color=#FF0000>red</color>')).toBe('red')
+		expect(stripLyricSymbols('<sub><i>REIMAGINED</i>')).toBe('REIMAGINED')
+	})
+
+	it('keeps unknown angle-bracket content (not a known rich text tag)', () => {
+		// Real case: "<scatting>" is NOT a rich text tag — kept as-is.
+		expect(stripLyricSymbols('<scatting>')).toBe('<scatting>')
+		expect(stripLyricSymbols('hello<world>')).toBe('hello<world>')
+	})
+
+	it('preserves trailing whitespace (YARG StripForVocals does not trim)', () => {
+		expect(stripLyricSymbols('hello ')).toBe('hello ')
+		expect(stripLyricSymbols('hello  ')).toBe('hello  ')
+	})
+
+	it('strips tags but preserves trailing whitespace', () => {
+		expect(stripLyricSymbols('<sub><i>REIMAGINED</i> ')).toBe('REIMAGINED ')
+	})
+
+	it('known tags are case-insensitive', () => {
+		expect(stripLyricSymbols('<I>test</I>')).toBe('test')
+		expect(stripLyricSymbols('<B>bold</B>')).toBe('bold')
 	})
 })
