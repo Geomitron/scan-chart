@@ -119,10 +119,12 @@ export function parseNotesFromChart(data: Uint8Array): RawChartData {
 			delay: Number(metadata['Offset']) ? Number(metadata['Offset']) * 1000 : undefined,
 			preview_start_time: Number(metadata['PreviewStart']) ? Number(metadata['PreviewStart']) * 1000 : undefined,
 		},
-		hasLyrics: !!fileSections['Events']?.find(line => line.includes('"lyric ')),
-		hasVocals: false, // Vocals are unsupported in .chart
-		lyrics: extractChartLyrics(fileSections['Events'] ?? []),
-		vocalPhrases: extractChartVocalPhrases(fileSections['Events'] ?? []),
+		vocalTracks: {
+			vocals: {
+				lyrics: extractChartLyrics(fileSections['Events'] ?? []),
+				vocalPhrases: extractChartVocalPhrases(fileSections['Events'] ?? []),
+			},
+		},
 		tempos: _.chain(fileSections['SyncTrack'])
 			.map(line => /^(\d+) = B (\d+)$/.exec(line))
 			.compact()
