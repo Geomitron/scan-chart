@@ -274,3 +274,69 @@ export const noteFlags = {
 	ghost: 512,
 	accent: 1024,
 } as const
+
+// ---------------------------------------------------------------------------
+// Normalized vocal types (produced by notes-parser from raw VocalTrackData)
+// ---------------------------------------------------------------------------
+
+/** Bitmask flags for lyric symbols, matching YARG's LyricSymbolFlags. */
+export const lyricFlags = {
+	none:              0,
+	joinWithNext:      1,    // '-' suffix
+	nonPitched:        2,    // '#', '^', '*' suffix
+	lenientScoring:    4,    // '^' suffix (combined with nonPitched)
+	pitchSlide:       16,    // '+' suffix
+	harmonyHidden:    32,    // '$' prefix
+	staticShift:      64,    // '/' suffix
+	rangeShift:      128,    // '%' suffix
+	hyphenateWithNext: 256,  // '=' suffix
+} as const
+
+export interface NormalizedLyricEvent {
+	tick: number
+	msTime: number
+	/** Flag symbols stripped, '=' → '-'. '_' and '§' kept as-is (consumer decides display). */
+	text: string
+	/** Bitmask of `lyricFlags`. */
+	flags: number
+}
+
+export interface NormalizedVocalNote {
+	tick: number
+	msTime: number
+	length: number
+	msLength: number
+	/** MIDI pitch 36-84 for pitched, -1 for unpitched/percussion. */
+	pitch: number
+	/** percussionHidden (note 97) is excluded from normalized output. */
+	type: 'pitched' | 'percussion'
+}
+
+export interface NormalizedVocalPhrase {
+	tick: number
+	msTime: number
+	length: number
+	msLength: number
+	/** True if first note is percussion (YARG behavior — mixing types in one phrase is invalid data). */
+	isPercussion: boolean
+	notes: NormalizedVocalNote[]
+	lyrics: NormalizedLyricEvent[]
+}
+
+export interface NormalizedVocalPart {
+	/** Scoring phrases (from note 105). Notes and lyrics grouped into their containing phrase. */
+	notePhrases: NormalizedVocalPhrase[]
+	/** Static lyric display phrases (from note 106 on HARM2/3, copy of notePhrases on vocals/HARM1). */
+	staticLyricPhrases: NormalizedVocalPhrase[]
+	/** Star power sections — separate array, not per-phrase. */
+	starPowerSections: { tick: number; msTime: number; length: number; msLength: number }[]
+}
+
+/** Top-level normalized vocal track. */
+export interface NormalizedVocalTrack {
+	parts: { [partName: string]: NormalizedVocalPart }
+	/** Range shifts at track level (shared across parts). Length 0 = from '%' symbol, >0 = from MIDI note 0. */
+	rangeShifts: { tick: number; msTime: number; length: number; msLength: number }[]
+	/** Lyric shifts at track level. YARG drops these but we keep them for writing. */
+	lyricShifts: { tick: number; msTime: number; length: number; msLength: number }[]
+}
