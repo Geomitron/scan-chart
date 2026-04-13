@@ -84,6 +84,25 @@ export interface RawChartData {
 	}[]
 	/** VENUE track events: lighting, camera, post-processing, spotlights, singalongs, stage effects. */
 	venue: VenueEvent[]
+	/**
+	 * BEAT track events (MIDI-only). YARG.Core reads this track via
+	 * `ReadSongBeats` and uses it to populate `SyncTrack.Beatlines` — which
+	 * drives the auto-generated drum activation-phrase placement (and other
+	 * measure-aware logic). If we drop the BEAT track on round-trip, YARG
+	 * falls back to time-signature-derived beatlines, which may produce
+	 * different activator positions on charts whose BEAT track disagrees
+	 * with the naive derivation (e.g. "Genghis Tron - Things Don't Look Good"
+	 * and ~80% of the MIDI corpus).
+	 *
+	 * We capture beat events verbatim for round-trip fidelity. `type` matches
+	 * YARG's `BeatlineType`: measure = strong first-beat-of-measure
+	 * (MIDI note 12), strong = downbeat within measure (MIDI note 13),
+	 * weak = subdivision (MIDI note 14).
+	 */
+	beatTrack?: {
+		tick: number
+		type: 'measure' | 'strong' | 'weak'
+	}[]
 	trackData: {
 		instrument: Instrument
 		difficulty: Difficulty
@@ -126,6 +145,13 @@ export interface RawChartData {
 			 */
 			length: number
 			type: EventType
+			/**
+			 * .mid only: MIDI-file-order sequence number of the END (noteOff) event
+			 * that closed this sustain. Used by `resolveFretModifiers` to match
+			 * YARG.Core's "last closure wins" ordering when multiple force
+			 * modifiers overlap the same note.
+			 */
+			_endSeq?: number
 		}[]
 		/** Per-track text events (FF 01 text on MIDI instrument tracks, E events in .chart).
 		 * Does not include events already consumed by other fields (disco flip, ENHANCED_OPENS, etc.). */
@@ -227,7 +253,6 @@ export interface VocalTrackData {
 	vocalPhrases: {
 		tick: number
 		length: number
-		noteNumber?: number
 	}[]
 	notes: import('./lyric-parser').VocalNote[]
 	starPowerSections: {
@@ -242,19 +267,46 @@ export interface VocalTrackData {
 		tick: number
 		length: number
 	}[]
-	/** HARM2/3 static lyric phrase boundaries (distinct from scoring phrases). */
+	/** HARM2/3 static lyric phrase boundaries (from note 106 — distinct from
+	 * scoring phrases which are note 105). On HARM1 this is typically empty. */
 	staticLyricPhrases: {
 		tick: number
 		length: number
 	}[]
+	/**
+	 * Raw text events on the vocal track (stance markers, Band_PlayFacialAnim, etc.).
+	 * YARG.Core parses these into the VocalsPart.TextEvents list, which is what
+	 * makes an otherwise-empty vocal track "non-empty" (and therefore visible to
+	 * ChartDump / UI). Storing them here lets the writer round-trip vocals-only
+	 * tracks that have no lyrics/notes/phrases but still have stance markers.
+	 * Does NOT include lyric events (which live in `lyrics`) or events scan-chart
+	 * consumes internally (`ENHANCED_OPENS`, `[mix N drumsM]`, `[range_shift ...]`).
+	 */
+	textEvents: {
+		tick: number
+		text: string
+	}[]
 }
 
-export type VenueEventType = 'lighting' | 'postProcessing' | 'cameraCut' | 'cameraCutConstraint' | 'spotlight' | 'singalong' | 'stageEffect'
+export type VenueEventType = 'lighting' | 'postProcessing' | 'cameraCut' | 'cameraCutConstraint' | 'spotlight' | 'singalong' | 'stageEffect' | 'unknown'
 export interface VenueEvent {
 	tick: number
 	type: VenueEventType
-	/** Semantic name of the event (e.g. 'verse', 'bloom', 'directed_guitar', 'bass') */
+	/**
+	 * Name of the event. For recognized events this is a canonical name
+	 * (e.g. 'verse', 'bloom', 'directed_guitar', 'all_behind'). For
+	 * unrecognized directed or coop or unknown events, this is the full
+	 * bracket-stripped text from the source MIDI, preserved verbatim so
+	 * the writer can re-emit it for round-trip fidelity.
+	 */
 	name: string
+	/**
+	 * Length in ticks for "held" venue events. Spotlights and singalongs are
+	 * typically authored as multi-tick noteOn/noteOff pairs whose duration YARG
+	 * uses for rendering. Text-based events and instantaneous note events leave
+	 * this undefined (treated as 0).
+	 */
+	length?: number
 }
 
 export type EventType = ObjectValues<typeof eventTypes>
@@ -367,6 +419,14 @@ export const noteTypes = {
 	yellowDrum: 15,
 	blueDrum: 16,
 	greenDrum: 17,
+	/**
+	 * 5-lane-only orange pad (4th lane in 5-lane drums, MIDI note 100 when five_lane_drums=true).
+	 * In 4-lane/4-lane-pro, MIDI 100 is still `greenDrum` (the 4th lane). This extra type
+	 * exists because 5-lane drums have 5 pads but the original enum only had 4 — the
+	 * parser used to overload `blueDrum` for MIDI 101 (via `hasOrangeAndGreen`), which
+	 * was lossy for chords containing both real blue (99) and 5L-green (101).
+	 */
+	orangeDrum: 18,
 } as const
 
 /** Note: specific values here are standardized; they are constants used in the track hash calculation. */
@@ -405,9 +465,10 @@ export const lyricFlags = {
 export interface NormalizedLyricEvent {
 	tick: number
 	msTime: number
-	/** Flag symbols stripped, '=' → '-'. '_' and '§' kept as-is (consumer decides display). */
+	/** Original text from the source file, including markup symbols (#, ^, +, =, $, etc.).
+	 * Consumers should use `flags` for semantic interpretation, not parse `text` directly. */
 	text: string
-	/** Bitmask of `lyricFlags`. */
+	/** Bitmask of `lyricFlags`, derived from markup symbols in text. */
 	flags: number
 }
 
@@ -416,7 +477,9 @@ export interface NormalizedVocalNote {
 	msTime: number
 	length: number
 	msLength: number
-	/** MIDI pitch 36-84 for pitched, -1 for unpitched/percussion. */
+	/** MIDI pitch 36-84 for pitched, -1 for percussion. NonPitched notes
+	 * (lyric flags #/^/*) keep their original MIDI pitch — check the
+	 * associated lyric's nonPitched flag for semantic meaning. */
 	pitch: number
 	/** percussionHidden (note 97) is excluded from normalized output. */
 	type: 'pitched' | 'percussion'
@@ -429,17 +492,36 @@ export interface NormalizedVocalPhrase {
 	msLength: number
 	/** True if first note is percussion (YARG behavior — mixing types in one phrase is invalid data). */
 	isPercussion: boolean
+	/** Versus player (PART VOCALS only). 1 = player 1 (note 105), 2 = player 2 (note 106). */
+	player?: 1 | 2
 	notes: NormalizedVocalNote[]
 	lyrics: NormalizedLyricEvent[]
 }
 
 export interface NormalizedVocalPart {
-	/** Scoring phrases (from note 105). Notes and lyrics grouped into their containing phrase. */
+	/** Phrases with notes and lyrics grouped. Built from the union of note 105
+	 * and note 106 phrase boundaries. Notes outside all phrases are dropped. */
 	notePhrases: NormalizedVocalPhrase[]
-	/** Static lyric display phrases (from note 106 on HARM2/3, copy of notePhrases on vocals/HARM1). */
+	/** Static lyric display phrases (from note 106 on HARM2/3, copy of
+	 * notePhrases on vocals/HARM1). */
 	staticLyricPhrases: NormalizedVocalPhrase[]
 	/** Star power sections — separate array, not per-phrase. */
 	starPowerSections: { tick: number; msTime: number; length: number; msLength: number }[]
+	/**
+	 * Per-part range shift markers (MIDI note 0 on this part's track).
+	 * YARG computes rangeShifts from these markers. PART VOCALS and HARM1 often
+	 * have distinct marker sets — must be stored per-part for lossless round-trip.
+	 */
+	rangeShifts: { tick: number; msTime: number; length: number; msLength: number }[]
+	/** Per-part lyric shift markers (MIDI note 1 on this part's track). */
+	lyricShifts: { tick: number; msTime: number; length: number; msLength: number }[]
+	/**
+	 * Raw text events on the vocal track (stance, facial anim, etc.). Required
+	 * so that vocal tracks with only text events (no notes/lyrics/phrases)
+	 * round-trip — YARG considers a VocalsPart non-empty iff it has phrases or
+	 * text events, so dropping them causes ChartDump to hide the track.
+	 */
+	textEvents: { tick: number; msTime: number; text: string }[]
 }
 
 /** Top-level normalized vocal track. */

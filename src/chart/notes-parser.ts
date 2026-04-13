@@ -40,8 +40,8 @@ export function parseChartFile(data: Uint8Array, format: 'chart' | 'mid', partia
 	const drumTracks = rawChartData.trackData.filter(track => track.instrument === 'drums')
 	const drumType =
 		drumTracks.length === 0 ? null
-		: iniChartModifiers.pro_drums ? drumTypes.fourLanePro
 		: iniChartModifiers.five_lane_drums ? drumTypes.fiveLane
+		: iniChartModifiers.pro_drums ? drumTypes.fourLanePro
 		: drumTracks.find(track => track.trackEvents.find(e => isCymbalOrTomMarker(e.type))) ? drumTypes.fourLanePro
 		: drumTracks.find(track => track.trackEvents.find(e => e.type === eventTypes.fiveGreenDrum)) ? drumTypes.fiveLane
 		: drumTypes.fourLane
@@ -54,35 +54,27 @@ export function parseChartFile(data: Uint8Array, format: 'chart' | 'mid', partia
 		)
 		.value()
 
-	return {
-		resolution: rawChartData.chartTicksPerBeat,
-		drumType,
-		metadata: rawChartData.metadata,
-		hasLyrics: Object.values(rawChartData.vocalTracks).some(v => v.lyrics.length > 0),
-		hasVocals: Object.values(rawChartData.vocalTracks).some(v => v.vocalPhrases.length > 0),
-		hasForcedNotes,
-		vocalTracks: normalizeVocalTracks(rawChartData.vocalTracks, timedTempos, rawChartData.chartTicksPerBeat),
-		endEvents: setEventMsTimes(rawChartData.endEvents, timedTempos, rawChartData.chartTicksPerBeat),
-		globalEvents: setEventMsTimes(rawChartData.globalEvents, timedTempos, rawChartData.chartTicksPerBeat),
-		venue: setEventMsTimes(rawChartData.venue, timedTempos, rawChartData.chartTicksPerBeat),
-		tempos: timedTempos,
-		timeSignatures: setEventMsTimes(rawChartData.timeSignatures, timedTempos, rawChartData.chartTicksPerBeat),
-		sections: setEventMsTimes(rawChartData.sections, timedTempos, rawChartData.chartTicksPerBeat),
-		trackData: _.chain(rawChartData.trackData)
-			.map(track => ({
+	const normalizedVocalTracks = normalizeVocalTracks(rawChartData.vocalTracks, timedTempos, rawChartData.chartTicksPerBeat)
+	// Evaluate trackData first — normalizeVocalTracks is used below.
+	const trackDataResult = _.chain(rawChartData.trackData)
+			.map(track => {
+				const trackAny = track as typeof track & { _sourceTrackName?: string }
+				return {
 				instrument: track.instrument,
 				difficulty: track.difficulty,
 				gameMode: getGameMode(track.instrument),
+				/** Source MIDI track name (for disambiguating duplicate-instrument tracks). */
+				sourceTrackName: trackAny._sourceTrackName,
 				starPowerSections: _.chain(track.starPowerSections)
 					.thru(events => setEventMsTimes(events, timedTempos, rawChartData.chartTicksPerBeat))
-					.thru(events => sortAndFixInvalidEventOverlaps(events))
+					.thru(events => sortAndFixInvalidEventOverlaps(events, timedTempos, rawChartData.chartTicksPerBeat))
 					.value(),
 				rejectedStarPowerSections: _.chain(track.rejectedStarPowerSections)
 					.thru(events => setEventMsTimes(events, timedTempos, rawChartData.chartTicksPerBeat))
 					.value(),
 				soloSections: _.chain(track.soloSections)
 					.thru(events => setEventMsTimes(events, timedTempos, rawChartData.chartTicksPerBeat))
-					.thru(events => sortAndFixInvalidEventOverlaps(events))
+					.thru(events => sortAndFixInvalidEventOverlaps(events, timedTempos, rawChartData.chartTicksPerBeat))
 					.value(),
 				glissandoSections: setEventMsTimes(track.glissandoSections, timedTempos, rawChartData.chartTicksPerBeat),
 				flexLanes: _.chain(track.flexLanes)
@@ -108,7 +100,6 @@ export function parseChartFile(data: Uint8Array, format: 'chart' | 'mid', partia
 						timedTempos, rawChartData.chartTicksPerBeat,
 					),
 				noteEventGroups: _.chain(track.trackEvents)
-					.thru(events => trimSustains(events, iniChartModifiers.sustain_cutoff_threshold, rawChartData.chartTicksPerBeat, format))
 					.groupBy(note => note.tick)
 					.values()
 					.thru(eventGroups =>
@@ -118,10 +109,34 @@ export function parseChartFile(data: Uint8Array, format: 'chart' | 'mid', partia
 					)
 					.thru(noteGroups => snapChords(noteGroups, iniChartModifiers.chord_snap_threshold, track.instrument))
 					.tap(noteGroups => sortAndFixInvalidNoteOverlaps(noteGroups))
+					.thru(events => trimSustains(events, iniChartModifiers.sustain_cutoff_threshold, rawChartData.chartTicksPerBeat, format))
 					.thru(events => setEventGroupMsTimes(events, timedTempos, rawChartData.chartTicksPerBeat))
 					.value(),
-			}))
-			.value(),
+				}
+			})
+			.value()
+
+	return {
+		resolution: rawChartData.chartTicksPerBeat,
+		drumType,
+		metadata: rawChartData.metadata,
+		// Check phrase-level lyrics to decide hasLyrics — raw lyric events that
+		// get filtered (brackets, whitespace-only) should not count.
+		hasLyrics: Object.values(normalizedVocalTracks.parts).some(p =>
+			p.notePhrases.some(ph => ph.lyrics.length > 0)),
+		hasVocals: Object.values(rawChartData.vocalTracks).some(v => v.vocalPhrases.length > 0),
+		hasForcedNotes,
+		vocalTracks: normalizedVocalTracks,
+		endEvents: setEventMsTimes(rawChartData.endEvents, timedTempos, rawChartData.chartTicksPerBeat),
+		globalEvents: setEventMsTimes(rawChartData.globalEvents, timedTempos, rawChartData.chartTicksPerBeat),
+		venue: setEventMsTimes(rawChartData.venue, timedTempos, rawChartData.chartTicksPerBeat),
+		beatTrack: rawChartData.beatTrack
+			? setEventMsTimes(rawChartData.beatTrack, timedTempos, rawChartData.chartTicksPerBeat)
+			: undefined,
+		tempos: timedTempos,
+		timeSignatures: setEventMsTimes(rawChartData.timeSignatures, timedTempos, rawChartData.chartTicksPerBeat),
+		sections: setEventMsTimes(rawChartData.sections, timedTempos, rawChartData.chartTicksPerBeat),
+		trackData: trackDataResult,
 	}
 }
 
@@ -143,7 +158,7 @@ function normalizeVocalTracks(
 	const sourcePart = vocalTracks['vocals'] ?? vocalTracks['harmony1']
 
 	for (const [partName, data] of entries) {
-		parts[partName] = normalizeVocalPart(data, timedTempos, resolution)
+		parts[partName] = normalizeVocalPart(data, timedTempos, resolution, partName)
 	}
 
 	return {
@@ -161,15 +176,94 @@ function normalizeVocalPart(
 	data: VocalTrackData,
 	timedTempos: TimedTempos,
 	resolution: number,
+	partName: string,
 ): NormalizedVocalPart {
-	const notePhrases = groupIntoPhrases(data.vocalPhrases, data, timedTempos, resolution)
+	const isPartVocals = partName === 'vocals'
+	const isHarm2or3 = partName === 'harmony2' || partName === 'harmony3'
+
+	// PART VOCALS: merge note 105 + 106 into a single phrase list with player
+	// tags. Both create scoring + static lyric phrases in YARG.
+	// Harmonies: keep 105 (scoring) and 106 (static lyric) separate for
+	// lossless round-trip — the writer needs to emit them on their original
+	// MIDI note numbers, and CopyDown relies on HARM1's vocalPhrases (105 only).
+	let notePhrases: NormalizedVocalPhrase[]
+	let staticLyricPhrases: NormalizedVocalPhrase[]
+
+	if (isPartVocals) {
+		// Merge 105 + 106 for PART VOCALS
+		const mergedPhrases: { tick: number; length: number; _source: 105 | 106 }[] = []
+		for (const p of data.vocalPhrases) {
+			mergedPhrases.push({ tick: p.tick, length: p.length, _source: 105 })
+		}
+		for (const p of data.staticLyricPhrases) {
+			mergedPhrases.push({ tick: p.tick, length: p.length, _source: 106 })
+		}
+		mergedPhrases.sort((a, b) => a.tick - b.tick)
+
+		// Dedup same-tick phrases (keep longest), track source of survivor
+		const dedupedPhrases: typeof mergedPhrases = []
+		const phraseSourceByTick = new Map<number, 105 | 106>()
+		for (const p of mergedPhrases) {
+			const existing = dedupedPhrases.find(d => d.tick === p.tick)
+			if (existing) {
+				if (p.length > existing.length) {
+					existing.length = p.length
+					existing._source = p._source
+				}
+			} else {
+				dedupedPhrases.push(p)
+			}
+			phraseSourceByTick.set(p.tick, dedupedPhrases.find(d => d.tick === p.tick)!._source)
+		}
+
+		notePhrases = groupIntoPhrases(dedupedPhrases, data, timedTempos, resolution)
+
+		// Set player field
+		for (const phrase of notePhrases) {
+			const source = phraseSourceByTick.get(phrase.tick)
+			phrase.player = source === 106 ? 2 : 1
+		}
+
+		// staticLyricPhrases = copy of notePhrases for PART VOCALS
+		staticLyricPhrases = notePhrases.map(p => ({ ...p }))
+	} else {
+		// Harmonies: separate 105/106 for lossless round-trip
+		notePhrases = groupIntoPhrases(data.vocalPhrases, data, timedTempos, resolution)
+		staticLyricPhrases = data.staticLyricPhrases.length > 0
+			? groupIntoPhrases(data.staticLyricPhrases, data, timedTempos, resolution)
+			: []
+	}
+
 	return {
 		notePhrases,
-		staticLyricPhrases: data.staticLyricPhrases.length > 0
-			? groupIntoPhrases(data.staticLyricPhrases, data, timedTempos, resolution)
-			: notePhrases,
+		staticLyricPhrases,
 		starPowerSections: setEventMsTimes(data.starPowerSections, timedTempos, resolution),
+		rangeShifts: setEventMsTimes(
+			data.rangeShifts.map(r => ({ tick: r.tick, length: r.length })),
+			timedTempos,
+			resolution,
+		),
+		lyricShifts: setEventMsTimes(
+			data.lyricShifts.map(l => ({ tick: l.tick, length: l.length })),
+			timedTempos,
+			resolution,
+		),
+		textEvents: (data.textEvents ?? []).map(t => {
+			let idx = 0
+			while (timedTempos[idx + 1] && timedTempos[idx + 1].tick <= t.tick) idx++
+			const tempo = timedTempos[idx]
+			const msTime = tempo.msTime + ((t.tick - tempo.tick) * 60000) / (tempo.beatsPerMinute * resolution)
+			return { tick: t.tick, msTime, text: t.text }
+		}),
 	}
+}
+
+/** Standard emptiness check for lyrics (matching YARG's IsNullOrWhiteSpace
+ * on StripForVocals output). Symbol-only lyrics like "+" strip to empty
+ * and are dropped. */
+function isLyricKept(text: string): boolean {
+	const stripped = stripLyricSymbols(text)
+	return stripped.length > 0 && stripped.replace(/_/g, ' ').trim().length > 0
 }
 
 function groupIntoPhrases(
@@ -223,38 +317,52 @@ function groupIntoPhrases(
 		// Check if a pitch slide from a previous phrase carries into this one
 		const hasCarriedNote = carriedNoteEndTick >= phrase.tick
 
-		// Build notes and lyrics by iterating notes and collecting lyrics up to each note's tick
-		// (matching YARG's ProcessNoteEvent pattern where moonTextIndex is shared across phrases).
 		const notes: NormalizedVocalNote[] = []
 		const untimedLyrics: { tick: number; text: string; flags: number }[] = []
-		for (const note of rawNotes) {
-			// YARG only processes note 96 (percussion), not note 97 (percussionHidden/nonplayed)
-			if (note.type === 'percussionHidden') continue
 
-			// Skip percussion notes at the exact phrase start tick when it's the first note.
-			// In MIDI, noteOn for note 96 can arrive before noteOn for note 105 at the same tick,
-			// causing the percussion note to not be included in the phrase by YARG's normalizer.
+		// Pre-collect all lyrics within this phrase's tick range. This advances
+		// lyricIdx to a consistent position (phraseEnd) regardless of which notes
+		// exist, preventing lyricIdx divergence when pitch slide notes are dropped
+		// on round-trip. Note processing uses a local iterator (phraseLyricIdx)
+		// over this pre-collected list for flag detection.
+		const phraseLyrics: { tick: number; text: string; flags: number }[] = []
+		while (lyricIdx < sortedLyrics.length && sortedLyrics[lyricIdx].tick < phraseEnd) {
+			const lyric = sortedLyrics[lyricIdx]
+			lyricIdx++
+			const text = lyric.text.replace(/^[\x00-\x20]+|[\x00-\x20]+$/g, '')
+			if (text.startsWith('[')) continue
+			phraseLyrics.push({ tick: lyric.tick, text, flags: parseLyricFlags(text) })
+		}
+		if (rawNotes.length === 0) {
+			// No-notes path (.chart format, empty phrases): add all phrase lyrics
+			for (const pl of phraseLyrics) {
+				if (isLyricKept(pl.text)) {
+					untimedLyrics.push({ tick: pl.tick, text: pl.text, flags: pl.flags })
+				}
+			}
+		}
+
+		// Process notes, using phraseLyrics for flag detection
+		let phraseLyricIdx = 0
+		for (const note of rawNotes) {
+			if (note.type === 'percussionHidden') continue
 			if (note.type === 'percussion' && note.tick === phrase.tick && notes.length === 0) {
 				continue
 			}
 
-			// Collect all lyrics up to and including this note's tick
+			// Collect lyrics up to and including this note's tick (local iterator)
 			let noteLyricFlags = 0
-			while (lyricIdx < sortedLyrics.length && sortedLyrics[lyricIdx].tick <= note.tick) {
-				const lyric = sortedLyrics[lyricIdx]
-				lyricIdx++
+			while (phraseLyricIdx < phraseLyrics.length && phraseLyrics[phraseLyricIdx].tick <= note.tick) {
+				let { tick, text, flags } = phraseLyrics[phraseLyricIdx]
+				phraseLyricIdx++
 
-				// Trim ASCII whitespace (0x00-0x20) from both ends, matching YARG's
-				// NormalizeTextEvent.TrimAscii() which processes text before storage.
-				let text = lyric.text.replace(/^[\x00-\x20]+|[\x00-\x20]+$/g, '')
-
-				// Skip bracketed events — YARG's NormalizeTextEvent strips brackets and
-				// prevents bracketed FF 01 text events from becoming lyrics.
-				if (text.startsWith('[')) continue
-
-				let flags = parseLyricFlags(text)
 				noteLyricFlags = flags
 
+				// DeferredLyricJoinWorkaround: "+-" or "-+" merges the hyphen into
+				// the previous lyric's flags. We update noteLyricFlags for pitch
+				// slide detection but keep the original text "+-" for lossless
+				// round-trip — changing it to "+" causes the workaround to trigger
+				// differently on re-parse (state-dependent, not idempotent).
 				// DeferredLyricJoinWorkaround: "+-" or "-+" merges the hyphen into the previous lyric
 				if (untimedLyrics.length > 0 && (text === '+-' || text === '-+')) {
 					const prev = untimedLyrics[untimedLyrics.length - 1]
@@ -270,41 +378,37 @@ function groupIntoPhrases(
 					}
 				}
 
-				const strippedText = stripLyricSymbols(text)
-				// Skip lyrics that would be whitespace-only after _ → space replacement.
-				// Matches YARG's IsNullOrWhiteSpace check which runs on StripForVocals output
-				// (where _ is replaced with space).
-				if (strippedText.length > 0 && strippedText.replace(/_/g, ' ').trim().length > 0) {
-					untimedLyrics.push({ tick: lyric.tick, text: strippedText, flags })
+				if (isLyricKept(text)) {
+					untimedLyrics.push({ tick, text, flags })
 				}
 			}
 
 			const isPitchSlide = (noteLyricFlags & lyricFlags.pitchSlide) !== 0
-			const isNonPitched = (noteLyricFlags & lyricFlags.nonPitched) !== 0 ||
-				note.type === 'percussion'
 
 			if (isPitchSlide) {
-				const slideEnd = note.tick + note.length
-				if (notes.length > 0) {
-					// Within-phrase slide: merges with previousNote (a separate chain from carriedNote).
-					// Do NOT extend carriedNoteEndTick — previousNote is not necessarily the carriedNote.
-					// In YARG, AddChildNote only updates the parent it's called on, not other notes.
-					continue
-				}
-				if (hasCarriedNote) {
-					// Cross-phrase slide via carried note: skip, extend total end
-					carriedNoteEndTick = Math.max(carriedNoteEndTick, slideEnd)
-					continue
-				}
-				// Cross-phrase slide via previousParentLyric (YARG behavior):
-				if (result.length === 0) {
-					// No phrases yet → charting error, skip
-					continue
-				}
-				if (hasPreviousLyricNote) {
-					// Add to previousParentLyric, set carriedNote
-					carriedNoteEndTick = Math.max(carriedNoteEndTick, slideEnd)
-					continue
+				// Only skip if the pitchSlide lyric survived the emptiness filter.
+				// Symbol-only "+" strips to empty and is filtered from output. If
+				// filtered, the lyric won't exist on re-parse, so the note wouldn't
+				// be detected as a pitch slide — keeping it ensures round-trip
+				// consistency for Harmonix-authored charts.
+				const lastStored = untimedLyrics.length > 0 ? untimedLyrics[untimedLyrics.length - 1] : null
+				const slideMarkerKept = lastStored !== null && (lastStored.flags & lyricFlags.pitchSlide) !== 0
+				if (slideMarkerKept) {
+					const slideEnd = note.tick + note.length
+					if (notes.length > 0) {
+						continue
+					}
+					if (hasCarriedNote) {
+						carriedNoteEndTick = Math.max(carriedNoteEndTick, slideEnd)
+						continue
+					}
+					if (result.length === 0) {
+						continue
+					}
+					if (hasPreviousLyricNote) {
+						carriedNoteEndTick = Math.max(carriedNoteEndTick, slideEnd)
+						continue
+					}
 				}
 			}
 
@@ -314,20 +418,29 @@ function groupIntoPhrases(
 				msTime: timed.msTime,
 				length: timed.length,
 				msLength: timed.msLength,
-				pitch: isNonPitched ? -1 : note.pitch,
+				// Keep original MIDI pitch for pitched notes (even nonPitched ones
+				// marked by lyric flags like #/^/*). Consumers check the lyric's
+				// nonPitched flag instead. Percussion always gets -1 (fixed MIDI note 96).
+				pitch: note.type === 'percussion' ? -1 : note.pitch,
 				type: note.type,
 			})
 			if (note.type === 'pitched') hasPreviousLyricNote = true
 		}
 
-		// Re-check carried note state after processing all notes in this phrase.
-		// Pitch slides during this phrase may have set carriedNoteEndTick via previousParentLyric.
-		const hasCarriedNoteAfter = carriedNoteEndTick >= phrase.tick
-
-		// Skip phrases with no notes and no carried note (matching YARG behavior)
-		if (notes.length < 1 && !hasCarriedNote && !hasCarriedNoteAfter) {
-			continue
+		// Add remaining pre-collected lyrics after the last note (with-notes path only;
+		// no-notes path already added all phraseLyrics above)
+		while (rawNotes.length > 0 && phraseLyricIdx < phraseLyrics.length) {
+			const { tick, text, flags } = phraseLyrics[phraseLyricIdx]
+			phraseLyricIdx++
+			if (isLyricKept(text)) {
+				untimedLyrics.push({ tick, text, flags })
+			}
 		}
+
+		// NOTE: Intentionally do NOT drop "empty" phrases (no notes, no lyrics, no carried
+		// note). Keeping them preserves the full set of phrase boundaries so that writers
+		// can round-trip the full MIDI state. Consumers wanting a YARG-compatible filtered
+		// view can filter notePhrases themselves.
 
 		// Track carry-over: only from notes that were added to the phrase (not pitch slide children).
 		// YARG sets carriedNote at line 219-222, which only runs for notes that pass through
@@ -448,19 +561,20 @@ function setEventOrEventGroupMsTimes<T extends { tick: number; length?: number }
 	return events as (T & { msTime: number; msLength: number })[][] | (T & { msTime: number; msLength: number })[]
 }
 
-function trimSustains(
-	trackEvents: { tick: number; length: number; type: EventType }[],
+function trimSustains<T extends { tick: number; length: number; type: EventType }[] | { tick: number; length: number; type: EventType }[][]>(
+	trackEvents: T,
 	sustain_cutoff_threshold: number,
 	chartTicksPerBeat: number,
 	format: 'chart' | 'mid',
-) {
+): T {
 	const sustainThresholdTicks =
 		sustain_cutoff_threshold !== -1 ? sustain_cutoff_threshold
 		: format === 'mid' ? Math.floor(chartTicksPerBeat / 3) + 1
 		: 0
 
 	if (sustainThresholdTicks > 0) {
-		for (const event of trackEvents) {
+		const items = Array.isArray(trackEvents[0]) ? (trackEvents as { length: number }[][]).flat() : trackEvents as { length: number }[]
+		for (const event of items) {
 			if (event.length <= sustainThresholdTicks) {
 				event.length = 0
 			}
@@ -503,11 +617,8 @@ function resolveDrumModifiers(trackEventGroups: TrackEvent[][], drumType: DrumTy
 			})
 		}
 
-		const hasOrangeAndGreen =
-			!!notes.find(e => e.type === eventTypes.fiveGreenDrum) && !!notes.find(e => e.type === eventTypes.fiveOrangeFourGreenDrum)
-
 		for (const note of notes) {
-			const type = getDrumNoteTypeFromEventType(note.type, hasOrangeAndGreen)!
+			const type = getDrumNoteTypeFromEventType(note.type, drumType)!
 			const canBeDisco = type === noteTypes.redDrum || type === noteTypes.yellowDrum
 			const discoFlag =
 				!canBeDisco || activeDiscoFlip === eventTypes.discoFlipOff ? noteFlags.none
@@ -553,7 +664,7 @@ function isKickNote(eventType: EventType) {
 	}
 }
 
-function getDrumNoteTypeFromEventType(eventType: EventType, hasOrangeAndGreen: boolean): NoteType | null {
+function getDrumNoteTypeFromEventType(eventType: EventType, drumType: DrumType): NoteType | null {
 	switch (eventType) {
 		case eventTypes.redDrum:
 			return noteTypes.redDrum
@@ -562,9 +673,11 @@ function getDrumNoteTypeFromEventType(eventType: EventType, hasOrangeAndGreen: b
 		case eventTypes.blueDrum:
 			return noteTypes.blueDrum
 		case eventTypes.fiveOrangeFourGreenDrum:
-			return noteTypes.greenDrum
+			// MIDI 100 is "green" in 4-lane/4-lane-pro but "orange" in 5-lane.
+			return drumType === drumTypes.fiveLane ? noteTypes.orangeDrum : noteTypes.greenDrum
 		case eventTypes.fiveGreenDrum:
-			return hasOrangeAndGreen ? noteTypes.blueDrum : noteTypes.greenDrum
+			// MIDI 101 is always the 5-lane green pad (5th lane).
+			return noteTypes.greenDrum
 		default:
 			return null
 	}
@@ -726,7 +839,6 @@ function resolveFretModifiers(
 			: events.find(n => n.type === eventTypes.forceStrum) ? noteFlags.strum
 			: (hasForceUnnatural && isNaturalHopo) || (!hasForceUnnatural && !isNaturalHopo) ? noteFlags.strum
 			: noteFlags.hopo
-
 		noteEventGroups.push(
 			notes.map(n => ({
 				tick: n.tick,
@@ -882,6 +994,9 @@ function snapChords(noteGroups: UntimedNoteEvent[][], chord_snap_threshold: numb
 					} else if (note.type === noteTypes.blueDrum) {
 						const lastBlueDrumFlags = lastNoteGroup.find(n => n.type === noteTypes.blueDrum)?.flags ?? null
 						note.flags = lastBlueDrumFlags === null ? note.flags : lastBlueDrumFlags
+					} else if (note.type === noteTypes.orangeDrum) {
+						const lastOrangeDrumFlags = lastNoteGroup.find(n => n.type === noteTypes.orangeDrum)?.flags ?? null
+						note.flags = lastOrangeDrumFlags === null ? note.flags : lastOrangeDrumFlags
 					} else if (note.type === noteTypes.greenDrum) {
 						const lastGreenDrumFlags = lastNoteGroup.find(n => n.type === noteTypes.greenDrum)?.flags ?? null
 						note.flags = lastGreenDrumFlags === null ? note.flags : lastGreenDrumFlags
@@ -939,7 +1054,11 @@ function sortAndFixInvalidFlexLaneOverlaps(events: { tick: number; length: numbe
 	return events
 }
 
-function sortAndFixInvalidEventOverlaps(events: { tick: number; length: number; msTime: number; msLength: number }[]) {
+function sortAndFixInvalidEventOverlaps(
+	events: { tick: number; length: number; msTime: number; msLength: number }[],
+	tempos?: { tick: number; beatsPerMinute: number; msTime: number }[],
+	chartTicksPerBeat?: number,
+) {
 	events.sort((a, b) => a.tick - b.tick || b.length - a.length) // Longest event is kept for duplicates
 	let removedEvents: { tick: number; length: number; msTime: number; msLength: number }[] | null = null
 	for (let i = 1; i < events.length; i++) {
@@ -952,13 +1071,35 @@ function sortAndFixInvalidEventOverlaps(events: { tick: number; length: number; 
 		_.pullAll(events, removedEvents)
 	}
 
+	// Helper: recompute msLength for an event from scratch using the tempo map,
+	// bit-identically to `setEventMsTimes`. This keeps round-trip stable —
+	// writers emit the post-overlap-fix length, and re-parse runs `setEventMsTimes`
+	// on that length, so we must match the same formula exactly.
+	const recomputeMsLength = (event: { tick: number; length: number; msTime: number }) => {
+		if (!tempos || !chartTicksPerBeat) return null
+		if (event.length === 0) return 0
+		let idx = 0
+		while (tempos[idx + 1] && tempos[idx + 1].tick <= event.tick + event.length) idx++
+		const endTempo = tempos[idx]
+		return endTempo.msTime - event.msTime + ((event.tick + event.length - endTempo.tick) * 60000) / (endTempo.beatsPerMinute * chartTicksPerBeat)
+	}
+
 	let previousEvent: { tick: number; length: number; msTime: number; msLength: number } | null = null
 	for (const event of events) {
 		if (previousEvent && previousEvent.tick + previousEvent.length > event.tick) {
+			// BTrack spec overlap resolution: "A's ending tick should be set to
+			// B's starting tick, and B's ending tick should be set to either A
+			// or B's ending tick, whichever is greater."
 			event.length = Math.max(event.length, previousEvent.length - (event.tick - previousEvent.tick))
-			event.msLength = Math.max(event.msLength, previousEvent.msLength - (event.msTime - previousEvent.msTime))
+			const recomputedEvent = recomputeMsLength(event)
+			event.msLength = recomputedEvent !== null
+				? recomputedEvent
+				: Math.max(event.msLength, previousEvent.msLength - (event.msTime - previousEvent.msTime))
 			previousEvent.length = event.tick - previousEvent.tick
-			previousEvent.msLength = event.msTime - previousEvent.msTime
+			const recomputedPrev = recomputeMsLength(previousEvent)
+			previousEvent.msLength = recomputedPrev !== null
+				? recomputedPrev
+				: event.msTime - previousEvent.msTime
 		}
 		previousEvent = event
 	}

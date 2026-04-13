@@ -3,7 +3,19 @@ import { MidiData, MidiEvent, MidiSetTempoEvent, MidiTextEvent, MidiTimeSignatur
 
 import { difficulties, Difficulty, getInstrumentType, Instrument, InstrumentType, instrumentTypes } from 'src/interfaces'
 import { EventType, eventTypes, IniChartModifiers, RawChartData, VenueEvent, VocalTrackData } from './note-parsing-interfaces'
-import { extractMidiLyrics, extractMidiVocalPhrases, extractMidiVocalNotes, extractMidiVocalStarPower, extractMidiRangeShifts, extractMidiLyricShifts } from './lyric-parser'
+import { extractMidiLyrics, extractMidi105Phrases, extractMidi106Phrases, extractMidiVocalNotes, extractMidiVocalStarPower, extractMidiRangeShifts, extractMidiLyricShifts, extractMidiVocalTextEvents } from './lyric-parser'
+
+// Union two phrase lists, dedup by tick (keep longest length), sort by tick.
+function mergePhraseLists(a: { tick: number; length: number }[], b: { tick: number; length: number }[]): { tick: number; length: number }[] {
+	const byTick = new Map<number, number>()
+	for (const p of [...a, ...b]) {
+		const existing = byTick.get(p.tick)
+		if (existing === undefined || p.length > existing) byTick.set(p.tick, p.length)
+	}
+	return [...byTick.entries()]
+		.sort((x, y) => x[0] - y[0])
+		.map(([tick, length]) => ({ tick, length }))
+}
 
 type TrackName = (typeof trackNames)[number]
 type VocalTrackName = 'PART VOCALS' | 'HARM1' | 'HARM2' | 'HARM3' | 'PART HARM1' | 'PART HARM2' | 'PART HARM3'
@@ -32,6 +44,7 @@ const trackNames = [
 	'PART ELITE_DRUMS',
 	'PART REAL_DRUMS_PS',
 	'VENUE',
+	'BEAT',
 	'PART VOCALS',
 	'HARM1',
 	'HARM2',
@@ -101,10 +114,35 @@ interface TrackEventEnd {
 	channel: number
 	// Necessary because .mid stores track events as separate start and end events
 	isStart: boolean
+	/**
+	 * Internal marker for Phase Shift SysEx-sourced forceTap events. YARG.Core
+	 * treats SysEx-based taps as INCLUSIVE-end sustains (Phase Shift / Clone Hero
+	 * behavior) while note-104-based taps are EXCLUSIVE-end (like all other
+	 * note-based modifiers). scan-chart can't otherwise distinguish the two.
+	 */
+	_fromSysEx?: boolean
+	/**
+	 * Insertion index in the original MIDI file, used for stable tiebreaking
+	 * when multiple events land on the same tick. YARG.Core processes modifier
+	 * closures in file order, so the relative position of noteOff events at
+	 * the same tick determines which force modifier wins a conflict.
+	 */
+	_seq?: number
 }
 
 // Necessary because .mid stores some additional modifiers and information using velocity
-type MidiTrackEvent = RawChartData['trackData'][number]['trackEvents'][number] & { velocity: number; channel: number }
+type MidiTrackEvent = RawChartData['trackData'][number]['trackEvents'][number] & {
+	velocity: number
+	channel: number
+	_fromSysEx?: boolean
+	/**
+	 * Sequence number (MIDI file order) of the END event that closed this sustain.
+	 * Used by resolveFretModifiers to match YARG's "last closure wins" behavior:
+	 * when multiple force modifiers cover a note, pick the one with the largest
+	 * `_endSeq`, matching YARG's MidReader forcingProcessList iteration order.
+	 */
+	_endSeq?: number
+}
 
 /**
  * Parses `buffer` as a chart in the .mid format. Returns all the note data in `RawChartData`, but any
@@ -140,40 +178,63 @@ export function parseNotesFromMidi(data: Uint8Array, iniChartModifiers: IniChart
 
 	const tracks = getTracks(midiFile)
 
-	// Build vocalTracks from PART VOCALS and HARM1/HARM2/HARM3
+	// Build vocalTracks from PART VOCALS and HARM1/HARM2/HARM3.
+	// Separate note 105 (scoring phrases) from note 106 (static lyric / player-2
+	// display phrases) at extraction time. This lets the writer round-trip HARM2/HARM3
+	// without any pre-CopyDown stashing: HARM2/HARM3 emit staticLyricPhrases as
+	// note 106 on their own track, HARM1 emits vocalPhrases as note 105, and CopyDown
+	// on re-parse re-copies HARM1's vocalPhrases to HARM2/HARM3 — identical result.
 	const vocalTracks: { [part: string]: VocalTrackData } = {}
 	for (const track of tracks) {
 		const partName = vocalTrackNameMap[track.trackName as VocalTrackName]
 		if (partName && !vocalTracks[partName]) {
 			const events = track.trackEvents
+			// YARG treats BOTH note 105 (LYRICS_PHRASE_1) and note 106
+			// (LYRICS_PHRASE_2) as creating a `Vocals_StaticLyricPhrase` in HARM2/
+			// HARM3's specialPhrases (plus `Vocals_ScoringPhrase` which CopyDown
+			// later replaces from HARM1). Match that by unioning both sets for
+			// harmony parts. For solo vocals and HARM1, the static-lyric view is
+			// simply a duplicate of the note-phrase (scoring) list per YARG's
+			// MoonSongLoader.Vocals.cs.
+			const phrases105 = extractMidi105Phrases(events)
+			const phrases106 = extractMidi106Phrases(events)
+			const isHarmonyBacking = partName === 'harmony2' || partName === 'harmony3'
 			vocalTracks[partName] = {
 				lyrics: extractMidiLyrics(events),
-				vocalPhrases: extractMidiVocalPhrases(events),
+				vocalPhrases: phrases105,
 				notes: extractMidiVocalNotes(events),
 				starPowerSections: extractMidiVocalStarPower(events),
 				rangeShifts: extractMidiRangeShifts(events),
 				lyricShifts: extractMidiLyricShifts(events),
-				staticLyricPhrases: [],
+				staticLyricPhrases: isHarmonyBacking
+					? mergePhraseLists(phrases105, phrases106)
+					: phrases106,
+				// Raw text events on the vocal track (stance, facial anim, etc.)
+				// that YARG preserves as MoonText events. Required for round-trip
+				// of vocal tracks that only have stance markers (no notes/lyrics).
+				textEvents: extractMidiVocalTextEvents(events),
 			}
 		}
 	}
 
 	// YARG CopyDownPhrases: HARM2/HARM3 get scoring phrases AND star power from HARM1.
-	// HARM2 keeps its own note-105 phrases as staticLyricPhrases (for lyric display),
-	// then replaces vocalPhrases (scoring) and starPowerSections with HARM1's.
-	// HARM3 clones HARM2's staticLyricPhrases and also gets HARM1's scoring/starpower.
+	// This only touches vocalPhrases/starPowerSections — staticLyricPhrases are
+	// extracted directly from note 106 on HARM2/HARM3 and are NOT touched here.
+	// CopyDown is idempotent (re-parse → re-CopyDown produces the same result).
 	if (vocalTracks.harmony1) {
 		const harm1Phrases = vocalTracks.harmony1.vocalPhrases
 		const harm1StarPower = vocalTracks.harmony1.starPowerSections
 		if (vocalTracks.harmony2) {
-			vocalTracks.harmony2.staticLyricPhrases = vocalTracks.harmony2.vocalPhrases.map(p => ({ tick: p.tick, length: p.length }))
 			vocalTracks.harmony2.vocalPhrases = harm1Phrases.map(p => ({ ...p }))
 			vocalTracks.harmony2.starPowerSections = harm1StarPower.map(p => ({ ...p }))
 		}
 		if (vocalTracks.harmony3) {
-			vocalTracks.harmony3.staticLyricPhrases = (vocalTracks.harmony2?.staticLyricPhrases ?? []).map(p => ({ ...p }))
 			vocalTracks.harmony3.vocalPhrases = harm1Phrases.map(p => ({ ...p }))
 			vocalTracks.harmony3.starPowerSections = harm1StarPower.map(p => ({ ...p }))
+			// HARM3 gets HARM2's staticLyricPhrases (matching YARG's CopyDownPhrases)
+			if (vocalTracks.harmony2) {
+				vocalTracks.harmony3.staticLyricPhrases = vocalTracks.harmony2.staticLyricPhrases.map(p => ({ ...p }))
+			}
 		}
 	}
 
@@ -225,18 +286,52 @@ export function parseNotesFromMidi(data: Uint8Array, iniChartModifiers: IniChart
 				}
 			})
 			.value(),
+		// Match YARG's TextEvents.NormalizeTextEvent → TryParseSectionEvent:
+		//   1. If text has `[` and `]`, take content between the FIRST `[`
+		//      and the FIRST `]` (not the outermost pair). Otherwise trim.
+		//   2. If the content starts with "section" or "prc", strip the
+		//      prefix and any leading `_` and trim; that's the section name.
+		// This correctly handles nested-bracket section events like
+		// `[prc_[1. In the Arms of Morpheus]]` which YARG normalizes to
+		// `prc_[1. In the Arms of Morpheus` then strips `prc_` to yield
+		// `[1. In the Arms of Morpheus` (with the leading `[` preserved).
+		//
+		// YARG processes ALL MIDI chunks whose track name is "EVENTS" in a
+		// loop, accumulating events into a single MoonSong. Some charts
+		// (e.g. "Dream Theater - Lines in the Sand") split their section
+		// events across two EVENTS tracks; we must merge them.
+		//
+		// YARG's ReadSongGlobalEvents iterates `for (int i = 1; ...)` — it
+		// ALWAYS skips the first event of each EVENTS track, regardless of
+		// whether that first event is the trackName. Some charts have a
+		// `[section Intro]` text event BEFORE the trackName event, and YARG
+		// silently drops it. We must match that (e.g. "Masato Kouda -
+		// Humoresque of a Little Dog").
 		sections: _.chain(tracks)
-			.find(t => t.trackName === 'EVENTS')
-			.get('trackEvents')
-			.filter((e): e is MidiTextEvent => isTextLikeEvent(e) && /^\[?(?:section|prc)[ _]([^\]]*)\]?$/.test(e.text))
-			.map(e => ({
-				tick: e.deltaTime,
-				name: e.text.match(/^\[?(?:section|prc)[ _]([^\]]*)\]?$/)![1],
-			}))
+			.filter(t => t.trackName === 'EVENTS')
+			.flatMap(t => t.trackEvents.slice(1))
+			.filter((e): e is MidiTextEvent => isTextLikeEvent(e))
+			.map(e => {
+				const parsed = parseMidiSectionEventText(e.text)
+				return parsed ? { tick: e.deltaTime, name: parsed } : null
+			})
+			.compact()
+			// YARG's MoonSong.InsertSection uses a sorted insert keyed by
+			// MoonText.InsertionCompareTo (tick first, then text comparison).
+			// Match that with a (tick, name) sort so multi-EVENTS-track
+			// charts like "Dream Theater - Lines in the Sand" end up with
+			// the same section ordering as YARG.
+			.thru(sections => {
+				sections.sort((a, b) => {
+					if (a.tick !== b.tick) return a.tick - b.tick
+					return a.name.localeCompare(b.name)
+				})
+				return sections
+			})
 			.value(),
 		endEvents: _.chain(tracks)
-			.find(t => t.trackName === 'EVENTS')
-			.get('trackEvents')
+			.filter(t => t.trackName === 'EVENTS')
+			.flatMap(t => t.trackEvents.slice(1))
 			.filter((e): e is MidiTextEvent => isTextLikeEvent(e) && /^\[?end\]?$/.test(e.text))
 			.map(e => ({
 				tick: e.deltaTime,
@@ -244,6 +339,7 @@ export function parseNotesFromMidi(data: Uint8Array, iniChartModifiers: IniChart
 			.value(),
 		globalEvents: extractGlobalEvents(tracks),
 		venue: extractVenueEvents(tracks),
+		beatTrack: extractBeatTrack(tracks),
 		trackData: _.chain(tracks)
 			.filter(t => _.keys(instrumentNameMap).includes(t.trackName))
 			.map(t => {
@@ -295,6 +391,14 @@ export function parseNotesFromMidi(data: Uint8Array, iniChartModifiers: IniChart
 						proKeysRangeShifts,
 						rawNotes: rawNotesByDifficulty?.[difficulty] ?? [],
 					}
+					// Attach source track name (for cases like PART DRUMS + PART REAL_DRUMS_PS
+					// both mapping to 'drums', or duplicate MIDI tracks with the same name)
+					Object.defineProperty(result, '_sourceTrackName', {
+						value: t.trackName,
+						enumerable: false,
+						writable: true,
+						configurable: true,
+					})
 
 					for (const event of trackDifficulties[difficulty]) {
 						if (event.type === eventTypes.starPower) {
@@ -326,12 +430,19 @@ export function parseNotesFromMidi(data: Uint8Array, iniChartModifiers: IniChart
 				})
 			})
 			.flatMap()
-			.filter(track =>
-				track.trackEvents.length > 0
-				|| track.rawNotes.length > 0
-				|| track.starPowerSections.length > 0
-				|| track.soloSections.length > 0,
-			)
+			.filter(track => {
+				// A track must have "real" content — actual notes or scorable sections.
+				// Tracks with only global modifier events (e.g. [ENABLE_CHART_DYNAMICS])
+				// and no actual notes should be filtered out so that round-trip behavior
+				// is stable (the writer doesn't need to emit placeholder text events).
+				const hasRealTrackEvents = track.trackEvents.some(e =>
+					e.type !== eventTypes.enableChartDynamics,
+				)
+				return hasRealTrackEvents
+					|| track.rawNotes.length > 0
+					|| track.starPowerSections.length > 0
+					|| track.soloSections.length > 0
+			})
 			.thru(tracks => copyDownProKeysPhrases(tracks))
 			.value(),
 	}
@@ -347,21 +458,65 @@ function convertToAbsoluteTime(midiData: MidiData) {
 	}
 }
 
+/**
+ * Parse a MIDI text event as a section event, matching YARG's
+ * TextEvents.NormalizeTextEvent → TryParseSectionEvent pipeline exactly.
+ * Returns the section name, or null if the event isn't a section event.
+ */
+function parseMidiSectionEventText(rawText: string): string | null {
+	// NormalizeTextEvent: if there's both `[` and `]`, take content between
+	// the FIRST `[` and FIRST `]` (not a balanced pair!). Otherwise trim.
+	let text = rawText
+	const openIdx = text.indexOf('[')
+	const closeIdx = text.indexOf(']')
+	if (openIdx >= 0 && closeIdx >= 0 && openIdx <= closeIdx) {
+		text = text.slice(openIdx + 1, closeIdx)
+	}
+	text = text.trim()
+
+	// TryParseSectionEvent: strip "section" or "prc" prefix
+	let name: string
+	if (text.startsWith('section')) {
+		name = text.slice('section'.length)
+	} else if (text.startsWith('prc')) {
+		name = text.slice('prc'.length)
+	} else {
+		return null
+	}
+
+	// TrimStart('_').Trim()
+	while (name.length > 0 && name[0] === '_') name = name.slice(1)
+	name = name.trim()
+
+	if (name.length === 0) return null
+	return name
+}
+
 function getTracks(midiData: MidiData) {
 	const tracks: { trackName: TrackName; trackEvents: MidiEvent[] }[] = []
 
 	for (const track of midiData.tracks) {
+		// Match YARG.Core's MidiExtensions.GetTrackName: return the FIRST
+		// `SequenceTrackName` event (FF 03) seen at tick 0 — including ones
+		// that don't match any recognized instrument track. A rare
+		// pattern (e.g. "Culture Killer - Blindfolded Death") has a bogus
+		// leading trackname like `[ENHANCED_OPENS]` followed by the real
+		// instrument name `PART BASS`. YARG uses the first one and skips
+		// the track entirely. scan-chart used to pick the LAST matching
+		// name and parse the track anyway, creating phantom instruments
+		// that don't exist in the original YARG parse.
 		let trackName: string | null = null
 		for (const event of track) {
 			if (event.deltaTime !== 0) {
 				break
 			}
-			if (event.type === 'trackName' && trackNames.includes(event.text as TrackName)) {
+			if (event.type === 'trackName') {
 				trackName = event.text
+				break
 			}
 		}
 
-		if (trackName !== null) {
+		if (trackName !== null && trackNames.includes(trackName as TrackName)) {
 			tracks.push({
 				trackName: trackName as TrackName,
 				trackEvents: track,
@@ -382,6 +537,10 @@ function getTrackEventEnds(events: MidiEvent[], instrumentType: InstrumentType) 
 		medium: [],
 		easy: [],
 	}
+	// Monotonically increasing counter used to tag each event with its MIDI
+	// file position. We use this for stable tiebreaks in force-modifier
+	// conflict resolution (matching YARG's forcingProcessList order).
+	let seq = 0
 
 	for (const event of events) {
 		// SysEx event (tap modifier or open)
@@ -400,6 +559,11 @@ function getTrackEventEnds(events: MidiEvent[], instrumentType: InstrumentType) 
 						channel: 1,
 						velocity: 127,
 						isStart: event.data[6] === 0x01,
+						// Mark SysEx-sourced taps so splitMidiModifierSustains can
+						// treat them with inclusive-end (matching YARG's Phase Shift
+						// SysEx handling, which skips the endTick decrement).
+						_fromSysEx: type === eventTypes.forceTap,
+						_seq: seq++,
 					})
 				}
 			}
@@ -420,6 +584,7 @@ function getTrackEventEnds(events: MidiEvent[], instrumentType: InstrumentType) 
 						velocity: event.velocity,
 						channel: event.channel,
 						isStart: event.type === 'noteOn',
+						_seq: seq++,
 					})
 				}
 			} else {
@@ -435,6 +600,7 @@ function getTrackEventEnds(events: MidiEvent[], instrumentType: InstrumentType) 
 						velocity: event.velocity,
 						channel: event.channel,
 						isStart: event.type === 'noteOn',
+						_seq: seq++,
 					})
 				}
 			}
@@ -641,17 +807,26 @@ function getTrackEvents(trackEventEnds: { [key in Difficulty]: TrackEventEnd[] }
 					type: trackEventEnd.type,
 					velocity: trackEventEnd.velocity,
 					channel: trackEventEnd.channel,
+					_fromSysEx: trackEventEnd._fromSysEx,
 				}
 				partialTrackEvents.push(partialTrackEvent)
 				trackEvents[difficulty].push(partialTrackEvent)
 			} else if (partialTrackEvents.length) {
+				// Pair end events with the closest previous (most recent) matching
+				// start — LIFO ordering per the BTrack spec: "Each end event is
+				// paired with the closest previous start event."
 				let partialTrackEventIndex = partialTrackEvents.length - 1
 				while (partialTrackEventIndex >= 0 && partialTrackEvents[partialTrackEventIndex].channel !== trackEventEnd.channel) {
-					partialTrackEventIndex-- // Find the most recent partial event on the same channel
+					partialTrackEventIndex--
 				}
 				if (partialTrackEventIndex >= 0) {
 					const partialTrackEvent = _.pullAt(partialTrackEvents, partialTrackEventIndex)[0]
 					partialTrackEvent.length = trackEventEnd.tick - partialTrackEvent.tick
+					// Tag the paired event with the MIDI file position of the
+					// END event that closed it — resolveFretModifiers uses this
+					// to match YARG's "last closure wins" ordering for overlapping
+					// force modifiers.
+					partialTrackEvent._endSeq = trackEventEnd._seq
 				}
 			}
 		}
@@ -713,7 +888,14 @@ function splitMidiModifierSustains(events: { [key in Difficulty]: MidiTrackEvent
 				continue
 			}
 
-			_.remove(activeModifiers, m => (m.length === 0 ? m.tick + m.length < event.tick : m.tick + m.length <= event.tick))
+			_.remove(activeModifiers, m => {
+				const end = m.tick + m.length
+				// Most modifier sustains exclude their last tick, matching YARG.Core's
+				// `if (endTick > startTick) --endTick` in ProcessNoteOnEventAsGuitarForcedType.
+				// SysEx-sourced forceTap is the exception: YARG's
+				if (m.length === 0) return end < event.tick
+				return end <= event.tick
+			})
 
 			if (modifierSustains.includes(event.type)) {
 				activeModifiers.push(event)
@@ -732,6 +914,10 @@ function splitMidiModifierSustains(events: { [key in Difficulty]: MidiTrackEvent
 							type: activeModifier.type,
 							velocity: activeModifier.velocity,
 							channel: activeModifier.channel,
+							// Propagate the original sustain's end-event file position
+							// so resolveFretModifiers can use it to pick the "winning"
+							// modifier when multiple overlap on the same note.
+							_endSeq: activeModifier._endSeq,
 						}
 						latestInsertedModifiers[activeModifier.type] = newInsertedModifier
 						newEvents[difficulty].push(newInsertedModifier)
@@ -804,25 +990,25 @@ function fixLegacyGhStarPower(
 	instrumentType: InstrumentType,
 	iniChartModifiers: IniChartModifiers,
 ) {
-	if ((instrumentType === instrumentTypes.fiveFret || instrumentType === instrumentTypes.sixFret) && iniChartModifiers.multiplier_note !== 116) {
+	// YARG.Core's MidReader only converts note 103 solos into starPower when
+	// the song.ini explicitly sets `multiplier_note = 103` (the GH1/2 legacy
+	// convention). scan-chart previously auto-converted solos to starPower
+	// whenever a chart had no note 116 and >1 note 103 — that heuristic is
+	// wrong for modern Clone Hero charts that use note 103 for solos and
+	// simply don't use starPower at all. Regression: "Children of Bodom -
+	// Hatecrew Deathroll (Melonman67)" has 13 solos and 0 starPower; scan-chart
+	// used to mislabel all solos as starPower, rewriting them in the round-trip
+	// output and corrupting the chart's note phrase layout.
+	if (
+		(instrumentType === instrumentTypes.fiveFret || instrumentType === instrumentTypes.sixFret) &&
+		iniChartModifiers.multiplier_note === 103
+	) {
 		for (const difficulty of difficulties) {
-			const starPowerSections: MidiTrackEvent[] = []
-			const soloSections: MidiTrackEvent[] = []
-
 			for (const event of events[difficulty]) {
-				if (event.type === eventTypes.starPower) {
-					starPowerSections.push(event)
-				} else if (event.type === eventTypes.soloSection) {
-					soloSections.push(event)
-				}
-			}
-
-			if (iniChartModifiers.multiplier_note === 103 || (!starPowerSections.length && soloSections.length > 1)) {
-				for (const soloSection of soloSections) {
-					soloSection.type = eventTypes.starPower // GH1 and GH2 star power
-				}
-				for (const starPowerSection of starPowerSections) {
-					starPowerSection.type = eventTypes.rejectedStarPower // These should not exist; later this is used to generate issues
+				if (event.type === eventTypes.soloSection) {
+					event.type = eventTypes.starPower
+				} else if (event.type === eventTypes.starPower) {
+					event.type = eventTypes.rejectedStarPower
 				}
 			}
 		}
@@ -872,36 +1058,44 @@ function extractInstrumentTextEvents(events: MidiEvent[], instrumentType: Instru
 
 /**
  * Extract note-on/note-off pairs from a MIDI track for the given note number filter.
- * Handles velocity-0 noteOn as noteOff, duplicate noteOn skip.
+ * Handles velocity-0 noteOn as noteOff. Pairs are keyed by (noteNumber, channel)
+ * so overlapping notes on different channels are extracted as separate pairs
+ * (matching the behaviour of `extractRawNotes` for consistency).
  * Events must already be in absolute time.
  */
 function extractMidiInstrumentNotePairs(
 	events: MidiEvent[],
 	noteFilter: (noteNumber: number) => boolean,
 ): { tick: number; length: number; noteNumber: number }[] {
-	const starts = new Map<number, number>()
+	const starts = new Map<string, number>()
 	const results: { tick: number; length: number; noteNumber: number }[] = []
 
 	for (const event of events) {
 		if (event.type !== 'noteOn' && event.type !== 'noteOff') continue
 		const noteNumber = (event as { noteNumber: number }).noteNumber
 		if (noteNumber === undefined || !noteFilter(noteNumber)) continue
+		const channel = (event as { channel?: number }).channel ?? 0
+		const key = `${noteNumber}:${channel}`
 
 		const isOff = event.type === 'noteOff' || (event.type === 'noteOn' && (event as { velocity: number }).velocity === 0)
 		if (!isOff) {
-			if (!starts.has(noteNumber)) {
-				starts.set(noteNumber, event.deltaTime)
+			if (!starts.has(key)) {
+				starts.set(key, event.deltaTime)
 			}
 		} else {
-			const startTick = starts.get(noteNumber)
+			const startTick = starts.get(key)
 			if (startTick !== undefined) {
 				results.push({ tick: startTick, length: event.deltaTime - startTick, noteNumber })
-				starts.delete(noteNumber)
+				starts.delete(key)
 			}
 		}
 	}
 
-	results.sort((a, b) => a.tick - b.tick)
+	// Sort by (tick, noteNumber) so output is deterministic regardless of
+	// file-order of noteOn/noteOff pairs. Matters for round-trip: a chart
+	// that stores same-tick notes grouped by channel (e.g. ch=0 block then
+	// ch=2 block) would otherwise produce a different file-order on re-write.
+	results.sort((a, b) => a.tick - b.tick || a.noteNumber - b.noteNumber)
 	return results
 }
 
@@ -1061,6 +1255,14 @@ function extractTypedTextEvents(events: MidiEvent[]) {
 		}
 	}
 
+	// Deterministic ordering for same-tick events so round-trip is stable
+	// regardless of whether the original file stored them as 'text' vs
+	// 'lyrics' meta events (the writer re-serializes characterStates as
+	// lyrics, so push-order from the original file isn't preserved).
+	handMaps.sort((a, b) => a.tick - b.tick || a.type.localeCompare(b.type))
+	strumMaps.sort((a, b) => a.tick - b.tick || a.type.localeCompare(b.type))
+	characterStates.sort((a, b) => a.tick - b.tick || a.type.localeCompare(b.type))
+
 	return { handMaps, strumMaps, characterStates }
 }
 
@@ -1118,20 +1320,40 @@ const phraseEndRegex = /^\[?phrase_end\]?$/
  * Reads from all text-like event types (text, lyrics, marker, cuePoint).
  */
 function extractGlobalEvents(tracks: { trackName: TrackName; trackEvents: MidiEvent[] }[]): { tick: number; text: string }[] {
-	const eventsTrack = tracks.find(t => t.trackName === 'EVENTS')
-	if (!eventsTrack) return []
+	// YARG iterates ALL chunks with trackName === 'EVENTS' in file order,
+	// accumulating into one MoonSong. Match that behavior: merge events from
+	// every EVENTS track before filtering. Also skip the first event of
+	// each track (YARG's `for (int i = 1; ...)` loop).
+	const eventsTracks = tracks.filter(t => t.trackName === 'EVENTS')
+	if (eventsTracks.length === 0) return []
 
 	const globalEvents: { tick: number; text: string }[] = []
-	for (const event of eventsTrack.trackEvents) {
-		if (!isTextLikeEvent(event)) continue
-		const text = event.text
-		if (sectionRegex.test(text)) continue
-		if (endRegex.test(text)) continue
-		if (lyricRegex.test(text)) continue
-		if (phraseStartRegex.test(text)) continue
-		if (phraseEndRegex.test(text)) continue
-		globalEvents.push({ tick: event.deltaTime, text })
+	for (const eventsTrack of eventsTracks) {
+		const evs = eventsTrack.trackEvents
+		for (let i = 1; i < evs.length; i++) {
+			const event = evs[i]
+			if (!isTextLikeEvent(event)) continue
+			const text = event.text
+			// Apply YARG's NormalizeTextEvent before classifying. The raw
+			// MIDI text can have leading whitespace or wrap in `[...]`, but
+			// YARG normalizes both before dispatching. If the NORMALIZED
+			// form parses as a section, end, lyric, or phrase, drop it from
+			// globalEvents so the writer doesn't re-emit it as a raw text
+			// event. Example: " [prc_interlude]" → normalized "prc_interlude"
+			// → section "interlude".
+			if (parseMidiSectionEventText(text) !== null) continue
+			if (endRegex.test(text)) continue
+			if (lyricRegex.test(text)) continue
+			if (phraseStartRegex.test(text)) continue
+			if (phraseEndRegex.test(text)) continue
+			globalEvents.push({ tick: event.deltaTime, text })
+		}
 	}
+	// Sort by tick so concatenated events appear in correct order.
+	// Sort by (tick, text) for deterministic ordering — the writer re-emits
+	// events in array order, but some charts store same-tick events in a
+	// non-alphabetical order that doesn't survive round-trip.
+	globalEvents.sort((a, b) => a.tick - b.tick || a.text.localeCompare(b.text))
 	return globalEvents
 }
 
@@ -1279,51 +1501,113 @@ function extractVenueEvents(tracks: { trackName: TrackName; trackEvents: MidiEve
 	if (!venueTrack) return []
 
 	const events: VenueEvent[] = []
+	// Match YARG's ReadVenueEvents: note-based events are only emitted when
+	// a matching noteOff arrives (`new MoonVenue(type, text, startTick,
+	// endTick - startTick)`). Unpaired noteOns are silently dropped. Track
+	// unpaired noteOns in a queue keyed by note number — when a noteOff
+	// arrives for the same note, pop the earliest matching noteOn and emit
+	// a venue event with the computed length.
+	const unpairedNotes: { noteNumber: number; tick: number }[] = []
 
+	// Match YARG's ReadVenueEvents: skip the FIRST event regardless of type
+	// (YARG iterates `for (int i = 1; ...)` and assumes the first event is
+	// the track name). Some charts have a spurious text event at index 0
+	// BEFORE the real trackName event — we must skip it to match YARG.
+	let skipFirst = true
 	for (const event of venueTrack.trackEvents) {
-		// Note-based events
-		if (event.type === 'noteOn' && (event as { velocity: number }).velocity > 0) {
+		if (skipFirst) {
+			skipFirst = false
+			continue
+		}
+		// Note events: queue noteOns, emit on noteOff.
+		const isNoteOn = event.type === 'noteOn' && (event as { velocity: number }).velocity > 0
+		const isNoteOff = event.type === 'noteOff' || (event.type === 'noteOn' && (event as { velocity: number }).velocity === 0)
+		if (isNoteOn) {
 			const noteNumber = (event as { noteNumber: number }).noteNumber
-			const template = venueNoteLookup[noteNumber]
-			if (template) {
-				events.push({ tick: event.deltaTime, type: template.type, name: template.name })
+			// Duplicate noteOn: YARG logs a debug message but still adds
+			// the new note to the queue. We do the same.
+			unpairedNotes.push({ noteNumber, tick: event.deltaTime })
+			continue
+		}
+		if (isNoteOff) {
+			const noteNumber = (event as { noteNumber: number }).noteNumber
+			// Find the earliest unpaired noteOn with the same note number.
+			const idx = unpairedNotes.findIndex(n => n.noteNumber === noteNumber)
+			if (idx >= 0) {
+				const start = unpairedNotes[idx]
+				unpairedNotes.splice(idx, 1)
+				const template = venueNoteLookup[noteNumber]
+				if (template) {
+					events.push({
+						tick: start.tick,
+						type: template.type,
+						name: template.name,
+						length: event.deltaTime - start.tick,
+					})
+				}
 			}
+			continue
 		}
 
 		// Text-based events
 		if (isTextLikeEvent(event)) {
 			let text = event.text
-			if (text.startsWith('[') && text.endsWith(']')) text = text.slice(1, -1)
+			// YARG's NormalizeTextEvent: if there's a `[` and `]` pair anywhere
+			// in the text, return ONLY the content between them (trimmed).
+			// Otherwise return the trimmed text. scan-chart previously required
+			// the entire text to be wrapped in brackets, which missed events
+			// like "[verse] " (trailing space).
+			const openIdx = text.indexOf('[')
+			const closeIdx = text.indexOf(']')
+			if (openIdx >= 0 && closeIdx >= 0 && openIdx <= closeIdx) {
+				text = text.slice(openIdx + 1, closeIdx)
+			}
 			text = text.trim()
 
 			// Lighting: "lighting (TYPE)"
+			// YARG falls back to "default" for any lighting type not in its
+			// conversion lookup (including `default` and empty string).
 			const lightingMatch = /^lighting\s+\((.*)\)$/.exec(text)
 			if (lightingMatch) {
-				const name = venueLightingLookup[lightingMatch[1]]
-				if (name) events.push({ tick: event.deltaTime, type: 'lighting', name })
+				const name = venueLightingLookup[lightingMatch[1]] ?? 'default'
+				events.push({ tick: event.deltaTime, type: 'lighting', name })
 				continue
 			}
 
-			// Post-processing: "*.pp"
+			// Post-processing: "*.pp". YARG's lookup falls through to the
+			// Unknown-type bucket for any `.pp` text not in its conversion
+			// lookup, so we match that by letting unrecognized `.pp` values
+			// fall through to the unknown-text handler at the end.
 			if (text.endsWith('.pp')) {
 				const name = venuePostProcessingLookup[text]
-				if (name) events.push({ tick: event.deltaTime, type: 'postProcessing', name })
-				continue
+				if (name) {
+					events.push({ tick: event.deltaTime, type: 'postProcessing', name })
+					continue
+				}
+				// Unknown .pp: fall through to the Unknown handler below.
 			}
 
-			// Directed camera cuts: "directed_*"
-			const directedMatch = /^(directed_\w+)$/.exec(text)
+			// Directed camera cuts: "directed_*". YARG's regex `(directed_\w+)`
+			// has no anchors — it matches the FIRST occurrence of a directed_*
+			// token anywhere in the text (e.g. "do_directed_cut directed_bass"
+			// matches `directed_cut` first). Any directed_* token not in the
+			// lookup falls back to "default" in YARG. For unrecognized values
+			// we store the full bracket-stripped text as `name` so the writer
+			// can re-emit it verbatim for round-trip fidelity.
+			const directedMatch = /(directed_\w+)/.exec(text)
 			if (directedMatch) {
-				const name = venueDirectedCutLookup[directedMatch[1]]
-				if (name) events.push({ tick: event.deltaTime, type: 'cameraCut', name })
+				const name = venueDirectedCutLookup[directedMatch[1]] ?? text
+				events.push({ tick: event.deltaTime, type: 'cameraCut', name })
 				continue
 			}
 
-			// Coop camera cuts: "coop_*_*"
+			// Coop camera cuts: "coop_*_*". YARG's regex captures the tail
+			// after `coop_` and falls back to "default" for unknown values.
+			// For unrecognized values we store the full text as `name`.
 			const coopMatch = /^coop_(\w+_\w+)$/.exec(text)
 			if (coopMatch) {
-				const name = venueCoopCutLookup[coopMatch[1]]
-				if (name) events.push({ tick: event.deltaTime, type: 'cameraCut', name })
+				const name = venueCoopCutLookup[coopMatch[1]] ?? text
+				events.push({ tick: event.deltaTime, type: 'cameraCut', name })
 				continue
 			}
 
@@ -1331,11 +1615,59 @@ function extractVenueEvents(tracks: { trackName: TrackName; trackEvents: MidiEve
 			const standalone = venueStandaloneTextLookup[text]
 			if (standalone) {
 				events.push({ tick: event.deltaTime, type: standalone.type, name: standalone.name })
+				continue
 			}
+
+			// Unknown text event — YARG preserves these as `Unknown`-typed
+			// MoonVenue events. The name stores the full bracket-stripped text
+			// so the writer can re-emit it verbatim.
+			events.push({ tick: event.deltaTime, type: 'unknown', name: text })
 		}
 	}
 
 	events.sort((a, b) => a.tick - b.tick)
 	return events
+}
+
+/**
+ * Extract BEAT-track events. Matches YARG.Core's `ReadSongBeats`:
+ * - skip the first event (track name)
+ * - MIDI note 12 = measure beat (BeatlineType.Measure)
+ * - MIDI note 13 = strong beat (BeatlineType.Strong)
+ * - MIDI note 14 = weak beat (BeatlineType.Weak)
+ */
+function extractBeatTrack(
+	tracks: { trackName: TrackName; trackEvents: MidiEvent[] }[],
+): { tick: number; type: 'measure' | 'strong' | 'weak' }[] | undefined {
+	const beatTrack = tracks.find(t => t.trackName === 'BEAT')
+	if (!beatTrack) return undefined
+
+	const out: { tick: number; type: 'measure' | 'strong' | 'weak' }[] = []
+	let skipFirst = true
+	for (const event of beatTrack.trackEvents) {
+		// YARG skips the first event (the track name) before parsing beat notes.
+		if (skipFirst) {
+			skipFirst = false
+			continue
+		}
+		if (event.type !== 'noteOn' || (event as { velocity: number }).velocity === 0) continue
+		const noteNumber = (event as { noteNumber: number }).noteNumber
+		let type: 'measure' | 'strong' | 'weak' | null = null
+		if (noteNumber === 12) type = 'measure'
+		else if (noteNumber === 13) type = 'strong'
+		else if (noteNumber === 14) type = 'weak'
+		if (type === null) continue
+		out.push({ tick: event.deltaTime, type })
+	}
+	// Sort beat notes by tick so output is deterministic regardless of file
+	// order. Some charts (e.g. "Old Man's Child - Black Seeds on Virgin Soil")
+	// store BEAT notes out of order, which causes setEventMsTimes to compute
+	// wrong msTimes via its forward-only rolling tempo index when a tempo
+	// change coincides with one of the beat positions.
+	out.sort((a, b) => a.tick - b.tick)
+	// Treat an empty BEAT track the same as a missing one — round-trip
+	// consumers don't write empty BEAT tracks, so returning `[]` would
+	// break the round-trip diff. Example: "Creed - Torn".
+	return out.length > 0 ? out : undefined
 }
 
