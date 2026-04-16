@@ -283,6 +283,8 @@ export type ChartIssueType =
 	| 'invalidPhraseStart' // A phrase_start text event was found on the EVENTS track in a .mid chart (vocal phrases use MIDI notes 105/106 on PART VOCALS, not text events)
 	| 'invalidPhraseEnd' // A phrase_end text event was found on the EVENTS track in a .mid chart (vocal phrases use MIDI notes 105/106 on PART VOCALS, not text events)
 	| 'duplicateDrumsTrack' // Chart has both PART DRUMS and PART REAL_DRUMS_PS; the fallback (PART REAL_DRUMS_PS) was dropped
+	| 'orphanedNoteStart' // A noteOn had no matching noteOff and was dropped
+	| 'orphanedNoteEnd' // A noteOff had no matching noteOn and was dropped
 
 export type FolderIssueType =
 	| 'noMetadata' // This chart doesn't have "song.ini"

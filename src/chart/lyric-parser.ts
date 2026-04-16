@@ -79,6 +79,9 @@ export function extractChartLyrics(eventLines: string[]): { tick: number; length
 
 /**
  * Extract vocal phrase boundaries from .chart [Events] phrase_start/phrase_end pairs.
+ * Returns normal paired phrases. Orphan phrase_end events (no preceding
+ * phrase_start) are NOT included here; use `extractChartOrphanPhraseEnds` to
+ * retrieve them separately.
  */
 export function extractChartVocalPhrases(eventLines: string[]): { tick: number; length: number }[] {
 	const phrases: { tick: number; length: number }[] = []
@@ -94,17 +97,44 @@ export function extractChartVocalPhrases(eventLines: string[]): { tick: number; 
 			}
 			currentStart = result.tick
 		} else {
-			// If no phrase_start is open, treat as starting from tick 0.
-			// Orphaned phrase_ends are kept so editors can surface them for manual fixing.
-			if (currentStart === null) {
-				currentStart = 0
+			// phrase_end: only push if a phrase_start is open. Orphan phrase_ends
+			// (no preceding phrase_start) are skipped here — a synthetic (0, endTick)
+			// phrase would corrupt lyric grouping by "stealing" lyrics from earlier
+			// real phrases via the shared lyricIdx. Orphans are preserved via
+			// `extractChartOrphanPhraseEnds` so writers can re-emit them verbatim.
+			if (currentStart !== null) {
+				phrases.push({ tick: currentStart, length: result.tick - currentStart })
+				currentStart = null
 			}
-			phrases.push({ tick: currentStart, length: result.tick - currentStart })
-			currentStart = null
 		}
 	}
 
 	return phrases
+}
+
+/**
+ * Extract orphan `phrase_end` events from .chart [Events] — a `phrase_end`
+ * whose most recent predecessor is NOT a matching `phrase_start`. These are
+ * malformed but exist in some charts; YARG preserves them as text events in
+ * its globalEvents output, so we keep them here for round-trip fidelity.
+ */
+export function extractChartOrphanPhraseEnds(eventLines: string[]): { tick: number }[] {
+	const orphans: { tick: number }[] = []
+	let currentStart: number | null = null
+	for (const line of eventLines) {
+		const result = parseChartVocalPhraseLine(line)
+		if (!result) continue
+		if (result.type === 'start') {
+			currentStart = result.tick
+		} else {
+			if (currentStart === null) {
+				orphans.push({ tick: result.tick })
+			} else {
+				currentStart = null
+			}
+		}
+	}
+	return orphans
 }
 
 // ---------------------------------------------------------------------------
@@ -179,25 +209,68 @@ export function extractMidiLyricText(event: MidiTextLikeEvent): string {
 }
 
 /**
+ * Extract bracketed control-event text events on a vocal track (stance markers,
+ * facial anim, etc.). These aren't lyrics but YARG's ProcessTextEvent still
+ * adds them to the chart's text events via MoonText, and VocalsPart.IsEmpty
+ * returns `false` iff there's any such event — so dropping them causes a vocal
+ * track with only stance markers to be hidden in ChartDump.
+ *
+ * We intentionally exclude:
+ *   - real lyrics (see `extractMidiLyrics`)
+ *   - disco flip events `[mix N drumsM]` (drum-specific; shouldn't be on vocals)
+ *   - `ENHANCED_OPENS` / `ENABLE_CHART_DYNAMICS` (instrument-wide consumables)
+ *   - `range_shift` (handled via the rangeShifts path on its own)
+ */
+export function extractMidiVocalTextEvents(trackEvents: MidiLyricEvent[]): { tick: number; text: string }[] {
+	const out: { tick: number; text: string }[] = []
+	// Match YARG.Core's MidReader.ReadNotes: it starts iteration at `i = 1`
+	// with the comment "First event is the track name event, which gets
+	// skipped". Some MIDI files have a stray FF 01 text duplicate of the
+	// track name at index 0 — YARG silently drops it, so scan-chart should
+	// too, otherwise we capture a phantom "PART VOCALS" text that appears
+	// as a lyric on re-parse.
+	for (let i = 1; i < trackEvents.length; i++) {
+		const event = trackEvents[i]
+		const isTextLike = event.type === 'lyrics' || event.type === 'text' ||
+			event.type === 'marker' || event.type === 'cuePoint'
+		if (!isTextLike) continue
+		const text = event.text
+		if (text === undefined || text === null) continue
+		const trimmed = text.replace(/^[\x00-\x20]+|[\x00-\x20]+$/g, '')
+		const isBracketed = trimmed.startsWith('[') && trimmed.endsWith(']')
+		// We capture text-like events that YARG would preserve as MoonText but
+		// scan-chart otherwise drops from `data.lyrics` (via normalizeVocalPart's
+		// bracketed-control-event filter). Lyrics themselves live in `data.lyrics`
+		// and are handled separately.
+		if (!isBracketed) continue
+		// Skip events scan-chart consumes internally
+		if (text === 'ENHANCED_OPENS' || text === '[ENHANCED_OPENS]') continue
+		if (text === 'ENABLE_CHART_DYNAMICS' || text === '[ENABLE_CHART_DYNAMICS]') continue
+		// Skip disco flip markers (drum-track concept; shouldn't appear on vocals)
+		if (/^\s*\[?mix[ _][0-3][ _]drums[0-5](d|dnoflip|easy|easynokick|)\]?\s*$/.test(text)) continue
+		if (trimmed.startsWith('[range_shift')) continue
+		out.push({ tick: event.deltaTime, text })
+	}
+	return out
+}
+
+/**
  * Extract all lyrics from a PART VOCALS MIDI track's events.
  * Events must already be in absolute time (deltaTime = absolute tick).
  * Deduplicates by tick+text (matching MoonSong InsertionEquals).
  */
 export function extractMidiLyrics(trackEvents: MidiLyricEvent[]): { tick: number; length: number; text: string }[] {
-	// Find the track name so we can skip tick-0 text events that duplicate it.
-	// Some MIDI files have an FF 01 text event "PART VOCALS" at tick 0 which is
-	// a duplicate of the FF 03 trackName — not a real lyric. YARG keeps these
-	// (a YARG bug), but we filter them out.
-	const trackNameEvent = trackEvents.find(e => e.type === 'trackName')
-	const trackName = trackNameEvent?.text
-
 	const lyrics: { tick: number; length: number; text: string }[] = []
 	const seen = new Set<string>()
-	for (const event of trackEvents) {
+	// Match YARG.Core's MidReader.ReadNotes: skip the first event (which is
+	// conventionally the trackName and lost by "for (int i = 1; ...)"). Charts
+	// like "Andrew Prahlow - Travelers' Encore" have an FF 01 text event
+	// "PART VOCALS" AS the first event — YARG drops it silently. Skipping it
+	// here matches that behavior.
+	for (let i = 1; i < trackEvents.length; i++) {
+		const event = trackEvents[i]
 		if (isMidiVocalLyric(event)) {
 			const text = extractMidiLyricText(event)
-			// Skip tick-0 text events that match the track name (instrumentName duplicate)
-			if (event.deltaTime === 0 && text === trackName && event.type === 'text') continue
 			const key = `${event.deltaTime}:${text}`
 			if (seen.has(key)) continue
 			seen.add(key)
@@ -271,8 +344,27 @@ function extractMidiNotePairs(
 // ---------------------------------------------------------------------------
 
 /**
- * Extract vocal phrase boundaries from MIDI notes 105/106 on PART VOCALS.
+ * Extract scoring phrase boundaries (note 105) from a MIDI vocal track.
  * Events must already be in absolute time (deltaTime = absolute tick).
+ */
+export function extractMidi105Phrases(trackEvents: MidiLyricEvent[]): { tick: number; length: number }[] {
+	return extractMidiNotePairs(trackEvents, n => n === 105)
+		.map(p => ({ tick: p.tick, length: p.length }))
+}
+
+/**
+ * Extract static lyric display phrase boundaries (note 106) from a MIDI vocal track.
+ * On HARM2/HARM3 these are the "static lyric" phrases that display lyrics
+ * alongside HARM1's scoring phrases. On PART VOCALS this is the player-2 phrase.
+ */
+export function extractMidi106Phrases(trackEvents: MidiLyricEvent[]): { tick: number; length: number }[] {
+	return extractMidiNotePairs(trackEvents, n => n === 106)
+		.map(p => ({ tick: p.tick, length: p.length }))
+}
+
+/**
+ * @deprecated Use `extractMidi105Phrases` and `extractMidi106Phrases` separately.
+ * Kept for backward compatibility with scan-chart's own tests.
  */
 export function extractMidiVocalPhrases(trackEvents: MidiLyricEvent[]): { tick: number; length: number; noteNumber: number }[] {
 	return extractMidiNotePairs(trackEvents, n => n === 105 || n === 106)

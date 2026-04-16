@@ -5,6 +5,94 @@ import { getEncoding } from 'src/utils'
 import { EventType, eventTypes, RawChartData } from './note-parsing-interfaces'
 import { extractChartLyrics, extractChartVocalPhrases } from './lyric-parser'
 
+/**
+ * Resolve a .chart section name like "ExpertDoubleDrums" into an instrument
+ * + difficulty pair. Matches YARG.Core's ChartReader logic: scan for a
+ * difficulty prefix ("Expert", "Hard", "Medium", "Easy") then match the
+ * suffix against the instrument suffix table (Single, DoubleGuitar,
+ * DoubleBass, DoubleRhythm, Drums, Keyboard, GHL*). Returns null if no match.
+ */
+/**
+ * Replicate YARG.Core's `FastInt32Parse`:
+ * ```
+ * int value = 0;
+ * foreach (char c in text) value = value * 10 + (c - '0');
+ * ```
+ * This intentionally has no error handling — for a non-digit character, it
+ * produces a negative "digit" (c - 48) that folds into the accumulator. YARG
+ * then casts the result to `uint` for the tick value, which wraps negative
+ * int32 values into their two's-complement uint32 equivalents. We match that
+ * by applying `>>> 0` (unsigned right shift by 0) to the final value, which
+ * JavaScript uses for int32 → uint32 conversion.
+ */
+
+/**
+ * Parse a .chart [Events] event text as a section event, matching YARG's
+ * TextEvents.NormalizeTextEvent → TryParseSectionEvent pipeline.
+ * Returns the section name, or null if not a section.
+ */
+function parseChartSectionEventText(innerText: string): string | null {
+	// NormalizeTextEvent: if there's both `[` and `]`, return content between
+	// the FIRST `[` and FIRST `]` (trimmed). Otherwise trim.
+	let text = innerText
+	const openIdx = text.indexOf('[')
+	const closeIdx = text.indexOf(']')
+	if (openIdx >= 0 && closeIdx >= 0 && openIdx <= closeIdx) {
+		text = text.slice(openIdx + 1, closeIdx)
+	}
+	text = text.replace(/^[\s\r\n]+|[\s\r\n]+$/g, '')
+
+	// TryParseSectionEvent: strip "section" or "prc" prefix
+	let name: string
+	if (text.startsWith('section')) {
+		name = text.slice('section'.length)
+	} else if (text.startsWith('prc')) {
+		name = text.slice('prc'.length)
+	} else {
+		return null
+	}
+
+	// TrimStart('_').Trim()
+	while (name.length > 0 && name[0] === '_') name = name.slice(1)
+	name = name.replace(/^[\s\r\n]+|[\s\r\n]+$/g, '')
+
+	if (name.length === 0) return null
+	return name
+}
+
+function resolveChartTrackName(sectionName: string): { instrument: Instrument; difficulty: Difficulty } | null {
+	const difficulties: { prefix: string; difficulty: Difficulty }[] = [
+		{ prefix: 'Expert', difficulty: 'expert' },
+		{ prefix: 'Hard', difficulty: 'hard' },
+		{ prefix: 'Medium', difficulty: 'medium' },
+		{ prefix: 'Easy', difficulty: 'easy' },
+	]
+	const instruments: { suffix: string; instrument: Instrument }[] = [
+		// Order matters: longer/more specific suffixes first so "DoubleGuitar"
+		// doesn't get matched by plain "Guitar", etc.
+		{ suffix: 'DoubleGuitar', instrument: 'guitarcoop' },
+		{ suffix: 'DoubleBass', instrument: 'bass' },
+		{ suffix: 'DoubleRhythm', instrument: 'rhythm' },
+		{ suffix: 'GHLGuitar', instrument: 'guitarghl' },
+		{ suffix: 'GHLBass', instrument: 'bassghl' },
+		{ suffix: 'GHLRhythm', instrument: 'rhythmghl' },
+		{ suffix: 'GHLCoop', instrument: 'guitarcoopghl' },
+		{ suffix: 'Keyboard', instrument: 'keys' },
+		{ suffix: 'Drums', instrument: 'drums' },
+		{ suffix: 'Single', instrument: 'guitar' },
+	]
+	for (const { prefix, difficulty } of difficulties) {
+		if (!sectionName.startsWith(prefix)) continue
+		for (const { suffix, instrument } of instruments) {
+			if (sectionName.endsWith(suffix)) {
+				return { instrument, difficulty }
+			}
+		}
+		return null
+	}
+	return null
+}
+
 /* eslint-disable @typescript-eslint/naming-convention */
 type TrackName = keyof typeof trackNameMap
 const trackNameMap = {
@@ -91,6 +179,10 @@ export function parseNotesFromChart(data: Uint8Array): RawChartData {
 		throw 'Invalid .chart file: no sections were found.'
 	}
 
+	// Filter the [Events] section using YARG's strict-ordering + malformed-
+	// line blackhole logic. YARG's ChartReader iterates [Events] line-by-line:
+	// for each line, it calls FastInt32Parse on the tick text (the text
+	// before '='), then throws "tick went backwards" if the new tick is
 	const metadata = _.chain(fileSections['Song'])
 		.map(line => /^(.+?) = "?(.*?)"?$/.exec(line))
 		.compact()
@@ -131,6 +223,7 @@ export function parseNotesFromChart(data: Uint8Array): RawChartData {
 				rangeShifts: [],
 				lyricShifts: [],
 				staticLyricPhrases: [],
+				textEvents: [],
 			},
 		},
 		tempos: _.chain(fileSections['SyncTrack'])
@@ -178,10 +271,18 @@ export function parseNotesFromChart(data: Uint8Array): RawChartData {
 		parseIssues: [],
 		venue: [], // VENUE is MIDI-only
 		trackData: _.chain(fileSections)
-			.pick(_.keys(trackNameMap))
+			.pickBy((_lines, sectionName) =>
+				// Match YARG.Core's ChartReader: accept any section whose name
+				// starts with a difficulty ("Expert", "Hard", "Medium", "Easy")
+				// AND ends with a known instrument string. This handles typos
+				// and non-standard names like "ExpertDoubleDrums" (Megadeth -
+				// Bite the Hand) which YARG parses as "Expert" + "Drums".
+				resolveChartTrackName(sectionName) !== null,
+			)
 			.toPairs()
 			.map(([trackName, lines]) => {
-				const { instrument, difficulty } = trackNameMap[trackName as TrackName]
+				// pickBy above guarantees resolveChartTrackName returns non-null here.
+				const { instrument, difficulty } = resolveChartTrackName(trackName)!
 				// Single parsing pass that produces note-shaped events (`{ tick, type, length }`)
 				// plus data-carrying events (text, versus). Note-shaped events flow through
 				// the same distribution loop as before; the data-carrying ones are routed
@@ -506,6 +607,18 @@ function getNEventType(value: string, instrument: Instrument): EventType | null 
 /**
  * Merge `solo` and `soloend` events into `EventType.soloSection`.
  *
+ * Matches YARG.Core's ChartReader solo handling: tracks at most one "next
+ * start", so when a `soloend` closes the current solo, the outermost
+ * currently-open `solo` wins. Multiple nested `solo` events inside an open
+ * solo are treated as no-ops (only the first contributes to the resulting
+ * phrase). `.chart` specs treat `soloend` as inclusive, so length is
+ * soloendTick - startTick + 1 (except when a next `solo` lands on the same
+ * tick as the `soloend`, in which case the existing solo closes exclusively
+ * and the new one opens immediately).
+ */
+/**
+ * Merge `solo` and `soloend` events into `EventType.soloSection`.
+ *
  * Note: .chart specs say that notes in the last tick of the solo section are included, unlike most phrases.
  * This is normalized here by increasing the length by 1.
  */
@@ -552,14 +665,19 @@ function scanEventsSection(eventLines: string[]): ChartEventsScanResult {
 		unrecognizedEvents: [],
 	}
 	for (const line of eventLines) {
-		const match = /^(\d+) = E "([^\r\n]*?)"$/.exec(line)
+		const match = /^(\d+) = E "([\s\S]*)"$/.exec(line)
 		if (!match) continue
 		const tick = Number(match[1])
 		const text = match[2]
 
-		const sectionMatch = /^\[?(?:section|prc)[ _](.*?)\]?$/.exec(text)
-		if (sectionMatch) {
-			result.sections.push({ tick, name: sectionMatch[1] })
+		// Section classification uses the same normalize-then-strip pipeline
+		// YARG uses (`parseChartSectionEventText`), so we and the section
+		// extractor agree on what counts as a section. This handles typos like
+		// "sections Pre-Chorus" that YARG's `StartsWith("section")` accepts.
+		const inner = text.replace(/^[\s\r\n]+|[\s\r\n]+$/g, '')
+		const sectionName = parseChartSectionEventText(inner)
+		if (sectionName !== null) {
+			result.sections.push({ tick, name: sectionName })
 			continue
 		}
 		if (/^\[?end\]?$/.test(text)) {
@@ -579,6 +697,9 @@ function scanEventsSection(eventLines: string[]): ChartEventsScanResult {
 
 		result.unrecognizedEvents.push({ tick, text })
 	}
+	// Sort by (tick, text) for deterministic ordering so round-trips don't
+	// diverge on charts that store same-tick events in file order.
+	result.unrecognizedEvents.sort((a, b) => a.tick - b.tick || a.text.localeCompare(b.text))
 	return result
 }
 

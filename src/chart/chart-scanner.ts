@@ -197,6 +197,10 @@ const chartIssueDescriptions: { [issue in ChartIssueType]: string } = {
 	invalidPhraseEnd: 'This phrase_end is on the EVENTS track. Vocal phrase boundaries in .mid charts must be MIDI note 105 (player 1) or 106 (player 2) on PART VOCALS.',
 	duplicateDrumsTrack:
 		'This chart has both PART DRUMS and PART REAL_DRUMS_PS. PART DRUMS takes precedence; the PART REAL_DRUMS_PS track was dropped.',
+	orphanedNoteStart:
+		'This track has a noteOn with no matching noteOff and was dropped.',
+	orphanedNoteEnd:
+		'This track has a noteOff with no matching noteOn and was dropped.',
 } as const
 
 function findChartIssues(
