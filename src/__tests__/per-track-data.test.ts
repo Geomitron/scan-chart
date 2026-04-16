@@ -1002,3 +1002,279 @@ describe('MIDI: invalid lyric/phrase events on EVENTS track', () => {
 		expect(types).toEqual(['invalidLyric', 'invalidPhraseEnd', 'invalidPhraseStart'])
 	})
 })
+
+// ---------------------------------------------------------------------------
+// New instruments
+// ---------------------------------------------------------------------------
+
+describe('MIDI: Pro Guitar', () => {
+	it('recognizes PART REAL_GUITAR and extracts star power and solo', () => {
+		const midi = buildMidi(480, [
+			tempoTrack(),
+			eventsTrack(),
+			instrumentTrack('PART REAL_GUITAR', {
+				notes: [
+					{ tick: 480, noteNumber: 116, length: 960 },  // star power
+					{ tick: 480, noteNumber: 115, length: 960 },  // solo (pro guitar uses 115)
+				],
+			}),
+		])
+
+		const result = parseNotesFromMidi(midi, defaultIniChartModifiers)
+		const track = getTrack(result, 'proguitar', 'expert')!
+		expect(track).toBeDefined()
+		expect(track.starPowerSections).toHaveLength(1)
+		expect(track.starPowerSections[0]).toMatchObject({ tick: 480, length: 960 })
+		expect(track.soloSections).toHaveLength(1)
+		expect(track.soloSections[0]).toMatchObject({ tick: 480, length: 960 })
+		expect(track.trackEvents).toEqual([]) // standard note parsing skipped for pro instruments
+	})
+
+	it('extracts raw notes with fret and channel data', () => {
+		const midi = buildMidi(480, [
+			tempoTrack(),
+			eventsTrack(),
+			instrumentTrack('PART REAL_GUITAR', {
+				notes: [
+					{ tick: 480, noteNumber: 96, length: 120, velocity: 105 },  // expert string 0 (low E), fret 5
+					{ tick: 480, noteNumber: 97, length: 120, velocity: 100 },  // expert string 1 (A), open
+					{ tick: 960, noteNumber: 96, length: 240, velocity: 107 },  // expert string 0, fret 7
+				],
+			}),
+		])
+
+		const result = parseNotesFromMidi(midi, defaultIniChartModifiers)
+		const track = getTrack(result, 'proguitar', 'expert')!
+		expect(track.rawNotes).toHaveLength(3)
+		expect(track.rawNotes[0]).toMatchObject({ tick: 480, noteNumber: 96, velocity: 105 })
+		expect(track.rawNotes[1]).toMatchObject({ tick: 480, noteNumber: 97, velocity: 100 })
+		expect(track.rawNotes[2]).toMatchObject({ tick: 960, noteNumber: 96, velocity: 107 })
+	})
+
+	it('assigns raw notes to correct difficulties', () => {
+		const midi = buildMidi(480, [
+			tempoTrack(),
+			eventsTrack(),
+			instrumentTrack('PART REAL_GUITAR', {
+				notes: [
+					{ tick: 480, noteNumber: 96, length: 120 },  // expert (96-101)
+					{ tick: 480, noteNumber: 72, length: 120 },  // hard (72-77)
+					{ tick: 480, noteNumber: 48, length: 120 },  // medium (48-53)
+					{ tick: 480, noteNumber: 24, length: 120 },  // easy (24-29)
+				],
+			}),
+		])
+
+		const result = parseNotesFromMidi(midi, defaultIniChartModifiers)
+		expect(getTrack(result, 'proguitar', 'expert')!.rawNotes).toHaveLength(1)
+		expect(getTrack(result, 'proguitar', 'hard')!.rawNotes).toHaveLength(1)
+		expect(getTrack(result, 'proguitar', 'medium')!.rawNotes).toHaveLength(1)
+		expect(getTrack(result, 'proguitar', 'easy')!.rawNotes).toHaveLength(1)
+	})
+
+	it('extracts text events from Pro Guitar track', () => {
+		const midi = buildMidi(480, [
+			tempoTrack(),
+			eventsTrack(),
+			instrumentTrack('PART REAL_GUITAR', {
+				notes: [{ tick: 480, noteNumber: 116, length: 960 }],
+				textEvents: [{ tick: 0, text: 'begin_pg song_trainer_pg_1' }],
+			}),
+		])
+
+		const result = parseNotesFromMidi(midi, defaultIniChartModifiers)
+		const track = getTrack(result, 'proguitar', 'expert')!
+		expect(track.textEvents).toEqual([{ tick: 0, text: 'begin_pg song_trainer_pg_1' }])
+	})
+
+	it('recognizes PART REAL_GUITAR_22 as proguitar22', () => {
+		const midi = buildMidi(480, [
+			tempoTrack(),
+			eventsTrack(),
+			instrumentTrack('PART REAL_GUITAR_22', {
+				notes: [{ tick: 480, noteNumber: 116, length: 960 }],
+			}),
+		])
+
+		const result = parseNotesFromMidi(midi, defaultIniChartModifiers)
+		const track = getTrack(result, 'proguitar22', 'expert')!
+		expect(track).toBeDefined()
+		expect(track.starPowerSections).toHaveLength(1)
+	})
+})
+
+describe('MIDI: Pro Bass', () => {
+	it('recognizes PART REAL_BASS and PART REAL_BASS_22', () => {
+		const midi = buildMidi(480, [
+			tempoTrack(),
+			eventsTrack(),
+			instrumentTrack('PART REAL_BASS', {
+				notes: [{ tick: 480, noteNumber: 116, length: 960 }],
+			}),
+			instrumentTrack('PART REAL_BASS_22', {
+				notes: [{ tick: 480, noteNumber: 116, length: 960 }],
+			}),
+		])
+
+		const result = parseNotesFromMidi(midi, defaultIniChartModifiers)
+		expect(getTrack(result, 'probass', 'expert')).toBeDefined()
+		expect(getTrack(result, 'probass22', 'expert')).toBeDefined()
+	})
+})
+
+describe('MIDI: Pro Keys', () => {
+	it('maps each PART REAL_KEYS_* track to a single difficulty', () => {
+		const midi = buildMidi(480, [
+			tempoTrack(),
+			eventsTrack(),
+			instrumentTrack('PART REAL_KEYS_X', {
+				notes: [{ tick: 480, noteNumber: 116, length: 960 }],
+			}),
+			instrumentTrack('PART REAL_KEYS_H', {
+				notes: [{ tick: 480, noteNumber: 116, length: 960 }],
+			}),
+			instrumentTrack('PART REAL_KEYS_M', {
+				notes: [{ tick: 480, noteNumber: 116, length: 960 }],
+			}),
+			instrumentTrack('PART REAL_KEYS_E', {
+				notes: [{ tick: 480, noteNumber: 116, length: 960 }],
+			}),
+		])
+
+		const result = parseNotesFromMidi(midi, defaultIniChartModifiers)
+		const prokeys = result.trackData.filter(t => t.instrument === 'prokeys')
+		expect(prokeys).toHaveLength(4)
+		expect(prokeys.map(t => t.difficulty).sort()).toEqual(['easy', 'expert', 'hard', 'medium'])
+	})
+
+	it('extracts star power on Pro Keys', () => {
+		const midi = buildMidi(480, [
+			tempoTrack(),
+			eventsTrack(),
+			instrumentTrack('PART REAL_KEYS_X', {
+				notes: [{ tick: 480, noteNumber: 116, length: 960 }],
+			}),
+		])
+
+		const result = parseNotesFromMidi(midi, defaultIniChartModifiers)
+		const track = getTrack(result, 'prokeys', 'expert')!
+		expect(track.starPowerSections).toHaveLength(1)
+		// Should NOT create entries for other difficulties from this track
+		expect(getTrack(result, 'prokeys', 'hard')).toBeUndefined()
+	})
+
+	it('extracts raw key notes (MIDI 48-72)', () => {
+		const midi = buildMidi(480, [
+			tempoTrack(),
+			eventsTrack(),
+			instrumentTrack('PART REAL_KEYS_X', {
+				notes: [
+					{ tick: 480, noteNumber: 48, length: 240 },  // C1 (lowest key)
+					{ tick: 480, noteNumber: 60, length: 240 },  // C2 (middle)
+					{ tick: 960, noteNumber: 72, length: 120 },  // C3 (highest key)
+				],
+			}),
+		])
+
+		const result = parseNotesFromMidi(midi, defaultIniChartModifiers)
+		const track = getTrack(result, 'prokeys', 'expert')!
+		expect(track.rawNotes).toHaveLength(3)
+		expect(track.rawNotes[0]).toMatchObject({ tick: 480, noteNumber: 48 })
+		expect(track.rawNotes[1]).toMatchObject({ tick: 480, noteNumber: 60 })
+		expect(track.rawNotes[2]).toMatchObject({ tick: 960, noteNumber: 72 })
+	})
+})
+
+describe('MIDI: Elite Drums', () => {
+	it('recognizes PART ELITE_DRUMS and extracts star power', () => {
+		const midi = buildMidi(480, [
+			tempoTrack(),
+			eventsTrack(),
+			instrumentTrack('PART ELITE_DRUMS', {
+				notes: [{ tick: 480, noteNumber: 116, length: 960 }],
+			}),
+		])
+
+		const result = parseNotesFromMidi(midi, defaultIniChartModifiers)
+		const track = getTrack(result, 'elitedrums', 'expert')!
+		expect(track).toBeDefined()
+		expect(track.starPowerSections).toHaveLength(1)
+	})
+
+	it('extracts raw pad notes with velocity and assigns to correct difficulty', () => {
+		const midi = buildMidi(480, [
+			tempoTrack(),
+			eventsTrack(),
+			instrumentTrack('PART ELITE_DRUMS', {
+				notes: [
+					{ tick: 480, noteNumber: 74, length: 0, velocity: 100 },  // expert kick (base=74, offset 0)
+					{ tick: 480, noteNumber: 75, length: 0, velocity: 127 },  // expert snare, accent (velocity 127)
+					{ tick: 960, noteNumber: 50, length: 0, velocity: 100 },  // hard kick (base=50)
+				],
+			}),
+		])
+
+		const result = parseNotesFromMidi(midi, defaultIniChartModifiers)
+		const expert = getTrack(result, 'elitedrums', 'expert')!
+		expect(expert.rawNotes).toHaveLength(2)
+		expect(expert.rawNotes[0]).toMatchObject({ tick: 480, noteNumber: 74, velocity: 100 })
+		expect(expert.rawNotes[1]).toMatchObject({ tick: 480, noteNumber: 75, velocity: 127 })
+		const hard = getTrack(result, 'elitedrums', 'hard')!
+		expect(hard.rawNotes).toHaveLength(1)
+		expect(hard.rawNotes[0]).toMatchObject({ tick: 960, noteNumber: 50 })
+	})
+})
+
+describe('MIDI: Phase Shift Real Drums', () => {
+	it('maps PART REAL_DRUMS_PS to drums instrument', () => {
+		const midi = buildMidi(480, [
+			tempoTrack(),
+			eventsTrack(),
+			instrumentTrack('PART REAL_DRUMS_PS', {
+				notes: [{ tick: 480, noteNumber: 97, length: 120 }], // expert red drum
+			}),
+		])
+
+		const result = parseNotesFromMidi(midi, defaultIniChartModifiers)
+		const track = getTrack(result, 'drums', 'expert')!
+		expect(track).toBeDefined()
+		expect(track.trackEvents.length).toBeGreaterThan(0) // notes should be parsed as standard drums
+	})
+})
+
+describe('MIDI: GHL Keys', () => {
+	it('recognizes PART KEYS GHL as keysghl with sixFret note parsing', () => {
+		const midi = buildMidi(480, [
+			tempoTrack(),
+			eventsTrack(),
+			instrumentTrack('PART KEYS GHL', {
+				notes: [
+					{ tick: 480, noteNumber: 94, length: 120 },  // expert open (sixFretDiffStart.expert = 94)
+					{ tick: 960, noteNumber: 95, length: 120 },  // expert white1
+				],
+			}),
+		])
+
+		const result = parseNotesFromMidi(midi, defaultIniChartModifiers)
+		const track = getTrack(result, 'keysghl', 'expert')!
+		expect(track).toBeDefined()
+		expect(track.trackEvents.length).toBeGreaterThan(0)
+	})
+
+})
+
+describe('.chart: GHL Keys', () => {
+	it('parses ExpertGHLKeys section', () => {
+		const chart = buildChart({
+			Song: ['Resolution = 192'],
+			SyncTrack: ['0 = B 120000', '0 = TS 4'],
+			Events: [],
+			ExpertGHLKeys: ['0 = N 0 0', '192 = N 1 0'],
+		})
+
+		const result = parseNotesFromChart(chart)
+		const track = getTrack(result, 'keysghl')!
+		expect(track).toBeDefined()
+		expect(track.trackEvents.length).toBeGreaterThan(0)
+	})
+})

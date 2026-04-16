@@ -20,6 +20,17 @@ const trackNames = [
 	'PART GUITAR COOP GHL',
 	'PART RHYTHM GHL',
 	'PART BASS GHL',
+	'PART KEYS GHL',
+	'PART REAL_GUITAR',
+	'PART REAL_GUITAR_22',
+	'PART REAL_BASS',
+	'PART REAL_BASS_22',
+	'PART REAL_KEYS_X',
+	'PART REAL_KEYS_H',
+	'PART REAL_KEYS_M',
+	'PART REAL_KEYS_E',
+	'PART ELITE_DRUMS',
+	'PART REAL_DRUMS_PS',
 	'PART VOCALS',
 	'HARM1',
 	'HARM2',
@@ -52,8 +63,28 @@ const instrumentNameMap: { [key in InstrumentTrackName]: Instrument } = {
 	'PART GUITAR COOP GHL': 'guitarcoopghl',
 	'PART RHYTHM GHL': 'rhythmghl',
 	'PART BASS GHL': 'bassghl',
+	'PART KEYS GHL': 'keysghl',
+	'PART REAL_GUITAR': 'proguitar',
+	'PART REAL_GUITAR_22': 'proguitar22',
+	'PART REAL_BASS': 'probass',
+	'PART REAL_BASS_22': 'probass22',
+	'PART REAL_KEYS_X': 'prokeys',
+	'PART REAL_KEYS_H': 'prokeys',
+	'PART REAL_KEYS_M': 'prokeys',
+	'PART REAL_KEYS_E': 'prokeys',
+	'PART ELITE_DRUMS': 'elitedrums',
+	'PART REAL_DRUMS_PS': 'drums',
 } as const
 /* eslint-enable @typescript-eslint/naming-convention */
+
+/** Pro Keys uses one MIDI track per difficulty instead of one track for all difficulties. */
+const proKeysDifficultyMap: { [key: string]: Difficulty } = {
+	'PART REAL_KEYS_X': 'expert',
+	'PART REAL_KEYS_H': 'hard',
+	'PART REAL_KEYS_M': 'medium',
+	'PART REAL_KEYS_E': 'easy',
+}
+
 
 const sysExDifficultyMap = ['easy', 'medium', 'hard', 'expert'] as const
 const discoFlipDifficultyMap = ['easy', 'medium', 'hard', 'expert'] as const
@@ -106,7 +137,21 @@ export function parseNotesFromMidi(data: Uint8Array, iniChartModifiers: IniChart
 	// Sets event.deltaTime to the number of ticks since the start of the track
 	convertToAbsoluteTime(midiFile)
 
-	const tracks = getTracks(midiFile)
+	const allTracks = getTracks(midiFile)
+	const parseIssues: RawChartData['parseIssues'] = []
+
+	// YARG/Moonscraper behavior: PART DRUMS is canonical; PART REAL_DRUMS_PS is a
+	// fallback used only when PART DRUMS is absent. When both exist, drop the
+	// fallback entirely (matches YARG's TrackOverrides dictionary, where
+	// DRUMS_REAL_TRACK has overwrite=false so it's discarded once drums is loaded).
+	const hasCanonicalDrums = allTracks.some(t => t.trackName === 'PART DRUMS')
+	const hasFallbackDrums = allTracks.some(t => t.trackName === 'PART REAL_DRUMS_PS')
+	const tracks = hasCanonicalDrums && hasFallbackDrums
+		? allTracks.filter(t => t.trackName !== 'PART REAL_DRUMS_PS')
+		: allTracks
+	if (hasCanonicalDrums && hasFallbackDrums) {
+		parseIssues.push({ instrument: 'drums', difficulty: null, noteIssue: 'duplicateDrumsTrack' })
+	}
 
 	// Build vocalTracks from PART VOCALS and HARM1/HARM2/HARM3
 	const vocalTracks: { [part: string]: VocalTrackData } = {}
@@ -195,24 +240,35 @@ export function parseNotesFromMidi(data: Uint8Array, iniChartModifiers: IniChart
 		sections: eventsScan.sections,
 		endEvents: eventsScan.endEvents,
 		unrecognizedEvents: eventsScan.unrecognizedEvents,
-		parseIssues: eventsScan.parseIssues,
+		parseIssues: [...parseIssues, ...eventsScan.parseIssues],
 		trackData: _.chain(tracks)
 			.filter(t => _.keys(instrumentNameMap).includes(t.trackName))
 			.map(t => {
 				const instrument = instrumentNameMap[t.trackName as InstrumentTrackName]
 				const instrumentType = getInstrumentType(instrument)
 				// Single scan pass extracts note-shaped events AND the
-				// data-carrying ones (text, versus, animations).
-				const { eventEnds, textEvents, versusPhrases, animations } = scanInstrumentTrack(t.trackEvents, instrumentType, t.trackName)
+				// data-carrying ones (text, versus, animations, pro-instrument rawNotes,
+				// Pro Keys range shifts).
+				const { eventEnds, textEvents, versusPhrases, animations, rawNotesByDifficulty, proKeysRangeShifts } =
+					scanInstrumentTrack(t.trackEvents, instrumentType, t.trackName)
+				// Pro instruments (pro guitar/bass, pro keys, elite drums) don't use
+				// the difficulty-range noteOn dispatch, so their 'all'-difficulty
+				// modifiers need to be copied to every difficulty unconditionally.
+				const forceDistribute = storesRawNotes(instrumentType)
 				const trackDifficulties = _.chain(eventEnds)
-					.thru(eventEnds => distributeInstrumentEvents(eventEnds)) // Removes 'all' difficulty
+					.thru(eventEnds => distributeInstrumentEvents(eventEnds, forceDistribute)) // Removes 'all' difficulty
 					.thru(eventEnds => getTrackEvents(eventEnds)) // Connects note ends together
 					.thru(events => splitMidiModifierSustains(events, instrumentType))
 					.thru(events => fixLegacyGhStarPower(events, instrumentType, iniChartModifiers))
 					.thru(events => fixFlexLaneLds(events))
 					.value()
 
-				return difficulties.map(difficulty => {
+				// Pro Keys uses one MIDI track per difficulty; other instruments
+				// have all 4 difficulties on one track.
+				const fixedDifficulty = proKeysDifficultyMap[t.trackName as string]
+				const diffsToProcess = fixedDifficulty ? [fixedDifficulty] as Difficulty[] : difficulties
+
+				return diffsToProcess.map(difficulty => {
 					const result: RawChartData['trackData'][number] = {
 						instrument,
 						difficulty,
@@ -225,6 +281,8 @@ export function parseNotesFromMidi(data: Uint8Array, iniChartModifiers: IniChart
 						textEvents,
 						versusPhrases,
 						animations,
+						proKeysRangeShifts,
+						rawNotes: rawNotesByDifficulty[difficulty],
 					}
 
 					for (const event of trackDifficulties[difficulty]) {
@@ -255,7 +313,13 @@ export function parseNotesFromMidi(data: Uint8Array, iniChartModifiers: IniChart
 				})
 			})
 			.flatMap()
-			.filter(track => track.trackEvents.length > 0)
+			.filter(track =>
+				track.trackEvents.length > 0
+				|| track.rawNotes.length > 0
+				|| track.starPowerSections.length > 0
+				|| track.soloSections.length > 0,
+			)
+			.thru(tracks => copyDownProKeysPhrases(tracks))
 			.value(),
 	}
 }
@@ -300,6 +364,11 @@ interface TrackScanResult {
 	textEvents: { tick: number; text: string }[]
 	versusPhrases: { tick: number; length: number; isPlayer2: boolean }[]
 	animations: { tick: number; length: number; noteNumber: number }[]
+	/** Per-difficulty raw MIDI notes, populated for instrument types that store
+	 *  raw notes (pro guitar/bass, pro keys, elite drums). Empty otherwise. */
+	rawNotesByDifficulty: { [key in Difficulty]: RawNote[] }
+	/** Pro Keys range shift markers (notes 0, 2, 4, 5, 7, 9). Empty for other instruments. */
+	proKeysRangeShifts: { tick: number; length: number; noteNumber: number }[]
 }
 
 /**
@@ -308,7 +377,8 @@ interface TrackScanResult {
  *     `distributeInstrumentEvents` / `getTrackEvents`)
  *   - data-carrying events that ride alongside the notes: `textEvents`,
  *     `versusPhrases` (notes 105/106), `animations` (notes 24-51 drums,
- *     40-59 fret)
+ *     40-59 fret), and for pro instruments: `rawNotesByDifficulty` and
+ *     `proKeysRangeShifts`
  *
  * Versus phrases and animations live in the same MIDI event stream as the
  * playable notes, so they're emitted from this single iteration.
@@ -335,6 +405,14 @@ function scanInstrumentTrack(
 	const animationFilter = instrumentType === instrumentTypes.drums
 		? (n: number) => n >= 24 && n <= 51
 		: (n: number) => n >= 40 && n <= 59
+	// Raw notes + pro keys range shifts (pro guitar/bass, pro keys, elite drums).
+	const collectRawNotes = storesRawNotes(instrumentType)
+	const fixedRawNoteDifficulty = proKeysDifficultyMap[trackName]
+	const rawStarts = new Map<string, { tick: number; noteNumber: number; velocity: number; channel: number }>() // keyed by noteNumber+channel
+	const rawNotesByDifficulty: { [key in Difficulty]: RawNote[] } = { expert: [], hard: [], medium: [], easy: [] }
+	const rangeShiftStarts = new Map<number, number>() // noteNumber → startTick
+	const proKeysRangeShifts: { tick: number; length: number; noteNumber: number }[] = []
+	const isProKeys = instrumentType === instrumentTypes.proKeys
 
 	for (const event of events) {
 		// SysEx event (tap modifier or open)
@@ -358,6 +436,52 @@ function scanInstrumentTrack(
 			}
 		} else if (event.type === 'noteOn' || event.type === 'noteOff') {
 			const isOff = event.type === 'noteOff' || (event.type === 'noteOn' && event.velocity === 0)
+
+			// Collect per-difficulty raw MIDI notes for pro guitar/bass, pro keys,
+			// and elite drums. These instruments store notes verbatim with
+			// velocity+channel (matching YARG.Core) rather than being dispatched
+			// through the difficulty-range noteOn logic below.
+			if (collectRawNotes) {
+				const key = `${event.noteNumber}:${event.channel}`
+				if (!isOff) {
+					if (!rawStarts.has(key)) {
+						rawStarts.set(key, { tick: event.deltaTime, noteNumber: event.noteNumber, velocity: event.velocity, channel: event.channel })
+					}
+				} else {
+					const start = rawStarts.get(key)
+					if (start) {
+						const diff = getRawNoteDifficulty(event.noteNumber, instrumentType, fixedRawNoteDifficulty)
+						if (diff) {
+							rawNotesByDifficulty[diff].push({
+								tick: start.tick,
+								length: event.deltaTime - start.tick,
+								noteNumber: start.noteNumber,
+								velocity: start.velocity,
+								channel: start.channel,
+							})
+						}
+						rawStarts.delete(key)
+					}
+				}
+			}
+
+			// Pro Keys range shift markers (notes 0, 2, 4, 5, 7, 9 — no overlap
+			// with Pro Keys playable notes 48-72, so exclusive).
+			if (isProKeys && (event.noteNumber === 0 || event.noteNumber === 2 || event.noteNumber === 4
+				|| event.noteNumber === 5 || event.noteNumber === 7 || event.noteNumber === 9)) {
+				if (!isOff) {
+					if (!rangeShiftStarts.has(event.noteNumber)) {
+						rangeShiftStarts.set(event.noteNumber, event.deltaTime)
+					}
+				} else {
+					const startTick = rangeShiftStarts.get(event.noteNumber)
+					if (startTick !== undefined) {
+						proKeysRangeShifts.push({ tick: startTick, length: event.deltaTime - startTick, noteNumber: event.noteNumber })
+						rangeShiftStarts.delete(event.noteNumber)
+					}
+				}
+				continue
+			}
 
 			// Collect versus phrase markers (notes 105/106). These don't overlap
 			// with any note-shaped events, so we don't fall through.
@@ -402,7 +526,7 @@ function scanInstrumentTrack(
 				: 'all'
 			if (difficulty === 'all') {
 				// Instrument-wide event (solo marker, star power, etc...) (applies to all difficulties)
-				const type = getInstrumentEventType(event.noteNumber)
+				const type = getInstrumentEventType(event.noteNumber, instrumentType)
 				if (type !== null) {
 					eventEnds[difficulty].push({
 						tick: event.deltaTime,
@@ -414,9 +538,10 @@ function scanInstrumentTrack(
 				}
 			} else {
 				const type =
-					(instrumentType === instrumentTypes.sixFret ? get6FretNoteType(event.noteNumber, difficulty)
+					instrumentType === instrumentTypes.sixFret ? get6FretNoteType(event.noteNumber, difficulty)
 					: instrumentType === instrumentTypes.drums ? getDrumsNoteType(event.noteNumber, difficulty)
-					: get5FretNoteType(event.noteNumber, difficulty, enhancedOpens)) ?? null
+					: instrumentType === instrumentTypes.fiveFret ? get5FretNoteType(event.noteNumber, difficulty, enhancedOpens)
+					: null // New instrument types: per-difficulty notes not parsed yet
 				if (type !== null) {
 					eventEnds[difficulty].push({
 						tick: event.deltaTime,
@@ -468,24 +593,45 @@ function scanInstrumentTrack(
 
 	versusPhrases.sort((a, b) => a.tick - b.tick)
 	animations.sort((a, b) => a.tick - b.tick)
-	return { eventEnds, textEvents, versusPhrases, animations }
+	proKeysRangeShifts.sort((a, b) => a.tick - b.tick)
+	for (const diff of difficulties) {
+		rawNotesByDifficulty[diff].sort((a, b) => a.tick - b.tick || a.noteNumber - b.noteNumber)
+	}
+	return { eventEnds, textEvents, versusPhrases, animations, rawNotesByDifficulty, proKeysRangeShifts }
 }
 
 /** These apply to the entire instrument, not specific difficulties. */
-function getInstrumentEventType(note: number) {
+function getInstrumentEventType(note: number, instrumentType: InstrumentType) {
 	switch (note) {
 		case 103:
+			// Solo on standard instruments and elite drums. NOT solo on pro guitar/bass/keys (they use 115).
+			if (instrumentType === instrumentTypes.proGuitar || instrumentType === instrumentTypes.proKeys) return null
 			return eventTypes.soloSection
+		case 115:
+			// Solo on pro guitar/bass and pro keys only
+			if (instrumentType === instrumentTypes.proGuitar || instrumentType === instrumentTypes.proKeys) {
+				return eventTypes.soloSection
+			}
+			return null
 		case 104:
-			return eventTypes.forceTap
+			// forceTap on standard fret instruments only
+			if (instrumentType === instrumentTypes.fiveFret || instrumentType === instrumentTypes.sixFret) {
+				return eventTypes.forceTap
+			}
+			return null
 		case 109:
-			return eventTypes.forceFlam
+			// forceFlam on standard drums only
+			if (instrumentType === instrumentTypes.drums) return eventTypes.forceFlam
+			return null
 		case 110:
-			return eventTypes.yellowTomMarker
+			if (instrumentType === instrumentTypes.drums) return eventTypes.yellowTomMarker
+			return null
 		case 111:
-			return eventTypes.blueTomMarker
+			if (instrumentType === instrumentTypes.drums) return eventTypes.blueTomMarker
+			return null
 		case 112:
-			return eventTypes.greenTomMarker
+			if (instrumentType === instrumentTypes.drums) return eventTypes.greenTomMarker
+			return null
 		case 116:
 			return eventTypes.starPower
 		case 120:
@@ -584,10 +730,10 @@ function getDrumsNoteType(note: number, difficulty: Difficulty) {
  * enableChartDynamics is meant to apply to all charted difficulties.
  * Distributes all of these to each difficulty in the instrument.
  */
-function distributeInstrumentEvents(eventEnds: { [difficulty in Difficulty | 'all']: TrackEventEnd[] }) {
+function distributeInstrumentEvents(eventEnds: { [difficulty in Difficulty | 'all']: TrackEventEnd[] }, forceDistribute = false) {
 	for (const instrumentEvent of eventEnds.all) {
 		for (const difficulty of difficulties) {
-			if (eventEnds[difficulty].length === 0) {
+			if (!forceDistribute && eventEnds[difficulty].length === 0) {
 				continue // Skip adding modifiers to uncharted difficulties
 			}
 			eventEnds[difficulty].push(_.clone(instrumentEvent))
@@ -666,6 +812,10 @@ function getTrackEvents(trackEventEnds: { [key in Difficulty]: TrackEventEnd[] }
 function splitMidiModifierSustains(events: { [key in Difficulty]: MidiTrackEvent[] }, instrumentType: InstrumentType) {
 	let enableChartDynamics = false
 	const t = eventTypes
+	// New instrument types have no per-difficulty notes to modify; return as-is
+	if (instrumentType === instrumentTypes.proGuitar || instrumentType === instrumentTypes.proKeys || instrumentType === instrumentTypes.eliteDrums) {
+		return events
+	}
 	const modifierSustains: EventType[] =
 		instrumentType === instrumentTypes.drums ?
 			[t.forceFlam, t.yellowTomMarker, t.blueTomMarker, t.greenTomMarker]
@@ -824,6 +974,85 @@ function fixFlexLaneLds(events: { [key in Difficulty]: MidiTrackEvent[] }) {
 	)
 
 	return events
+}
+
+export type RawNote = { tick: number; length: number; noteNumber: number; velocity: number; channel: number }
+
+/**
+ * Instruments that store per-difficulty raw MIDI notes (pro guitar/bass, pro keys,
+ * elite drums) instead of the standard difficulty-range noteOn dispatch.
+ */
+function storesRawNotes(instrumentType: InstrumentType): boolean {
+	return instrumentType === instrumentTypes.proGuitar
+		|| instrumentType === instrumentTypes.proKeys
+		|| instrumentType === instrumentTypes.eliteDrums
+}
+
+/**
+ * Determine which difficulty a raw MIDI note belongs to. Pro guitar/bass uses
+ * per-difficulty note ranges; pro keys has one MIDI track per difficulty; elite
+ * drums uses per-difficulty offsets.
+ */
+function getRawNoteDifficulty(
+	noteNumber: number,
+	instrumentType: InstrumentType,
+	fixedDifficulty?: Difficulty,
+): Difficulty | null {
+	if (instrumentType === instrumentTypes.proGuitar) {
+		// Pro Guitar/Bass: 6 strings + per-difficulty modifiers
+		// Easy=24-34, Medium=48-58, Hard=72-82, Expert=96-108
+		if (noteNumber >= 24 && noteNumber <= 34) return 'easy'
+		if (noteNumber >= 48 && noteNumber <= 58) return 'medium'
+		if (noteNumber >= 72 && noteNumber <= 82) return 'hard'
+		if (noteNumber >= 96 && noteNumber <= 108) return 'expert'
+		// Root note markers (4-18) apply to all difficulties — store on expert
+		if (noteNumber >= 4 && noteNumber <= 18) return 'expert'
+		return null
+	}
+
+	if (instrumentType === instrumentTypes.proKeys) {
+		// Pro Keys: notes 48-72 (25 keys). Each track is one difficulty.
+		if (noteNumber >= 48 && noteNumber <= 72) return fixedDifficulty ?? 'expert'
+		return null
+	}
+
+	if (instrumentType === instrumentTypes.eliteDrums) {
+		// Elite Drums: base offsets Easy=2, Medium=26, Hard=50, Expert=74
+		// 10 pads (offset -2 to +8) + modifiers (offset +13, +14, +16)
+		if (noteNumber >= 0 && noteNumber <= 18) return 'easy'
+		if (noteNumber >= 24 && noteNumber <= 42) return 'medium'
+		if (noteNumber >= 48 && noteNumber <= 66) return 'hard'
+		if (noteNumber >= 72 && noteNumber <= 90) return 'expert'
+		return null
+	}
+
+	return null
+}
+
+
+/**
+ * YARG copies star power and solo sections from the Pro Keys expert track to all other
+ * Pro Keys difficulties (each Pro Keys difficulty is a separate MIDI track, but star power
+ * and solo are only charted on the expert track).
+ */
+function copyDownProKeysPhrases(tracks: RawChartData['trackData']): RawChartData['trackData'] {
+	const expertProKeys = tracks.find(t => t.instrument === 'prokeys' && t.difficulty === 'expert')
+	if (!expertProKeys) return tracks
+
+	for (const track of tracks) {
+		if (track.instrument !== 'prokeys' || track.difficulty === 'expert') continue
+		if (track.starPowerSections.length === 0 && expertProKeys.starPowerSections.length > 0) {
+			track.starPowerSections = expertProKeys.starPowerSections.map(p => ({ ...p }))
+		}
+		if (track.soloSections.length === 0 && expertProKeys.soloSections.length > 0) {
+			track.soloSections = expertProKeys.soloSections.map(p => ({ ...p }))
+		}
+		// Range shifts are charted per-difficulty, but if missing, copy from expert
+		if (track.proKeysRangeShifts.length === 0 && expertProKeys.proKeysRangeShifts.length > 0) {
+			track.proKeysRangeShifts = expertProKeys.proKeysRangeShifts.map(p => ({ ...p }))
+		}
+	}
+	return tracks
 }
 
 /**

@@ -57,6 +57,11 @@ const trackNameMap = {
 	HardGHLBass: { instrument: 'bassghl', difficulty: 'hard' },
 	MediumGHLBass: { instrument: 'bassghl', difficulty: 'medium' },
 	EasyGHLBass: { instrument: 'bassghl', difficulty: 'easy' },
+
+	ExpertGHLKeys: { instrument: 'keysghl', difficulty: 'expert' },
+	HardGHLKeys: { instrument: 'keysghl', difficulty: 'hard' },
+	MediumGHLKeys: { instrument: 'keysghl', difficulty: 'medium' },
+	EasyGHLKeys: { instrument: 'keysghl', difficulty: 'easy' },
 } as const
 /* eslint-enable @typescript-eslint/naming-convention */
 
@@ -203,6 +208,8 @@ export function parseNotesFromChart(data: Uint8Array): RawChartData {
 					textEvents: [],
 					versusPhrases: [],
 					animations: [], // .chart format does not have note-based animations
+					proKeysRangeShifts: [], // Pro instruments are MIDI-only
+					rawNotes: [], // Pro instruments are MIDI-only
 				}
 
 				for (const event of trackEvents) {

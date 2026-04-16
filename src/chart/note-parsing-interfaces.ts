@@ -159,6 +159,34 @@ export interface RawChartData {
 			/** The MIDI note number identifying the animation */
 			noteNumber: number
 		}[]
+		/**
+		 * Pro Keys range shift markers (MIDI notes 0/2/4/5/7/9). Each shift
+		 * changes which 10-key portion of the 25-key range is visible.
+		 * Only present on prokeys instrument tracks.
+		 */
+		proKeysRangeShifts: {
+			tick: number
+			/** Number of ticks */
+			length: number
+			/** The MIDI note number: 0=C1-E2, 2=D1-F2, 4=E1-G2, 5=F1-A2, 7=G1-B2, 9=A1-C3 */
+			noteNumber: number
+		}[]
+		/**
+		 * Raw MIDI note data for instruments whose note format is not yet fully parsed
+		 * into NoteEvent (pro guitar/bass, pro keys, elite drums). Contains all per-difficulty
+		 * noteOn/noteOff pairs with full MIDI properties for roundtrip writing.
+		 */
+		rawNotes: {
+			tick: number
+			/** Number of ticks */
+			length: number
+			/** The MIDI note number (instrument-type-specific meaning) */
+			noteNumber: number
+			/** MIDI velocity (pro guitar: fret + 100; elite drums: 1=ghost, 127=accent) */
+			velocity: number
+			/** MIDI channel (pro guitar: 0=normal, 1=ghost, 2=bend, 3=muted, 4=tapped, 5=harmonics, 6=pinch harmonics) */
+			channel: number
+		}[]
 	}[]
 }
 
