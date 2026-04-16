@@ -276,19 +276,27 @@ function getIniInteger(songSection: { [key: string]: string }, key: MetaNumberKe
  * Then falls back to the default value if `legacyKey` is not found or invalid.
  */
 function getIniBoolean(songSection: { [key: string]: string }, key: MetaBooleanKey, legacyKey?: Exclude<InputMetaBooleanKey, MetaBooleanKey>) {
-	const value = songSection[key]
-	if (value === 'True' || value === '1') {
-		return true
-	} else if (value === 'False' || value === '0') {
-		return false
+	const parsed = parseBoolean(songSection[key])
+	if (parsed !== null) {
+		return parsed
 	} else if (legacyKey) {
-		const legacyValue = songSection[legacyKey]
-		if (legacyValue === 'True' || legacyValue === '1') {
-			return true
-		} else if (legacyValue === 'False' || legacyValue === '0') {
-			return false
+		const legacyParsed = parseBoolean(songSection[legacyKey])
+		if (legacyParsed !== null) {
+			return legacyParsed
 		}
 	}
 
 	return defaultMetadata[key]
+}
+
+/**
+ * Clone Hero and YARG both accept ini booleans in any case (e.g. `true`, `True`, `TRUE`).
+ * @returns `true`/`false` if `value` is a recognized boolean literal, or `null` otherwise.
+ */
+function parseBoolean(value: string | undefined): boolean | null {
+	if (value === undefined) return null
+	const lowered = value.toLowerCase()
+	if (lowered === 'true' || lowered === '1') return true
+	if (lowered === 'false' || lowered === '0') return false
+	return null
 }
