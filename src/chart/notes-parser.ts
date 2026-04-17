@@ -86,6 +86,9 @@ export function parseChartFile(data: Uint8Array, format: 'chart' | 'mid', partia
 					.thru(events => sortAndFixInvalidFlexLaneOverlaps(events))
 					.value(),
 				drumFreestyleSections: setEventMsTimes(track.drumFreestyleSections, timedTempos, rawChartData.chartTicksPerBeat),
+				textEvents: setEventMsTimes(track.textEvents, timedTempos, rawChartData.chartTicksPerBeat),
+				versusPhrases: setEventMsTimes(track.versusPhrases, timedTempos, rawChartData.chartTicksPerBeat),
+				animations: setEventMsTimes(track.animations, timedTempos, rawChartData.chartTicksPerBeat),
 				noteEventGroups: _.chain(track.trackEvents)
 					.thru(events => trimSustains(events, iniChartModifiers.sustain_cutoff_threshold, rawChartData.chartTicksPerBeat, format))
 					.groupBy(note => note.tick)

@@ -189,17 +189,21 @@ export function parseNotesFromChart(data: Uint8Array): RawChartData {
 			.toPairs()
 			.map(([trackName, lines]) => {
 				const { instrument, difficulty } = trackNameMap[trackName as TrackName]
-				const trackEvents = _.chain(lines)
-					.map(line => /^(\d+) = ([A-Z]+) ([\w\s[\]]+?)( \d+)?$/.exec(line))
-					.compact()
-					.map(([, tickString, typeCode, value, lengthString]) => {
-						const type = getEventType(typeCode, value, instrument, difficulty)
-						return type !== null ? { tick: Number(tickString), type, length: Number(lengthString) || 0 } : null
-					})
+				// Single parsing pass that produces note-shaped events (`{ tick, type, length }`)
+				// plus data-carrying events (text, versus). Note-shaped events flow through
+				// the same distribution loop as before; the data-carrying ones are routed
+				// to their dedicated arrays inside the same loop.
+				const parsedEvents = _.chain(lines)
+					.map(line => parseTrackLine(line, instrument, difficulty))
 					.compact()
 					.orderBy('tick') // Most parsers reject charts that aren't already sorted, but it's easier to just sort it here
-					.thru(events => mergeSoloEvents(events))
 					.value()
+
+				// Merge solo/soloend pairs in place (note-shaped events only)
+				const trackEvents = mergeSoloEvents(
+					parsedEvents.filter((e): e is ParsedNoteEvent => e.kind === 'note'),
+				)
+
 				const result: RawChartData['trackData'][number] = {
 					instrument,
 					difficulty,
@@ -209,6 +213,9 @@ export function parseNotesFromChart(data: Uint8Array): RawChartData {
 					flexLanes: [],
 					drumFreestyleSections: [],
 					trackEvents: [],
+					textEvents: [],
+					versusPhrases: [],
+					animations: [], // .chart format does not have note-based animations
 				}
 
 				for (const event of trackEvents) {
@@ -232,6 +239,14 @@ export function parseNotesFromChart(data: Uint8Array): RawChartData {
 						})
 					} else {
 						result.trackEvents.push(event)
+					}
+				}
+
+				for (const event of parsedEvents) {
+					if (event.kind === 'text') {
+						result.textEvents.push({ tick: event.tick, text: event.text })
+					} else if (event.kind === 'versus') {
+						result.versusPhrases.push({ tick: event.tick, length: event.length, isPlayer2: event.isPlayer2 })
 					}
 				}
 
@@ -291,146 +306,201 @@ function getFileSections(chartText: string) {
 	return sections
 }
 
-function getEventType(typeCode: string, value: string, instrument: Instrument, difficulty: Difficulty): EventType | null {
-	switch (typeCode) {
-		case 'E': {
-			switch (value) {
-				case 'solo':
-					return eventTypes.soloSectionStart
-				case 'soloend':
-					return eventTypes.soloSectionEnd
-				default: {
-					const match = value.match(/^\s*\[?mix[ _]([0-3])[ _]drums([0-5])(d|dnoflip|easy|easynokick|)\]?\s*$/)
-					if (match) {
-						const diff = discoFlipDifficultyMap[Number(match[1])]
-						const flag = match[3] as 'd' | 'dnoflip' | 'easy' | 'easynokick' | ''
-						if ((flag === '' || flag === 'd' || flag === 'dnoflip') && difficulty === diff) {
-							return (
-								flag === '' ? eventTypes.discoFlipOff
-								: flag === 'd' ? eventTypes.discoFlipOn
-								: eventTypes.discoNoFlipOn
-							)
-						}
-					}
-					return null
-				}
+/** Regex matching disco flip mix events (any difficulty). Used to filter them
+ * out from textEvents since they're consumed as disco flip modifiers. */
+const chartDiscoFlipRegex = /^\s*\[?mix[ _][0-3][ _]drums[0-5](d|dnoflip|easy|easynokick|)\]?\s*$/
+
+/**
+ * Events parsed from a single .chart track line. Note-shaped events flow into
+ * `trackEvents` and friends via the distribution loop; text and versus events
+ * have extra data and go into their dedicated arrays.
+ */
+type ParsedNoteEvent = { kind: 'note'; tick: number; type: EventType; length: number }
+type ParsedTextEvent = { kind: 'text'; tick: number; text: string }
+type ParsedVersusEvent = { kind: 'versus'; tick: number; length: number; isPlayer2: boolean }
+type ParsedTrackLine = ParsedNoteEvent | ParsedTextEvent | ParsedVersusEvent
+
+/**
+ * Parse a single line of a .chart instrument track section. Produces a typed
+ * event (note / text / versus) or null if the line is unrecognized or consumed
+ * by other parsing logic (ENABLE_CHART_DYNAMICS, ENHANCED_OPENS).
+ *
+ * Lines take one of these forms:
+ *   TICK = E "TEXT"          → text event (or recognized E type: solo, mix...)
+ *   TICK = S VALUE LENGTH    → starPower, flex lane, freestyle, or versus phrase
+ *   TICK = N VALUE LENGTH    → note (with instrument-specific mapping)
+ */
+function parseTrackLine(line: string, instrument: Instrument, difficulty: Difficulty): ParsedTrackLine | null {
+	// E events have quoted arbitrary text, so handle them separately from N/S.
+	const eMatch = /^(\d+) = E "([^"\r\n]*)"$/.exec(line) ?? /^(\d+) = E ([^\r\n]+?)$/.exec(line)
+	if (eMatch) {
+		const tick = Number(eMatch[1])
+		const value = eMatch[2]
+		const recognizedType = getEEventType(value, difficulty)
+		if (recognizedType !== null) return { kind: 'note', tick, type: recognizedType, length: 0 }
+		// Disco flip events for other difficulties: consumed (not stored as text)
+		if (chartDiscoFlipRegex.test(value)) return null
+		// Skip directives consumed by chart processing (not stored as text events)
+		const stripped = value.replace(/^\[/, '').replace(/\]$/, '').trim()
+		if (stripped === 'ENABLE_CHART_DYNAMICS' || stripped === 'ENHANCED_OPENS') return null
+		return { kind: 'text', tick, text: value }
+	}
+	// N/S events have numeric value + optional length
+	const nsMatch = /^(\d+) = ([NS]) (\w+)( \d+)?$/.exec(line)
+	if (nsMatch) {
+		const tick = Number(nsMatch[1])
+		const typeCode = nsMatch[2]
+		const value = nsMatch[3]
+		const length = Number(nsMatch[4]) || 0
+		if (typeCode === 'S') {
+			// S 0 (player 1) / S 1 (player 2) are versus phrases, not note-shaped
+			if (value === '0' || value === '1') {
+				return { kind: 'versus', tick, length, isPlayer2: value === '1' }
 			}
+			const type = getSEventType(value)
+			return type !== null ? { kind: 'note', tick, type, length } : null
 		}
-		case 'S': {
+		// N: instrument-dependent note mapping
+		const type = getNEventType(value, instrument)
+		return type !== null ? { kind: 'note', tick, type, length } : null
+	}
+	return null
+}
+
+function getEEventType(value: string, difficulty: Difficulty): EventType | null {
+	switch (value) {
+		case 'solo':
+			return eventTypes.soloSectionStart
+		case 'soloend':
+			return eventTypes.soloSectionEnd
+	}
+	const match = value.match(/^\s*\[?mix[ _]([0-3])[ _]drums([0-5])(d|dnoflip|easy|easynokick|)\]?\s*$/)
+	if (match) {
+		const diff = discoFlipDifficultyMap[Number(match[1])]
+		const flag = match[3] as 'd' | 'dnoflip' | 'easy' | 'easynokick' | ''
+		if ((flag === '' || flag === 'd' || flag === 'dnoflip') && difficulty === diff) {
+			return (
+				flag === '' ? eventTypes.discoFlipOff
+				: flag === 'd' ? eventTypes.discoFlipOn
+				: eventTypes.discoNoFlipOn
+			)
+		}
+	}
+	return null
+}
+
+function getSEventType(value: string): EventType | null {
+	switch (value) {
+		case '2':
+			return eventTypes.starPower
+		case '64':
+			return eventTypes.freestyleSection
+		case '65':
+			return eventTypes.flexLaneSingle
+		case '66':
+			return eventTypes.flexLaneDouble
+		default:
+			return null
+	}
+}
+
+function getNEventType(value: string, instrument: Instrument): EventType | null {
+	switch (instrument) {
+		case 'drums': {
 			switch (value) {
+				case '0':
+					return eventTypes.kick
+				case '1':
+					return eventTypes.redDrum
 				case '2':
-					return eventTypes.starPower
-				case '64':
-					return eventTypes.freestyleSection
-				case '65':
-					return eventTypes.flexLaneSingle
+					return eventTypes.yellowDrum
+				case '3':
+					return eventTypes.blueDrum
+				case '4':
+					return eventTypes.fiveOrangeFourGreenDrum
+				case '5':
+					return eventTypes.fiveGreenDrum
+				case '32':
+					return eventTypes.kick2x
+				case '34':
+					return eventTypes.redAccent
+				case '35':
+					return eventTypes.yellowAccent
+				case '36':
+					return eventTypes.blueAccent
+				case '37':
+					return eventTypes.fiveOrangeFourGreenAccent
+				case '38':
+					return eventTypes.fiveGreenAccent
+				case '40':
+					return eventTypes.redGhost
+				case '41':
+					return eventTypes.yellowGhost
+				case '42':
+					return eventTypes.blueGhost
+				case '43':
+					return eventTypes.fiveOrangeFourGreenGhost
+				case '44':
+					return eventTypes.fiveGreenGhost
 				case '66':
-					return eventTypes.flexLaneDouble
+					return eventTypes.yellowCymbalMarker
+				case '67':
+					return eventTypes.blueCymbalMarker
+				case '68':
+					return eventTypes.greenCymbalMarker
 				default:
 					return null
 			}
 		}
-		case 'N': {
-			switch (instrument) {
-				case 'drums': {
-					switch (value) {
-						case '0':
-							return eventTypes.kick
-						case '1':
-							return eventTypes.redDrum
-						case '2':
-							return eventTypes.yellowDrum
-						case '3':
-							return eventTypes.blueDrum
-						case '4':
-							return eventTypes.fiveOrangeFourGreenDrum
-						case '5':
-							return eventTypes.fiveGreenDrum
-						case '32':
-							return eventTypes.kick2x
-						case '34':
-							return eventTypes.redAccent
-						case '35':
-							return eventTypes.yellowAccent
-						case '36':
-							return eventTypes.blueAccent
-						case '37':
-							return eventTypes.fiveOrangeFourGreenAccent
-						case '38':
-							return eventTypes.fiveGreenAccent
-						case '40':
-							return eventTypes.redGhost
-						case '41':
-							return eventTypes.yellowGhost
-						case '42':
-							return eventTypes.blueGhost
-						case '43':
-							return eventTypes.fiveOrangeFourGreenGhost
-						case '44':
-							return eventTypes.fiveGreenGhost
-						case '66':
-							return eventTypes.yellowCymbalMarker
-						case '67':
-							return eventTypes.blueCymbalMarker
-						case '68':
-							return eventTypes.greenCymbalMarker
-						default:
-							return null
-					}
-				}
-				case 'guitarghl':
-				case 'guitarcoopghl':
-				case 'rhythmghl':
-				case 'bassghl': {
-					switch (value) {
-						case '0':
-							return eventTypes.white1
-						case '1':
-							return eventTypes.white2
-						case '2':
-							return eventTypes.white3
-						case '3':
-							return eventTypes.black1
-						case '4':
-							return eventTypes.black2
-						case '5':
-							return eventTypes.forceUnnatural
-						case '6':
-							return eventTypes.forceTap
-						case '7':
-							return eventTypes.open
-						case '8':
-							return eventTypes.black3
-						default:
-							return null
-					}
-				}
-				default: {
-					switch (value) {
-						case '0':
-							return eventTypes.green
-						case '1':
-							return eventTypes.red
-						case '2':
-							return eventTypes.yellow
-						case '3':
-							return eventTypes.blue
-						case '4':
-							return eventTypes.orange
-						case '5':
-							return eventTypes.forceUnnatural
-						case '6':
-							return eventTypes.forceTap
-						case '7':
-							return eventTypes.open
-						default:
-							return null
-					}
-				}
+		case 'guitarghl':
+		case 'guitarcoopghl':
+		case 'rhythmghl':
+		case 'bassghl': {
+			switch (value) {
+				case '0':
+					return eventTypes.white1
+				case '1':
+					return eventTypes.white2
+				case '2':
+					return eventTypes.white3
+				case '3':
+					return eventTypes.black1
+				case '4':
+					return eventTypes.black2
+				case '5':
+					return eventTypes.forceUnnatural
+				case '6':
+					return eventTypes.forceTap
+				case '7':
+					return eventTypes.open
+				case '8':
+					return eventTypes.black3
+				default:
+					return null
 			}
 		}
-		default:
-			return null
+		default: {
+			switch (value) {
+				case '0':
+					return eventTypes.green
+				case '1':
+					return eventTypes.red
+				case '2':
+					return eventTypes.yellow
+				case '3':
+					return eventTypes.blue
+				case '4':
+					return eventTypes.orange
+				case '5':
+					return eventTypes.forceUnnatural
+				case '6':
+					return eventTypes.forceTap
+				case '7':
+					return eventTypes.open
+				default:
+					return null
+			}
+		}
 	}
 }
 
