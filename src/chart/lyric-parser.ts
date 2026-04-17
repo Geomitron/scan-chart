@@ -212,9 +212,19 @@ export function extractMidiLyrics(trackEvents: MidiLyricEvent[]): { tick: number
 // ---------------------------------------------------------------------------
 
 /**
- * Extract note-on/note-off pairs for the given MIDI note numbers.
- * Handles: velocity-0 noteOn as noteOff, noteOff-before-noteOn sort at same tick,
- * duplicate noteOn skip (matching YARG's ProcessNoteEvent).
+ * Extract note-on/note-off pairs for the given MIDI note numbers. Processes
+ * events in MIDI file order (sorted stably by tick), matching YARG.Core's
+ * `MidReader.ProcessNoteEvent`: velocity-0 noteOn is treated as noteOff,
+ * duplicate noteOn while a note is already open is ignored.
+ *
+ * MIDI file order correctly handles zero-length notes (noteOn + noteOff at the
+ * same tick for the same pitch): the noteOn opens the note and the following
+ * noteOff closes it immediately. Without preserving order, sorting noteOff
+ * before noteOn at the same tick would steal the close from a later real note
+ * (real example: "The Lumineers - Ho Hey" has a zero-length note 60 at tick
+ * 49840 that would otherwise steal the noteOff at tick 55080 from the real
+ * note at tick 54880).
+ *
  * Events must already be in absolute time (deltaTime = absolute tick).
  */
 function extractMidiNotePairs(
@@ -232,11 +242,8 @@ function extractMidiNotePairs(
 			})
 		}
 	}
-	// Stable sort: same tick → noteOff before noteOn
-	noteEvents.sort((a, b) => {
-		if (a.tick !== b.tick) return a.tick - b.tick
-		return (a.type === 'noteOff' ? 0 : 1) - (b.type === 'noteOff' ? 0 : 1)
-	})
+	// Stable sort by tick only, preserving MIDI file order at the same tick.
+	noteEvents.sort((a, b) => a.tick - b.tick)
 
 	const phraseStarts: Map<number, number> = new Map()
 	const results: { tick: number; length: number; noteNumber: number }[] = []
@@ -333,4 +340,101 @@ export function extractMidiRangeShifts(trackEvents: MidiLyricEvent[]): { tick: n
  */
 export function extractMidiLyricShifts(trackEvents: MidiLyricEvent[]): { tick: number; length: number }[] {
 	return extractMidiNotePairs(trackEvents, n => n === 1)
+}
+
+// ---------------------------------------------------------------------------
+// Lyric symbol parsing (for normalization)
+// ---------------------------------------------------------------------------
+
+import { lyricFlags } from './note-parsing-interfaces'
+
+/** Symbols that set flags when found at the end of a lyric (scanned right-to-left). */
+const trailingSymbolFlags: Record<string, number> = {
+	'-': lyricFlags.joinWithNext,
+	'=': lyricFlags.hyphenateWithNext,
+	'+': lyricFlags.pitchSlide,
+	'#': lyricFlags.nonPitched,
+	'^': lyricFlags.nonPitched | lyricFlags.lenientScoring,
+	'*': lyricFlags.nonPitched,
+	'%': lyricFlags.rangeShift,
+	'/': lyricFlags.staticShift,
+	'$': lyricFlags.harmonyHidden,
+}
+
+/** Symbols stripped from display text everywhere they appear. */
+const stripSymbols = new Set(['+', '#', '^', '*', '%', '/', '$', '"'])
+
+/** Trailing flag symbols that are stripped from display (YARG VOCALS_STRIP_SYMBOLS).
+ *  '-' and '=' are NOT in this set — '-' is kept, '=' is replaced with '-'. */
+const trailingStripSymbols = new Set(['+', '#', '^', '*', '%', '/', '$'])
+
+/**
+ * Parse lyric symbol flags from a lyric text string.
+ * Matches YARG's LyricSymbols.GetLyricFlags(): scans from end consuming flag symbols,
+ * and checks start for '$' (harmony hidden).
+ */
+export function parseLyricFlags(text: string): number {
+	let flags = 0
+	if (text.length === 0) return flags
+
+	// '$' at start = harmony hidden
+	if (text[0] === '$') flags |= lyricFlags.harmonyHidden
+
+	// Scan trailing symbols right-to-left
+	let i = text.length - 1
+	while (i >= 0) {
+		const flag = trailingSymbolFlags[text[i]]
+		if (flag === undefined) break
+		flags |= flag
+		i--
+	}
+
+	return flags
+}
+
+/**
+ * Strip lyric symbols from text for display.
+ * Strips VOCALS_STRIP_SYMBOLS (+, #, ^, *, %, /, $, ") and trims leading ASCII
+ * whitespace. Trailing '-' is kept (it's a display character). Trailing '=' is
+ * replaced with '-'. Keeps '_' and '§' as-is (consumer decides display replacement).
+ *
+ * Unlike YARG's `StripForVocals`, rich text tags (<i>, <b>, <color>, etc.) are
+ * preserved in the output — consumers that render lyrics can decide whether to
+ * honor or strip them at render time. To avoid breaking tag syntax, characters
+ * inside `<...>` are passed through verbatim.
+ */
+export function stripLyricSymbols(text: string): string {
+	// Trim leading ASCII whitespace (matching YARG's TrimStartAscii in ProcessLyric)
+	text = text.replace(/^[\x00-\x20]+/, '')
+	// Find the boundary between content and trailing flag symbols.
+	// Trailing flags are consumed right-to-left by parseLyricFlags.
+	let trailEnd = text.length
+	while (trailEnd > 0 && trailingSymbolFlags[text[trailEnd - 1]] !== undefined) {
+		trailEnd--
+	}
+
+	let result = ''
+	let insideTag = false
+	// Process non-trailing portion: strip symbols that are in VOCALS_STRIP_SYMBOLS,
+	// except inside <...> where rich-text markup should be preserved verbatim.
+	for (let i = 0; i < trailEnd; i++) {
+		const ch = text[i]
+		if (ch === '<') insideTag = true
+		if (insideTag) {
+			result += ch
+			if (ch === '>') insideTag = false
+			continue
+		}
+		if (stripSymbols.has(ch)) continue
+		if (ch === '=') { result += '-'; continue }
+		result += ch
+	}
+	// Process trailing portion: only strip the ones YARG strips, keep '-', replace '='
+	for (let i = trailEnd; i < text.length; i++) {
+		const ch = text[i]
+		if (trailingStripSymbols.has(ch)) continue
+		if (ch === '=') { result += '-'; continue }
+		result += ch // only '-' reaches here
+	}
+	return result
 }
