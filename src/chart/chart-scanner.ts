@@ -208,6 +208,12 @@ function findChartIssues(
 			description: msTime !== undefined ? `[${msToExactTime(msTime)}]: ${chartIssueDescriptions[issue]}` : chartIssueDescriptions[issue],
 		})
 
+	// Parser-emitted issues (dedup, malformed events, etc.) run first so their
+	// descriptions appear at the top of the issue list for consumers.
+	for (const issue of chartData.parseIssues) {
+		addIssue(issue.instrument, issue.difficulty, issue.noteIssue)
+	}
+
 	// misalignedTimeSignature
 	{
 		const timeSignatures = _.clone(chartData.timeSignatures)

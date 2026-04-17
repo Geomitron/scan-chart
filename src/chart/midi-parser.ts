@@ -210,6 +210,7 @@ export function parseNotesFromMidi(data: Uint8Array, iniChartModifiers: IniChart
 				tick: e.deltaTime,
 			}))
 			.value(),
+		parseIssues: [],
 		trackData: _.chain(tracks)
 			.filter(t => _.keys(instrumentNameMap).includes(t.trackName))
 			.map(t => {

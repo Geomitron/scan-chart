@@ -1,4 +1,4 @@
-import { Difficulty, Instrument } from 'src/interfaces'
+import { Difficulty, Instrument, NotesData } from 'src/interfaces'
 import { ObjectValues } from 'src/utils'
 
 export interface IniChartModifiers {
@@ -73,6 +73,14 @@ export interface RawChartData {
 	endEvents: {
 		tick: number
 	}[]
+	/**
+	 * Issues detected at parse time (before `findChartIssues` runs). `chart-scanner`
+	 * concatenates these into the final `chartIssues` array, attaching the standard
+	 * description from `chartIssueDescriptions`. Use this for issues that the parser
+	 * is uniquely positioned to detect (e.g. duplicate tracks that get normalized
+	 * away, malformed events that get dropped).
+	 */
+	parseIssues: Omit<NotesData['chartIssues'][number], 'description'>[]
 	trackData: {
 		instrument: Instrument
 		difficulty: Difficulty
