@@ -9,11 +9,19 @@ import {
 	eventTypes,
 	IniChartModifiers,
 	NoteEvent,
+	NormalizedLyricEvent,
+	NormalizedVocalNote,
+	NormalizedVocalPhrase,
+	NormalizedVocalPart,
+	NormalizedVocalTrack,
+	lyricFlags,
 	noteFlags,
 	NoteType,
 	noteTypes,
 	RawChartData,
+	VocalTrackData,
 } from './note-parsing-interfaces'
+import { parseLyricFlags, stripLyricSymbols } from './lyric-parser'
 
 type TrackEvent = RawChartData['trackData'][number]['trackEvents'][number]
 type UntimedNoteEvent = Omit<NoteEvent, 'msTime' | 'msLength'>
@@ -53,17 +61,7 @@ export function parseChartFile(data: Uint8Array, format: 'chart' | 'mid', partia
 		hasLyrics: Object.values(rawChartData.vocalTracks).some(v => v.lyrics.length > 0),
 		hasVocals: Object.values(rawChartData.vocalTracks).some(v => v.vocalPhrases.length > 0),
 		hasForcedNotes,
-		vocalTracks: Object.fromEntries(
-			Object.entries(rawChartData.vocalTracks).map(([part, data]) => [part, {
-				lyrics: setEventMsTimes(data.lyrics, timedTempos, rawChartData.chartTicksPerBeat),
-				vocalPhrases: setEventMsTimes(data.vocalPhrases, timedTempos, rawChartData.chartTicksPerBeat),
-				notes: setEventMsTimes(data.notes, timedTempos, rawChartData.chartTicksPerBeat),
-				starPowerSections: setEventMsTimes(data.starPowerSections, timedTempos, rawChartData.chartTicksPerBeat),
-				rangeShifts: setEventMsTimes(data.rangeShifts, timedTempos, rawChartData.chartTicksPerBeat),
-				lyricShifts: setEventMsTimes(data.lyricShifts, timedTempos, rawChartData.chartTicksPerBeat),
-				staticLyricPhrases: setEventMsTimes(data.staticLyricPhrases, timedTempos, rawChartData.chartTicksPerBeat),
-			}]),
-		),
+		vocalTracks: normalizeVocalTracks(rawChartData.vocalTracks, timedTempos, rawChartData.chartTicksPerBeat),
 		endEvents: setEventMsTimes(rawChartData.endEvents, timedTempos, rawChartData.chartTicksPerBeat),
 		tempos: timedTempos,
 		timeSignatures: setEventMsTimes(rawChartData.timeSignatures, timedTempos, rawChartData.chartTicksPerBeat),
@@ -104,6 +102,236 @@ export function parseChartFile(data: Uint8Array, format: 'chart' | 'mid', partia
 			}))
 			.value(),
 	}
+}
+
+// ---------------------------------------------------------------------------
+// Vocal track normalization
+// ---------------------------------------------------------------------------
+
+type TimedTempos = { tick: number; beatsPerMinute: number; msTime: number }[]
+
+function normalizeVocalTracks(
+	vocalTracks: { [part: string]: VocalTrackData },
+	timedTempos: TimedTempos,
+	resolution: number,
+): NormalizedVocalTrack {
+	const entries = Object.entries(vocalTracks)
+	const parts: { [partName: string]: NormalizedVocalPart } = {}
+
+	// Find the source part for track-level data (vocals or harmony1)
+	const sourcePart = vocalTracks['vocals'] ?? vocalTracks['harmony1']
+
+	for (const [partName, data] of entries) {
+		parts[partName] = normalizeVocalPart(data, timedTempos, resolution)
+	}
+
+	return {
+		parts,
+		rangeShifts: sourcePart
+			? setEventMsTimes(sourcePart.rangeShifts, timedTempos, resolution)
+			: [],
+		lyricShifts: sourcePart
+			? setEventMsTimes(sourcePart.lyricShifts, timedTempos, resolution)
+			: [],
+	}
+}
+
+function normalizeVocalPart(
+	data: VocalTrackData,
+	timedTempos: TimedTempos,
+	resolution: number,
+): NormalizedVocalPart {
+	const notePhrases = groupIntoPhrases(data.vocalPhrases, data, timedTempos, resolution)
+	return {
+		notePhrases,
+		staticLyricPhrases: data.staticLyricPhrases.length > 0
+			? groupIntoPhrases(data.staticLyricPhrases, data, timedTempos, resolution)
+			: notePhrases,
+		starPowerSections: setEventMsTimes(data.starPowerSections, timedTempos, resolution),
+	}
+}
+
+function groupIntoPhrases(
+	phrases: { tick: number; length: number }[],
+	data: VocalTrackData,
+	timedTempos: TimedTempos,
+	resolution: number,
+): NormalizedVocalPhrase[] {
+	// Dedup phrases by tick (both note 105 and 106 can create phrases at the same tick)
+	const dedupedPhrases: typeof phrases = []
+	const seenTicks = new Set<number>()
+	for (const p of phrases) {
+		if (!seenTicks.has(p.tick)) {
+			seenTicks.add(p.tick)
+			dedupedPhrases.push(p)
+		}
+	}
+	const timedPhrases = setEventMsTimes(dedupedPhrases, timedTempos, resolution)
+
+	// Sort lyrics by tick then by text (matching YARG's MoonText.InsertionCompareTo which
+	// uses .NET string.Compare — culture-aware, case-insensitive). This affects
+	// DeferredLyricJoinWorkaround and final lyricFlags when multiple lyrics share a tick.
+	const sortedLyrics = [...data.lyrics].sort((a, b) => {
+		if (a.tick !== b.tick) return a.tick - b.tick
+		return a.text.localeCompare(b.text)
+	})
+
+	let noteIdx = 0
+	/** Shared lyric index across all phrases (matching YARG's moonTextIndex pattern).
+	 *  Lyrics from skipped phrases carry over to the next phrase with notes. */
+	let lyricIdx = 0
+	/** End tick of the last note chain (including pitch slide extensions). Used for carry-over check. */
+	let carriedNoteEndTick = -1
+	/** Whether any lyric note has been seen across all phrases (YARG's previousParentLyric).
+	 *  Pitch slides can attach to the previous lyric note even across phrase boundaries. */
+	let hasPreviousLyricNote = false
+
+	const result: NormalizedVocalPhrase[] = []
+	for (const phrase of timedPhrases) {
+		const phraseEnd = phrase.tick + phrase.length
+
+		// Collect raw notes within this phrase
+		const rawNotes: typeof data.notes = []
+		while (noteIdx < data.notes.length && data.notes[noteIdx].tick < phraseEnd) {
+			if (data.notes[noteIdx].tick >= phrase.tick) {
+				rawNotes.push(data.notes[noteIdx])
+			}
+			noteIdx++
+		}
+
+		// Check if a pitch slide from a previous phrase carries into this one
+		const hasCarriedNote = carriedNoteEndTick >= phrase.tick
+
+		// Build notes and lyrics by iterating notes and collecting lyrics up to each note's tick
+		// (matching YARG's ProcessNoteEvent pattern where moonTextIndex is shared across phrases).
+		const notes: NormalizedVocalNote[] = []
+		const untimedLyrics: { tick: number; text: string; flags: number }[] = []
+		for (const note of rawNotes) {
+			// YARG only processes note 96 (percussion), not note 97 (percussionHidden/nonplayed)
+			if (note.type === 'percussionHidden') continue
+
+			// Skip percussion notes at the exact phrase start tick when it's the first note.
+			// In MIDI, noteOn for note 96 can arrive before noteOn for note 105 at the same tick,
+			// causing the percussion note to not be included in the phrase by YARG's normalizer.
+			if (note.type === 'percussion' && note.tick === phrase.tick && notes.length === 0) {
+				continue
+			}
+
+			// Collect all lyrics up to and including this note's tick
+			let noteLyricFlags = 0
+			while (lyricIdx < sortedLyrics.length && sortedLyrics[lyricIdx].tick <= note.tick) {
+				const lyric = sortedLyrics[lyricIdx]
+				lyricIdx++
+
+				// Trim ASCII whitespace (0x00-0x20) from both ends, matching YARG's
+				// NormalizeTextEvent.TrimAscii() which processes text before storage.
+				let text = lyric.text.replace(/^[\x00-\x20]+|[\x00-\x20]+$/g, '')
+
+				// Skip bracketed events — YARG's NormalizeTextEvent strips brackets and
+				// prevents bracketed FF 01 text events from becoming lyrics.
+				if (text.startsWith('[')) continue
+
+				let flags = parseLyricFlags(text)
+				noteLyricFlags = flags
+
+				// DeferredLyricJoinWorkaround: "+-" or "-+" merges the hyphen into the previous lyric
+				if (untimedLyrics.length > 0 && (text === '+-' || text === '-+')) {
+					const prev = untimedLyrics[untimedLyrics.length - 1]
+					if ((prev.flags & (lyricFlags.joinWithNext | lyricFlags.hyphenateWithNext)) === 0) {
+						untimedLyrics[untimedLyrics.length - 1] = {
+							...prev,
+							text: prev.text + '-',
+							flags: prev.flags | lyricFlags.joinWithNext,
+						}
+						text = '+'
+						flags = lyricFlags.pitchSlide
+						noteLyricFlags = flags
+					}
+				}
+
+				const strippedText = stripLyricSymbols(text)
+				// Skip lyrics that would be whitespace-only after _ → space replacement.
+				// Matches YARG's IsNullOrWhiteSpace check which runs on StripForVocals output
+				// (where _ is replaced with space).
+				if (strippedText.length > 0 && strippedText.replace(/_/g, ' ').trim().length > 0) {
+					untimedLyrics.push({ tick: lyric.tick, text: strippedText, flags })
+				}
+			}
+
+			const isPitchSlide = (noteLyricFlags & lyricFlags.pitchSlide) !== 0
+			const isNonPitched = (noteLyricFlags & lyricFlags.nonPitched) !== 0 ||
+				note.type === 'percussion'
+
+			if (isPitchSlide) {
+				const slideEnd = note.tick + note.length
+				if (notes.length > 0) {
+					// Within-phrase slide: merges with previousNote (a separate chain from carriedNote).
+					// Do NOT extend carriedNoteEndTick — previousNote is not necessarily the carriedNote.
+					// In YARG, AddChildNote only updates the parent it's called on, not other notes.
+					continue
+				}
+				if (hasCarriedNote) {
+					// Cross-phrase slide via carried note: skip, extend total end
+					carriedNoteEndTick = Math.max(carriedNoteEndTick, slideEnd)
+					continue
+				}
+				// Cross-phrase slide via previousParentLyric (YARG behavior):
+				if (result.length === 0) {
+					// No phrases yet → charting error, skip
+					continue
+				}
+				if (hasPreviousLyricNote) {
+					// Add to previousParentLyric, set carriedNote
+					carriedNoteEndTick = Math.max(carriedNoteEndTick, slideEnd)
+					continue
+				}
+			}
+
+			const timed = setEventMsTimes([note], timedTempos, resolution)[0]
+			notes.push({
+				tick: timed.tick,
+				msTime: timed.msTime,
+				length: timed.length,
+				msLength: timed.msLength,
+				pitch: isNonPitched ? -1 : note.pitch,
+				type: note.type,
+			})
+			if (note.type === 'pitched') hasPreviousLyricNote = true
+		}
+
+		// Re-check carried note state after processing all notes in this phrase.
+		// Pitch slides during this phrase may have set carriedNoteEndTick via previousParentLyric.
+		const hasCarriedNoteAfter = carriedNoteEndTick >= phrase.tick
+
+		// Skip phrases with no notes and no carried note (matching YARG behavior)
+		if (notes.length < 1 && !hasCarriedNote && !hasCarriedNoteAfter) {
+			continue
+		}
+
+		// Track carry-over: only from notes that were added to the phrase (not pitch slide children).
+		// YARG sets carriedNote at line 219-222, which only runs for notes that pass through
+		// the pitch slide `continue` paths. Pitch slide children don't reach this code.
+		for (const n of notes) {
+			// Find the raw note to get the original length
+			const raw = data.notes.find(r => r.tick === n.tick && r.type !== 'percussionHidden')
+			if (raw && raw.tick + raw.length > phraseEnd) {
+				carriedNoteEndTick = raw.tick + raw.length
+			}
+		}
+
+		const isPercussion = notes.length > 0 && notes[0].type === 'percussion'
+
+		result.push({
+			tick: phrase.tick,
+			msTime: phrase.msTime,
+			length: phrase.length,
+			msLength: phrase.msLength,
+			isPercussion,
+			notes,
+			lyrics: setEventMsTimes(untimedLyrics, timedTempos, resolution),
+		})
+	}
+	return result
 }
 
 function getTimedTempos(
