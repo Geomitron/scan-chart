@@ -44,7 +44,10 @@ type TimedEvent = { absTick: number; event: MidiData['tracks'][number][number] }
 function vocalTrack(name: string, opts: {
 	notes?: { tick: number; pitch: number; length: number }[]
 	lyrics?: { tick: number; text: string }[]
+	/** Note 105 phrases (scoring phrases). */
 	phrases?: { tick: number; length: number }[]
+	/** Note 106 phrases (static lyric phrases / versus player 2). */
+	phrases106?: { tick: number; length: number }[]
 }): MidiData['tracks'][number] {
 	const track: MidiData['tracks'][number] = [
 		{ deltaTime: 0, type: 'trackName', text: name },
@@ -78,6 +81,17 @@ function vocalTrack(name: string, opts: {
 		timedEvents.push({
 			absTick: p.tick + p.length,
 			event: { deltaTime: 0, type: 'noteOff', channel: 0, noteNumber: 105, velocity: 0 },
+		})
+	}
+
+	for (const p of opts.phrases106 ?? []) {
+		timedEvents.push({
+			absTick: p.tick,
+			event: { deltaTime: 0, type: 'noteOn', channel: 0, noteNumber: 106, velocity: 100 },
+		})
+		timedEvents.push({
+			absTick: p.tick + p.length,
+			event: { deltaTime: 0, type: 'noteOff', channel: 0, noteNumber: 106, velocity: 0 },
 		})
 	}
 
@@ -602,7 +616,7 @@ describe('normalizedVocalTracks', () => {
 		expect(result.vocalTracks.parts.vocals.notePhrases[0].notes[0].pitch).toBe(62)
 	})
 
-	it('strips lyric symbols and sets flags', () => {
+	it('preserves lyric symbols in text and derives flags', () => {
 		const midi = buildMidi(480, [
 			tempoTrack(),
 			eventsTrack(),
@@ -621,15 +635,15 @@ describe('normalizedVocalTracks', () => {
 
 		const result = parseChartFile(midi, 'mid')
 		const lyrics = result.vocalTracks.parts.vocals.notePhrases[0].lyrics
-		expect(lyrics[0].text).toBe('Cha')
+		expect(lyrics[0].text).toBe('Cha#')
 		expect(lyrics[0].flags).toBe(lyricFlags.nonPitched)
-		expect(lyrics[1].text).toBe('hid-')
+		expect(lyrics[1].text).toBe('$hid-')
 		expect(lyrics[1].flags).toBe(lyricFlags.harmonyHidden | lyricFlags.joinWithNext)
 	})
 
-	it('.chart vocals produce 0 notePhrases (no vocal notes in .chart format)', () => {
+	it('.chart vocals keep phrases with lyrics (no vocal notes in .chart format)', () => {
 		// .chart format has lyrics and phrase markers but no vocal notes (MIDI-only).
-		// Matching YARG behavior: phrases with no notes are skipped.
+		// Phrases are kept so all lyrics are accessible through phrase grouping.
 		const chart = buildChart({
 			Song: ['Resolution = 480'],
 			SyncTrack: ['0 = B 120000'],
@@ -643,7 +657,11 @@ describe('normalizedVocalTracks', () => {
 
 		const result = parseChartFile(chart, 'chart')
 		const vocals = result.vocalTracks.parts.vocals
-		expect(vocals.notePhrases).toHaveLength(0)
+		expect(vocals.notePhrases).toHaveLength(1)
+		expect(vocals.notePhrases[0].lyrics).toHaveLength(2)
+		expect(vocals.notePhrases[0].lyrics[0].text).toBe('Hello')
+		expect(vocals.notePhrases[0].lyrics[1].text).toBe('World')
+		expect(vocals.notePhrases[0].notes).toHaveLength(0)
 	})
 
 	it('preserves star power sections as separate array', () => {
@@ -730,15 +748,16 @@ describe('normalizedVocalTracks', () => {
 		expect(phrase.lyrics[0].msTime).toBeGreaterThan(0)
 	})
 
-	it('skips empty lyrics after symbol stripping (e.g. standalone "+")', () => {
-		// YARG's ProcessLyric: if IsNullOrWhiteSpace(strippedLyric) → skip
+	it('pitch slide with filtered "+" keeps the note for round-trip consistency', () => {
+		// When "+" strips to empty and is filtered, the pitch slide note is NOT
+		// skipped — on re-parse "+" wouldn't exist, so consistency requires keeping it.
 		const midi = buildMidi(480, [
 			tempoTrack(),
 			eventsTrack(),
 			vocalTrack('PART VOCALS', {
 				lyrics: [
 					{ tick: 480, text: 'me' },
-					{ tick: 720, text: '+' },  // stripped to "", should be skipped
+					{ tick: 720, text: '+' },  // stripped to "" → filtered → note NOT skipped
 					{ tick: 960, text: 'too' },
 				],
 				notes: [
@@ -752,13 +771,18 @@ describe('normalizedVocalTracks', () => {
 
 		const result = parseChartFile(midi, 'mid')
 		const lyrics = result.vocalTracks.parts.vocals.notePhrases[0].lyrics
+		// "+" stripped to empty → filtered. Pitch slide note NOT skipped.
 		expect(lyrics).toHaveLength(2)
 		expect(lyrics[0].text).toBe('me')
 		expect(lyrics[1].text).toBe('too')
+		// All 3 notes kept (pitch slide at 720 not skipped because "+" was filtered)
+		const notes = result.vocalTracks.parts.vocals.notePhrases[0].notes
+		expect(notes).toHaveLength(3)
 	})
 
-	it('applies nonPitched flag to set note pitch to -1', () => {
-		// Real pattern: lyrics with '#' or '^' suffix mark non-pitched notes
+	it('nonPitched flag keeps original MIDI pitch (consumers check lyric flags)', () => {
+		// NonPitched notes (lyric with '#' suffix) keep their original MIDI pitch
+		// for lossless round-trip. Consumers check lyric flags for nonPitched status.
 		const midi = buildMidi(480, [
 			tempoTrack(),
 			eventsTrack(),
@@ -771,7 +795,8 @@ describe('normalizedVocalTracks', () => {
 
 		const result = parseChartFile(midi, 'mid')
 		const note = result.vocalTracks.parts.vocals.notePhrases[0].notes[0]
-		expect(note.pitch).toBe(-1)  // nonPitched flag → pitch = -1
+		expect(note.pitch).toBe(60)  // keeps original MIDI pitch
+		expect(note.type).toBe('pitched')
 	})
 
 	it('excludes percussionHidden (note 97) from normalized notes', () => {
@@ -797,21 +822,22 @@ describe('normalizedVocalTracks', () => {
 		expect(notes[1].type).toBe('percussion')
 	})
 
-	it('pitch slide note is skipped (merged into previous)', () => {
-		// Real pattern: lyric "+" means the next note slides from previous.
-		// YARG merges it as a child note — we skip it entirely in the flat list.
+	it('pitch slide note is skipped when lyric survives filtering', () => {
+		// When the pitchSlide lyric has displayable text (e.g. "oh+"), it survives
+		// the emptiness filter → the pitch slide note IS skipped for round-trip
+		// consistency (the lyric will exist on re-parse too).
 		const midi = buildMidi(480, [
 			tempoTrack(),
 			eventsTrack(),
 			vocalTrack('PART VOCALS', {
 				lyrics: [
 					{ tick: 480, text: 'oh' },
-					{ tick: 720, text: '+' },   // pitch slide → note at 720 is skipped
+					{ tick: 720, text: 'slide+' },  // pitchSlide with displayable text → survives filter
 					{ tick: 960, text: 'yeah' },
 				],
 				notes: [
 					{ tick: 480, pitch: 60, length: 240 },
-					{ tick: 720, pitch: 62, length: 240 },  // this is the slide target
+					{ tick: 720, pitch: 62, length: 240 },  // pitch slide target → skipped
 					{ tick: 960, pitch: 64, length: 240 },
 				],
 				phrases: [{ tick: 480, length: 720 }],
@@ -825,8 +851,9 @@ describe('normalizedVocalTracks', () => {
 		expect(notes[1].tick).toBe(960)
 	})
 
-	it('skips phrases with no notes (matching YARG behavior)', () => {
-		// Real pattern: HARM1 has phrases for all parts; phrases with no notes are skipped.
+	it('keeps phrases without notes (lyrics stay in their phrase)', () => {
+		// All phrases are kept — even without notes — so that all content is
+		// accessible through phrase grouping and writers can round-trip boundaries.
 		const midi = buildMidi(480, [
 			tempoTrack(),
 			eventsTrack(),
@@ -834,15 +861,23 @@ describe('normalizedVocalTracks', () => {
 				lyrics: [{ tick: 480, text: 'hey' }, { tick: 1920, text: 'yo' }],
 				notes: [{ tick: 1920, pitch: 60, length: 240 }],  // only in second phrase
 				phrases: [
-					{ tick: 480, length: 480 },   // empty — skipped
-					{ tick: 1920, length: 480 },  // has note — kept
+					{ tick: 480, length: 480 },   // no notes, but has lyrics
+					{ tick: 1920, length: 480 },  // has note + lyric
 				],
 			}),
 		])
 
 		const result = parseChartFile(midi, 'mid')
-		expect(result.vocalTracks.parts.vocals.notePhrases).toHaveLength(1)
-		expect(result.vocalTracks.parts.vocals.notePhrases[0].tick).toBe(1920)
+		const phrases = result.vocalTracks.parts.vocals.notePhrases
+		expect(phrases).toHaveLength(2)
+		expect(phrases[0].tick).toBe(480)
+		expect(phrases[0].notes).toHaveLength(0)
+		expect(phrases[0].lyrics).toHaveLength(1)
+		expect(phrases[0].lyrics[0].text).toBe('hey')
+		expect(phrases[1].tick).toBe(1920)
+		expect(phrases[1].notes).toHaveLength(1)
+		expect(phrases[1].lyrics).toHaveLength(1)
+		expect(phrases[1].lyrics[0].text).toBe('yo')
 	})
 
 	it('deduplicates phrases at same tick (note 105 + 106)', () => {
@@ -887,7 +922,7 @@ describe('normalizedVocalTracks', () => {
 
 		const result = parseChartFile(midi, 'mid')
 		const lyrics = result.vocalTracks.parts.vocals.notePhrases[0].lyrics
-		// "sto" becomes "sto-" with JoinWithNext, "+-" becomes "+" which is empty → skipped
+		// "sto" becomes "sto-" with JoinWithNext, "+-" becomes "+" which is filtered
 		expect(lyrics).toHaveLength(2)
 		expect(lyrics[0].text).toBe('sto-')
 		expect(lyrics[0].flags & lyricFlags.joinWithNext).toBeTruthy()
@@ -944,7 +979,7 @@ describe('normalizedVocalTracks', () => {
 		const lyrics = result.vocalTracks.parts.vocals.notePhrases[0].lyrics
 		// After sorting: "+-" comes before "re" at tick 720.
 		// DeferredLyricJoinWorkaround triggers on "+-": modifies "mo" → "mo-".
-		// Then "re" is processed normally with flags=None.
+		// "+-" becomes "+" which is filtered. "re" processed normally.
 		expect(lyrics).toHaveLength(2)
 		expect(lyrics[0].text).toBe('mo-')
 		expect(lyrics[0].flags & lyricFlags.joinWithNext).toBeTruthy()
@@ -966,7 +1001,7 @@ describe('normalizedVocalTracks', () => {
 
 		const result = parseChartFile(midi, 'mid')
 		const lyric = result.vocalTracks.parts.vocals.notePhrases[0].lyrics[0]
-		expect(lyric.text).toBe('uh')
+		expect(lyric.text).toBe('uh#$')
 		expect(lyric.flags & lyricFlags.harmonyHidden).toBeTruthy()
 		expect(lyric.flags & lyricFlags.nonPitched).toBeTruthy()
 	})
@@ -1013,11 +1048,12 @@ describe('normalizedVocalTracks', () => {
 
 		const result = parseChartFile(midi, 'mid')
 		const phrase = result.vocalTracks.parts.vocals.notePhrases[0]
-		// Note at 720 should be skipped (pitch slide from trimmed "+ ")
-		expect(phrase.notes).toHaveLength(2)
+		// Lyric "+ " trimmed to "+" → stripped to empty → filtered.
+		// Pitch slide note at 720 NOT skipped (filtered lyric → no round-trip marker).
+		expect(phrase.notes).toHaveLength(3)
 		expect(phrase.notes[0].tick).toBe(480)
-		expect(phrase.notes[1].tick).toBe(960)
-		// Lyric "+ " should be stripped to empty and skipped
+		expect(phrase.notes[1].tick).toBe(720)
+		expect(phrase.notes[2].tick).toBe(960)
 		expect(phrase.lyrics).toHaveLength(2)
 		expect(phrase.lyrics[0].text).toBe('mo-')
 		expect(phrase.lyrics[1].text).toBe('bile')
@@ -1072,38 +1108,128 @@ describe('normalizedVocalTracks', () => {
 		const result = parseChartFile(midi, 'mid')
 		const phrases = result.vocalTracks.parts.vocals.notePhrases
 		expect(phrases).toHaveLength(2)
-		// Phrase 2: note at 1440 is pitch slide, attached to phrase 1's note via previousParentLyric
-		expect(phrases[1].notes).toHaveLength(1)
-		expect(phrases[1].notes[0].tick).toBe(1920)
+		// Phrase 2: "+" is filtered → pitch slide note at 1440 is NOT skipped
+		// (ensures round-trip consistency — "+" won't exist on re-parse either)
+		expect(phrases[1].notes).toHaveLength(2)
+		expect(phrases[1].notes[0].tick).toBe(1440)
+		expect(phrases[1].notes[1].tick).toBe(1920)
 	})
 
-	it('carries lyrics from skipped phrases to next phrase (shared lyricIdx)', () => {
-		// Real case: "30 Seconds to Mars - Attack" has lyrics in a phrase with no notes.
-		// YARG's shared moonTextIndex carries those lyrics to the next phrase's first note.
+	it('lyrics stay in their phrase even when phrase has no notes', () => {
+		// All phrases are kept. Lyrics remain in their phrase — the phrase
+		// exists as a boundary even without notes. Writers iterate all phrases.
 		const midi = buildMidi(480, [
 			tempoTrack(),
 			eventsTrack(),
 			vocalTrack('PART VOCALS', {
 				lyrics: [
-					{ tick: 480, text: 'Whoa' },   // in skipped phrase (no notes)
-					{ tick: 1920, text: 'I' },      // in kept phrase
+					{ tick: 480, text: 'Whoa' },   // in first phrase (no notes)
+					{ tick: 1920, text: 'I' },      // in second phrase
 				],
 				notes: [
 					{ tick: 1920, pitch: 60, length: 240 },
 				],
 				phrases: [
-					{ tick: 480, length: 480 },   // skipped (no notes)
-					{ tick: 1920, length: 480 },  // kept
+					{ tick: 480, length: 480 },   // no notes, has lyric
+					{ tick: 1920, length: 480 },  // has note + lyric
 				],
 			}),
 		])
 
 		const result = parseChartFile(midi, 'mid')
 		const phrases = result.vocalTracks.parts.vocals.notePhrases
-		expect(phrases).toHaveLength(1)
-		// Both lyrics should be in the kept phrase
-		expect(phrases[0].lyrics).toHaveLength(2)
+		expect(phrases).toHaveLength(2)
+		expect(phrases[0].lyrics).toHaveLength(1)
 		expect(phrases[0].lyrics[0].text).toBe('Whoa')
-		expect(phrases[0].lyrics[1].text).toBe('I')
+		expect(phrases[1].lyrics).toHaveLength(1)
+		expect(phrases[1].lyrics[0].text).toBe('I')
+	})
+
+	it('note 106 phrases create player 2 phrases on PART VOCALS (Dani California pattern)', () => {
+		// Test A: note 106 phrase before first note 105 phrase.
+		// Both 105 and 106 create phrases; merged set tagged with player.
+		const midi = buildMidi(480, [
+			tempoTrack(),
+			eventsTrack(),
+			vocalTrack('PART VOCALS', {
+				lyrics: [
+					{ tick: 100, text: 'Hel-' },
+					{ tick: 500, text: 'lo' },
+				],
+				notes: [
+					{ tick: 100, pitch: 60, length: 100 },
+					{ tick: 500, pitch: 62, length: 100 },
+				],
+				phrases106: [{ tick: 0, length: 480 }],
+				phrases: [{ tick: 480, length: 480 }],
+			}),
+		])
+
+		const result = parseChartFile(midi, 'mid')
+		const phrases = result.vocalTracks.parts.vocals.notePhrases
+		expect(phrases).toHaveLength(2)
+
+		// First phrase (from note 106) — player 2
+		expect(phrases[0].tick).toBe(0)
+		expect(phrases[0].player).toBe(2)
+		expect(phrases[0].notes).toHaveLength(1)
+		expect(phrases[0].notes[0].tick).toBe(100)
+		expect(phrases[0].lyrics).toHaveLength(1)
+		expect(phrases[0].lyrics[0].text).toBe('Hel-')
+
+		// Second phrase (from note 105) — player 1
+		expect(phrases[1].tick).toBe(480)
+		expect(phrases[1].player).toBe(1)
+		expect(phrases[1].notes).toHaveLength(1)
+		expect(phrases[1].notes[0].tick).toBe(500)
+		expect(phrases[1].lyrics).toHaveLength(1)
+		expect(phrases[1].lyrics[0].text).toBe('lo')
+	})
+
+	it('absorbs orphaned lyrics before first phrase into that phrase', () => {
+		// Test D: lyrics before the first phrase are absorbed into it.
+		// Notes before all phrases are dropped.
+		const midi = buildMidi(480, [
+			tempoTrack(),
+			eventsTrack(),
+			vocalTrack('PART VOCALS', {
+				lyrics: [
+					{ tick: 100, text: 'orphan' },  // before all phrases
+					{ tick: 500, text: 'inside' },   // inside phrase
+				],
+				notes: [
+					{ tick: 100, pitch: 60, length: 50 },  // before phrase — dropped
+					{ tick: 500, pitch: 62, length: 100 }, // inside phrase — kept
+				],
+				phrases: [{ tick: 480, length: 480 }],
+			}),
+		])
+
+		const result = parseChartFile(midi, 'mid')
+		const phrases = result.vocalTracks.parts.vocals.notePhrases
+		expect(phrases).toHaveLength(1)
+		// Note at tick 100 is dropped (outside all phrases)
+		expect(phrases[0].notes).toHaveLength(1)
+		expect(phrases[0].notes[0].tick).toBe(500)
+		// Orphaned lyric at tick 100 is absorbed into the phrase
+		expect(phrases[0].lyrics).toHaveLength(2)
+		expect(phrases[0].lyrics[0].text).toBe('orphan')
+		expect(phrases[0].lyrics[1].text).toBe('inside')
+	})
+
+	it('harmony phrases have no player field', () => {
+		const midi = buildMidi(480, [
+			tempoTrack(),
+			eventsTrack(),
+			vocalTrack('HARM1', {
+				lyrics: [{ tick: 480, text: 'hey' }],
+				notes: [{ tick: 480, pitch: 60, length: 240 }],
+				phrases: [{ tick: 480, length: 480 }],
+			}),
+		])
+
+		const result = parseChartFile(midi, 'mid')
+		const phrase = result.vocalTracks.parts.harmony1.notePhrases[0]
+		expect(phrase.player).toBeUndefined()
 	})
 })

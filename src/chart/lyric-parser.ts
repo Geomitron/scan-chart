@@ -79,6 +79,9 @@ export function extractChartLyrics(eventLines: string[]): { tick: number; length
 
 /**
  * Extract vocal phrase boundaries from .chart [Events] phrase_start/phrase_end pairs.
+ * Returns normal paired phrases. Orphan phrase_end events (no preceding
+ * phrase_start) are NOT included here; use `extractChartOrphanPhraseEnds` to
+ * retrieve them separately.
  */
 export function extractChartVocalPhrases(eventLines: string[]): { tick: number; length: number }[] {
 	const phrases: { tick: number; length: number }[] = []
@@ -94,17 +97,44 @@ export function extractChartVocalPhrases(eventLines: string[]): { tick: number; 
 			}
 			currentStart = result.tick
 		} else {
-			// If no phrase_start is open, treat as starting from tick 0.
-			// Orphaned phrase_ends are kept so editors can surface them for manual fixing.
-			if (currentStart === null) {
-				currentStart = 0
+			// phrase_end: only push if a phrase_start is open. Orphan phrase_ends
+			// (no preceding phrase_start) are skipped here — a synthetic (0, endTick)
+			// phrase would corrupt lyric grouping by "stealing" lyrics from earlier
+			// real phrases via the shared lyricIdx. Orphans are preserved via
+			// `extractChartOrphanPhraseEnds` so writers can re-emit them verbatim.
+			if (currentStart !== null) {
+				phrases.push({ tick: currentStart, length: result.tick - currentStart })
+				currentStart = null
 			}
-			phrases.push({ tick: currentStart, length: result.tick - currentStart })
-			currentStart = null
 		}
 	}
 
 	return phrases
+}
+
+/**
+ * Extract orphan `phrase_end` events from .chart [Events] — a `phrase_end`
+ * whose most recent predecessor is NOT a matching `phrase_start`. These are
+ * malformed but exist in some charts; YARG preserves them as text events in
+ * its globalEvents output, so we keep them here for round-trip fidelity.
+ */
+export function extractChartOrphanPhraseEnds(eventLines: string[]): { tick: number }[] {
+	const orphans: { tick: number }[] = []
+	let currentStart: number | null = null
+	for (const line of eventLines) {
+		const result = parseChartVocalPhraseLine(line)
+		if (!result) continue
+		if (result.type === 'start') {
+			currentStart = result.tick
+		} else {
+			if (currentStart === null) {
+				orphans.push({ tick: result.tick })
+			} else {
+				currentStart = null
+			}
+		}
+	}
+	return orphans
 }
 
 // ---------------------------------------------------------------------------
@@ -178,110 +208,6 @@ export function extractMidiLyricText(event: MidiTextLikeEvent): string {
 	return event.text ?? ''
 }
 
-/**
- * Extract all lyrics from a PART VOCALS MIDI track's events.
- * Events must already be in absolute time (deltaTime = absolute tick).
- * Deduplicates by tick+text (matching MoonSong InsertionEquals).
- */
-export function extractMidiLyrics(trackEvents: MidiLyricEvent[]): { tick: number; length: number; text: string }[] {
-	// Find the track name so we can skip tick-0 text events that duplicate it.
-	// Some MIDI files have an FF 01 text event "PART VOCALS" at tick 0 which is
-	// a duplicate of the FF 03 trackName — not a real lyric. YARG keeps these
-	// (a YARG bug), but we filter them out.
-	const trackNameEvent = trackEvents.find(e => e.type === 'trackName')
-	const trackName = trackNameEvent?.text
-
-	const lyrics: { tick: number; length: number; text: string }[] = []
-	const seen = new Set<string>()
-	for (const event of trackEvents) {
-		if (isMidiVocalLyric(event)) {
-			const text = extractMidiLyricText(event)
-			// Skip tick-0 text events that match the track name (instrumentName duplicate)
-			if (event.deltaTime === 0 && text === trackName && event.type === 'text') continue
-			const key = `${event.deltaTime}:${text}`
-			if (seen.has(key)) continue
-			seen.add(key)
-			lyrics.push({ tick: event.deltaTime, length: 0, text })
-		}
-	}
-	return lyrics
-}
-
-// ---------------------------------------------------------------------------
-// Generic MIDI note-on/note-off pair extraction
-// ---------------------------------------------------------------------------
-
-/**
- * Extract note-on/note-off pairs for the given MIDI note numbers. Processes
- * events in MIDI file order (sorted stably by tick), matching YARG.Core's
- * `MidReader.ProcessNoteEvent`: velocity-0 noteOn is treated as noteOff,
- * duplicate noteOn while a note is already open is ignored.
- *
- * MIDI file order correctly handles zero-length notes (noteOn + noteOff at the
- * same tick for the same pitch): the noteOn opens the note and the following
- * noteOff closes it immediately. Without preserving order, sorting noteOff
- * before noteOn at the same tick would steal the close from a later real note
- * (real example: "The Lumineers - Ho Hey" has a zero-length note 60 at tick
- * 49840 that would otherwise steal the noteOff at tick 55080 from the real
- * note at tick 54880).
- *
- * Events must already be in absolute time (deltaTime = absolute tick).
- */
-function extractMidiNotePairs(
-	trackEvents: MidiLyricEvent[],
-	noteFilter: (noteNumber: number) => boolean,
-): { tick: number; length: number; noteNumber: number }[] {
-	const noteEvents: { tick: number; type: 'noteOn' | 'noteOff'; noteNumber: number }[] = []
-	for (const event of trackEvents) {
-		if ((event.type === 'noteOn' || event.type === 'noteOff') && event.noteNumber !== undefined && noteFilter(event.noteNumber)) {
-			const isOff = event.type === 'noteOff' || (event.type === 'noteOn' && event.velocity === 0)
-			noteEvents.push({
-				tick: event.deltaTime,
-				type: isOff ? 'noteOff' : 'noteOn',
-				noteNumber: event.noteNumber,
-			})
-		}
-	}
-	// Stable sort by tick only, preserving MIDI file order at the same tick.
-	noteEvents.sort((a, b) => a.tick - b.tick)
-
-	const phraseStarts: Map<number, number> = new Map()
-	const results: { tick: number; length: number; noteNumber: number }[] = []
-
-	for (const event of noteEvents) {
-		if (event.type === 'noteOn') {
-			// YARG ignores duplicate noteOns — if a note is already open, skip.
-			if (phraseStarts.has(event.noteNumber)) continue
-			phraseStarts.set(event.noteNumber, event.tick)
-		} else {
-			const startTick = phraseStarts.get(event.noteNumber)
-			if (startTick !== undefined) {
-				results.push({ tick: startTick, length: event.tick - startTick, noteNumber: event.noteNumber })
-				phraseStarts.delete(event.noteNumber)
-			}
-		}
-	}
-
-	results.sort((a, b) => a.tick - b.tick)
-	return results
-}
-
-// ---------------------------------------------------------------------------
-// MIDI vocal phrase extraction
-// ---------------------------------------------------------------------------
-
-/**
- * Extract vocal phrase boundaries from MIDI notes 105/106 on PART VOCALS.
- * Events must already be in absolute time (deltaTime = absolute tick).
- */
-export function extractMidiVocalPhrases(trackEvents: MidiLyricEvent[]): { tick: number; length: number; noteNumber: number }[] {
-	return extractMidiNotePairs(trackEvents, n => n === 105 || n === 106)
-}
-
-// ---------------------------------------------------------------------------
-// MIDI vocal notes (pitch 36-84, percussion 96/97)
-// ---------------------------------------------------------------------------
-
 export type VocalNoteType = 'pitched' | 'percussion' | 'percussionHidden'
 
 export interface VocalNote {
@@ -298,48 +224,150 @@ function noteNumberToVocalType(noteNumber: number): VocalNoteType | null {
 	return null
 }
 
-/**
- * Extract vocal notes (pitched 36-84, percussion 96/97) from a MIDI vocal track.
- * Events must already be in absolute time (deltaTime = absolute tick).
- */
-export function extractMidiVocalNotes(trackEvents: MidiLyricEvent[]): VocalNote[] {
-	const pairs = extractMidiNotePairs(
-		trackEvents,
-		n => (n >= 36 && n <= 84) || n === 96 || n === 97,
-	)
-	return pairs.map(p => ({
-		tick: p.tick,
-		length: p.length,
-		pitch: p.noteNumber,
-		type: noteNumberToVocalType(p.noteNumber)!,
-	}))
+/** Full classification of a MIDI vocal track — populated by one pass. */
+export interface VocalTrackScanResult {
+	/** Non-control text-like events (deduped by tick+text). */
+	lyrics: { tick: number; length: number; text: string }[]
+	/** Bracketed text events YARG preserves as MoonText ([play], [idle], etc.). */
+	textEvents: { tick: number; text: string }[]
+	/** Scoring phrase boundaries from note 105. */
+	phrases105: { tick: number; length: number }[]
+	/** Static lyric / player-2 phrase boundaries from note 106. */
+	phrases106: { tick: number; length: number }[]
+	/** Vocal notes: pitched 36–84, percussion 96 (displayed), 97 (hidden). */
+	notes: VocalNote[]
+	/** Star power sections from note 116. */
+	starPower: { tick: number; length: number }[]
+	/** Range shift markers from note 0 (length = transition speed). */
+	rangeShifts: { tick: number; length: number }[]
+	/** Lyric shift markers from note 1 (for static lyric scrolling). */
+	lyricShifts: { tick: number; length: number }[]
 }
 
-// ---------------------------------------------------------------------------
-// MIDI vocal star power, range shifts, lyric shifts
-// ---------------------------------------------------------------------------
+/** Regex for disco flip markers (drum-track concept; skipped on vocal tracks). */
+const discoFlipRegex = /^\s*\[?mix[ _][0-3][ _]drums[0-5](d|dnoflip|easy|easynokick|)\]?\s*$/
 
 /**
- * Extract star power sections from note 116 on a MIDI vocal track.
+ * Single-pass classification of a MIDI vocal track.
+ *
+ * One loop walks `trackEvents` once, routing each event to the appropriate
+ * bucket:
+ *
+ * - **text-like events** (`lyrics`, `text`, `marker`, `cuePoint`) are split
+ *   between `lyrics` and `textEvents`. Events consumed elsewhere
+ *   (`ENHANCED_OPENS`, `ENABLE_CHART_DYNAMICS`, `[mix N drumsM]` disco flips,
+ *   `[range_shift ...]`) are dropped — they're not vocal content, just carried
+ *   on this track. Bracketed events go into `textEvents` (MoonText round-trip);
+ *   known control markers (`[play]`, `[idle]`, stance/percussion switches) are
+ *   **not** lyrics, but unknown bracketed text like `[Everyone liked that]` is
+ *   (YARG's ProcessLyric accepts it).
+ *
+ * - **note events** (`noteOn` / `noteOff`) are paired by `noteNumber` and
+ *   routed: 0 → rangeShifts, 1 → lyricShifts, 105 → phrases105, 106 →
+ *   phrases106, 116 → starPower, 36–84 / 96 / 97 → notes. Velocity-0 noteOn
+ *   counts as noteOff. Duplicate noteOn while a note is already open is
+ *   ignored (matches YARG's `MidReader.ProcessNoteEvent`).
+ *
+ * Requires tick-sorted input — `trackEvents` must already be in absolute time
+ * (deltaTime = absolute tick). MIDI files are monotonic after
+ * `convertToAbsoluteTime`, so this holds by construction.
+ *
+ * Track-name skip: YARG.Core's `MidReader.ReadNotes` starts iteration at
+ * `i = 1` to skip the conventional track-name event at index 0. Some MIDI
+ * files have a stray FF 01 text duplicate of the track name at index 0 —
+ * YARG silently drops it, so we skip text classification for index 0 too.
+ *
+ * Single-pitch buckets (0, 1, 105, 106, 116) emit pairs in start-tick order
+ * automatically because a noteNumber can't overlap itself. `notes` holds
+ * multiple pitches (e.g. 60 and 72 can overlap), so a small bucket-local sort
+ * by start tick reorders the `notes` output. "The Lumineers - Ho Hey" is the
+ * canonical test case: zero-length note 60 at tick 49840 must not steal the
+ * noteOff at 55080 from the real note at 54880 — preserved by the
+ * first-matching-noteOff rule.
  */
-export function extractMidiVocalStarPower(trackEvents: MidiLyricEvent[]): { tick: number; length: number }[] {
-	return extractMidiNotePairs(trackEvents, n => n === 116)
-}
+export function scanVocalTrack(trackEvents: MidiLyricEvent[]): VocalTrackScanResult {
+	const lyrics: VocalTrackScanResult['lyrics'] = []
+	const textEvents: VocalTrackScanResult['textEvents'] = []
+	const phrases105: VocalTrackScanResult['phrases105'] = []
+	const phrases106: VocalTrackScanResult['phrases106'] = []
+	const notes: VocalNote[] = []
+	const starPower: VocalTrackScanResult['starPower'] = []
+	const rangeShifts: VocalTrackScanResult['rangeShifts'] = []
+	const lyricShifts: VocalTrackScanResult['lyricShifts'] = []
 
-/**
- * Extract range shift markers from note 0 on a MIDI vocal track.
- * Length determines the shift speed (gradual transition).
- */
-export function extractMidiRangeShifts(trackEvents: MidiLyricEvent[]): { tick: number; length: number }[] {
-	return extractMidiNotePairs(trackEvents, n => n === 0)
-}
+	const seenLyrics = new Set<string>()
+	const openNotes = new Map<number, number>() // noteNumber → open tick
 
-/**
- * Extract lyric shift markers from note 1 on a MIDI vocal track.
- * Used for static lyric display scrolling within a phrase.
- */
-export function extractMidiLyricShifts(trackEvents: MidiLyricEvent[]): { tick: number; length: number }[] {
-	return extractMidiNotePairs(trackEvents, n => n === 1)
+	for (let i = 0; i < trackEvents.length; i++) {
+		const event = trackEvents[i]
+
+		// --- Note events (all buckets except lyrics/textEvents) ---
+		if (event.type === 'noteOn' || event.type === 'noteOff') {
+			const n = event.noteNumber
+			if (n === undefined) continue
+			const vocalType = noteNumberToVocalType(n)
+			const isRelevantNote = n === 0 || n === 1 || n === 105 || n === 106 || n === 116 || vocalType !== null
+			if (!isRelevantNote) continue
+
+			const isOff = event.type === 'noteOff' || (event.type === 'noteOn' && event.velocity === 0)
+			if (!isOff) {
+				// YARG ignores duplicate noteOns — if already open, skip.
+				if (!openNotes.has(n)) openNotes.set(n, event.deltaTime)
+			} else {
+				const startTick = openNotes.get(n)
+				if (startTick === undefined) continue
+				openNotes.delete(n)
+				const length = event.deltaTime - startTick
+				switch (n) {
+					case 0:   rangeShifts.push({ tick: startTick, length }); break
+					case 1:   lyricShifts.push({ tick: startTick, length }); break
+					case 105: phrases105.push({ tick: startTick, length }); break
+					case 106: phrases106.push({ tick: startTick, length }); break
+					case 116: starPower.push({ tick: startTick, length }); break
+					default:
+						notes.push({ tick: startTick, length, pitch: n, type: vocalType! })
+				}
+			}
+			continue
+		}
+
+		// --- Text-like events (lyrics + textEvents). Skip index 0. ---
+		if (i === 0) continue
+		const isTextLike = event.type === 'lyrics' || event.type === 'text' ||
+			event.type === 'marker' || event.type === 'cuePoint'
+		if (!isTextLike) continue
+		const text = event.text
+		if (text === undefined || text === null) continue
+
+		// Events consumed elsewhere — drop from both buckets.
+		if (text === 'ENHANCED_OPENS' || text === '[ENHANCED_OPENS]') continue
+		if (text === 'ENABLE_CHART_DYNAMICS' || text === '[ENABLE_CHART_DYNAMICS]') continue
+		if (discoFlipRegex.test(text)) continue
+
+		const trimmed = text.replace(/^[\x00-\x20]+|[\x00-\x20]+$/g, '')
+		const isBracketed = trimmed.startsWith('[') && trimmed.endsWith(']')
+		if (isBracketed && trimmed.startsWith('[range_shift')) continue
+
+		// Bracketed events round-trip as MoonText textEvents. Known control
+		// markers are never lyrics; unknown bracketed text is also kept as a
+		// textEvent (YARG emits it via both the lyric and MoonText paths).
+		if (isBracketed) {
+			textEvents.push({ tick: event.deltaTime, text })
+		}
+
+		const isKnownControlEvent = isBracketed && knownVocalControlEvents.has(trimmed.slice(1, -1))
+		if (isKnownControlEvent) continue
+
+		const key = `${event.deltaTime}:${text}`
+		if (seenLyrics.has(key)) continue
+		seenLyrics.add(key)
+		lyrics.push({ tick: event.deltaTime, length: 0, text })
+	}
+
+	// Only `notes` can have overlapping pitches emitting out of start-tick order.
+	notes.sort((a, b) => a.tick - b.tick)
+
+	return { lyrics, textEvents, phrases105, phrases106, notes, starPower, rangeShifts, lyricShifts }
 }
 
 // ---------------------------------------------------------------------------

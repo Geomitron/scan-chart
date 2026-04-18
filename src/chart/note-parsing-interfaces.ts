@@ -171,7 +171,6 @@ export interface VocalTrackData {
 	vocalPhrases: {
 		tick: number
 		length: number
-		noteNumber?: number
 	}[]
 	notes: import('./lyric-parser').VocalNote[]
 	starPowerSections: {
@@ -186,10 +185,24 @@ export interface VocalTrackData {
 		tick: number
 		length: number
 	}[]
-	/** HARM2/3 static lyric phrase boundaries (distinct from scoring phrases). */
+	/** HARM2/3 static lyric phrase boundaries (from note 106 — distinct from
+	 * scoring phrases which are note 105). On HARM1 this is typically empty. */
 	staticLyricPhrases: {
 		tick: number
 		length: number
+	}[]
+	/**
+	 * Raw text events on the vocal track (stance markers, Band_PlayFacialAnim, etc.).
+	 * YARG.Core parses these into the VocalsPart.TextEvents list, which is what
+	 * makes an otherwise-empty vocal track "non-empty" (and therefore visible to
+	 * ChartDump / UI). Storing them here lets the writer round-trip vocals-only
+	 * tracks that have no lyrics/notes/phrases but still have stance markers.
+	 * Does NOT include lyric events (which live in `lyrics`) or events scan-chart
+	 * consumes internally (`ENHANCED_OPENS`, `[mix N drumsM]`, `[range_shift ...]`).
+	 */
+	textEvents: {
+		tick: number
+		text: string
 	}[]
 }
 
@@ -338,9 +351,10 @@ export const lyricFlags = {
 export interface NormalizedLyricEvent {
 	tick: number
 	msTime: number
-	/** Flag symbols stripped, '=' → '-'. '_' and '§' kept as-is (consumer decides display). */
+	/** Original text from the source file, including markup symbols (#, ^, +, =, $, etc.).
+	 * Consumers should use `flags` for semantic interpretation, not parse `text` directly. */
 	text: string
-	/** Bitmask of `lyricFlags`. */
+	/** Bitmask of `lyricFlags`, derived from markup symbols in text. */
 	flags: number
 }
 
@@ -349,7 +363,9 @@ export interface NormalizedVocalNote {
 	msTime: number
 	length: number
 	msLength: number
-	/** MIDI pitch 36-84 for pitched, -1 for unpitched/percussion. */
+	/** MIDI pitch 36-84 for pitched, -1 for percussion. NonPitched notes
+	 * (lyric flags #/^/*) keep their original MIDI pitch — check the
+	 * associated lyric's nonPitched flag for semantic meaning. */
 	pitch: number
 	/** percussionHidden (note 97) is excluded from normalized output. */
 	type: 'pitched' | 'percussion'
@@ -362,17 +378,36 @@ export interface NormalizedVocalPhrase {
 	msLength: number
 	/** True if first note is percussion (YARG behavior — mixing types in one phrase is invalid data). */
 	isPercussion: boolean
+	/** Versus player (PART VOCALS only). 1 = player 1 (note 105), 2 = player 2 (note 106). */
+	player?: 1 | 2
 	notes: NormalizedVocalNote[]
 	lyrics: NormalizedLyricEvent[]
 }
 
 export interface NormalizedVocalPart {
-	/** Scoring phrases (from note 105). Notes and lyrics grouped into their containing phrase. */
+	/** Phrases with notes and lyrics grouped. Built from the union of note 105
+	 * and note 106 phrase boundaries. Notes outside all phrases are dropped. */
 	notePhrases: NormalizedVocalPhrase[]
-	/** Static lyric display phrases (from note 106 on HARM2/3, copy of notePhrases on vocals/HARM1). */
+	/** Static lyric display phrases (from note 106 on HARM2/3, copy of
+	 * notePhrases on vocals/HARM1). */
 	staticLyricPhrases: NormalizedVocalPhrase[]
 	/** Star power sections — separate array, not per-phrase. */
 	starPowerSections: { tick: number; msTime: number; length: number; msLength: number }[]
+	/**
+	 * Per-part range shift markers (MIDI note 0 on this part's track).
+	 * YARG computes rangeShifts from these markers. PART VOCALS and HARM1 often
+	 * have distinct marker sets — must be stored per-part for lossless round-trip.
+	 */
+	rangeShifts: { tick: number; msTime: number; length: number; msLength: number }[]
+	/** Per-part lyric shift markers (MIDI note 1 on this part's track). */
+	lyricShifts: { tick: number; msTime: number; length: number; msLength: number }[]
+	/**
+	 * Raw text events on the vocal track (stance, facial anim, etc.). Required
+	 * so that vocal tracks with only text events (no notes/lyrics/phrases)
+	 * round-trip — YARG considers a VocalsPart non-empty iff it has phrases or
+	 * text events, so dropping them causes ChartDump to hide the track.
+	 */
+	textEvents: { tick: number; msTime: number; text: string }[]
 }
 
 /** Top-level normalized vocal track. */

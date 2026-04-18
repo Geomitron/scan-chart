@@ -126,6 +126,7 @@ export function parseNotesFromChart(data: Uint8Array): RawChartData {
 				rangeShifts: [],
 				lyricShifts: [],
 				staticLyricPhrases: [],
+				textEvents: [],
 			},
 		},
 		tempos: _.chain(fileSections['SyncTrack'])

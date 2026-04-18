@@ -5,16 +5,12 @@ import {
 	parseChartVocalPhraseLine,
 	extractChartLyrics,
 	extractChartVocalPhrases,
+	extractChartOrphanPhraseEnds,
 	isMidiVocalLyric,
 	isBracketedControlEvent,
 	normalizeLyricText,
 	extractMidiLyricText,
-	extractMidiLyrics,
-	extractMidiVocalPhrases,
-	extractMidiVocalNotes,
-	extractMidiVocalStarPower,
-	extractMidiRangeShifts,
-	extractMidiLyricShifts,
+	scanVocalTrack,
 	parseLyricFlags,
 	stripLyricSymbols,
 } from '../chart/lyric-parser'
@@ -265,16 +261,17 @@ describe('extractChartVocalPhrases', () => {
 		expect(phrases[1]).toEqual({ tick: 960, length: 480 })
 	})
 
-	it('keeps orphaned phrase_end (creates phrase from tick 0)', () => {
+	it('skips orphaned phrase_end from extractChartVocalPhrases (preserved separately)', () => {
 		const lines = [
 			'480 = E "phrase_end"',
 			'960 = E "phrase_start"',
 			'1440 = E "phrase_end"',
 		]
 		const phrases = extractChartVocalPhrases(lines)
-		expect(phrases).toHaveLength(2)
-		expect(phrases[0]).toEqual({ tick: 0, length: 480 })
-		expect(phrases[1]).toEqual({ tick: 960, length: 480 })
+		expect(phrases).toHaveLength(1)
+		expect(phrases[0]).toEqual({ tick: 960, length: 480 })
+		// Orphan phrase_ends are surfaced via extractChartOrphanPhraseEnds.
+		expect(extractChartOrphanPhraseEnds(lines)).toEqual([{ tick: 480 }])
 	})
 })
 
@@ -354,17 +351,17 @@ describe('isMidiVocalLyric', () => {
 })
 
 // ---------------------------------------------------------------------------
-// extractMidiLyrics
+// scanVocalTrack — lyrics bucket
 // ---------------------------------------------------------------------------
 
-describe('extractMidiLyrics', () => {
+describe('scanVocalTrack (lyrics)', () => {
 	it('extracts lyrics from lyric events', () => {
 		const events = [
 			{ deltaTime: 0, type: 'trackName' as const, text: 'PART VOCALS' },
 			{ deltaTime: 480, type: 'lyrics' as const, text: 'Hel+' },
 			{ deltaTime: 960, type: 'lyrics' as const, text: 'lo' },
 		]
-		const lyrics = extractMidiLyrics(events )
+		const lyrics = scanVocalTrack(events).lyrics
 		expect(lyrics).toHaveLength(2)
 		expect(lyrics[0]).toEqual({ tick: 480, length: 0, text: 'Hel+' })
 		expect(lyrics[1]).toEqual({ tick: 960, length: 0, text: 'lo' })
@@ -376,7 +373,7 @@ describe('extractMidiLyrics', () => {
 			{ deltaTime: 480, type: 'text' as const, text: 'Life' },
 			{ deltaTime: 960, type: 'text' as const, text: 'is' },
 		]
-		const lyrics = extractMidiLyrics(events )
+		const lyrics = scanVocalTrack(events).lyrics
 		expect(lyrics).toHaveLength(2)
 		expect(lyrics[0]).toEqual({ tick: 480, length: 0, text: 'Life' })
 	})
@@ -387,16 +384,17 @@ describe('extractMidiLyrics', () => {
 			{ deltaTime: 480, type: 'lyrics' as const, text: '[play]' },
 			{ deltaTime: 960, type: 'lyrics' as const, text: 'Hello' },
 		]
-		const lyrics = extractMidiLyrics(events )
+		const lyrics = scanVocalTrack(events).lyrics
 		expect(lyrics).toHaveLength(1)
 		expect(lyrics[0]).toEqual({ tick: 960, length: 0, text: 'Hello' })
 	})
 
 	it('preserves original text including whitespace', () => {
 		const events = [
+			{ deltaTime: 0, type: 'trackName' as const, text: 'PART VOCALS' },
 			{ deltaTime: 480, type: 'lyrics' as const, text: ' hey^ ' },
 		]
-		const lyrics = extractMidiLyrics(events )
+		const lyrics = scanVocalTrack(events).lyrics
 		expect(lyrics).toHaveLength(1)
 		expect(lyrics[0].text).toBe(' hey^ ')
 	})
@@ -410,7 +408,7 @@ describe('extractMidiLyrics', () => {
 			{ deltaTime: 960, type: 'lyrics' as const, text: 'is' },
 			{ deltaTime: 1440, type: 'text' as const, text: '[idle]' },
 		]
-		const lyrics = extractMidiLyrics(events )
+		const lyrics = scanVocalTrack(events).lyrics
 		expect(lyrics).toHaveLength(2)
 		expect(lyrics[0]).toEqual({ tick: 480, length: 0, text: 'Life' })
 		expect(lyrics[1]).toEqual({ tick: 960, length: 0, text: 'is' })
@@ -418,18 +416,18 @@ describe('extractMidiLyrics', () => {
 })
 
 // ---------------------------------------------------------------------------
-// extractMidiVocalPhrases
+// scanVocalTrack — phrases105 / phrases106
 // ---------------------------------------------------------------------------
 
-describe('extractMidiVocalPhrases', () => {
+describe('scanVocalTrack (phrases)', () => {
 	it('extracts note 105 phrases', () => {
 		const events = [
 			{ deltaTime: 480, type: 'noteOn' as const, channel: 0, noteNumber: 105, velocity: 100 },
 			{ deltaTime: 1440, type: 'noteOff' as const, channel: 0, noteNumber: 105, velocity: 0 },
 		]
-		const phrases = extractMidiVocalPhrases(events )
-		expect(phrases).toHaveLength(1)
-		expect(phrases[0]).toEqual({ tick: 480, length: 960, noteNumber: 105 })
+		const result = scanVocalTrack(events)
+		expect(result.phrases105).toEqual([{ tick: 480, length: 960 }])
+		expect(result.phrases106).toEqual([])
 	})
 
 	it('extracts note 106 phrases', () => {
@@ -437,9 +435,9 @@ describe('extractMidiVocalPhrases', () => {
 			{ deltaTime: 480, type: 'noteOn' as const, channel: 0, noteNumber: 106, velocity: 100 },
 			{ deltaTime: 960, type: 'noteOff' as const, channel: 0, noteNumber: 106, velocity: 0 },
 		]
-		const phrases = extractMidiVocalPhrases(events )
-		expect(phrases).toHaveLength(1)
-		expect(phrases[0]).toEqual({ tick: 480, length: 480, noteNumber: 106 })
+		const result = scanVocalTrack(events)
+		expect(result.phrases106).toEqual([{ tick: 480, length: 480 }])
+		expect(result.phrases105).toEqual([])
 	})
 
 	it('handles velocity 0 noteOn as noteOff', () => {
@@ -447,9 +445,7 @@ describe('extractMidiVocalPhrases', () => {
 			{ deltaTime: 480, type: 'noteOn' as const, channel: 0, noteNumber: 105, velocity: 100 },
 			{ deltaTime: 960, type: 'noteOn' as const, channel: 0, noteNumber: 105, velocity: 0 },
 		]
-		const phrases = extractMidiVocalPhrases(events )
-		expect(phrases).toHaveLength(1)
-		expect(phrases[0]).toEqual({ tick: 480, length: 480, noteNumber: 105 })
+		expect(scanVocalTrack(events).phrases105).toEqual([{ tick: 480, length: 480 }])
 	})
 
 	it('handles overlapping 105 and 106', () => {
@@ -459,10 +455,9 @@ describe('extractMidiVocalPhrases', () => {
 			{ deltaTime: 960, type: 'noteOff' as const, channel: 0, noteNumber: 105, velocity: 0 },
 			{ deltaTime: 1200, type: 'noteOff' as const, channel: 0, noteNumber: 106, velocity: 0 },
 		]
-		const phrases = extractMidiVocalPhrases(events )
-		expect(phrases).toHaveLength(2)
-		expect(phrases[0]).toEqual({ tick: 480, length: 480, noteNumber: 105 })
-		expect(phrases[1]).toEqual({ tick: 720, length: 480, noteNumber: 106 })
+		const result = scanVocalTrack(events)
+		expect(result.phrases105).toEqual([{ tick: 480, length: 480 }])
+		expect(result.phrases106).toEqual([{ tick: 720, length: 480 }])
 	})
 
 	it('ignores duplicate noteOn (YARG behavior)', () => {
@@ -472,18 +467,17 @@ describe('extractMidiVocalPhrases', () => {
 			{ deltaTime: 960, type: 'noteOn' as const, channel: 0, noteNumber: 105, velocity: 100 },  // duplicate, ignored
 			{ deltaTime: 1440, type: 'noteOff' as const, channel: 0, noteNumber: 105, velocity: 0 },
 		]
-		const phrases = extractMidiVocalPhrases(events )
-		expect(phrases).toHaveLength(1)
-		expect(phrases[0]).toEqual({ tick: 480, length: 960, noteNumber: 105 })
+		expect(scanVocalTrack(events).phrases105).toEqual([{ tick: 480, length: 960 }])
 	})
 
-	it('ignores non-105/106 notes', () => {
+	it('does not route non-105/106 notes into phrase buckets', () => {
 		const events = [
 			{ deltaTime: 480, type: 'noteOn' as const, channel: 0, noteNumber: 60, velocity: 100 },
 			{ deltaTime: 960, type: 'noteOff' as const, channel: 0, noteNumber: 60, velocity: 0 },
 		]
-		const phrases = extractMidiVocalPhrases(events )
-		expect(phrases).toHaveLength(0)
+		const result = scanVocalTrack(events)
+		expect(result.phrases105).toEqual([])
+		expect(result.phrases106).toEqual([])
 	})
 
 	it('handles unpaired noteOn (ignored)', () => {
@@ -491,8 +485,7 @@ describe('extractMidiVocalPhrases', () => {
 			{ deltaTime: 480, type: 'noteOn' as const, channel: 0, noteNumber: 105, velocity: 100 },
 			// No noteOff
 		]
-		const phrases = extractMidiVocalPhrases(events )
-		expect(phrases).toHaveLength(0)
+		expect(scanVocalTrack(events).phrases105).toEqual([])
 	})
 })
 
@@ -500,25 +493,29 @@ describe('extractMidiVocalPhrases', () => {
 // Edge cases: dedup and whitespace
 // ---------------------------------------------------------------------------
 
-describe('extractMidiLyrics edge cases', () => {
+describe('scanVocalTrack edge cases', () => {
 	it('deduplicates lyrics at same tick with same text', () => {
 		const events = [
 			{ deltaTime: 480, type: 'lyrics' as const, text: '+' },
 			{ deltaTime: 480, type: 'lyrics' as const, text: '+' },
 		]
-		const lyrics = extractMidiLyrics(events )
+		const lyrics = scanVocalTrack(events).lyrics
 		expect(lyrics).toHaveLength(1)
 	})
 
-	it('filters tick-0 text event that duplicates track name', () => {
+	it('does NOT filter tick-0 text events that duplicate the track name (caller responsibility)', () => {
+		// scanVocalTrack doesn't take a track name parameter — the
+		// duplicate filter lives in midi-parser.scanInstrumentTrack instead.
+		// Verify that the classifier returns both lyrics; the integration filter
+		// is covered by per-track-data.test.ts.
 		const events = [
 			{ deltaTime: 0, type: 'trackName' as const, text: 'PART VOCALS' },
 			{ deltaTime: 0, type: 'text' as const, text: 'PART VOCALS' },
 			{ deltaTime: 480, type: 'lyrics' as const, text: 'Hello' },
 		]
-		const lyrics = extractMidiLyrics(events )
-		expect(lyrics).toHaveLength(1)
-		expect(lyrics[0].text).toBe('Hello')
+		const lyrics = scanVocalTrack(events).lyrics
+		expect(lyrics).toHaveLength(2)
+		expect(lyrics.map(l => l.text)).toEqual(['PART VOCALS', 'Hello'])
 	})
 
 	it('keeps tick-0 text event if it does NOT match track name', () => {
@@ -527,7 +524,7 @@ describe('extractMidiLyrics edge cases', () => {
 			{ deltaTime: 0, type: 'text' as const, text: 'intro' },
 			{ deltaTime: 480, type: 'lyrics' as const, text: 'Hello' },
 		]
-		const lyrics = extractMidiLyrics(events )
+		const lyrics = scanVocalTrack(events).lyrics
 		expect(lyrics).toHaveLength(2)
 		expect(lyrics[0].text).toBe('intro')
 	})
@@ -538,7 +535,7 @@ describe('extractMidiLyrics edge cases', () => {
 			{ deltaTime: 0, type: 'lyrics' as const, text: 'PART VOCALS' },
 			{ deltaTime: 480, type: 'lyrics' as const, text: 'Hello' },
 		]
-		const lyrics = extractMidiLyrics(events )
+		const lyrics = scanVocalTrack(events).lyrics
 		expect(lyrics).toHaveLength(2)
 	})
 
@@ -548,17 +545,18 @@ describe('extractMidiLyrics edge cases', () => {
 			{ deltaTime: 480, type: 'text' as const, text: 'PART VOCALS' },
 			{ deltaTime: 960, type: 'lyrics' as const, text: 'Hello' },
 		]
-		const lyrics = extractMidiLyrics(events )
+		const lyrics = scanVocalTrack(events).lyrics
 		expect(lyrics).toHaveLength(2)
 		expect(lyrics[0].text).toBe('PART VOCALS')
 	})
 
 	it('keeps empty lyrics (YARG stores as "lyric ")', () => {
 		const events = [
+			{ deltaTime: 0, type: 'trackName' as const, text: 'PART VOCALS' },
 			{ deltaTime: 480, type: 'lyrics' as const, text: '' },
 			{ deltaTime: 960, type: 'lyrics' as const, text: 'hello' },
 		]
-		const lyrics = extractMidiLyrics(events )
+		const lyrics = scanVocalTrack(events).lyrics
 		expect(lyrics).toHaveLength(2)
 		expect(lyrics[0].text).toBe('')
 		expect(lyrics[1].text).toBe('hello')
@@ -566,10 +564,11 @@ describe('extractMidiLyrics edge cases', () => {
 
 	it('keeps space-only lyrics (preserves original)', () => {
 		const events = [
+			{ deltaTime: 0, type: 'trackName' as const, text: 'PART VOCALS' },
 			{ deltaTime: 480, type: 'lyrics' as const, text: ' ' },
 			{ deltaTime: 960, type: 'lyrics' as const, text: 'hello' },
 		]
-		const lyrics = extractMidiLyrics(events )
+		const lyrics = scanVocalTrack(events).lyrics
 		expect(lyrics).toHaveLength(2)
 		expect(lyrics[0].text).toBe(' ')
 		expect(lyrics[1].text).toBe('hello')
@@ -577,34 +576,38 @@ describe('extractMidiLyrics edge cases', () => {
 
 	it('keeps lyrics at same tick with different text', () => {
 		const events = [
+			{ deltaTime: 0, type: 'trackName' as const, text: 'PART VOCALS' },
 			{ deltaTime: 480, type: 'lyrics' as const, text: 'a' },
 			{ deltaTime: 480, type: 'lyrics' as const, text: 'b' },
 		]
-		const lyrics = extractMidiLyrics(events )
+		const lyrics = scanVocalTrack(events).lyrics
 		expect(lyrics).toHaveLength(2)
 	})
 
 	it('preserves trailing spaces in lyric text', () => {
 		const events = [
+			{ deltaTime: 0, type: 'trackName' as const, text: 'PART VOCALS' },
 			{ deltaTime: 480, type: 'lyrics' as const, text: 'hello ' },
 		]
-		const lyrics = extractMidiLyrics(events )
+		const lyrics = scanVocalTrack(events).lyrics
 		expect(lyrics[0].text).toBe('hello ')
 	})
 
 	it('preserves leading spaces in lyric text', () => {
 		const events = [
+			{ deltaTime: 0, type: 'trackName' as const, text: 'PART VOCALS' },
 			{ deltaTime: 480, type: 'lyrics' as const, text: ' hey^' },
 		]
-		const lyrics = extractMidiLyrics(events )
+		const lyrics = scanVocalTrack(events).lyrics
 		expect(lyrics[0].text).toBe(' hey^')
 	})
 
 	it('preserves internal spaces in lyric text', () => {
 		const events = [
+			{ deltaTime: 0, type: 'trackName' as const, text: 'PART VOCALS' },
 			{ deltaTime: 480, type: 'lyrics' as const, text: 'hello world' },
 		]
-		const lyrics = extractMidiLyrics(events )
+		const lyrics = scanVocalTrack(events).lyrics
 		expect(lyrics[0].text).toBe('hello world')
 	})
 })
@@ -815,13 +818,13 @@ describe('MIDI text encoding: Latin-1 fallback', () => {
 		expect((lyricEvent ).text).toBe('një')
 	})
 
-	it('Latin-1 lyrics pass through extractMidiLyrics correctly', () => {
+	it('Latin-1 lyrics pass through scanVocalTrack correctly', () => {
 		// Simulate what happens after midi-file decodes Latin-1 text
 		const events = [
 			{ deltaTime: 0, type: 'trackName' as const, text: 'PART VOCALS' },
 			{ deltaTime: 480, type: 'lyrics' as const, text: 'Só' }, // Latin-1 decoded
 		]
-		const lyrics = extractMidiLyrics(events )
+		const lyrics = scanVocalTrack(events).lyrics
 		expect(lyrics).toHaveLength(1)
 		expect(lyrics[0].text).toBe('Só')
 	})
@@ -836,10 +839,10 @@ describe('MIDI text encoding: Latin-1 fallback', () => {
 })
 
 // ---------------------------------------------------------------------------
-// extractMidiVocalNotes
+// scanVocalTrack — notes (pitched / percussion)
 // ---------------------------------------------------------------------------
 
-describe('extractMidiVocalNotes', () => {
+describe('scanVocalTrack (notes)', () => {
 	it('extracts pitched notes (36-84)', () => {
 		const events = [
 			{ deltaTime: 480, type: 'noteOn' as const, noteNumber: 60, velocity: 100 },
@@ -847,7 +850,7 @@ describe('extractMidiVocalNotes', () => {
 			{ deltaTime: 960, type: 'noteOn' as const, noteNumber: 72, velocity: 100 },
 			{ deltaTime: 1200, type: 'noteOff' as const, noteNumber: 72, velocity: 0 },
 		]
-		const notes = extractMidiVocalNotes(events)
+		const notes = scanVocalTrack(events).notes
 		expect(notes).toHaveLength(2)
 		expect(notes[0]).toEqual({ tick: 480, length: 240, pitch: 60, type: 'pitched' })
 		expect(notes[1]).toEqual({ tick: 960, length: 240, pitch: 72, type: 'pitched' })
@@ -858,7 +861,7 @@ describe('extractMidiVocalNotes', () => {
 			{ deltaTime: 480, type: 'noteOn' as const, noteNumber: 96, velocity: 100 },
 			{ deltaTime: 720, type: 'noteOff' as const, noteNumber: 96, velocity: 0 },
 		]
-		const notes = extractMidiVocalNotes(events)
+		const notes = scanVocalTrack(events).notes
 		expect(notes).toHaveLength(1)
 		expect(notes[0]).toEqual({ tick: 480, length: 240, pitch: 96, type: 'percussion' })
 	})
@@ -868,7 +871,7 @@ describe('extractMidiVocalNotes', () => {
 			{ deltaTime: 480, type: 'noteOn' as const, noteNumber: 97, velocity: 100 },
 			{ deltaTime: 720, type: 'noteOff' as const, noteNumber: 97, velocity: 0 },
 		]
-		const notes = extractMidiVocalNotes(events)
+		const notes = scanVocalTrack(events).notes
 		expect(notes).toHaveLength(1)
 		expect(notes[0]).toEqual({ tick: 480, length: 240, pitch: 97, type: 'percussionHidden' })
 	})
@@ -882,7 +885,7 @@ describe('extractMidiVocalNotes', () => {
 			{ deltaTime: 1440, type: 'noteOn' as const, noteNumber: 105, velocity: 100 },
 			{ deltaTime: 1680, type: 'noteOff' as const, noteNumber: 105, velocity: 0 },
 		]
-		expect(extractMidiVocalNotes(events)).toHaveLength(0)
+		expect(scanVocalTrack(events).notes).toHaveLength(0)
 	})
 
 	it('handles velocity-0 noteOn as noteOff', () => {
@@ -890,7 +893,7 @@ describe('extractMidiVocalNotes', () => {
 			{ deltaTime: 480, type: 'noteOn' as const, noteNumber: 60, velocity: 100 },
 			{ deltaTime: 720, type: 'noteOn' as const, noteNumber: 60, velocity: 0 },
 		]
-		const notes = extractMidiVocalNotes(events)
+		const notes = scanVocalTrack(events).notes
 		expect(notes).toHaveLength(1)
 		expect(notes[0]).toEqual({ tick: 480, length: 240, pitch: 60, type: 'pitched' })
 	})
@@ -904,7 +907,7 @@ describe('extractMidiVocalNotes', () => {
 			{ deltaTime: 720, type: 'noteOn' as const, noteNumber: 60, velocity: 100 },
 			{ deltaTime: 960, type: 'noteOff' as const, noteNumber: 60, velocity: 0 },
 		]
-		const notes = extractMidiVocalNotes(events)
+		const notes = scanVocalTrack(events).notes
 		expect(notes).toHaveLength(2)
 		expect(notes[0]).toEqual({ tick: 480, length: 200, pitch: 60, type: 'pitched' })
 		expect(notes[1]).toEqual({ tick: 720, length: 240, pitch: 60, type: 'pitched' })
@@ -925,7 +928,7 @@ describe('extractMidiVocalNotes', () => {
 			{ deltaTime: 960, type: 'noteOn' as const, noteNumber: 60, velocity: 100 },
 			{ deltaTime: 1200, type: 'noteOff' as const, noteNumber: 60, velocity: 0 },
 		]
-		const notes = extractMidiVocalNotes(events)
+		const notes = scanVocalTrack(events).notes
 		// Should produce 2 notes: 480-680 and 960-1200
 		// (zero-length noteOn at 680 is duplicate → ignored; noteOff at 680 closes note at 480)
 		expect(notes).toHaveLength(2)
@@ -941,7 +944,7 @@ describe('extractMidiVocalNotes', () => {
 			{ deltaTime: 720, type: 'noteOn' as const, noteNumber: 60, velocity: 100 },
 			{ deltaTime: 960, type: 'noteOff' as const, noteNumber: 60, velocity: 100 },
 		]
-		const notes = extractMidiVocalNotes(events)
+		const notes = scanVocalTrack(events).notes
 		expect(notes).toHaveLength(2)
 	})
 
@@ -952,7 +955,7 @@ describe('extractMidiVocalNotes', () => {
 			{ deltaTime: 720, type: 'noteOff' as const, noteNumber: 60, velocity: 0 },
 			{ deltaTime: 720, type: 'noteOff' as const, noteNumber: 96, velocity: 0 },
 		]
-		const notes = extractMidiVocalNotes(events)
+		const notes = scanVocalTrack(events).notes
 		expect(notes).toHaveLength(2)
 	})
 
@@ -963,7 +966,7 @@ describe('extractMidiVocalNotes', () => {
 			{ deltaTime: 960, type: 'noteOn' as const, noteNumber: 84, velocity: 100 },
 			{ deltaTime: 1200, type: 'noteOff' as const, noteNumber: 84, velocity: 0 },
 		]
-		const notes = extractMidiVocalNotes(events)
+		const notes = scanVocalTrack(events).notes
 		expect(notes).toHaveLength(2)
 		expect(notes[0].type).toBe('pitched')
 		expect(notes[1].type).toBe('pitched')
@@ -971,16 +974,16 @@ describe('extractMidiVocalNotes', () => {
 })
 
 // ---------------------------------------------------------------------------
-// extractMidiVocalStarPower
+// scanVocalTrack — starPower
 // ---------------------------------------------------------------------------
 
-describe('extractMidiVocalStarPower', () => {
+describe('scanVocalTrack (starPower)', () => {
 	it('extracts star power from note 116', () => {
 		const events = [
 			{ deltaTime: 480, type: 'noteOn' as const, noteNumber: 116, velocity: 100 },
 			{ deltaTime: 1440, type: 'noteOff' as const, noteNumber: 116, velocity: 0 },
 		]
-		const sp = extractMidiVocalStarPower(events)
+		const sp = scanVocalTrack(events).starPower
 		expect(sp).toHaveLength(1)
 		expect(sp[0]).toMatchObject({ tick: 480, length: 960 })
 	})
@@ -992,7 +995,7 @@ describe('extractMidiVocalStarPower', () => {
 			{ deltaTime: 1920, type: 'noteOn' as const, noteNumber: 116, velocity: 100 },
 			{ deltaTime: 2880, type: 'noteOff' as const, noteNumber: 116, velocity: 0 },
 		]
-		const sp = extractMidiVocalStarPower(events)
+		const sp = scanVocalTrack(events).starPower
 		expect(sp).toHaveLength(2)
 	})
 
@@ -1001,21 +1004,21 @@ describe('extractMidiVocalStarPower', () => {
 			{ deltaTime: 480, type: 'noteOn' as const, noteNumber: 60, velocity: 100 },
 			{ deltaTime: 720, type: 'noteOff' as const, noteNumber: 60, velocity: 0 },
 		]
-		expect(extractMidiVocalStarPower(events)).toHaveLength(0)
+		expect(scanVocalTrack(events).starPower).toHaveLength(0)
 	})
 })
 
 // ---------------------------------------------------------------------------
-// extractMidiRangeShifts / extractMidiLyricShifts
+// scanVocalTrack — rangeShifts / lyricShifts
 // ---------------------------------------------------------------------------
 
-describe('extractMidiRangeShifts', () => {
+describe('scanVocalTrack (rangeShifts)', () => {
 	it('extracts range shift from note 0', () => {
 		const events = [
 			{ deltaTime: 480, type: 'noteOn' as const, noteNumber: 0, velocity: 100 },
 			{ deltaTime: 960, type: 'noteOff' as const, noteNumber: 0, velocity: 0 },
 		]
-		const shifts = extractMidiRangeShifts(events)
+		const shifts = scanVocalTrack(events).rangeShifts
 		expect(shifts).toHaveLength(1)
 		expect(shifts[0]).toMatchObject({ tick: 480, length: 480 })
 	})
@@ -1025,17 +1028,17 @@ describe('extractMidiRangeShifts', () => {
 			{ deltaTime: 480, type: 'noteOn' as const, noteNumber: 1, velocity: 100 },
 			{ deltaTime: 960, type: 'noteOff' as const, noteNumber: 1, velocity: 0 },
 		]
-		expect(extractMidiRangeShifts(events)).toHaveLength(0)
+		expect(scanVocalTrack(events).rangeShifts).toHaveLength(0)
 	})
 })
 
-describe('extractMidiLyricShifts', () => {
+describe('scanVocalTrack (lyricShifts)', () => {
 	it('extracts lyric shift from note 1', () => {
 		const events = [
 			{ deltaTime: 480, type: 'noteOn' as const, noteNumber: 1, velocity: 100 },
 			{ deltaTime: 960, type: 'noteOff' as const, noteNumber: 1, velocity: 0 },
 		]
-		const shifts = extractMidiLyricShifts(events)
+		const shifts = scanVocalTrack(events).lyricShifts
 		expect(shifts).toHaveLength(1)
 		expect(shifts[0]).toMatchObject({ tick: 480, length: 480 })
 	})
@@ -1045,7 +1048,7 @@ describe('extractMidiLyricShifts', () => {
 			{ deltaTime: 480, type: 'noteOn' as const, noteNumber: 0, velocity: 100 },
 			{ deltaTime: 960, type: 'noteOff' as const, noteNumber: 0, velocity: 0 },
 		]
-		expect(extractMidiLyricShifts(events)).toHaveLength(0)
+		expect(scanVocalTrack(events).lyricShifts).toHaveLength(0)
 	})
 })
 
