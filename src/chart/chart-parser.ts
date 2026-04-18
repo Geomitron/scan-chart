@@ -184,6 +184,7 @@ export function parseNotesFromChart(data: Uint8Array): RawChartData {
 				tick: Number(stringTick),
 			}))
 			.value(),
+		parseIssues: [],
 		trackData: _.chain(fileSections)
 			.pick(_.keys(trackNameMap))
 			.toPairs()
