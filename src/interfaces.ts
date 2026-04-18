@@ -261,6 +261,9 @@ export type ChartIssueType =
 	| 'brokenNote' // This note is so close to the previous note that this was likely a charting mistake
 	| 'badSustainGap' // This note is not far enough ahead of the previous sustain
 	| 'babySustain' // The sustain on this note is too short
+	| 'invalidLyric' // A lyric event was found on the EVENTS track in a .mid chart and will not be displayed
+	| 'invalidPhraseStart' // A phrase_start text event was found on the EVENTS track in a .mid chart (vocal phrases use MIDI notes 105/106 on PART VOCALS, not text events)
+	| 'invalidPhraseEnd' // A phrase_end text event was found on the EVENTS track in a .mid chart (vocal phrases use MIDI notes 105/106 on PART VOCALS, not text events)
 
 export type FolderIssueType =
 	| 'noMetadata' // This chart doesn't have "song.ini"
