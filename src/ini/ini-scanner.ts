@@ -93,7 +93,7 @@ export function scanIni(files: { fileName: string; data: Uint8Array }[]) {
 	const findIniDataResult = findIniData(files)
 	folderIssues.push(...findIniDataResult.folderIssues)
 	if (!findIniDataResult.iniData) {
-		return { metadata: null, folderIssues, metadataIssues: [] }
+		return { metadata: null, folderIssues, metadataIssues: [], unknownIniValues: {} }
 	}
 
 	const parseIniResult = parseIni(findIniDataResult.iniData)
@@ -101,12 +101,12 @@ export function scanIni(files: { fileName: string; data: Uint8Array }[]) {
 	const songSection = parseIniResult.iniObject.song || parseIniResult.iniObject.Song || parseIniResult.iniObject.SONG
 	if (songSection === undefined) {
 		folderIssues.push({ folderIssue: 'invalidMetadata', description: '"song.ini" doesn\'t have a "[Song]" section.' })
-		return { metadata: null, folderIssues, metadataIssues: [] }
+		return { metadata: null, folderIssues, metadataIssues: [], unknownIniValues: {} }
 	}
 
-	const { metadata, metadataIssues } = extractSongMetadata(songSection)
+	const { metadata, metadataIssues, unknownIniValues } = extractSongMetadata(songSection)
 
-	return { metadata, folderIssues, metadataIssues }
+	return { metadata, folderIssues, metadataIssues, unknownIniValues }
 }
 
 /**
@@ -147,12 +147,20 @@ function findIniData(files: { fileName: string; data: Uint8Array }[]): {
 	}
 }
 
+/** All keys that extractSongMetadata reads (primary + legacy aliases). */
+const knownIniKeys = new Set([
+	...Object.keys(defaultMetadata),
+	'frets', 'track', 'hopofreq', 'star_power_note', // legacy aliases
+])
+
 /**
  * @returns the chart metadata found in `songSection`, using default values if not found.
+ * Also returns all unrecognized key-value pairs for roundtrip preservation.
  */
 function extractSongMetadata(songSection: { [key: string]: string }): {
 	metadata: typeof defaultMetadata
 	metadataIssues: { metadataIssue: MetadataIssueType; description: string }[]
+	unknownIniValues: { [key: string]: string }
 } {
 	const metadataIssues: { metadataIssue: MetadataIssueType; description: string }[] = []
 
@@ -228,7 +236,15 @@ function extractSongMetadata(songSection: { [key: string]: string }): {
 		})
 	}
 
-	return { metadata, metadataIssues }
+	// Collect all unrecognized key-value pairs for roundtrip writing
+	const unknownIniValues: { [key: string]: string } = {}
+	for (const key of Object.keys(songSection)) {
+		if (!knownIniKeys.has(key)) {
+			unknownIniValues[key] = songSection[key]
+		}
+	}
+
+	return { metadata, metadataIssues, unknownIniValues }
 }
 
 /**
