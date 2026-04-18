@@ -98,12 +98,10 @@ export function parseNotesFromChart(data: Uint8Array): RawChartData {
 		throw 'Invalid .chart file: resolution not found.'
 	}
 
-	const codaEvents = _.chain(fileSections['Events'])
-		.map(line => /^(\d+) = E "\s*\[?coda\]?\s*"$/.exec(line))
-		.compact()
-		.map(([, stringTick]) => ({ tick: Number(stringTick) }))
-		.value()
-	const firstCodaTick = codaEvents[0] ? codaEvents[0].tick : null
+	// Classify each line of the [Events] section into one of:
+	// sections, endEvents, codaEvents, or unrecognizedEvents.
+	const eventsScan = scanEventsSection(fileSections['Events'] ?? [])
+	const firstCodaTick = eventsScan.codaEvents[0]?.tick ?? null
 
 	return {
 		chartTicksPerBeat: resolution,
@@ -169,21 +167,9 @@ export function parseNotesFromChart(data: Uint8Array): RawChartData {
 				}
 			})
 			.value(),
-		sections: _.chain(fileSections['Events'])
-			.map(line => /^(\d+) = E "\[?(?:section|prc)[ _](.*?)\]?"$/.exec(line))
-			.compact()
-			.map(([, stringTick, stringName]) => ({
-				tick: Number(stringTick),
-				name: stringName,
-			}))
-			.value(),
-		endEvents: _.chain(fileSections['Events'])
-			.map(line => /^(\d+) = E "\[?end\]?"$/.exec(line))
-			.compact()
-			.map(([, stringTick]) => ({
-				tick: Number(stringTick),
-			}))
-			.value(),
+		sections: eventsScan.sections,
+		endEvents: eventsScan.endEvents,
+		unrecognizedEvents: eventsScan.unrecognizedEvents,
 		parseIssues: [],
 		trackData: _.chain(fileSections)
 			.pick(_.keys(trackNameMap))
@@ -529,5 +515,55 @@ function mergeSoloEvents(events: { tick: number; type: EventType; length: number
 	_.remove(events, event => event.type === eventTypes.soloSectionStart || event.type === eventTypes.soloSectionEnd)
 
 	return events
+}
+
+interface ChartEventsScanResult {
+	sections: { tick: number; name: string }[]
+	endEvents: { tick: number }[]
+	codaEvents: { tick: number }[]
+	/** All remaining E-events not recognized as sections/end/coda/lyrics/phrases.
+	 *  Lyrics and phrase_start/phrase_end are extracted separately by the vocal
+	 *  parsing path. */
+	unrecognizedEvents: { tick: number; text: string }[]
+}
+
+/**
+ * Parse each line of the .chart [Events] section once via the generic
+ * `TICK = E "TEXT"` regex, then classify the text into one of
+ * {section, end, coda, lyric, phrase, unrecognized}.
+ */
+function scanEventsSection(eventLines: string[]): ChartEventsScanResult {
+	const result: ChartEventsScanResult = {
+		sections: [],
+		endEvents: [],
+		codaEvents: [],
+		unrecognizedEvents: [],
+	}
+	for (const line of eventLines) {
+		const match = /^(\d+) = E "([^\r\n]*?)"$/.exec(line)
+		if (!match) continue
+		const tick = Number(match[1])
+		const text = match[2]
+
+		const sectionMatch = /^\[?(?:section|prc)[ _](.*?)\]?$/.exec(text)
+		if (sectionMatch) {
+			result.sections.push({ tick, name: sectionMatch[1] })
+			continue
+		}
+		if (/^\[?end\]?$/.test(text)) {
+			result.endEvents.push({ tick })
+			continue
+		}
+		if (/^\s*\[?coda\]?\s*$/.test(text)) {
+			result.codaEvents.push({ tick })
+			continue
+		}
+		// Lyrics and phrase markers are extracted by the vocal parsing path — skip here
+		if (/^\s*lyric[ \t]/.test(text)) continue
+		if (/^(?:phrase_start|phrase_end)$/.test(text)) continue
+
+		result.unrecognizedEvents.push({ tick, text })
+	}
+	return result
 }
 

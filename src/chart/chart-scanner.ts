@@ -192,6 +192,9 @@ const chartIssueDescriptions: { [issue in ChartIssueType]: string } = {
 	brokenNote: 'This note is so close to the previous note that this was likely a charting mistake.',
 	badSustainGap: 'This note is not far enough ahead of the previous sustain.',
 	babySustain: 'The sustain on this note is too short.',
+	invalidLyric: 'This lyric is on the EVENTS track instead of PART VOCALS and will not be displayed.',
+	invalidPhraseStart: 'This phrase_start is on the EVENTS track. Vocal phrase boundaries in .mid charts must be MIDI note 105 (player 1) or 106 (player 2) on PART VOCALS.',
+	invalidPhraseEnd: 'This phrase_end is on the EVENTS track. Vocal phrase boundaries in .mid charts must be MIDI note 105 (player 1) or 106 (player 2) on PART VOCALS.',
 } as const
 
 function findChartIssues(

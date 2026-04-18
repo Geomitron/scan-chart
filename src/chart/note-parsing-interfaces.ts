@@ -74,6 +74,16 @@ export interface RawChartData {
 		tick: number
 	}[]
 	/**
+	 * Remaining text-like events from the EVENTS track that weren't recognized
+	 * and routed to a typed field (sections, endEvents, vocalTracks). These
+	 * include crowd events, music_start/end, drums mix events, coda markers,
+	 * and any custom/unknown text events.
+	 */
+	unrecognizedEvents: {
+		tick: number
+		text: string
+	}[]
+	/**
 	 * Issues detected at parse time (before `findChartIssues` runs). `chart-scanner`
 	 * concatenates these into the final `chartIssues` array, attaching the standard
 	 * description from `chartIssueDescriptions`. Use this for issues that the parser
