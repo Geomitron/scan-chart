@@ -224,8 +224,16 @@ function noteNumberToVocalType(noteNumber: number): VocalNoteType | null {
 	return null
 }
 
-/** Full classification of a MIDI vocal track — populated by one pass. */
-export interface VocalTrackScanResult {
+/**
+ * Full classification of a MIDI vocal track — populated by one pass.
+ *
+ * The generic parameter `T` preserves the caller's event type in
+ * `unrecognizedEvents`. Real callers pass `MidiEvent[]` (from midi-file) and
+ * get back `MidiEvent[]` for verbatim round-trip. Unit tests pass narrower
+ * hand-crafted shapes (satisfying `MidiLyricEvent`) and get back the same
+ * shape.
+ */
+export interface VocalTrackScanResult<T extends MidiLyricEvent = MidiLyricEvent> {
 	/** Non-control text-like events (deduped by tick+text). */
 	lyrics: { tick: number; length: number; text: string }[]
 	/** Bracketed text events YARG preserves as MoonText ([play], [idle], etc.). */
@@ -242,6 +250,17 @@ export interface VocalTrackScanResult {
 	rangeShifts: { tick: number; length: number }[]
 	/** Lyric shift markers from note 1 (for static lyric scrolling). */
 	lyricShifts: { tick: number; length: number }[]
+	/**
+	 * MIDI events this scanner didn't consume — stray noteOn/noteOff outside
+	 * the recognized vocal note ranges, plus any sysEx / meta / channel
+	 * events that vocal tracks don't typically carry. Stored verbatim
+	 * (deltaTime = absolute tick) so writers can re-emit them for round-trip.
+	 * Events intentionally consumed elsewhere (`ENHANCED_OPENS`,
+	 * `ENABLE_CHART_DYNAMICS`, disco flip, `[range_shift ...]`) are dropped,
+	 * not unrecognized. Structural events (`trackName`, `endOfTrack`) are
+	 * also skipped — writers re-emit them independently.
+	 */
+	unrecognizedEvents: T[]
 }
 
 /** Regex for disco flip markers (drum-track concept; skipped on vocal tracks). */
@@ -285,7 +304,7 @@ const discoFlipRegex = /^\s*\[?mix[ _][0-3][ _]drums[0-5](d|dnoflip|easy|easynok
  * noteOff at 55080 from the real note at 54880 — preserved by the
  * first-matching-noteOff rule.
  */
-export function scanVocalTrack(trackEvents: MidiLyricEvent[]): VocalTrackScanResult {
+export function scanVocalTrack<T extends MidiLyricEvent>(trackEvents: T[]): VocalTrackScanResult<T> {
 	const lyrics: VocalTrackScanResult['lyrics'] = []
 	const textEvents: VocalTrackScanResult['textEvents'] = []
 	const phrases105: VocalTrackScanResult['phrases105'] = []
@@ -294,6 +313,7 @@ export function scanVocalTrack(trackEvents: MidiLyricEvent[]): VocalTrackScanRes
 	const starPower: VocalTrackScanResult['starPower'] = []
 	const rangeShifts: VocalTrackScanResult['rangeShifts'] = []
 	const lyricShifts: VocalTrackScanResult['lyricShifts'] = []
+	const unrecognizedEvents: T[] = []
 
 	const seenLyrics = new Set<string>()
 	const openNotes = new Map<number, number>() // noteNumber → open tick
@@ -301,13 +321,16 @@ export function scanVocalTrack(trackEvents: MidiLyricEvent[]): VocalTrackScanRes
 	for (let i = 0; i < trackEvents.length; i++) {
 		const event = trackEvents[i]
 
-		// --- Note events (all buckets except lyrics/textEvents) ---
+		// --- Note events ---
 		if (event.type === 'noteOn' || event.type === 'noteOff') {
 			const n = event.noteNumber
 			if (n === undefined) continue
 			const vocalType = noteNumberToVocalType(n)
 			const isRelevantNote = n === 0 || n === 1 || n === 105 || n === 106 || n === 116 || vocalType !== null
-			if (!isRelevantNote) continue
+			if (!isRelevantNote) {
+				unrecognizedEvents.push(event)
+				continue
+			}
 
 			const isOff = event.type === 'noteOff' || (event.type === 'noteOn' && event.velocity === 0)
 			if (!isOff) {
@@ -331,15 +354,24 @@ export function scanVocalTrack(trackEvents: MidiLyricEvent[]): VocalTrackScanRes
 			continue
 		}
 
-		// --- Text-like events (lyrics + textEvents). Skip index 0. ---
+		// Structural events — writers re-emit them independently.
+		if (event.type === 'trackName' || event.type === 'endOfTrack') continue
+
+		// YARG's "first event is the track name" skip: also covers stray tick-0
+		// text duplicates of the track name that YARG silently drops.
 		if (i === 0) continue
+
+		// --- Text-like events (lyrics + textEvents) ---
 		const isTextLike = event.type === 'lyrics' || event.type === 'text' ||
 			event.type === 'marker' || event.type === 'cuePoint'
-		if (!isTextLike) continue
+		if (!isTextLike) {
+			unrecognizedEvents.push(event)
+			continue
+		}
 		const text = event.text
 		if (text === undefined || text === null) continue
 
-		// Events consumed elsewhere — drop from both buckets.
+		// Events consumed elsewhere — drop from all buckets (not unrecognized).
 		if (text === 'ENHANCED_OPENS' || text === '[ENHANCED_OPENS]') continue
 		if (text === 'ENABLE_CHART_DYNAMICS' || text === '[ENABLE_CHART_DYNAMICS]') continue
 		if (discoFlipRegex.test(text)) continue
@@ -367,7 +399,7 @@ export function scanVocalTrack(trackEvents: MidiLyricEvent[]): VocalTrackScanRes
 	// Only `notes` can have overlapping pitches emitting out of start-tick order.
 	notes.sort((a, b) => a.tick - b.tick)
 
-	return { lyrics, textEvents, phrases105, phrases106, notes, starPower, rangeShifts, lyricShifts }
+	return { lyrics, textEvents, phrases105, phrases106, notes, starPower, rangeShifts, lyricShifts, unrecognizedEvents }
 }
 
 // ---------------------------------------------------------------------------

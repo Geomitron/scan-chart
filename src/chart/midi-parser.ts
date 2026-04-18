@@ -122,7 +122,7 @@ export function parseNotesFromMidi(data: Uint8Array, iniChartModifiers: IniChart
 	// Sets event.deltaTime to the number of ticks since the start of the track
 	convertToAbsoluteTime(midiFile)
 
-	const tracks = getTracks(midiFile)
+	const { tracks, unrecognizedTracks } = getTracks(midiFile)
 	const parseIssues: RawChartData['parseIssues'] = []
 
 	// Build vocalTracks from PART VOCALS and HARM1/HARM2/HARM3.
@@ -148,19 +148,20 @@ export function parseNotesFromMidi(data: Uint8Array, iniChartModifiers: IniChart
 			// sets for harmony parts. For solo vocals and HARM1, the
 			// static-lyric view is simply a duplicate of the note-phrase
 			// (scoring) list per YARG's MoonSongLoader.Vocals.cs.
-			const classified = scanVocalTrack(track.trackEvents)
+			const scanned = scanVocalTrack(track.trackEvents)
 			const isHarmonyBacking = partName === 'harmony2' || partName === 'harmony3'
 			vocalTracks[partName] = {
-				lyrics: classified.lyrics,
-				vocalPhrases: classified.phrases105,
-				notes: classified.notes,
-				starPowerSections: classified.starPower,
-				rangeShifts: classified.rangeShifts,
-				lyricShifts: classified.lyricShifts,
+				lyrics: scanned.lyrics,
+				vocalPhrases: scanned.phrases105,
+				notes: scanned.notes,
+				starPowerSections: scanned.starPower,
+				rangeShifts: scanned.rangeShifts,
+				lyricShifts: scanned.lyricShifts,
 				staticLyricPhrases: isHarmonyBacking
-					? mergePhraseLists(classified.phrases105, classified.phrases106)
-					: classified.phrases106,
-				textEvents: classified.textEvents,
+					? mergePhraseLists(scanned.phrases105, scanned.phrases106)
+					: scanned.phrases106,
+				textEvents: scanned.textEvents,
+				unrecognizedEvents: scanned.unrecognizedEvents,
 			}
 		}
 	}
@@ -236,14 +237,17 @@ export function parseNotesFromMidi(data: Uint8Array, iniChartModifiers: IniChart
 		sections: eventsScan.sections,
 		endEvents: eventsScan.endEvents,
 		unrecognizedEvents: eventsScan.unrecognizedEvents,
+		unrecognizedTracks,
+		unrecognizedSections: [],
 		trackData: _.chain(tracks)
 			.filter(t => _.keys(instrumentNameMap).includes(t.trackName))
 			.map(t => {
 				const instrument = instrumentNameMap[t.trackName as InstrumentTrackName]
 				const instrumentType = getInstrumentType(instrument)
 				// Single scan pass extracts note-shaped events AND the
-				// data-carrying ones (text, versus, animations).
-				const { eventEnds, textEvents, versusPhrases, animations } =
+				// data-carrying ones (text, versus, animations), plus the
+				// unrecognized events for round-trip preservation.
+				const { eventEnds, textEvents, versusPhrases, animations, unrecognizedEvents: trackUnrecognized } =
 					scanInstrumentTrack(t.trackEvents, instrumentType, t.trackName)
 				const distributed = distributeInstrumentEvents(eventEnds) // Removes 'all' difficulty
 				const pairedEvents = getTrackEvents(distributed) // Connects note ends together
@@ -266,6 +270,11 @@ export function parseNotesFromMidi(data: Uint8Array, iniChartModifiers: IniChart
 						textEvents,
 						versusPhrases,
 						animations,
+						// All difficulties on a single MIDI track share the same
+						// per-track unrecognized events (the writer only emits one
+						// MIDI track, so storing them once is fine — the writer
+						// reads from any difficulty).
+						unrecognizedEvents: trackUnrecognized,
 					}
 
 					for (const event of trackDifficulties[difficulty]) {
@@ -325,8 +334,9 @@ function convertToAbsoluteTime(midiData: MidiData) {
 
 function getTracks(midiData: MidiData) {
 	const tracks: { trackName: TrackName; trackEvents: MidiEvent[] }[] = []
+	const unrecognizedTracks: { trackName: string; events: MidiEvent[] }[] = []
 
-	for (const track of midiData.tracks) {
+	for (const [i, track] of midiData.tracks.entries()) {
 		// Match YARG.Core's MidiExtensions.GetTrackName: return the FIRST
 		// `SequenceTrackName` event (FF 03) seen at tick 0, even if it
 		// doesn't match any recognized instrument track. The early `break`
@@ -350,10 +360,17 @@ function getTracks(midiData: MidiData) {
 				trackName: trackName as TrackName,
 				trackEvents: track,
 			})
+		} else if (i !== 0) {
+			// Track 0 is the conductor track (tempo/timeSignature) and isn't a
+			// musical track — skip it from unrecognized capture.
+			unrecognizedTracks.push({
+				trackName: trackName ?? '',
+				events: track,
+			})
 		}
 	}
 
-	return tracks
+	return { tracks, unrecognizedTracks }
 }
 
 interface TrackScanResult {
@@ -361,6 +378,8 @@ interface TrackScanResult {
 	textEvents: { tick: number; text: string }[]
 	versusPhrases: { tick: number; length: number; isPlayer2: boolean }[]
 	animations: { tick: number; length: number; noteNumber: number }[]
+	/** MIDI events the typed parser didn't consume (verbatim). */
+	unrecognizedEvents: MidiEvent[]
 }
 
 /**
@@ -396,11 +415,14 @@ function scanInstrumentTrack(
 	const animationFilter = instrumentType === instrumentTypes.drums
 		? (n: number) => n >= 24 && n <= 51
 		: (n: number) => n >= 40 && n <= 59
+	// Events the typed parser doesn't consume — preserved verbatim for round-trip.
+	const unrecognizedEvents: MidiEvent[] = []
 
 	for (const event of events) {
 		// SysEx event (tap modifier or open)
-		if ((event.type === 'sysEx' || event.type === 'endSysEx') && event.data.length > 6) {
-			if (event.data[0] === 0x50 && event.data[1] === 0x53 && event.data[2] === 0x00 && event.data[3] === 0x00) {
+		if (event.type === 'sysEx' || event.type === 'endSysEx') {
+			let consumed = false
+			if (event.data.length > 6 && event.data[0] === 0x50 && event.data[1] === 0x53 && event.data[2] === 0x00 && event.data[3] === 0x00) {
 				// Phase Shift SysEx event
 				const type =
 					event.data[5] === 0x01 ? eventTypes.forceOpen
@@ -415,10 +437,13 @@ function scanInstrumentTrack(
 						velocity: 127,
 						isStart: event.data[6] === 0x01,
 					})
+					consumed = true
 				}
 			}
+			if (!consumed) unrecognizedEvents.push(event)
 		} else if (event.type === 'noteOn' || event.type === 'noteOff') {
 			const isOff = event.type === 'noteOff' || (event.type === 'noteOn' && event.velocity === 0)
+			let consumed = false
 
 			// Collect versus phrase markers (notes 105/106). These don't overlap
 			// with any note-shaped events, so we don't fall through.
@@ -452,6 +477,7 @@ function scanInstrumentTrack(
 						animStarts.delete(event.noteNumber)
 					}
 				}
+				consumed = true
 				// fall through — animation note ranges overlap easy-difficulty notes
 			}
 
@@ -472,6 +498,7 @@ function scanInstrumentTrack(
 						channel: event.channel,
 						isStart: event.type === 'noteOn',
 					})
+					consumed = true
 				}
 			} else {
 				const type =
@@ -487,8 +514,11 @@ function scanInstrumentTrack(
 						channel: event.channel,
 						isStart: event.type === 'noteOn',
 					})
+					consumed = true
 				}
 			}
+
+			if (!consumed) unrecognizedEvents.push(event)
 		} else if (event.type === 'text') {
 			let consumedAsNote = false
 			if (instrumentType === instrumentTypes.drums) {
@@ -525,12 +555,20 @@ function scanInstrumentTrack(
 				if (event.deltaTime === 0 && event.text === trackName) continue
 				textEvents.push({ tick: event.deltaTime, text: event.text })
 			}
+		} else if (event.type === 'trackName' || event.type === 'endOfTrack') {
+			// Trackname is the track identifier; endOfTrack is the MIDI marker.
+			// Both are required structural events — writers re-emit them — so
+			// they shouldn't appear in unrecognizedEvents.
+		} else {
+			// Any other event type (marker, lyrics, instrumentName, channel, etc.)
+			// is preserved verbatim so writers can round-trip it.
+			unrecognizedEvents.push(event)
 		}
 	}
 
 	versusPhrases.sort((a, b) => a.tick - b.tick)
 	animations.sort((a, b) => a.tick - b.tick)
-	return { eventEnds, textEvents, versusPhrases, animations }
+	return { eventEnds, textEvents, versusPhrases, animations, unrecognizedEvents }
 }
 
 /** These apply to the entire instrument, not specific difficulties. */
