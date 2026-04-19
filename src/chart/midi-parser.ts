@@ -482,8 +482,15 @@ function scanInstrumentTrack(
 				unrecognizedEvents.push(event)
 			}
 		} else if (event.type === 'noteOn' || event.type === 'noteOff') {
-			const isOff = event.type === 'noteOff' || (event.type === 'noteOn' && event.velocity === 0)
+			// Within this branch, the event is definitely a note event — a noteOn with
+			// velocity 0 is semantically a noteOff for paired-start/end tracking.
+			const isOff = event.type === 'noteOff' || event.velocity === 0
+			// Note: `isStart` tracks the literal MIDI event type (not velocity),
+			// matching the original semantics that downstream code relies on.
+			const isStart = event.type === 'noteOn'
 			const nn = event.noteNumber
+			const velocity = event.velocity
+			const channel = event.channel
 			let consumed = false
 
 			// Collect versus phrase markers (notes 105/106). These don't overlap
@@ -539,9 +546,9 @@ function scanInstrumentTrack(
 					diffArr.push({
 						tick: event.deltaTime,
 						type,
-						velocity: event.velocity,
-						channel: event.channel,
-						isStart: event.type === 'noteOn',
+						velocity,
+						channel,
+						isStart,
 					})
 					consumed = true
 				}
@@ -555,9 +562,9 @@ function scanInstrumentTrack(
 					diffArr.push({
 						tick: event.deltaTime,
 						type,
-						velocity: event.velocity,
-						channel: event.channel,
-						isStart: event.type === 'noteOn',
+						velocity,
+						channel,
+						isStart,
 					})
 					consumed = true
 				}
