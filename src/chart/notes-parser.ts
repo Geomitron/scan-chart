@@ -56,47 +56,32 @@ export function parseChartFile(data: Uint8Array, format: 'chart' | 'mid', partia
 
 	const normalizedVocalTracks = normalizeVocalTracks(rawChartData.vocalTracks, timedTempos, rawChartData.chartTicksPerBeat)
 	// Evaluate trackData first — normalizedVocalTracks is used below for phrase-level hasLyrics check.
-	const trackDataResult = _.chain(rawChartData.trackData)
-			.map(track => {
-				return {
-				instrument: track.instrument,
-				difficulty: track.difficulty,
-				starPowerSections: _.chain(track.starPowerSections)
-					.thru(events => setEventMsTimes(events, timedTempos, rawChartData.chartTicksPerBeat))
-					.thru(events => sortAndFixInvalidEventOverlaps(events))
-					.value(),
-				rejectedStarPowerSections: _.chain(track.rejectedStarPowerSections)
-					.thru(events => setEventMsTimes(events, timedTempos, rawChartData.chartTicksPerBeat))
-					.value(),
-				soloSections: _.chain(track.soloSections)
-					.thru(events => setEventMsTimes(events, timedTempos, rawChartData.chartTicksPerBeat))
-					.thru(events => sortAndFixInvalidEventOverlaps(events))
-					.value(),
-				flexLanes: _.chain(track.flexLanes)
-					.thru(events => setEventMsTimes(events, timedTempos, rawChartData.chartTicksPerBeat))
-					.thru(events => sortAndFixInvalidFlexLaneOverlaps(events))
-					.value(),
-				drumFreestyleSections: setEventMsTimes(track.drumFreestyleSections, timedTempos, rawChartData.chartTicksPerBeat),
-				textEvents: setEventMsTimes(track.textEvents, timedTempos, rawChartData.chartTicksPerBeat),
-				versusPhrases: setEventMsTimes(track.versusPhrases, timedTempos, rawChartData.chartTicksPerBeat),
-				animations: setEventMsTimes(track.animations, timedTempos, rawChartData.chartTicksPerBeat),
-				unrecognizedMidiEvents: track.unrecognizedMidiEvents,
-				noteEventGroups: _.chain(track.trackEvents)
-					.thru(events => trimSustains(events, iniChartModifiers.sustain_cutoff_threshold, rawChartData.chartTicksPerBeat, format))
-					.groupBy(note => note.tick)
-					.values()
-					.thru(eventGroups =>
-						track.instrument === 'drums' ?
-							resolveDrumModifiers(eventGroups, drumType!, format)
-						:	resolveFretModifiers(eventGroups, iniChartModifiers, rawChartData.chartTicksPerBeat, format),
-					)
-					.thru(noteGroups => snapChords(noteGroups, iniChartModifiers.chord_snap_threshold, track.instrument))
-					.tap(noteGroups => sortAndFixInvalidNoteOverlaps(noteGroups))
-					.thru(events => setEventGroupMsTimes(events, timedTempos, rawChartData.chartTicksPerBeat))
-					.value(),
-				}
-			})
-			.value()
+	const tpb = rawChartData.chartTicksPerBeat
+	const trackDataResult = rawChartData.trackData.map(track => {
+		const trimmed = trimSustains(track.trackEvents, iniChartModifiers.sustain_cutoff_threshold, tpb, format)
+		const grouped = groupByTick(trimmed)
+		const resolved = track.instrument === 'drums'
+			? resolveDrumModifiers(grouped, drumType!, format)
+			: resolveFretModifiers(grouped, iniChartModifiers, tpb, format)
+		const snapped = snapChords(resolved, iniChartModifiers.chord_snap_threshold, track.instrument)
+		sortAndFixInvalidNoteOverlaps(snapped)
+		const noteEventGroups = setEventGroupMsTimes(snapped, timedTempos, tpb)
+
+		return {
+			instrument: track.instrument,
+			difficulty: track.difficulty,
+			starPowerSections: sortAndFixInvalidEventOverlaps(setEventMsTimes(track.starPowerSections, timedTempos, tpb)),
+			rejectedStarPowerSections: setEventMsTimes(track.rejectedStarPowerSections, timedTempos, tpb),
+			soloSections: sortAndFixInvalidEventOverlaps(setEventMsTimes(track.soloSections, timedTempos, tpb)),
+			flexLanes: sortAndFixInvalidFlexLaneOverlaps(setEventMsTimes(track.flexLanes, timedTempos, tpb)),
+			drumFreestyleSections: setEventMsTimes(track.drumFreestyleSections, timedTempos, tpb),
+			textEvents: setEventMsTimes(track.textEvents, timedTempos, tpb),
+			versusPhrases: setEventMsTimes(track.versusPhrases, timedTempos, tpb),
+			animations: setEventMsTimes(track.animations, timedTempos, tpb),
+			unrecognizedMidiEvents: track.unrecognizedMidiEvents,
+			noteEventGroups,
+		}
+	})
 
 	return {
 		resolution: rawChartData.chartTicksPerBeat,
@@ -526,6 +511,22 @@ function setEventOrEventGroupMsTimes<T extends { tick: number; length?: number }
 		}
 	}
 	return events as (T & { msTime: number; msLength: number })[][] | (T & { msTime: number; msLength: number })[]
+}
+
+function groupByTick(events: TrackEvent[]): TrackEvent[][] {
+	const groups: TrackEvent[][] = []
+	let currentTick = Number.NaN
+	let currentGroup: TrackEvent[] | null = null
+	for (const e of events) {
+		if (e.tick !== currentTick) {
+			currentTick = e.tick
+			currentGroup = [e]
+			groups.push(currentGroup)
+		} else {
+			currentGroup!.push(e)
+		}
+	}
+	return groups
 }
 
 function trimSustains(
