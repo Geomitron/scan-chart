@@ -557,9 +557,16 @@ function scanEventsSection(eventLines: string[]): ChartEventsScanResult {
 		const tick = Number(match[1])
 		const text = match[2]
 
-		const sectionMatch = /^\[?(?:section|prc)[ _](.*?)\]?$/.exec(text)
-		if (sectionMatch) {
-			result.sections.push({ tick, name: sectionMatch[1] })
+		// Accept either `[section NAME]` (bracketed form — outer brackets are
+		// stripped) or `section NAME` (plain form — everything after the prefix
+		// is the name). Brackets must match as a pair: a trailing `]` is not
+		// stripped unless the text also started with `[`. This preserves section
+		// names that legitimately end in `]` (e.g. `section <b>…</b> [credits]`).
+		const bracketedSection = /^\[(?:section|prc)[ _](.*)\]$/.exec(text)
+		const plainSection = !bracketedSection && /^(?:section|prc)[ _](.*)$/.exec(text)
+		if (bracketedSection || plainSection) {
+			const name = (bracketedSection ?? plainSection as RegExpExecArray)[1]
+			result.sections.push({ tick, name })
 			continue
 		}
 		if (/^\[?end\]?$/.test(text)) {

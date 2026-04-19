@@ -917,6 +917,84 @@ describe('.chart: global events', () => {
 })
 
 // ---------------------------------------------------------------------------
+// Section name parsing — brackets must match as a pair
+// ---------------------------------------------------------------------------
+
+describe('section name parsing', () => {
+	it('.chart: plain `section NAME` preserves a trailing `]` inside the name', () => {
+		// Real-world case: "Commission Crew Solo Medley" (jdurand) uses section
+		// names with `<b>` tags and bracketed credit suffixes, ending in `]`:
+		//   section <b>Hot Mulligan - And a Big Load</b> [jdurandTV & Pix_]
+		// The old regex stripped the trailing `]` — this test pins that fixed.
+		const chart = buildChart({
+			Song: ['Resolution = 192'],
+			SyncTrack: ['0 = B 120000', '0 = TS 4'],
+			Events: [
+				'270864 = E "section <b>Hot Mulligan - And a Big Load</b> [jdurandTV & Pix_]"',
+				'276432 = E "section Intro"',
+				'280000 = E "section [nested]"',
+			],
+		})
+
+		const result = parseNotesFromChart(chart)
+		expect(result.sections).toEqual([
+			{ tick: 270864, name: '<b>Hot Mulligan - And a Big Load</b> [jdurandTV & Pix_]' },
+			{ tick: 276432, name: 'Intro' },
+			{ tick: 280000, name: '[nested]' },
+		])
+	})
+
+	it('.chart: bracketed `[section NAME]` strips outer brackets but keeps inner `]`', () => {
+		const chart = buildChart({
+			Song: ['Resolution = 192'],
+			SyncTrack: ['0 = B 120000', '0 = TS 4'],
+			Events: [
+				'0 = E "[section Intro]"',
+				'480 = E "[section verse [with brackets]]"',
+			],
+		})
+
+		const result = parseNotesFromChart(chart)
+		expect(result.sections).toEqual([
+			{ tick: 0, name: 'Intro' },
+			{ tick: 480, name: 'verse [with brackets]' },
+		])
+	})
+
+	it('MIDI: `[section NAME]` strips outer brackets but keeps inner `]` in the name', () => {
+		const events: MidiData['tracks'][number] = [
+			{ deltaTime: 0, type: 'trackName', text: 'EVENTS' },
+			{ deltaTime: 0, type: 'text', text: '[section <b>Hot Mulligan - And a Big Load</b> [jdurandTV & Pix_]]' },
+			{ deltaTime: 480, type: 'text', text: '[section Intro]' },
+			{ deltaTime: 0, type: 'endOfTrack' },
+		]
+
+		const midi = buildMidi(480, [tempoTrack(), events])
+		const result = parseNotesFromMidi(midi, defaultIniChartModifiers)
+		expect(result.sections).toEqual([
+			{ tick: 0, name: '<b>Hot Mulligan - And a Big Load</b> [jdurandTV & Pix_]' },
+			{ tick: 480, name: 'Intro' },
+		])
+	})
+
+	it('MIDI: plain `section NAME` (no outer brackets) also preserves inner `]`', () => {
+		const events: MidiData['tracks'][number] = [
+			{ deltaTime: 0, type: 'trackName', text: 'EVENTS' },
+			{ deltaTime: 0, type: 'text', text: 'section credits [part 1]' },
+			{ deltaTime: 480, type: 'text', text: 'section Intro' },
+			{ deltaTime: 0, type: 'endOfTrack' },
+		]
+
+		const midi = buildMidi(480, [tempoTrack(), events])
+		const result = parseNotesFromMidi(midi, defaultIniChartModifiers)
+		expect(result.sections).toEqual([
+			{ tick: 0, name: 'credits [part 1]' },
+			{ tick: 480, name: 'Intro' },
+		])
+	})
+})
+
+// ---------------------------------------------------------------------------
 // MIDI: parseIssues for stray vocal events on the EVENTS track
 // ---------------------------------------------------------------------------
 
