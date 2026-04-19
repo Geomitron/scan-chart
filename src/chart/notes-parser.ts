@@ -45,14 +45,16 @@ export function parseChartFile(data: Uint8Array, format: 'chart' | 'mid', partia
 		: drumTracks.find(track => track.trackEvents.find(e => isCymbalOrTomMarker(e.type))) ? drumTypes.fourLanePro
 		: drumTracks.find(track => track.trackEvents.find(e => e.type === eventTypes.fiveGreenDrum)) ? drumTypes.fiveLane
 		: drumTypes.fourLane
-	const hasForcedNotes = _.chain(rawChartData.trackData)
-		.filter(track => track.instrument !== 'drums')
-		.some(track =>
-			_.some(track.trackEvents, e => {
-				return e.type === eventTypes.forceUnnatural || e.type === eventTypes.forceHopo || e.type === eventTypes.forceStrum
-			}),
-		)
-		.value()
+	let hasForcedNotes = false
+	outer: for (const track of rawChartData.trackData) {
+		if (track.instrument === 'drums') continue
+		for (const e of track.trackEvents) {
+			if (e.type === eventTypes.forceUnnatural || e.type === eventTypes.forceHopo || e.type === eventTypes.forceStrum) {
+				hasForcedNotes = true
+				break outer
+			}
+		}
+	}
 
 	const normalizedVocalTracks = normalizeVocalTracks(rawChartData.vocalTracks, timedTempos, rawChartData.chartTicksPerBeat)
 	// Evaluate trackData first — normalizedVocalTracks is used below for phrase-level hasLyrics check.
