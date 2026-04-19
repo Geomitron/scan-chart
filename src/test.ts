@@ -3,7 +3,7 @@ import { readdir, readFile, writeFile } from 'fs/promises'
 import * as _ from 'lodash'
 import { join } from 'path'
 import sanitize from 'sanitize-filename'
-import { scanChartFolder } from 'src'
+import { parseChartAndIni, scanChart } from 'src'
 import yargs from 'yargs'
 import { hideBin } from 'yargs/helpers'
 
@@ -78,7 +78,7 @@ async function main() {
 			)
 		).filter(f => f?.data !== undefined) as { fileName: string; data: Uint8Array<ArrayBufferLike> }[]
 
-		const result = scanChartFolder(files, { includeBTrack: config.createBTrackFiles, includeMd5: false })
+		const result = scanChart(files, parseChartAndIni(files), { includeBTrack: config.createBTrackFiles, includeMd5: false })
 		scanCount++
 		if (scanCount % 100 === 0 && !config.silent) {
 			console.log(`${scanCount} scanned...`)

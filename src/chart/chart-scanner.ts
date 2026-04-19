@@ -5,10 +5,10 @@ import * as _ from 'lodash'
 import { base64url } from 'rfc4648'
 
 import { defaultMetadata } from 'src/ini'
-import { ChartIssueType, Difficulty, FolderIssueType, getInstrumentType, Instrument, instrumentTypes, NotesData } from '../interfaces'
-import { getExtension, hasChartExtension, hasChartName, msToExactTime } from '../utils'
+import { ChartIssueType, Difficulty, getInstrumentType, Instrument, instrumentTypes, NotesData } from '../interfaces'
+import { msToExactTime } from '../utils'
 import { IniChartModifiers, NoteEvent, noteFlags, NoteType, noteTypes } from './note-parsing-interfaces'
-import { parseChartFile, ParsedChart } from './notes-parser'
+import { ParsedChart } from './parse-chart-and-ini'
 import { calculateTrackHash, pruneEmptyPhrases } from './track-hasher'
 
 const LEADING_SILENCE_THRESHOLD_MS = 1000
@@ -16,130 +16,95 @@ const MIN_SUSTAIN_GAP_MS = 40
 const MIN_SUSTAIN_MS = 100
 const NPS_GROUP_SIZE_MS = 1000
 
-export function scanChart(files: { fileName: string; data: Uint8Array }[], iniChartModifiers: IniChartModifiers, includeBTrack = false) {
-	const { chartData, format, folderIssues } = findChartData(files)
+/**
+ * Compute the chart-derived hashes and `notesData` from an already-parsed
+ * chart. The output is the same chart-only subset of `ScannedChart` that
+ * the previous `scanChart(files, …)` returned; this version takes a
+ * `ParsedChart` so callers can reuse a parse result without redoing it.
+ *
+ * `trackHashes` is byte-stable across releases — see the spec in track-hasher.ts.
+ */
+export function scanParsedChart(parsedChart: ParsedChart, includeBTrack = false) {
+	const result = parsedChart
+	const iniChartModifiers = result.iniChartModifiers
 
-	if (chartData) {
-		try {
-			const result = parseChartFile(chartData, format, iniChartModifiers)
-			const trackHashes = result.trackData.map(t => {
-				const hash = calculateTrackHash(result, t.instrument, t.difficulty)
-				return {
-					instrument: t.instrument,
-					difficulty: t.difficulty,
-					hash: hash.hash,
-					btrack: includeBTrack ? hash.btrack : null,
-				}
-			})
-
-			let [hasTapNotes, hasOpenNotes, has2xKick] = [false, false, false]
-			for (const track of result.trackData) {
-				for (const noteGroup of track.noteEventGroups) {
-					for (const note of noteGroup) {
-						if (note.flags & noteFlags.tap) {
-							hasTapNotes = true
-						}
-						if (note.flags & noteFlags.doubleKick) {
-							has2xKick = true
-						}
-						if (note.type === noteTypes.open) {
-							hasOpenNotes = true
-						}
-					}
-				}
-			}
-
-			return {
-				chartHash: getChartHash(chartData, iniChartModifiers),
-				notesData: {
-					instruments: _.chain(result.trackData)
-						.map(t => t.instrument)
-						.uniq()
-						.value(),
-					drumType: result.drumType,
-					hasSoloSections:
-						_.chain(result.trackData)
-							.map(t => t.soloSections.length)
-							.max()
-							.value() > 0,
-					hasLyrics: result.hasLyrics,
-					hasVocals: result.hasVocals,
-					hasForcedNotes: result.hasForcedNotes,
-					hasTapNotes,
-					hasOpenNotes,
-					has2xKick,
-					hasFlexLanes:
-						_.chain(result.trackData)
-							.map(t => t.flexLanes.length)
-							.max()
-							.value() > 0,
-					chartIssues: findChartIssues(result, iniChartModifiers.song_length, trackHashes),
-					noteCounts: result.trackData.map(t => ({
-						instrument: t.instrument,
-						difficulty: t.difficulty,
-						count: t.instrument === 'drums' ? _.sumBy(t.noteEventGroups, 'length') : t.noteEventGroups.length,
-					})),
-					maxNps: result.trackData.map(t => ({
-						instrument: t.instrument,
-						difficulty: t.difficulty,
-						...findMaxNps(t.noteEventGroups),
-					})),
-					trackHashes,
-					tempoMapHash: md5
-						.create()
-						.update(result.tempos.map(t => `${t.tick}_${t.beatsPerMinute * 1000}`).join(':'))
-						.update(result.timeSignatures.map(t => `${t.tick}_${t.numerator}_${t.denominator}`).join(':'))
-						.hex(),
-					tempoMarkerCount: result.tempos.length,
-					effectiveLength: _.chain(result.trackData)
-						.thru(tracks => ({
-							min: _.min(tracks.map(track => _.first(track.noteEventGroups)?.[0]?.msTime)),
-							max: _.max(tracks.map(track => _.last(track.noteEventGroups)?.[0]?.msTime)),
-						}))
-						.thru(({ min, max }) => (min !== undefined && max !== undefined ? _.round(max - min, 3) : iniChartModifiers.song_length))
-						.value(),
-				},
-				metadata: result.metadata,
-				folderIssues,
-			}
-		} catch (err) {
-			folderIssues.push({ folderIssue: 'badChart', description: typeof err === 'string' ? err : (err?.message ?? JSON.stringify(err)) })
-		}
-	}
-
-	return { chartHash: null, notesData: null, metadata: null, folderIssues }
-}
-
-function findChartData(files: { fileName: string; data: Uint8Array }[]) {
-	const folderIssues: { folderIssue: FolderIssueType; description: string }[] = []
-
-	const chartFiles = _.chain(files)
-		.filter(f => hasChartExtension(f.fileName))
-		.orderBy([f => hasChartName(f.fileName), f => getExtension(f.fileName).toLowerCase() === 'mid'], ['desc', 'desc'])
-		.value()
-
-	for (const file of chartFiles) {
-		if (!hasChartName(file.fileName)) {
-			folderIssues.push({
-				folderIssue: 'invalidChart',
-				description: `"${file.fileName}" is not named "notes.${getExtension(file.fileName).toLowerCase()}".`,
-			})
-		}
-	}
-
-	if (chartFiles.length > 1) {
-		folderIssues.push({ folderIssue: 'multipleChart', description: 'This chart has multiple .chart/.mid files.' })
-	}
-
-	if (chartFiles.length === 0) {
-		folderIssues.push({ folderIssue: 'noChart', description: 'This chart doesn\'t have "notes.chart"/"notes.mid".' })
-		return { chartData: null, format: null, folderIssues }
-	} else {
+	const trackHashes = result.trackData.map(t => {
+		const hash = calculateTrackHash(result, t.instrument, t.difficulty)
 		return {
-			chartData: chartFiles[0].data,
-			format: (getExtension(chartFiles[0].fileName).toLowerCase() === 'mid' ? 'mid' : 'chart') as 'mid' | 'chart',
-			folderIssues,
+			instrument: t.instrument,
+			difficulty: t.difficulty,
+			hash: hash.hash,
+			btrack: includeBTrack ? hash.btrack : null,
 		}
+	})
+
+	let [hasTapNotes, hasOpenNotes, has2xKick] = [false, false, false]
+	for (const track of result.trackData) {
+		for (const noteGroup of track.noteEventGroups) {
+			for (const note of noteGroup) {
+				if (note.flags & noteFlags.tap) {
+					hasTapNotes = true
+				}
+				if (note.flags & noteFlags.doubleKick) {
+					has2xKick = true
+				}
+				if (note.type === noteTypes.open) {
+					hasOpenNotes = true
+				}
+			}
+		}
+	}
+
+	return {
+		chartHash: getChartHash(result.chartBytes, iniChartModifiers),
+		notesData: {
+			instruments: _.chain(result.trackData)
+				.map(t => t.instrument)
+				.uniq()
+				.value(),
+			drumType: result.drumType,
+			hasSoloSections:
+				_.chain(result.trackData)
+					.map(t => t.soloSections.length)
+					.max()
+					.value() > 0,
+			hasLyrics: result.hasLyrics,
+			hasVocals: result.hasVocals,
+			hasForcedNotes: result.hasForcedNotes,
+			hasTapNotes,
+			hasOpenNotes,
+			has2xKick,
+			hasFlexLanes:
+				_.chain(result.trackData)
+					.map(t => t.flexLanes.length)
+					.max()
+					.value() > 0,
+			chartIssues: findChartIssues(result, iniChartModifiers.song_length, trackHashes),
+			noteCounts: result.trackData.map(t => ({
+				instrument: t.instrument,
+				difficulty: t.difficulty,
+				count: t.instrument === 'drums' ? _.sumBy(t.noteEventGroups, 'length') : t.noteEventGroups.length,
+			})),
+			maxNps: result.trackData.map(t => ({
+				instrument: t.instrument,
+				difficulty: t.difficulty,
+				...findMaxNps(t.noteEventGroups),
+			})),
+			trackHashes,
+			tempoMapHash: md5
+				.create()
+				.update(result.tempos.map(t => `${t.tick}_${t.beatsPerMinute * 1000}`).join(':'))
+				.update(result.timeSignatures.map(t => `${t.tick}_${t.numerator}_${t.denominator}`).join(':'))
+				.hex(),
+			tempoMarkerCount: result.tempos.length,
+			effectiveLength: _.chain(result.trackData)
+				.thru(tracks => ({
+					min: _.min(tracks.map(track => _.first(track.noteEventGroups)?.[0]?.msTime)),
+					max: _.max(tracks.map(track => _.last(track.noteEventGroups)?.[0]?.msTime)),
+				}))
+				.thru(({ min, max }) => (min !== undefined && max !== undefined ? _.round(max - min, 3) : iniChartModifiers.song_length))
+				.value(),
+		},
 	}
 }
 
