@@ -82,16 +82,19 @@ export function parseNotesFromChart(data: Uint8Array): RawChartData {
 	const chartText = decoder.decode(data)
 
 	const fileSections = getFileSections(chartText)
-	if (_.values(fileSections).length === 0) {
+	const fileSectionKeys = Object.keys(fileSections)
+	if (fileSectionKeys.length === 0) {
 		throw 'Invalid .chart file: no sections were found.'
 	}
 
-	const metadata = _.chain(fileSections['Song'])
-		.map(line => /^(.+?) = "?(.*?)"?$/.exec(line))
-		.compact()
-		.map(([, key, value]) => [key, value])
-		.fromPairs()
-		.value()
+	const metadata: { [key: string]: string } = {}
+	const songLines = fileSections['Song']
+	if (songLines) {
+		for (const line of songLines) {
+			const m = chartSongMetaRegex.exec(line)
+			if (m) metadata[m[1]] = m[2]
+		}
+	}
 
 	const resolution = Number(metadata['Resolution'])
 	if (!resolution) {
@@ -137,87 +140,101 @@ export function parseNotesFromChart(data: Uint8Array): RawChartData {
 		unrecognizedEvents: eventsScan.unrecognizedEvents,
 		parseIssues: [],
 		unrecognizedMidiTracks: [], // MIDI-only
-		unrecognizedChartSections: _.chain(fileSections)
-			.toPairs()
-			.filter(([sectionName]) =>
-				sectionName !== 'Song' && sectionName !== 'SyncTrack' && sectionName !== 'Events'
-				&& !(sectionName in trackNameMap),
-			)
-			.map(([name, lines]) => ({ name, lines: [...lines] }))
-			.value(),
-		trackData: _.chain(fileSections)
-			.pick(_.keys(trackNameMap))
-			.toPairs()
-			.map(([trackName, lines]) => {
-				const { instrument, difficulty } = trackNameMap[trackName as TrackName]
-				// Single parsing pass that produces note-shaped events (`{ tick, type, length }`)
-				// plus data-carrying events (text, versus). Note-shaped events flow through
-				// the same distribution loop as before; the data-carrying ones are routed
-				// to their dedicated arrays inside the same loop.
-				const parsedEvents: ParsedTrackLine[] = []
-				for (const line of lines) {
-					const parsed = parseTrackLine(line, instrument, difficulty)
-					if (parsed !== null) parsedEvents.push(parsed)
-				}
-				// Most parsers reject charts that aren't already sorted, but it's easier to just sort it here
-				parsedEvents.sort((a, b) => a.tick - b.tick)
-
-				// Merge solo/soloend pairs in place (note-shaped events only)
-				const trackEvents = mergeSoloEvents(
-					parsedEvents.filter((e): e is ParsedNoteEvent => e.kind === 'note'),
-				)
-
-				const result: RawChartData['trackData'][number] = {
-					instrument,
-					difficulty,
-					starPowerSections: [],
-					rejectedStarPowerSections: [],
-					soloSections: [],
-					flexLanes: [],
-					drumFreestyleSections: [],
-					trackEvents: [],
-					textEvents: [],
-					versusPhrases: [],
-					animations: [], // .chart format does not have note-based animations
-					unrecognizedMidiEvents: [], // MIDI-only
-				}
-
-				for (const event of trackEvents) {
-					if (event.type === eventTypes.starPower) {
-						result.starPowerSections.push(event)
-					} else if (event.type === eventTypes.rejectedStarPower) {
-						result.rejectedStarPowerSections.push(event)
-					} else if (event.type === eventTypes.soloSection) {
-						result.soloSections.push(event)
-					} else if (event.type === eventTypes.flexLaneSingle || event.type === eventTypes.flexLaneDouble) {
-						result.flexLanes.push({
-							tick: event.tick,
-							length: event.length,
-							isDouble: event.type === eventTypes.flexLaneDouble,
-						})
-					} else if (event.type === eventTypes.freestyleSection) {
-						result.drumFreestyleSections.push({
-							tick: event.tick,
-							length: event.length,
-							isCoda: firstCodaTick === null ? false : event.tick >= firstCodaTick,
-						})
-					} else {
-						result.trackEvents.push(event)
-					}
-				}
-
-				for (const event of parsedEvents) {
-					if (event.kind === 'text') {
-						result.textEvents.push({ tick: event.tick, text: event.text })
-					} else if (event.kind === 'versus') {
-						result.versusPhrases.push({ tick: event.tick, length: event.length, isPlayer2: event.isPlayer2 })
-					}
-				}
-
-				return result
-			})
-			.value(),
+		unrecognizedChartSections: buildUnrecognizedChartSections(fileSections, fileSectionKeys),
+		trackData: buildChartTrackData(fileSections, firstCodaTick),
 	}
+}
+
+function buildUnrecognizedChartSections(
+	fileSections: { [k: string]: string[] },
+	fileSectionKeys: string[],
+): { name: string; lines: string[] }[] {
+	const out: { name: string; lines: string[] }[] = []
+	for (const name of fileSectionKeys) {
+		if (name === 'Song' || name === 'SyncTrack' || name === 'Events') continue
+		if (name in trackNameMap) continue
+		out.push({ name, lines: [...fileSections[name]] })
+	}
+	return out
+}
+
+function buildChartTrackData(
+	fileSections: { [k: string]: string[] },
+	firstCodaTick: number | null,
+): RawChartData['trackData'] {
+	const out: RawChartData['trackData'] = []
+	// Iterate in `trackNameMap` order (matches lodash's `_.pick(fileSections, _.keys(trackNameMap))`)
+	// so `trackData` output order is deterministic regardless of how the chart file orders sections.
+	for (const trackName of Object.keys(trackNameMap) as TrackName[]) {
+		const lines = fileSections[trackName]
+		if (!lines) continue
+		const { instrument, difficulty } = trackNameMap[trackName]
+
+		// Single parsing pass that produces note-shaped events ({tick, type, length})
+		// plus data-carrying events (text, versus).
+		const parsedEvents: ParsedTrackLine[] = []
+		for (const line of lines) {
+			const parsed = parseTrackLine(line, instrument, difficulty)
+			if (parsed !== null) parsedEvents.push(parsed)
+		}
+		// Most parsers reject charts that aren't already sorted, but sort here for safety.
+		parsedEvents.sort((a, b) => a.tick - b.tick)
+
+		// Merge solo/soloend pairs in place (note-shaped events only)
+		const trackEvents = mergeSoloEvents(
+			parsedEvents.filter((e): e is ParsedNoteEvent => e.kind === 'note'),
+		)
+
+		const result: RawChartData['trackData'][number] = {
+			instrument,
+			difficulty,
+			starPowerSections: [],
+			rejectedStarPowerSections: [],
+			soloSections: [],
+			flexLanes: [],
+			drumFreestyleSections: [],
+			trackEvents: [],
+			textEvents: [],
+			versusPhrases: [],
+			animations: [],
+			unrecognizedMidiEvents: [],
+		}
+
+		for (const event of trackEvents) {
+			if (event.type === eventTypes.starPower) {
+				result.starPowerSections.push(event)
+			} else if (event.type === eventTypes.rejectedStarPower) {
+				result.rejectedStarPowerSections.push(event)
+			} else if (event.type === eventTypes.soloSection) {
+				result.soloSections.push(event)
+			} else if (event.type === eventTypes.flexLaneSingle || event.type === eventTypes.flexLaneDouble) {
+				result.flexLanes.push({
+					tick: event.tick,
+					length: event.length,
+					isDouble: event.type === eventTypes.flexLaneDouble,
+				})
+			} else if (event.type === eventTypes.freestyleSection) {
+				result.drumFreestyleSections.push({
+					tick: event.tick,
+					length: event.length,
+					isCoda: firstCodaTick === null ? false : event.tick >= firstCodaTick,
+				})
+			} else {
+				result.trackEvents.push(event)
+			}
+		}
+
+		for (const event of parsedEvents) {
+			if (event.kind === 'text') {
+				result.textEvents.push({ tick: event.tick, text: event.text })
+			} else if (event.kind === 'versus') {
+				result.versusPhrases.push({ tick: event.tick, length: event.length, isPlayer2: event.isPlayer2 })
+			}
+		}
+
+		out.push(result)
+	}
+	return out
 }
 
 function getFileSections(chartText: string) {
@@ -302,6 +319,7 @@ const chartLineNS = /^(\d+) = ([NS]) (\w+)( \d+)?$/
 const chartLineDiscoFlipE = /^\s*\[?mix[ _]([0-3])[ _]drums([0-5])(d|dnoflip|easy|easynokick|)\]?\s*$/
 const chartSyncTempo = /^(\d+) = B (\d+)$/
 const chartSyncTS = /^(\d+) = TS (\d+)(?: (\d+))?$/
+const chartSongMetaRegex = /^(.+?) = "?(.*?)"?$/
 
 function parseChartTempos(lines: string[]): { tick: number; beatsPerMinute: number }[] {
 	const tempos: { tick: number; beatsPerMinute: number }[] = []
