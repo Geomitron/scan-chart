@@ -203,87 +203,84 @@ export function parseNotesFromMidi(data: Uint8Array, iniChartModifiers: IniChart
 		unrecognizedEvents: eventsScan.unrecognizedEvents,
 		unrecognizedMidiTracks,
 		unrecognizedChartSections: [],
-		trackData: _.chain(tracks)
-			.filter(t => _.keys(instrumentNameMap).includes(t.trackName))
-			.map(t => {
-				const instrument = instrumentNameMap[t.trackName as InstrumentTrackName]
-				const instrumentType = getInstrumentType(instrument)
-				// Single scan pass extracts note-shaped events AND the
-				// data-carrying ones (text, versus, animations), plus the
-				// unrecognized events for round-trip preservation.
-				const { eventEnds, textEvents, versusPhrases, animations, unrecognizedEvents: trackUnrecognized } =
-					scanInstrumentTrack(t.trackEvents, instrumentType, t.trackName)
-				const distributed = distributeInstrumentEvents(eventEnds) // Removes 'all' difficulty
-				const pairedEvents = getTrackEvents(distributed) // Connects note ends together
-				const trackDifficulties = _.chain(pairedEvents)
-					.thru(events => splitMidiModifierSustains(events, instrumentType))
-					.thru(events => fixLegacyGhStarPower(events, instrumentType, iniChartModifiers))
-					.thru(events => fixFlexLaneLds(events))
-					.value()
-
-				return difficulties.map(difficulty => {
-					const result: RawChartData['trackData'][number] = {
-						instrument,
-						difficulty,
-						starPowerSections: [],
-						rejectedStarPowerSections: [],
-						soloSections: [],
-						flexLanes: [],
-						drumFreestyleSections: [],
-						trackEvents: [],
-						textEvents,
-						versusPhrases,
-						animations,
-						// All difficulties on a single MIDI track share the same
-						// per-track unrecognized events (the writer only emits one
-						// MIDI track, so storing them once is fine — the writer
-						// reads from any difficulty).
-						unrecognizedMidiEvents: trackUnrecognized,
-					}
-
-					for (const event of trackDifficulties[difficulty]) {
-						if (event.type === eventTypes.starPower) {
-							result.starPowerSections.push(event)
-						} else if (event.type === eventTypes.rejectedStarPower) {
-							result.rejectedStarPowerSections.push(event)
-						} else if (event.type === eventTypes.soloSection) {
-							result.soloSections.push(event)
-						} else if (event.type === eventTypes.flexLaneSingle || event.type === eventTypes.flexLaneDouble) {
-							result.flexLanes.push({
-								tick: event.tick,
-								length: event.length,
-								isDouble: event.type === eventTypes.flexLaneDouble,
-							})
-						} else if (event.type === eventTypes.freestyleSection) {
-							result.drumFreestyleSections.push({
-								tick: event.tick,
-								length: event.length,
-								isCoda: firstCodaTick === null ? false : event.tick >= firstCodaTick,
-							})
-						} else {
-							result.trackEvents.push(event)
-						}
-					}
-
-					return result
-				})
-			})
-			.flatMap()
-			.filter(track => {
-				// A track must have "real" content — actual notes or scorable sections.
-				// Tracks with only global modifier events (e.g. [ENABLE_CHART_DYNAMICS])
-				// and no actual notes should be filtered out so that round-trip behavior
-				// is stable (the writer doesn't need to emit placeholder text events).
-				const hasRealTrackEvents = track.trackEvents.some(e =>
-					e.type !== eventTypes.enableChartDynamics,
-				)
-				return hasRealTrackEvents
-					|| track.starPowerSections.length > 0
-					|| track.soloSections.length > 0
-			})
-			.value(),
+		trackData: buildMidiTrackData(tracks, iniChartModifiers, firstCodaTick),
 		parseIssues: [...parseIssues, ...eventsScan.parseIssues],
 	}
+}
+
+function buildMidiTrackData(
+	tracks: { trackName: TrackName; trackEvents: MidiEvent[] }[],
+	iniChartModifiers: IniChartModifiers,
+	firstCodaTick: number | null,
+): RawChartData['trackData'] {
+	const out: RawChartData['trackData'] = []
+
+	for (const t of tracks) {
+		const instrument = instrumentNameMap[t.trackName as InstrumentTrackName]
+		if (instrument === undefined) continue // vocal/EVENTS tracks handled elsewhere
+		const instrumentType = getInstrumentType(instrument)
+		const { eventEnds, textEvents, versusPhrases, animations, unrecognizedEvents: trackUnrecognized } =
+			scanInstrumentTrack(t.trackEvents, instrumentType, t.trackName)
+		const distributed = distributeInstrumentEvents(eventEnds)
+		const pairedEvents = getTrackEvents(distributed)
+		const step1 = splitMidiModifierSustains(pairedEvents, instrumentType)
+		const step2 = fixLegacyGhStarPower(step1, instrumentType, iniChartModifiers)
+		const trackDifficulties = fixFlexLaneLds(step2)
+
+		for (const difficulty of difficulties) {
+			const result: RawChartData['trackData'][number] = {
+				instrument,
+				difficulty,
+				starPowerSections: [],
+				rejectedStarPowerSections: [],
+				soloSections: [],
+				flexLanes: [],
+				drumFreestyleSections: [],
+				trackEvents: [],
+				textEvents,
+				versusPhrases,
+				animations,
+				unrecognizedMidiEvents: trackUnrecognized,
+			}
+
+			for (const event of trackDifficulties[difficulty]) {
+				if (event.type === eventTypes.starPower) {
+					result.starPowerSections.push(event)
+				} else if (event.type === eventTypes.rejectedStarPower) {
+					result.rejectedStarPowerSections.push(event)
+				} else if (event.type === eventTypes.soloSection) {
+					result.soloSections.push(event)
+				} else if (event.type === eventTypes.flexLaneSingle || event.type === eventTypes.flexLaneDouble) {
+					result.flexLanes.push({
+						tick: event.tick,
+						length: event.length,
+						isDouble: event.type === eventTypes.flexLaneDouble,
+					})
+				} else if (event.type === eventTypes.freestyleSection) {
+					result.drumFreestyleSections.push({
+						tick: event.tick,
+						length: event.length,
+						isCoda: firstCodaTick === null ? false : event.tick >= firstCodaTick,
+					})
+				} else {
+					result.trackEvents.push(event)
+				}
+			}
+
+			// A track must have real content — actual notes or scorable sections.
+			// Tracks with only global modifier events (e.g. [ENABLE_CHART_DYNAMICS])
+			// and no notes are dropped so writer round-trip stays stable.
+			let hasRealTrackEvents = false
+			for (const e of result.trackEvents) {
+				if (e.type !== eventTypes.enableChartDynamics) { hasRealTrackEvents = true; break }
+			}
+			if (hasRealTrackEvents || result.starPowerSections.length > 0 || result.soloSections.length > 0) {
+				out.push(result)
+			}
+		}
+	}
+
+	return out
 }
 
 function extractTempos(conductorTrack: MidiEvent[]): { tick: number; beatsPerMinute: number }[] {
