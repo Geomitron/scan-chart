@@ -251,6 +251,9 @@ function buildMidiTrackData(
 				unrecognizedMidiEvents: trackUnrecognized,
 			}
 
+			// Track "real content" flag inline so we don't need a second pass over
+			// result.trackEvents to decide whether to keep this difficulty result.
+			let hasRealTrackEvents = false
 			for (const event of trackDifficulties[difficulty]) {
 				switch (event.type) {
 					case eventTypes.starPower:
@@ -271,16 +274,14 @@ function buildMidiTrackData(
 						}); break
 					default:
 						result.trackEvents.push(event)
+						if (!hasRealTrackEvents && event.type !== eventTypes.enableChartDynamics) {
+							hasRealTrackEvents = true
+						}
 				}
 			}
 
-			// A track must have real content — actual notes or scorable sections.
 			// Tracks with only global modifier events (e.g. [ENABLE_CHART_DYNAMICS])
 			// and no notes are dropped so writer round-trip stays stable.
-			let hasRealTrackEvents = false
-			for (const e of result.trackEvents) {
-				if (e.type !== eventTypes.enableChartDynamics) { hasRealTrackEvents = true; break }
-			}
 			if (hasRealTrackEvents || result.starPowerSections.length > 0 || result.soloSections.length > 0) {
 				out.push(result)
 			}
