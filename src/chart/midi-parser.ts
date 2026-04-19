@@ -837,7 +837,19 @@ function splitMidiModifierSustains(events: { [key in Difficulty]: MidiTrackEvent
 				continue
 			}
 
-			_.remove(activeModifiers, m => (m.length === 0 ? m.tick + m.length < event.tick : m.tick + m.length <= event.tick))
+			// In-place removal of ended modifiers. Equivalent to the original
+			// _.remove predicate: zero-length modifiers die when event.tick
+			// passes them; nonzero die when event.tick reaches their end.
+			if (activeModifiers.length > 0) {
+				const eventTick = event.tick
+				let w = 0
+				for (let r = 0; r < activeModifiers.length; r++) {
+					const m = activeModifiers[r]
+					const ended = m.length === 0 ? m.tick < eventTick : m.tick + m.length <= eventTick
+					if (!ended) activeModifiers[w++] = m
+				}
+				activeModifiers.length = w
+			}
 
 			if (modifierSustains.includes(event.type)) {
 				activeModifiers.push(event)
