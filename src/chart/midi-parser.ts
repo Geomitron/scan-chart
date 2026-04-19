@@ -1,4 +1,3 @@
-import * as _ from 'lodash'
 import { MidiData, MidiEvent, MidiSetTempoEvent, MidiTextEvent, MidiTimeSignatureEvent, parseMidi } from 'midi-file'
 
 import { difficulties, Difficulty, getInstrumentType, Instrument, InstrumentType, instrumentTypes } from 'src/interfaces'
@@ -872,9 +871,8 @@ function splitMidiModifierSustains(events: { [key in Difficulty]: MidiTrackEvent
 				continue
 			}
 
-			// In-place removal of ended modifiers. Equivalent to the original
-			// _.remove predicate: zero-length modifiers die when event.tick
-			// passes them; nonzero die when event.tick reaches their end.
+			// In-place removal of ended modifiers. Zero-length modifiers die when
+			// event.tick passes them; nonzero die when event.tick reaches their end.
 			if (activeModifiers.length > 0) {
 				const eventTick = event.tick
 				let w = 0
@@ -1002,20 +1000,22 @@ function fixLegacyGhStarPower(
 }
 
 function fixFlexLaneLds(events: { [key in Difficulty]: MidiTrackEvent[] }) {
-	_.remove(
-		events['easy'],
-		e => (e.type === eventTypes.flexLaneSingle || e.type === eventTypes.flexLaneDouble) && (e.velocity < 21 || e.velocity > 30),
-	)
-	_.remove(
-		events['medium'],
-		e => (e.type === eventTypes.flexLaneSingle || e.type === eventTypes.flexLaneDouble) && (e.velocity < 21 || e.velocity > 40),
-	)
-	_.remove(
-		events['hard'],
-		e => (e.type === eventTypes.flexLaneSingle || e.type === eventTypes.flexLaneDouble) && (e.velocity < 21 || e.velocity > 50),
-	)
-
+	filterFlexLaneVelocity(events.easy, 30)
+	filterFlexLaneVelocity(events.medium, 40)
+	filterFlexLaneVelocity(events.hard, 50)
 	return events
+}
+
+function filterFlexLaneVelocity(arr: MidiTrackEvent[], maxVelocity: number): void {
+	let w = 0
+	for (let r = 0; r < arr.length; r++) {
+		const e = arr[r]
+		const isFlex = e.type === eventTypes.flexLaneSingle || e.type === eventTypes.flexLaneDouble
+		if (!(isFlex && (e.velocity < 21 || e.velocity > maxVelocity))) {
+			arr[w++] = e
+		}
+	}
+	arr.length = w
 }
 
 
