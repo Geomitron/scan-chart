@@ -252,26 +252,25 @@ function buildMidiTrackData(
 			}
 
 			for (const event of trackDifficulties[difficulty]) {
-				if (event.type === eventTypes.starPower) {
-					result.starPowerSections.push(event)
-				} else if (event.type === eventTypes.rejectedStarPower) {
-					result.rejectedStarPowerSections.push(event)
-				} else if (event.type === eventTypes.soloSection) {
-					result.soloSections.push(event)
-				} else if (event.type === eventTypes.flexLaneSingle || event.type === eventTypes.flexLaneDouble) {
-					result.flexLanes.push({
-						tick: event.tick,
-						length: event.length,
-						isDouble: event.type === eventTypes.flexLaneDouble,
-					})
-				} else if (event.type === eventTypes.freestyleSection) {
-					result.drumFreestyleSections.push({
-						tick: event.tick,
-						length: event.length,
-						isCoda: firstCodaTick === null ? false : event.tick >= firstCodaTick,
-					})
-				} else {
-					result.trackEvents.push(event)
+				switch (event.type) {
+					case eventTypes.starPower:
+						result.starPowerSections.push(event); break
+					case eventTypes.rejectedStarPower:
+						result.rejectedStarPowerSections.push(event); break
+					case eventTypes.soloSection:
+						result.soloSections.push(event); break
+					case eventTypes.flexLaneSingle:
+						result.flexLanes.push({ tick: event.tick, length: event.length, isDouble: false }); break
+					case eventTypes.flexLaneDouble:
+						result.flexLanes.push({ tick: event.tick, length: event.length, isDouble: true }); break
+					case eventTypes.freestyleSection:
+						result.drumFreestyleSections.push({
+							tick: event.tick,
+							length: event.length,
+							isCoda: firstCodaTick === null ? false : event.tick >= firstCodaTick,
+						}); break
+					default:
+						result.trackEvents.push(event)
 				}
 			}
 
