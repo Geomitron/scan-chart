@@ -784,49 +784,82 @@ function resolveFretModifiers(
 	const noteEventGroups: UntimedNoteEvent[][] = []
 
 	let lastNotes: TrackEvent[] | null = null
-	// trackEventGroups only contain notes and note modifiers
 	for (let i = 0; i < trackEventGroups.length; i++) {
 		const events = trackEventGroups[i]
-		if (events.some(n => n.type === eventTypes.forceOpen)) {
-			// Apply open modifier
-			// Note: it's not possible for a forceOpen event to generate without there also being at least one playable note here
-			const longestEvent = _.maxBy(
-				events.filter(e => isFretNote(e.type)),
-				e => e.length,
-			)!
-			_.remove(events, e => isFretNote(e.type) || e.type === eventTypes.forceOpen)
-			longestEvent.type = eventTypes.open
-			events.push(longestEvent)
+
+		// Single partitioning pass over the group.
+		const notes: TrackEvent[] = []
+		let hasForceOpen = false
+		let hasForceTap = false
+		let hasForceHopo = false
+		let hasForceStrum = false
+		let hasForceUnnatural = false
+		let longestNote: TrackEvent | null = null
+		for (const e of events) {
+			const t = e.type
+			if (isFretNote(t)) {
+				notes.push(e)
+				if (!longestNote || e.length > longestNote.length) longestNote = e
+			} else if (t === eventTypes.forceOpen) {
+				hasForceOpen = true
+			} else if (t === eventTypes.forceTap) {
+				hasForceTap = true
+			} else if (t === eventTypes.forceHopo) {
+				hasForceHopo = true
+			} else if (t === eventTypes.forceStrum) {
+				hasForceStrum = true
+			} else if (t === eventTypes.forceUnnatural) {
+				hasForceUnnatural = true
+			}
 		}
-		const notes = events.filter(e => isFretNote(e.type))
-		if (!notes.length) {
-			continue // Skip any event groups with only modifiers
+
+		let effectiveNotes: TrackEvent[]
+		if (hasForceOpen && longestNote) {
+			// Apply open modifier: drop all fret notes, promote the longest one to `open`.
+			longestNote.type = eventTypes.open
+			effectiveNotes = [longestNote]
+			// Mutate events to drop forceOpen and all fret notes except the promoted one —
+			// keep the original _.remove + push(longestEvent) semantics so callers see the
+			// group with a single promoted event.
+			let w = 0
+			for (let r = 0; r < events.length; r++) {
+				const et = events[r].type
+				if (!isFretNote(et) && et !== eventTypes.forceOpen) events[w++] = events[r]
+			}
+			events.length = w
+			events.push(longestNote)
+		} else {
+			effectiveNotes = notes
 		}
+
+		if (!effectiveNotes.length) continue
 
 		const isNaturalHopo =
 			!!lastNotes &&
-			notes[0].tick - lastNotes[0].tick <= hopoThresholdTicks &&
-			!isFretChord(notes) &&
+			effectiveNotes[0].tick - lastNotes[0].tick <= hopoThresholdTicks &&
+			!isFretChord(effectiveNotes) &&
 			!isSameFretNote(events, lastNotes) &&
 			// This .mid exception is due to compatibility concerns with older games that primarily use .mid
-			!(format === 'mid' && isFretChord(lastNotes) && isInFretNote(notes, lastNotes))
-		const hasForceUnnatural = !!events.find(n => n.type === eventTypes.forceUnnatural)
+			!(format === 'mid' && isFretChord(lastNotes) && isInFretNote(effectiveNotes, lastNotes))
 		const forceResult =
-			events.find(n => n.type === eventTypes.forceTap) ? noteFlags.tap
-			: events.find(n => n.type === eventTypes.forceHopo) ? noteFlags.hopo
-			: events.find(n => n.type === eventTypes.forceStrum) ? noteFlags.strum
+			hasForceTap ? noteFlags.tap
+			: hasForceHopo ? noteFlags.hopo
+			: hasForceStrum ? noteFlags.strum
 			: (hasForceUnnatural && isNaturalHopo) || (!hasForceUnnatural && !isNaturalHopo) ? noteFlags.strum
 			: noteFlags.hopo
-		noteEventGroups.push(
-			notes.map(n => ({
+		const out: UntimedNoteEvent[] = new Array(effectiveNotes.length)
+		for (let j = 0; j < effectiveNotes.length; j++) {
+			const n = effectiveNotes[j]
+			out[j] = {
 				tick: n.tick,
 				length: n.length,
-				type: getFretNoteTypeFromEventType(n.type)!, // Should be the only event types at this point
+				type: getFretNoteTypeFromEventType(n.type)!,
 				flags: forceResult,
-			})),
-		)
+			}
+		}
+		noteEventGroups.push(out)
 
-		lastNotes = notes
+		lastNotes = effectiveNotes
 	}
 
 	return noteEventGroups
