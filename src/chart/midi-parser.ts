@@ -3,7 +3,19 @@ import { MidiData, MidiEvent, MidiSetTempoEvent, MidiTextEvent, MidiTimeSignatur
 
 import { difficulties, Difficulty, getInstrumentType, Instrument, InstrumentType, instrumentTypes } from 'src/interfaces'
 import { EventType, eventTypes, IniChartModifiers, RawChartData, VocalTrackData } from './note-parsing-interfaces'
-import { extractMidiLyrics, extractMidiVocalPhrases, extractMidiVocalNotes, extractMidiVocalStarPower, extractMidiRangeShifts, extractMidiLyricShifts } from './lyric-parser'
+import { scanVocalTrack } from './lyric-parser'
+
+// Union two phrase lists, dedup by tick (keep longest length), sort by tick.
+function mergePhraseLists(a: { tick: number; length: number }[], b: { tick: number; length: number }[]): { tick: number; length: number }[] {
+	const byTick = new Map<number, number>()
+	for (const p of [...a, ...b]) {
+		const existing = byTick.get(p.tick)
+		if (existing === undefined || p.length > existing) byTick.set(p.tick, p.length)
+	}
+	return [...byTick.entries()]
+		.sort((x, y) => x[0] - y[0])
+		.map(([tick, length]) => ({ tick, length }))
+}
 
 type TrackName = (typeof trackNames)[number]
 type VocalTrackName = 'PART VOCALS' | 'HARM1' | 'HARM2' | 'HARM3' | 'PART HARM1' | 'PART HARM2' | 'PART HARM3'
@@ -55,6 +67,7 @@ const instrumentNameMap: { [key in InstrumentTrackName]: Instrument } = {
 } as const
 /* eslint-enable @typescript-eslint/naming-convention */
 
+
 const sysExDifficultyMap = ['easy', 'medium', 'hard', 'expert'] as const
 const discoFlipDifficultyMap = ['easy', 'medium', 'hard', 'expert'] as const
 const fiveFretDiffStarts = { easy: 59, medium: 71, hard: 83, expert: 95 }
@@ -72,7 +85,10 @@ interface TrackEventEnd {
 }
 
 // Necessary because .mid stores some additional modifiers and information using velocity
-type MidiTrackEvent = RawChartData['trackData'][number]['trackEvents'][number] & { velocity: number; channel: number }
+type MidiTrackEvent = RawChartData['trackData'][number]['trackEvents'][number] & {
+	velocity: number
+	channel: number
+}
 
 /**
  * Parses `buffer` as a chart in the .mid format. Returns all the note data in `RawChartData`, but any
@@ -107,41 +123,66 @@ export function parseNotesFromMidi(data: Uint8Array, iniChartModifiers: IniChart
 	convertToAbsoluteTime(midiFile)
 
 	const tracks = getTracks(midiFile)
+	const parseIssues: RawChartData['parseIssues'] = []
 
-	// Build vocalTracks from PART VOCALS and HARM1/HARM2/HARM3
+	// Build vocalTracks from PART VOCALS and HARM1/HARM2/HARM3.
+	// Separate note 105 (scoring phrases) from note 106 (static lyric / player-2
+	// display phrases) at extraction time. This lets the writer round-trip HARM2/HARM3
+	// without any pre-CopyDown stashing: HARM2/HARM3 emit staticLyricPhrases as
+	// note 106 on their own track, HARM1 emits vocalPhrases as note 105, and CopyDown
+	// on re-parse re-copies HARM1's vocalPhrases to HARM2/HARM3 — identical result.
 	const vocalTracks: { [part: string]: VocalTrackData } = {}
 	for (const track of tracks) {
 		const partName = vocalTrackNameMap[track.trackName as VocalTrackName]
 		if (partName && !vocalTracks[partName]) {
-			const events = track.trackEvents
+			// Single pass over the vocal track classifies all fields at once:
+			// lyrics, textEvents (MoonText), note 105/106 phrases, pitched +
+			// percussion notes, star power (116), range shifts (0), lyric
+			// shifts (1). Consumed events (ENHANCED_OPENS, disco flip, etc.)
+			// are dropped inside the classifier.
+			//
+			// YARG treats BOTH note 105 (LYRICS_PHRASE_1) and note 106
+			// (LYRICS_PHRASE_2) as creating a `Vocals_StaticLyricPhrase` in
+			// HARM2/HARM3's specialPhrases (plus `Vocals_ScoringPhrase` which
+			// CopyDown later replaces from HARM1). Match that by unioning both
+			// sets for harmony parts. For solo vocals and HARM1, the
+			// static-lyric view is simply a duplicate of the note-phrase
+			// (scoring) list per YARG's MoonSongLoader.Vocals.cs.
+			const classified = scanVocalTrack(track.trackEvents)
+			const isHarmonyBacking = partName === 'harmony2' || partName === 'harmony3'
 			vocalTracks[partName] = {
-				lyrics: extractMidiLyrics(events),
-				vocalPhrases: extractMidiVocalPhrases(events),
-				notes: extractMidiVocalNotes(events),
-				starPowerSections: extractMidiVocalStarPower(events),
-				rangeShifts: extractMidiRangeShifts(events),
-				lyricShifts: extractMidiLyricShifts(events),
-				staticLyricPhrases: [],
+				lyrics: classified.lyrics,
+				vocalPhrases: classified.phrases105,
+				notes: classified.notes,
+				starPowerSections: classified.starPower,
+				rangeShifts: classified.rangeShifts,
+				lyricShifts: classified.lyricShifts,
+				staticLyricPhrases: isHarmonyBacking
+					? mergePhraseLists(classified.phrases105, classified.phrases106)
+					: classified.phrases106,
+				textEvents: classified.textEvents,
 			}
 		}
 	}
 
 	// YARG CopyDownPhrases: HARM2/HARM3 get scoring phrases AND star power from HARM1.
-	// HARM2 keeps its own note-105 phrases as staticLyricPhrases (for lyric display),
-	// then replaces vocalPhrases (scoring) and starPowerSections with HARM1's.
-	// HARM3 clones HARM2's staticLyricPhrases and also gets HARM1's scoring/starpower.
+	// This only touches vocalPhrases/starPowerSections — staticLyricPhrases are
+	// extracted directly from note 106 on HARM2/HARM3 and are NOT touched here.
+	// CopyDown is idempotent (re-parse → re-CopyDown produces the same result).
 	if (vocalTracks.harmony1) {
 		const harm1Phrases = vocalTracks.harmony1.vocalPhrases
 		const harm1StarPower = vocalTracks.harmony1.starPowerSections
 		if (vocalTracks.harmony2) {
-			vocalTracks.harmony2.staticLyricPhrases = vocalTracks.harmony2.vocalPhrases.map(p => ({ tick: p.tick, length: p.length }))
 			vocalTracks.harmony2.vocalPhrases = harm1Phrases.map(p => ({ ...p }))
 			vocalTracks.harmony2.starPowerSections = harm1StarPower.map(p => ({ ...p }))
 		}
 		if (vocalTracks.harmony3) {
-			vocalTracks.harmony3.staticLyricPhrases = (vocalTracks.harmony2?.staticLyricPhrases ?? []).map(p => ({ ...p }))
 			vocalTracks.harmony3.vocalPhrases = harm1Phrases.map(p => ({ ...p }))
 			vocalTracks.harmony3.starPowerSections = harm1StarPower.map(p => ({ ...p }))
+			// HARM3 gets HARM2's staticLyricPhrases (matching YARG's CopyDownPhrases)
+			if (vocalTracks.harmony2) {
+				vocalTracks.harmony3.staticLyricPhrases = vocalTracks.harmony2.staticLyricPhrases.map(p => ({ ...p }))
+			}
 		}
 	}
 
@@ -195,7 +236,6 @@ export function parseNotesFromMidi(data: Uint8Array, iniChartModifiers: IniChart
 		sections: eventsScan.sections,
 		endEvents: eventsScan.endEvents,
 		unrecognizedEvents: eventsScan.unrecognizedEvents,
-		parseIssues: eventsScan.parseIssues,
 		trackData: _.chain(tracks)
 			.filter(t => _.keys(instrumentNameMap).includes(t.trackName))
 			.map(t => {
@@ -203,10 +243,11 @@ export function parseNotesFromMidi(data: Uint8Array, iniChartModifiers: IniChart
 				const instrumentType = getInstrumentType(instrument)
 				// Single scan pass extracts note-shaped events AND the
 				// data-carrying ones (text, versus, animations).
-				const { eventEnds, textEvents, versusPhrases, animations } = scanInstrumentTrack(t.trackEvents, instrumentType, t.trackName)
-				const trackDifficulties = _.chain(eventEnds)
-					.thru(eventEnds => distributeInstrumentEvents(eventEnds)) // Removes 'all' difficulty
-					.thru(eventEnds => getTrackEvents(eventEnds)) // Connects note ends together
+				const { eventEnds, textEvents, versusPhrases, animations } =
+					scanInstrumentTrack(t.trackEvents, instrumentType, t.trackName)
+				const distributed = distributeInstrumentEvents(eventEnds) // Removes 'all' difficulty
+				const pairedEvents = getTrackEvents(distributed) // Connects note ends together
+				const trackDifficulties = _.chain(pairedEvents)
 					.thru(events => splitMidiModifierSustains(events, instrumentType))
 					.thru(events => fixLegacyGhStarPower(events, instrumentType, iniChartModifiers))
 					.thru(events => fixFlexLaneLds(events))
@@ -255,8 +296,20 @@ export function parseNotesFromMidi(data: Uint8Array, iniChartModifiers: IniChart
 				})
 			})
 			.flatMap()
-			.filter(track => track.trackEvents.length > 0)
+			.filter(track => {
+				// A track must have "real" content — actual notes or scorable sections.
+				// Tracks with only global modifier events (e.g. [ENABLE_CHART_DYNAMICS])
+				// and no actual notes should be filtered out so that round-trip behavior
+				// is stable (the writer doesn't need to emit placeholder text events).
+				const hasRealTrackEvents = track.trackEvents.some(e =>
+					e.type !== eventTypes.enableChartDynamics,
+				)
+				return hasRealTrackEvents
+					|| track.starPowerSections.length > 0
+					|| track.soloSections.length > 0
+			})
 			.value(),
+		parseIssues: [...parseIssues, ...eventsScan.parseIssues],
 	}
 }
 
@@ -274,17 +327,25 @@ function getTracks(midiData: MidiData) {
 	const tracks: { trackName: TrackName; trackEvents: MidiEvent[] }[] = []
 
 	for (const track of midiData.tracks) {
+		// Match YARG.Core's MidiExtensions.GetTrackName: return the FIRST
+		// `SequenceTrackName` event (FF 03) seen at tick 0, even if it
+		// doesn't match any recognized instrument track. The early `break`
+		// below ensures we don't continue scanning for a "better" name.
+		// Some charts (e.g. "Culture Killer - Blindfolded Death") have a
+		// bogus leading trackname like `[ENHANCED_OPENS]` followed by the
+		// real `PART BASS` — YARG honors the first and skips the track.
 		let trackName: string | null = null
 		for (const event of track) {
 			if (event.deltaTime !== 0) {
 				break
 			}
-			if (event.type === 'trackName' && trackNames.includes(event.text as TrackName)) {
+			if (event.type === 'trackName') {
 				trackName = event.text
+				break
 			}
 		}
 
-		if (trackName !== null) {
+		if (trackName !== null && trackNames.includes(trackName as TrackName)) {
 			tracks.push({
 				trackName: trackName as TrackName,
 				trackEvents: track,
@@ -308,7 +369,7 @@ interface TrackScanResult {
  *     `distributeInstrumentEvents` / `getTrackEvents`)
  *   - data-carrying events that ride alongside the notes: `textEvents`,
  *     `versusPhrases` (notes 105/106), `animations` (notes 24-51 drums,
- *     40-59 fret)
+ *     40-59 fret).
  *
  * Versus phrases and animations live in the same MIDI event stream as the
  * playable notes, so they're emitted from this single iteration.
@@ -414,9 +475,10 @@ function scanInstrumentTrack(
 				}
 			} else {
 				const type =
-					(instrumentType === instrumentTypes.sixFret ? get6FretNoteType(event.noteNumber, difficulty)
+					instrumentType === instrumentTypes.sixFret ? get6FretNoteType(event.noteNumber, difficulty)
 					: instrumentType === instrumentTypes.drums ? getDrumsNoteType(event.noteNumber, difficulty)
-					: get5FretNoteType(event.noteNumber, difficulty, enhancedOpens)) ?? null
+					: instrumentType === instrumentTypes.fiveFret ? get5FretNoteType(event.noteNumber, difficulty, enhancedOpens)
+					: null
 				if (type !== null) {
 					eventEnds[difficulty].push({
 						tick: event.deltaTime,
@@ -826,6 +888,7 @@ function fixFlexLaneLds(events: { [key in Difficulty]: MidiTrackEvent[] }) {
 	return events
 }
 
+
 /**
  * YARG/MoonSong reads text-like events from multiple MIDI meta event types:
  * text (FF 01), lyrics (FF 05), marker (FF 06), cuePoint (FF 07).
@@ -847,17 +910,6 @@ interface EventsScanResult {
 	parseIssues: RawChartData['parseIssues']
 }
 
-/**
- * Single-pass scan of the EVENTS track that classifies each text-like event
- * into one of {section, endEvent, coda, lyric, phrase, unrecognized}. Lyrics
- * and phrase_start/phrase_end are consumed by the vocal parsing path — we
- * don't re-emit them here. Everything else that matches a recognized pattern
- * goes into its typed array; all remaining text-like events fall through to
- * `unrecognizedEvents`.
- *
- * Reads from all text-like event types (text, lyrics, marker, cuePoint),
- * matching YARG.Core's MoonText behavior.
- */
 function scanEventsTrack(tracks: { trackName: TrackName; trackEvents: MidiEvent[] }[]): EventsScanResult {
 	const result: EventsScanResult = {
 		sections: [],
