@@ -452,17 +452,17 @@ function scanInstrumentTrack(
 	const unrecognizedEvents: MidiEvent[] = []
 
 	for (const event of events) {
+		const eventType = event.type
 		// Hot path: note events are ~90% of a typical instrument track. Dispatch them
 		// first so we don't fall through sysEx/text checks for every note event.
-		if (event.type === 'noteOn' || event.type === 'noteOff') {
-			// Within this branch, the event is definitely a note event — a noteOn with
-			// velocity 0 is semantically a noteOff for paired-start/end tracking.
-			const isOff = event.type === 'noteOff' || event.velocity === 0
-			// Note: `isStart` tracks the literal MIDI event type (not velocity),
-			// matching the original semantics that downstream code relies on.
-			const isStart = event.type === 'noteOn'
-			const nn = event.noteNumber
+		if (eventType === 'noteOn' || eventType === 'noteOff') {
+			// A noteOn with velocity 0 is semantically a noteOff for paired-start/end tracking,
+			// but `isStart` tracks the literal MIDI event type (not velocity) to match original
+			// downstream semantics.
+			const isStart = eventType === 'noteOn'
 			const velocity = event.velocity
+			const isOff = !isStart || velocity === 0
+			const nn = event.noteNumber
 			const channel = event.channel
 			let consumed = false
 
@@ -547,7 +547,7 @@ function scanInstrumentTrack(
 			continue
 		}
 		// SysEx event (tap modifier or open)
-		if (event.type === 'sysEx' || event.type === 'endSysEx') {
+		if (eventType === 'sysEx' || eventType === 'endSysEx') {
 			// Phase Shift SysEx event header: 50 53 00 00 <diff> <type> <isStart>
 			const isPhaseShiftHeader =
 				event.data.length > 6 &&
@@ -578,7 +578,7 @@ function scanInstrumentTrack(
 			} else {
 				unrecognizedEvents.push(event)
 			}
-		} else if (event.type === 'text') {
+		} else if (eventType === 'text') {
 			let consumedAsNote = false
 			if (instrumentType === instrumentTypes.drums) {
 				const discoFlipMatch = midiDiscoFlipRegex.exec(event.text)
@@ -614,7 +614,7 @@ function scanInstrumentTrack(
 				if (event.deltaTime === 0 && event.text === trackName) continue
 				textEvents.push({ tick: event.deltaTime, text: event.text })
 			}
-		} else if (event.type === 'trackName' || event.type === 'endOfTrack') {
+		} else if (eventType === 'trackName' || eventType === 'endOfTrack') {
 			// Trackname is the track identifier; endOfTrack is the MIDI marker.
 			// Both are required structural events — writers re-emit them — so
 			// they shouldn't appear in unrecognizedEvents.
