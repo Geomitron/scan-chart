@@ -2,7 +2,8 @@ diff --git a/node_modules/midi-file/lib/midi-parser.js b/node_modules/midi-file/
 index 50ed069..93868ee 100644
 --- a/node_modules/midi-file/lib/midi-parser.js
 +++ b/node_modules/midi-file/lib/midi-parser.js
-@@ -309,8 +309,47 @@ Parser.prototype.readBytes = function(len) {
+@@ -308,9 +308,47 @@ Parser.prototype.readBytes = function(len) {
+   return bytes
  }
 
 +var sharedUtf8Decoder = new TextDecoder('utf-8')
@@ -49,8 +50,33 @@ index 50ed069..93868ee 100644
 +  // Build Latin-1 string via fromCharCode on the byte values.
 +  return String.fromCharCode.apply(null, bytes)
  }
- 
+
  Parser.prototype.readVarInt = function() {
+@@ -321,14 +359,19 @@ Parser.prototype.readBytes = function(len) {
+
+ Parser.prototype.readVarInt = function() {
+   var result = 0
+-  while (!this.eof()) {
+-    var b = this.readUInt8()
++  var buffer = this.buffer
++  var pos = this.pos
++  var bufferLen = this.bufferLen
++  while (pos < bufferLen) {
++    var b = buffer[pos++]
+     if (b & 0x80) {
+       result += (b & 0x7f)
+       result <<= 7
+     } else {
+       // b is last byte
++      this.pos = pos
+       return result + b
+     }
+   }
+   // premature eof
++  this.pos = pos
+   return result
+ }
+
 diff --git a/node_modules/midi-file/lib/midi-writer.js b/node_modules/midi-file/lib/midi-writer.js
 index c1a438d..cbd1a73 100644
 --- a/node_modules/midi-file/lib/midi-writer.js
@@ -63,7 +89,7 @@ index c1a438d..cbd1a73 100644
 -      w.writeString(text)
 +      w.writeStringWithLength(text)
        break;
- 
+
      case 'copyrightNotice':
        w.writeUInt8(0xFF)
        w.writeUInt8(0x02)
@@ -71,7 +97,7 @@ index c1a438d..cbd1a73 100644
 -      w.writeString(text)
 +      w.writeStringWithLength(text)
        break;
- 
+
      case 'trackName':
        w.writeUInt8(0xFF)
        w.writeUInt8(0x03)
@@ -79,7 +105,7 @@ index c1a438d..cbd1a73 100644
 -      w.writeString(text)
 +      w.writeStringWithLength(text)
        break;
- 
+
      case 'instrumentName':
        w.writeUInt8(0xFF)
        w.writeUInt8(0x04)
@@ -87,7 +113,7 @@ index c1a438d..cbd1a73 100644
 -      w.writeString(text)
 +      w.writeStringWithLength(text)
        break;
- 
+
      case 'lyrics':
        w.writeUInt8(0xFF)
        w.writeUInt8(0x05)
@@ -95,7 +121,7 @@ index c1a438d..cbd1a73 100644
 -      w.writeString(text)
 +      w.writeStringWithLength(text)
        break;
- 
+
      case 'marker':
        w.writeUInt8(0xFF)
        w.writeUInt8(0x06)
@@ -103,7 +129,7 @@ index c1a438d..cbd1a73 100644
 -      w.writeString(text)
 +      w.writeStringWithLength(text)
        break;
- 
+
      case 'cuePoint':
        w.writeUInt8(0xFF)
        w.writeUInt8(0x07)
@@ -111,11 +137,11 @@ index c1a438d..cbd1a73 100644
 -      w.writeString(text)
 +      w.writeStringWithLength(text)
        break;
- 
+
      case 'channelPrefix':
 @@ -325,11 +318,14 @@ Writer.prototype.writeBytes = function(arr) {
  }
- 
+
  Writer.prototype.writeString = function(str) {
 -  var i, len = str.length, arr = []
 -  for (i=0; i < len; i++) {
@@ -131,5 +157,5 @@ index c1a438d..cbd1a73 100644
 +  this.writeVarInt(bytes.length)
 +  this.writeBytes(bytes)
  }
- 
+
  Writer.prototype.writeVarInt = function(v) {
