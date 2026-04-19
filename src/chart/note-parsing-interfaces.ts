@@ -100,10 +100,10 @@ export interface RawChartData {
 	 * REAL_GUITAR, PART REAL_DRUMS_PS, custom tracks, etc.) survive a
 	 * parse → write → parse loop.
 	 *
-	 * `.chart` always returns `[]` here — see `unrecognizedSections` for the
-	 * `.chart` equivalent.
+	 * `.chart` always returns `[]` here — see `unrecognizedChartSections` for
+	 * the `.chart` equivalent.
 	 */
-	unrecognizedTracks: { trackName: string; events: MidiEvent[] }[]
+	unrecognizedMidiTracks: { trackName: string; events: MidiEvent[] }[]
 	/**
 	 * `.chart` sections whose name is not Song/SyncTrack/Events and isn't
 	 * resolvable as an instrument+difficulty track. Stored verbatim as the
@@ -112,7 +112,7 @@ export interface RawChartData {
 	 *
 	 * MIDI always returns `[]` here.
 	 */
-	unrecognizedSections: { name: string; lines: string[] }[]
+	unrecognizedChartSections: { name: string; lines: string[] }[]
 	trackData: {
 		instrument: Instrument
 		difficulty: Difficulty
@@ -189,7 +189,7 @@ export interface RawChartData {
 		 *
 		 * `.chart` always returns `[]` here.
 		 */
-		unrecognizedEvents: MidiEvent[]
+		unrecognizedMidiEvents: MidiEvent[]
 	}[]
 }
 
@@ -243,7 +243,7 @@ export interface VocalTrackData {
 	 *
 	 * `.chart` always returns `[]` here.
 	 */
-	unrecognizedEvents: MidiEvent[]
+	unrecognizedMidiEvents: MidiEvent[]
 }
 
 export type EventType = ObjectValues<typeof eventTypes>

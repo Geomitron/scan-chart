@@ -122,7 +122,7 @@ export function parseNotesFromMidi(data: Uint8Array, iniChartModifiers: IniChart
 	// Sets event.deltaTime to the number of ticks since the start of the track
 	convertToAbsoluteTime(midiFile)
 
-	const { tracks, unrecognizedTracks } = getTracks(midiFile)
+	const { tracks, unrecognizedMidiTracks } = getTracks(midiFile)
 	const parseIssues: RawChartData['parseIssues'] = []
 
 	// Build vocalTracks from PART VOCALS and HARM1/HARM2/HARM3.
@@ -161,7 +161,7 @@ export function parseNotesFromMidi(data: Uint8Array, iniChartModifiers: IniChart
 					? mergePhraseLists(scanned.phrases105, scanned.phrases106)
 					: scanned.phrases106,
 				textEvents: scanned.textEvents,
-				unrecognizedEvents: scanned.unrecognizedEvents,
+				unrecognizedMidiEvents: scanned.unrecognizedMidiEvents,
 			}
 		}
 	}
@@ -237,8 +237,8 @@ export function parseNotesFromMidi(data: Uint8Array, iniChartModifiers: IniChart
 		sections: eventsScan.sections,
 		endEvents: eventsScan.endEvents,
 		unrecognizedEvents: eventsScan.unrecognizedEvents,
-		unrecognizedTracks,
-		unrecognizedSections: [],
+		unrecognizedMidiTracks,
+		unrecognizedChartSections: [],
 		trackData: _.chain(tracks)
 			.filter(t => _.keys(instrumentNameMap).includes(t.trackName))
 			.map(t => {
@@ -274,7 +274,7 @@ export function parseNotesFromMidi(data: Uint8Array, iniChartModifiers: IniChart
 						// per-track unrecognized events (the writer only emits one
 						// MIDI track, so storing them once is fine — the writer
 						// reads from any difficulty).
-						unrecognizedEvents: trackUnrecognized,
+						unrecognizedMidiEvents: trackUnrecognized,
 					}
 
 					for (const event of trackDifficulties[difficulty]) {
@@ -334,7 +334,7 @@ function convertToAbsoluteTime(midiData: MidiData) {
 
 function getTracks(midiData: MidiData) {
 	const tracks: { trackName: TrackName; trackEvents: MidiEvent[] }[] = []
-	const unrecognizedTracks: { trackName: string; events: MidiEvent[] }[] = []
+	const unrecognizedMidiTracks: { trackName: string; events: MidiEvent[] }[] = []
 
 	for (const [i, track] of midiData.tracks.entries()) {
 		// Match YARG.Core's MidiExtensions.GetTrackName: return the FIRST
@@ -363,14 +363,14 @@ function getTracks(midiData: MidiData) {
 		} else if (i !== 0) {
 			// Track 0 is the conductor track (tempo/timeSignature) and isn't a
 			// musical track — skip it from unrecognized capture.
-			unrecognizedTracks.push({
+			unrecognizedMidiTracks.push({
 				trackName: trackName ?? '',
 				events: track,
 			})
 		}
 	}
 
-	return { tracks, unrecognizedTracks }
+	return { tracks, unrecognizedMidiTracks }
 }
 
 interface TrackScanResult {

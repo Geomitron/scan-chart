@@ -44,7 +44,7 @@ function buildChart(sections: Record<string, string[]>): Uint8Array {
 // MIDI: whole unrecognized tracks
 // ---------------------------------------------------------------------------
 
-describe('MIDI: unrecognizedTracks (whole-track fallback)', () => {
+describe('MIDI: unrecognizedMidiTracks (whole-track fallback)', () => {
 	it('captures a VENUE track verbatim as an unrecognized track', () => {
 		const venue: MidiData['tracks'][number] = [
 			{ deltaTime: 0, type: 'trackName', text: 'VENUE' },
@@ -55,12 +55,12 @@ describe('MIDI: unrecognizedTracks (whole-track fallback)', () => {
 		]
 		const midi = buildMidi(480, [tempoTrack(), venue])
 		const result = parseNotesFromMidi(midi, defaultIniChartModifiers)
-		expect(result.unrecognizedTracks).toHaveLength(1)
-		expect(result.unrecognizedTracks[0].trackName).toBe('VENUE')
+		expect(result.unrecognizedMidiTracks).toHaveLength(1)
+		expect(result.unrecognizedMidiTracks[0].trackName).toBe('VENUE')
 		// Stored events have absolute-tick deltaTimes (parser converts) and may
 		// include meta:true flags from midi-file. Verify semantic content rather
 		// than exact equality.
-		const events = result.unrecognizedTracks[0].events
+		const events = result.unrecognizedMidiTracks[0].events
 		expect(events.find(e => e.type === 'trackName' && (e as { text: string }).text === 'VENUE')).toBeDefined()
 		expect(events.find(e => e.type === 'noteOn' && (e as { noteNumber: number }).noteNumber === 96)).toBeDefined()
 		expect(events.find(e => e.type === 'text' && (e as { text: string }).text === '[verse]')).toBeDefined()
@@ -75,7 +75,7 @@ describe('MIDI: unrecognizedTracks (whole-track fallback)', () => {
 		]
 		const midi = buildMidi(480, [tempoTrack(), proGuitar])
 		const result = parseNotesFromMidi(midi, defaultIniChartModifiers)
-		expect(result.unrecognizedTracks.map(t => t.trackName)).toContain('PART REAL_GUITAR')
+		expect(result.unrecognizedMidiTracks.map(t => t.trackName)).toContain('PART REAL_GUITAR')
 		// PART REAL_GUITAR should NOT have produced any parsed trackData
 		expect(result.trackData.find(t => t.instrument === 'guitar')).toBeUndefined()
 	})
@@ -98,7 +98,7 @@ describe('MIDI: unrecognizedTracks (whole-track fallback)', () => {
 		// PART DRUMS parses normally
 		expect(result.trackData.some(t => t.instrument === 'drums')).toBe(true)
 		// PART REAL_DRUMS_PS lands as unrecognized — no parseIssue, no merge
-		expect(result.unrecognizedTracks.map(t => t.trackName)).toContain('PART REAL_DRUMS_PS')
+		expect(result.unrecognizedMidiTracks.map(t => t.trackName)).toContain('PART REAL_DRUMS_PS')
 		expect(result.parseIssues).toEqual([])
 	})
 
@@ -117,7 +117,7 @@ describe('MIDI: unrecognizedTracks (whole-track fallback)', () => {
 		]
 		const midi = buildMidi(480, [tempoTrack(), venue, beat, custom])
 		const result = parseNotesFromMidi(midi, defaultIniChartModifiers)
-		expect(result.unrecognizedTracks.map(t => t.trackName)).toEqual([
+		expect(result.unrecognizedMidiTracks.map(t => t.trackName)).toEqual([
 			'VENUE',
 			'BEAT',
 			'PART CUSTOM_FOO',
@@ -127,7 +127,7 @@ describe('MIDI: unrecognizedTracks (whole-track fallback)', () => {
 	it('does not include the conductor track (track 0) in unrecognizedTracks', () => {
 		const midi = buildMidi(480, [tempoTrack()])
 		const result = parseNotesFromMidi(midi, defaultIniChartModifiers)
-		expect(result.unrecognizedTracks).toEqual([])
+		expect(result.unrecognizedMidiTracks).toEqual([])
 	})
 
 	it('does not include recognized tracks in unrecognizedTracks', () => {
@@ -139,7 +139,7 @@ describe('MIDI: unrecognizedTracks (whole-track fallback)', () => {
 		]
 		const midi = buildMidi(480, [tempoTrack(), guitar])
 		const result = parseNotesFromMidi(midi, defaultIniChartModifiers)
-		expect(result.unrecognizedTracks).toEqual([])
+		expect(result.unrecognizedMidiTracks).toEqual([])
 	})
 })
 
@@ -147,7 +147,7 @@ describe('MIDI: unrecognizedTracks (whole-track fallback)', () => {
 // MIDI: per-track unrecognized events on recognized tracks
 // ---------------------------------------------------------------------------
 
-describe('MIDI: per-track unrecognizedEvents on recognized tracks', () => {
+describe('MIDI: per-track unrecognizedMidiEvents on recognized tracks', () => {
 	it('captures noteOn events outside the recognized note range', () => {
 		const guitar: MidiData['tracks'][number] = [
 			{ deltaTime: 0, type: 'trackName', text: 'PART GUITAR' },
@@ -162,8 +162,8 @@ describe('MIDI: per-track unrecognizedEvents on recognized tracks', () => {
 		const midi = buildMidi(480, [tempoTrack(), guitar])
 		const result = parseNotesFromMidi(midi, defaultIniChartModifiers)
 		const track = result.trackData.find(t => t.instrument === 'guitar' && t.difficulty === 'expert')!
-		expect(track.unrecognizedEvents.some(e => e.type === 'noteOn' && e.noteNumber === 13)).toBe(true)
-		expect(track.unrecognizedEvents.some(e => e.type === 'noteOff' && e.noteNumber === 13)).toBe(true)
+		expect(track.unrecognizedMidiEvents.some(e => e.type === 'noteOn' && e.noteNumber === 13)).toBe(true)
+		expect(track.unrecognizedMidiEvents.some(e => e.type === 'noteOff' && e.noteNumber === 13)).toBe(true)
 	})
 
 	it('captures non-Phase-Shift sysEx events', () => {
@@ -178,7 +178,7 @@ describe('MIDI: per-track unrecognizedEvents on recognized tracks', () => {
 		const midi = buildMidi(480, [tempoTrack(), guitar])
 		const result = parseNotesFromMidi(midi, defaultIniChartModifiers)
 		const track = result.trackData.find(t => t.instrument === 'guitar' && t.difficulty === 'expert')!
-		expect(track.unrecognizedEvents.some(e => e.type === 'sysEx')).toBe(true)
+		expect(track.unrecognizedMidiEvents.some(e => e.type === 'sysEx')).toBe(true)
 	})
 
 	it('does NOT include events that the typed parser consumed', () => {
@@ -194,7 +194,7 @@ describe('MIDI: per-track unrecognizedEvents on recognized tracks', () => {
 		const midi = buildMidi(480, [tempoTrack(), guitar])
 		const result = parseNotesFromMidi(midi, defaultIniChartModifiers)
 		const track = result.trackData.find(t => t.instrument === 'guitar' && t.difficulty === 'expert')!
-		expect(track.unrecognizedEvents).toEqual([])
+		expect(track.unrecognizedMidiEvents).toEqual([])
 	})
 
 	it('captures stray notes on a vocal track (outside recognized ranges)', () => {
@@ -212,10 +212,10 @@ describe('MIDI: per-track unrecognizedEvents on recognized tracks', () => {
 		]
 		const midi = buildMidi(480, [tempoTrack(), vocals])
 		const result = parseNotesFromMidi(midi, defaultIniChartModifiers)
-		expect(result.vocalTracks.vocals.unrecognizedEvents.some(e => e.type === 'noteOn' && e.noteNumber === 10)).toBe(true)
-		expect(result.vocalTracks.vocals.unrecognizedEvents.some(e => e.type === 'noteOff' && e.noteNumber === 10)).toBe(true)
-		// Recognized phrase not leaked into unrecognizedEvents
-		expect(result.vocalTracks.vocals.unrecognizedEvents.every(e => !(e.type === 'noteOn' && e.noteNumber === 105))).toBe(true)
+		expect(result.vocalTracks.vocals.unrecognizedMidiEvents.some(e => e.type === 'noteOn' && e.noteNumber === 10)).toBe(true)
+		expect(result.vocalTracks.vocals.unrecognizedMidiEvents.some(e => e.type === 'noteOff' && e.noteNumber === 10)).toBe(true)
+		// Recognized phrase not leaked into unrecognizedMidiEvents
+		expect(result.vocalTracks.vocals.unrecognizedMidiEvents.every(e => !(e.type === 'noteOn' && e.noteNumber === 105))).toBe(true)
 	})
 
 	it('captures non-text, non-note events on a vocal track', () => {
@@ -227,7 +227,7 @@ describe('MIDI: per-track unrecognizedEvents on recognized tracks', () => {
 		]
 		const midi = buildMidi(480, [tempoTrack(), vocals])
 		const result = parseNotesFromMidi(midi, defaultIniChartModifiers)
-		expect(result.vocalTracks.vocals.unrecognizedEvents.some(e => e.type === 'controller')).toBe(true)
+		expect(result.vocalTracks.vocals.unrecognizedMidiEvents.some(e => e.type === 'controller')).toBe(true)
 	})
 
 	it('does NOT include lyric/textEvent/note-pair events the vocal scanner consumed', () => {
@@ -249,17 +249,17 @@ describe('MIDI: per-track unrecognizedEvents on recognized tracks', () => {
 		]
 		const midi = buildMidi(480, [tempoTrack(), vocals])
 		const result = parseNotesFromMidi(midi, defaultIniChartModifiers)
-		expect(result.vocalTracks.vocals.unrecognizedEvents).toEqual([])
+		expect(result.vocalTracks.vocals.unrecognizedMidiEvents).toEqual([])
 	})
 
-	it('.chart VocalTrackData.unrecognizedEvents is always []', () => {
+	it('.chart VocalTrackData.unrecognizedMidiEvents is always []', () => {
 		const chart = buildChart({
 			Song: ['Resolution = 192'],
 			SyncTrack: ['0 = B 120000', '0 = TS 4'],
 			Events: ['192 = E "lyric hi"', '192 = E "phrase_start"', '384 = E "phrase_end"'],
 		})
 		const result = parseNotesFromChart(chart)
-		expect(result.vocalTracks.vocals.unrecognizedEvents).toEqual([])
+		expect(result.vocalTracks.vocals.unrecognizedMidiEvents).toEqual([])
 	})
 })
 
@@ -279,11 +279,11 @@ describe('.chart: unrecognizedSections', () => {
 		})
 
 		const result = parseNotesFromChart(chart)
-		expect(result.unrecognizedSections.map(s => s.name).sort()).toEqual([
+		expect(result.unrecognizedChartSections.map(s => s.name).sort()).toEqual([
 			'AnotherCustomSection',
 			'CustomMetadata',
 		])
-		const meta = result.unrecognizedSections.find(s => s.name === 'CustomMetadata')!
+		const meta = result.unrecognizedChartSections.find(s => s.name === 'CustomMetadata')!
 		expect(meta.lines).toEqual(['line1', 'line2'])
 	})
 
@@ -296,13 +296,13 @@ describe('.chart: unrecognizedSections', () => {
 		})
 
 		const result = parseNotesFromChart(chart)
-		expect(result.unrecognizedSections).toEqual([])
+		expect(result.unrecognizedChartSections).toEqual([])
 	})
 
 	it('MIDI: unrecognizedSections is always [] (.chart-only field)', () => {
 		const midi = buildMidi(480, [tempoTrack()])
 		const result = parseNotesFromMidi(midi, defaultIniChartModifiers)
-		expect(result.unrecognizedSections).toEqual([])
+		expect(result.unrecognizedChartSections).toEqual([])
 	})
 
 	it('.chart: unrecognizedTracks is always [] (MIDI-only field)', () => {
@@ -312,6 +312,6 @@ describe('.chart: unrecognizedSections', () => {
 			Events: [],
 		})
 		const result = parseNotesFromChart(chart)
-		expect(result.unrecognizedTracks).toEqual([])
+		expect(result.unrecognizedMidiTracks).toEqual([])
 	})
 })

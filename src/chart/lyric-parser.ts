@@ -228,7 +228,7 @@ function noteNumberToVocalType(noteNumber: number): VocalNoteType | null {
  * Full classification of a MIDI vocal track — populated by one pass.
  *
  * The generic parameter `T` preserves the caller's event type in
- * `unrecognizedEvents`. Real callers pass `MidiEvent[]` (from midi-file) and
+ * `unrecognizedMidiEvents`. Real callers pass `MidiEvent[]` (from midi-file) and
  * get back `MidiEvent[]` for verbatim round-trip. Unit tests pass narrower
  * hand-crafted shapes (satisfying `MidiLyricEvent`) and get back the same
  * shape.
@@ -260,7 +260,7 @@ export interface VocalTrackScanResult<T extends MidiLyricEvent = MidiLyricEvent>
 	 * not unrecognized. Structural events (`trackName`, `endOfTrack`) are
 	 * also skipped — writers re-emit them independently.
 	 */
-	unrecognizedEvents: T[]
+	unrecognizedMidiEvents: T[]
 }
 
 /** Regex for disco flip markers (drum-track concept; skipped on vocal tracks). */
@@ -313,7 +313,7 @@ export function scanVocalTrack<T extends MidiLyricEvent>(trackEvents: T[]): Voca
 	const starPower: VocalTrackScanResult['starPower'] = []
 	const rangeShifts: VocalTrackScanResult['rangeShifts'] = []
 	const lyricShifts: VocalTrackScanResult['lyricShifts'] = []
-	const unrecognizedEvents: T[] = []
+	const unrecognizedMidiEvents: T[] = []
 
 	const seenLyrics = new Set<string>()
 	const openNotes = new Map<number, number>() // noteNumber → open tick
@@ -328,7 +328,7 @@ export function scanVocalTrack<T extends MidiLyricEvent>(trackEvents: T[]): Voca
 			const vocalType = noteNumberToVocalType(n)
 			const isRelevantNote = n === 0 || n === 1 || n === 105 || n === 106 || n === 116 || vocalType !== null
 			if (!isRelevantNote) {
-				unrecognizedEvents.push(event)
+				unrecognizedMidiEvents.push(event)
 				continue
 			}
 
@@ -365,7 +365,7 @@ export function scanVocalTrack<T extends MidiLyricEvent>(trackEvents: T[]): Voca
 		const isTextLike = event.type === 'lyrics' || event.type === 'text' ||
 			event.type === 'marker' || event.type === 'cuePoint'
 		if (!isTextLike) {
-			unrecognizedEvents.push(event)
+			unrecognizedMidiEvents.push(event)
 			continue
 		}
 		const text = event.text
@@ -399,7 +399,7 @@ export function scanVocalTrack<T extends MidiLyricEvent>(trackEvents: T[]): Voca
 	// Only `notes` can have overlapping pitches emitting out of start-tick order.
 	notes.sort((a, b) => a.tick - b.tick)
 
-	return { lyrics, textEvents, phrases105, phrases106, notes, starPower, rangeShifts, lyricShifts, unrecognizedEvents }
+	return { lyrics, textEvents, phrases105, phrases106, notes, starPower, rangeShifts, lyricShifts, unrecognizedMidiEvents }
 }
 
 // ---------------------------------------------------------------------------

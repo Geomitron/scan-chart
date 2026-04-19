@@ -127,7 +127,7 @@ export function parseNotesFromChart(data: Uint8Array): RawChartData {
 				lyricShifts: [],
 				staticLyricPhrases: [],
 				textEvents: [],
-				unrecognizedEvents: [],
+				unrecognizedMidiEvents: [],
 			},
 		},
 		tempos: _.chain(fileSections['SyncTrack'])
@@ -173,8 +173,8 @@ export function parseNotesFromChart(data: Uint8Array): RawChartData {
 		endEvents: eventsScan.endEvents,
 		unrecognizedEvents: eventsScan.unrecognizedEvents,
 		parseIssues: [],
-		unrecognizedTracks: [], // MIDI-only
-		unrecognizedSections: _.chain(fileSections)
+		unrecognizedMidiTracks: [], // MIDI-only
+		unrecognizedChartSections: _.chain(fileSections)
 			.toPairs()
 			.filter(([sectionName]) =>
 				sectionName !== 'Song' && sectionName !== 'SyncTrack' && sectionName !== 'Events'
@@ -214,7 +214,7 @@ export function parseNotesFromChart(data: Uint8Array): RawChartData {
 					textEvents: [],
 					versusPhrases: [],
 					animations: [], // .chart format does not have note-based animations
-					unrecognizedEvents: [], // MIDI-only
+					unrecognizedMidiEvents: [], // MIDI-only
 				}
 
 				for (const event of trackEvents) {
