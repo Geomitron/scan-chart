@@ -1,5 +1,3 @@
-import * as _ from 'lodash'
-
 import { Difficulty, Instrument } from 'src/interfaces'
 import { getEncoding } from 'src/utils'
 import { EventType, eventTypes, RawChartData } from './note-parsing-interfaces'
@@ -579,7 +577,14 @@ function mergeSoloEvents(events: { tick: number; type: EventType; length: number
 		}
 	}
 
-	_.remove(events, event => event.type === eventTypes.soloSectionStart || event.type === eventTypes.soloSectionEnd)
+	let w = 0
+	for (let r = 0; r < events.length; r++) {
+		const t = events[r].type
+		if (t !== eventTypes.soloSectionStart && t !== eventTypes.soloSectionEnd) {
+			events[w++] = events[r]
+		}
+	}
+	events.length = w
 
 	return events
 }
