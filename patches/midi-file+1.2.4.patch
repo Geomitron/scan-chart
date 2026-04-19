@@ -2,20 +2,52 @@ diff --git a/node_modules/midi-file/lib/midi-parser.js b/node_modules/midi-file/
 index 50ed069..93868ee 100644
 --- a/node_modules/midi-file/lib/midi-parser.js
 +++ b/node_modules/midi-file/lib/midi-parser.js
-@@ -309,8 +309,15 @@ Parser.prototype.readBytes = function(len) {
+@@ -309,8 +309,47 @@ Parser.prototype.readBytes = function(len) {
  }
- 
+
++var sharedUtf8Decoder = new TextDecoder('utf-8')
++
  Parser.prototype.readString = function(len) {
-+  // Strings can be multibyte-encoded or not.
-+  // Try UTF-8 first; fall back to Latin-1 if UTF-8 produces replacement chars.
-   var bytes = this.readBytes(len)
+-  var bytes = this.readBytes(len)
 -  return String.fromCharCode.apply(null, bytes)
-+  var multibyteString = new TextDecoder().decode(bytes)
-+  var singlebyteString = String.fromCharCode.apply(null, bytes)
-+  if (singlebyteString.length > multibyteString.length && !multibyteString.includes('\uFFFD')) {
++  // Strings can be multibyte-encoded or not.
++  // Fast path: all ASCII (bytes < 0x80) -> fromCharCode directly, no TextDecoder.
++  // Slow path: try UTF-8, fall back to Latin-1 if UTF-8 produces replacement chars.
++  var start = this.pos
++  var end = start + len
++  var buffer = this.buffer
++  var allAscii = true
++  for (var i = start; i < end; i++) {
++    if (buffer[i] >= 0x80) { allAscii = false; break }
++  }
++  this.pos = end
++  if (allAscii) {
++    // fromCharCode.apply is the fastest path for small ASCII strings.
++    // For very long strings, the stack can blow up — chunk it.
++    var CHUNK = 0x8000
++    if (len <= CHUNK) {
++      // Use subarray (no copy) when available (Uint8Array); fall back to slice for plain arrays.
++      var view = buffer.subarray ? buffer.subarray(start, end) : buffer.slice(start, end)
++      return String.fromCharCode.apply(null, view)
++    }
++    var out = ''
++    for (var j = start; j < end; j += CHUNK) {
++      var chunkEnd = j + CHUNK < end ? j + CHUNK : end
++      var chunk = buffer.subarray ? buffer.subarray(j, chunkEnd) : buffer.slice(j, chunkEnd)
++      out += String.fromCharCode.apply(null, chunk)
++    }
++    return out
++  }
++  // Non-ASCII: try UTF-8 decode; fall back to Latin-1 (fromCharCode per byte) if
++  // UTF-8 produced replacement chars or didn't shorten the string.
++  var bytes = buffer.subarray ? buffer.subarray(start, end) : buffer.slice(start, end)
++  var multibyteString = sharedUtf8Decoder.decode(bytes)
++  // Latin-1 interpretation: each byte → one codepoint. Length equals `len`.
++  if (multibyteString.length < len && multibyteString.indexOf('\uFFFD') === -1) {
 +    return multibyteString
 +  }
-+  return singlebyteString
++  // Build Latin-1 string via fromCharCode on the byte values.
++  return String.fromCharCode.apply(null, bytes)
  }
  
  Parser.prototype.readVarInt = function() {
