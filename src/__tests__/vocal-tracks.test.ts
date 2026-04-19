@@ -1217,6 +1217,84 @@ describe('normalizedVocalTracks', () => {
 		expect(phrases[0].lyrics[1].text).toBe('inside')
 	})
 
+	it('lyric at exact tick of an adjacent phrase boundary belongs to the new phrase', () => {
+		// Phrase 1 ends at tick 960, phrase 2 starts at tick 960. The lyric at
+		// tick 960 should belong to phrase 2 (the one starting there), not the
+		// previous phrase. The vocalTrack helper sorts events by tick — at the
+		// same tick, lyric events are pushed before phrase events (insertion
+		// order), so the lyric appears FIRST in the file. The grouping logic
+		// must still place the lyric in the new phrase, not the closing one.
+		const midi = buildMidi(480, [
+			tempoTrack(),
+			eventsTrack(),
+			vocalTrack('PART VOCALS', {
+				lyrics: [
+					{ tick: 480, text: 'phrase1lyric' }, // in phrase 1
+					{ tick: 960, text: 'boundary' },     // exactly at phrase 1 end / phrase 2 start
+					{ tick: 1200, text: 'phrase2lyric' },
+				],
+				notes: [
+					{ tick: 480, pitch: 60, length: 240 },
+					{ tick: 960, pitch: 62, length: 240 },
+					{ tick: 1200, pitch: 64, length: 240 },
+				],
+				phrases: [
+					{ tick: 480, length: 480 },   // [480, 960)
+					{ tick: 960, length: 480 },   // [960, 1440)
+				],
+			}),
+		])
+
+		const result = parseChartFile(midi, 'mid')
+		const phrases = result.vocalTracks.parts.vocals.notePhrases
+		expect(phrases).toHaveLength(2)
+
+		// Phrase 1 [480, 960): only "phrase1lyric"
+		expect(phrases[0].tick).toBe(480)
+		expect(phrases[0].lyrics.map(l => l.text)).toEqual(['phrase1lyric'])
+
+		// Phrase 2 [960, 1440): "boundary" + "phrase2lyric"
+		expect(phrases[1].tick).toBe(960)
+		expect(phrases[1].lyrics.map(l => l.text)).toEqual(['boundary', 'phrase2lyric'])
+	})
+
+	it('lyric at boundary tick stays in new phrase regardless of MIDI event ordering', () => {
+		// Same edge case as above, but explicitly construct the MIDI with the
+		// lyric event placed BEFORE the noteOff (phrase 1 end) and the noteOn
+		// (phrase 2 start) at the boundary tick — i.e., file order is
+		// `lyric → noteOff(105) → noteOn(105)` at tick 960. The parser sorts by
+		// tick + type before grouping, so file order shouldn't change which
+		// phrase the lyric ends up in.
+		const track: MidiData['tracks'][number] = [
+			{ deltaTime: 0, type: 'trackName', text: 'PART VOCALS' },
+			// Phrase 1 starts at 480
+			{ deltaTime: 480, type: 'noteOn', channel: 0, noteNumber: 105, velocity: 100 },
+			// Lyric in phrase 1
+			{ deltaTime: 0, type: 'lyrics', text: 'phrase1lyric' },
+			{ deltaTime: 0, type: 'noteOn', channel: 0, noteNumber: 60, velocity: 100 },
+			{ deltaTime: 240, type: 'noteOff', channel: 0, noteNumber: 60, velocity: 0 },
+			// Boundary tick: lyric BEFORE noteOff(105) AND noteOn(105)
+			{ deltaTime: 240, type: 'lyrics', text: 'boundary' },
+			{ deltaTime: 0, type: 'noteOff', channel: 0, noteNumber: 105, velocity: 0 },
+			{ deltaTime: 0, type: 'noteOn', channel: 0, noteNumber: 105, velocity: 100 },
+			{ deltaTime: 0, type: 'noteOn', channel: 0, noteNumber: 62, velocity: 100 },
+			{ deltaTime: 240, type: 'noteOff', channel: 0, noteNumber: 62, velocity: 0 },
+			{ deltaTime: 240, type: 'noteOff', channel: 0, noteNumber: 105, velocity: 0 },
+			{ deltaTime: 0, type: 'endOfTrack' },
+		]
+		const midi = buildMidi(480, [tempoTrack(), eventsTrack(), track])
+
+		const result = parseChartFile(midi, 'mid')
+		const phrases = result.vocalTracks.parts.vocals.notePhrases
+		expect(phrases).toHaveLength(2)
+		expect(phrases[0].tick).toBe(480)
+		expect(phrases[0].lyrics.map(l => l.text)).toEqual(['phrase1lyric'])
+		expect(phrases[1].tick).toBe(960)
+		// "boundary" lyric must be in phrase 2 even though it appears before
+		// the phrase-2 noteOn in file order.
+		expect(phrases[1].lyrics.map(l => l.text)).toEqual(['boundary'])
+	})
+
 	it('harmony phrases have no player field', () => {
 		const midi = buildMidi(480, [
 			tempoTrack(),
