@@ -1039,40 +1039,36 @@ function snapChords(noteGroups: UntimedNoteEvent[][], chord_snap_threshold: numb
 }
 
 function sortAndFixInvalidFlexLaneOverlaps(events: { tick: number; length: number; isDouble: boolean; msTime: number; msLength: number }[]) {
+	if (events.length <= 1) return events
 	events.sort((a, b) => {
-		if (a.tick !== b.tick) {
-			return a.tick - b.tick
-		}
-		if (a.isDouble !== b.isDouble) {
-			return (a.isDouble ? 1 : 0) - (b.isDouble ? 1 : 0) // false first
-		}
+		if (a.tick !== b.tick) return a.tick - b.tick
+		if (a.isDouble !== b.isDouble) return (a.isDouble ? 1 : 0) - (b.isDouble ? 1 : 0) // false first
 		return b.length - a.length // length descending (longest lane is kept for duplicates)
 	})
-	let removedEvents: { tick: number; length: number; isDouble: boolean; msTime: number; msLength: number }[] | null = null
-	for (let i = 1; i < events.length; i++) {
-		if (events[i].tick === events[i - 1].tick && events[i].isDouble === events[i - 1].isDouble) {
-			;(removedEvents ??= []).push(events[i])
+	// In-place dedup on consecutive same (tick, isDouble) entries.
+	let w = 1
+	for (let r = 1; r < events.length; r++) {
+		if (!(events[r].tick === events[w - 1].tick && events[r].isDouble === events[w - 1].isDouble)) {
+			events[w++] = events[r]
 		}
 	}
-
-	if (removedEvents) {
-		_.pullAll(events, removedEvents)
-	}
-
+	events.length = w
 	return events
 }
 
 function sortAndFixInvalidEventOverlaps(events: { tick: number; length: number; msTime: number; msLength: number }[]) {
-	events.sort((a, b) => a.tick - b.tick || b.length - a.length) // Longest event is kept for duplicates
-	let removedEvents: { tick: number; length: number; msTime: number; msLength: number }[] | null = null
-	for (let i = 1; i < events.length; i++) {
-		if (events[i].tick === events[i - 1].tick) {
-			;(removedEvents ??= []).push(events[i])
+	if (events.length <= 1) {
+		// Empty or single-element arrays have no overlap to resolve.
+	} else {
+		events.sort((a, b) => a.tick - b.tick || b.length - a.length) // Longest event is kept for duplicates
+		// In-place dedup on consecutive same-tick entries.
+		let w = 1
+		for (let r = 1; r < events.length; r++) {
+			if (events[r].tick !== events[w - 1].tick) {
+				events[w++] = events[r]
+			}
 		}
-	}
-
-	if (removedEvents) {
-		_.pullAll(events, removedEvents)
+		events.length = w
 	}
 
 	let previousEvent: { tick: number; length: number; msTime: number; msLength: number } | null = null
