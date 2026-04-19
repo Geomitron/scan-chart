@@ -421,26 +421,30 @@ function scanInstrumentTrack(
 	for (const event of events) {
 		// SysEx event (tap modifier or open)
 		if (event.type === 'sysEx' || event.type === 'endSysEx') {
-			let consumed = false
-			if (event.data.length > 6 && event.data[0] === 0x50 && event.data[1] === 0x53 && event.data[2] === 0x00 && event.data[3] === 0x00) {
-				// Phase Shift SysEx event
-				const type =
-					event.data[5] === 0x01 ? eventTypes.forceOpen
-					: event.data[5] === 0x04 ? eventTypes.forceTap
-					: null
+			// Phase Shift SysEx event header: 50 53 00 00 <diff> <type> <isStart>
+			const isPhaseShiftHeader =
+				event.data.length > 6 &&
+				event.data[0] === 0x50 &&
+				event.data[1] === 0x53 &&
+				event.data[2] === 0x00 &&
+				event.data[3] === 0x00
+			const type =
+				!isPhaseShiftHeader ? null
+				: event.data[5] === 0x01 ? eventTypes.forceOpen
+				: event.data[5] === 0x04 ? eventTypes.forceTap
+				: null
 
-				if (type !== null) {
-					eventEnds[event.data[4] === 0xff ? 'all' : discoFlipDifficultyMap[event.data[4]]].push({
-						tick: event.deltaTime,
-						type,
-						channel: 1,
-						velocity: 127,
-						isStart: event.data[6] === 0x01,
-					})
-					consumed = true
-				}
+			if (type !== null) {
+				eventEnds[event.data[4] === 0xff ? 'all' : discoFlipDifficultyMap[event.data[4]]].push({
+					tick: event.deltaTime,
+					type,
+					channel: 1,
+					velocity: 127,
+					isStart: event.data[6] === 0x01,
+				})
+			} else {
+				unrecognizedEvents.push(event)
 			}
-			if (!consumed) unrecognizedEvents.push(event)
 		} else if (event.type === 'noteOn' || event.type === 'noteOff') {
 			const isOff = event.type === 'noteOff' || (event.type === 'noteOn' && event.velocity === 0)
 			let consumed = false
