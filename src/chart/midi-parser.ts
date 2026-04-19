@@ -196,44 +196,8 @@ export function parseNotesFromMidi(data: Uint8Array, iniChartModifiers: IniChart
 		chartTicksPerBeat: midiFile.header.ticksPerBeat,
 		metadata: {}, // .mid does not have a mechanism for storing song metadata
 		vocalTracks,
-		tempos: _.chain(midiFile.tracks[0])
-			.filter((e): e is MidiSetTempoEvent => e.type === 'setTempo')
-			.map(e => ({
-				tick: e.deltaTime,
-				// Note that this operation is float64 division, and is impacted by floating point precision errors
-				beatsPerMinute: 60000000 / e.microsecondsPerBeat,
-			}))
-			.tap(tempos => {
-				const zeroTempo = tempos.find(tempo => tempo.beatsPerMinute === 0)
-				if (zeroTempo) {
-					throw `Invalid .mid file: Tempo at tick ${zeroTempo.tick} was zero.`
-				}
-				if (!tempos[0] || tempos[0].tick !== 0) {
-					tempos.unshift({ tick: 0, beatsPerMinute: 120 })
-				}
-			})
-			.value(),
-		timeSignatures: _.chain(midiFile.tracks[0])
-			.filter((e): e is MidiTimeSignatureEvent => e.type === 'timeSignature')
-			.map(e => ({
-				tick: e.deltaTime,
-				numerator: e.numerator,
-				denominator: e.denominator,
-			}))
-			.tap(timeSignatures => {
-				const zeroTimeSignatureN = timeSignatures.find(timeSignature => timeSignature.numerator === 0)
-				const zeroTimeSignatureD = timeSignatures.find(timeSignature => timeSignature.denominator === 0)
-				if (zeroTimeSignatureN) {
-					throw `Invalid .mid file: Time signature numerator at tick ${zeroTimeSignatureN.tick} was zero.`
-				}
-				if (zeroTimeSignatureD) {
-					throw `Invalid .mid file: Time signature denominator at tick ${zeroTimeSignatureD.tick} was zero.`
-				}
-				if (!timeSignatures[0] || timeSignatures[0].tick !== 0) {
-					timeSignatures.unshift({ tick: 0, numerator: 4, denominator: 4 })
-				}
-			})
-			.value(),
+		tempos: extractTempos(midiFile.tracks[0]),
+		timeSignatures: extractTimeSignatures(midiFile.tracks[0]),
 		sections: eventsScan.sections,
 		endEvents: eventsScan.endEvents,
 		unrecognizedEvents: eventsScan.unrecognizedEvents,
@@ -320,6 +284,49 @@ export function parseNotesFromMidi(data: Uint8Array, iniChartModifiers: IniChart
 			.value(),
 		parseIssues: [...parseIssues, ...eventsScan.parseIssues],
 	}
+}
+
+function extractTempos(conductorTrack: MidiEvent[]): { tick: number; beatsPerMinute: number }[] {
+	const tempos: { tick: number; beatsPerMinute: number }[] = []
+	for (const e of conductorTrack) {
+		if (e.type !== 'setTempo') continue
+		tempos.push({
+			tick: e.deltaTime,
+			beatsPerMinute: 60000000 / (e as MidiSetTempoEvent).microsecondsPerBeat,
+		})
+	}
+	for (const tempo of tempos) {
+		if (tempo.beatsPerMinute === 0) {
+			throw `Invalid .mid file: Tempo at tick ${tempo.tick} was zero.`
+		}
+	}
+	if (!tempos[0] || tempos[0].tick !== 0) {
+		tempos.unshift({ tick: 0, beatsPerMinute: 120 })
+	}
+	return tempos
+}
+
+function extractTimeSignatures(conductorTrack: MidiEvent[]): { tick: number; numerator: number; denominator: number }[] {
+	const result: { tick: number; numerator: number; denominator: number }[] = []
+	for (const e of conductorTrack) {
+		if (e.type !== 'timeSignature') continue
+		const ts = e as MidiTimeSignatureEvent
+		result.push({ tick: e.deltaTime, numerator: ts.numerator, denominator: ts.denominator })
+	}
+	for (const ts of result) {
+		if (ts.numerator === 0) {
+			throw `Invalid .mid file: Time signature numerator at tick ${ts.tick} was zero.`
+		}
+	}
+	for (const ts of result) {
+		if (ts.denominator === 0) {
+			throw `Invalid .mid file: Time signature denominator at tick ${ts.tick} was zero.`
+		}
+	}
+	if (!result[0] || result[0].tick !== 0) {
+		result.unshift({ tick: 0, numerator: 4, denominator: 4 })
+	}
+	return result
 }
 
 function convertToAbsoluteTime(midiData: MidiData) {
