@@ -226,48 +226,69 @@ function getFileSections(chartText: string) {
 	let readStartIndex = 0
 	let readingSection = false
 	let thisSection: string | null = null
-	for (let i = 0; i < chartText.length; i++) {
+	const len = chartText.length
+	for (let i = 0; i < len; i++) {
+		const c = chartText.charCodeAt(i)
 		if (readingSection) {
-			if (chartText[i] === ']') {
+			if (c === 93) { // ']'
 				readingSection = false
 				thisSection = chartText.slice(readStartIndex, i)
-			}
-			if (chartText[i] === '\n') {
+			} else if (c === 10) { // '\n'
 				throw `Invalid .chart file: unexpected new line when parsing section at index ${i}`
 			}
 			continue // Keep reading section until it ends
 		}
 
-		if (chartText[i] === '=') {
+		if (c === 61) { // '='
 			skipLine = true
-		} // Skip all user-entered values
-		if (chartText[i] === '\n') {
+		} else if (c === 10) { // '\n'
 			skipLine = false
 		}
-		if (skipLine) {
-			continue
-		} // Keep skipping until '\n' is found
+		if (skipLine) continue
 
-		if (chartText[i] === '{') {
+		if (c === 123) { // '{'
 			skipLine = true
 			readStartIndex = i + 1
-		} else if (chartText[i] === '}') {
+		} else if (c === 125) { // '}'
 			if (!thisSection) {
 				throw `Invalid .chart file: end of section reached before a section name was found at index ${i}`
 			}
-			// Trim each line because of Windows \r\n shenanigans
-			sections[thisSection] = chartText
-				.slice(readStartIndex, i)
-				.split('\n')
-				.map(line => line.trim())
-				.filter(line => line.length)
-		} else if (chartText[i] === '[') {
+			sections[thisSection] = splitTrimmedNonEmptyLines(chartText, readStartIndex, i)
+		} else if (c === 91) { // '['
 			readStartIndex = i + 1
 			readingSection = true
 		}
 	}
 
 	return sections
+}
+
+/**
+ * Slice `source` from `start` to `end`, split on '\n', trim each line, and
+ * drop empty results — in one pass with no intermediate arrays.
+ */
+function splitTrimmedNonEmptyLines(source: string, start: number, end: number): string[] {
+	const out: string[] = []
+	let lineStart = start
+	for (let i = start; i <= end; i++) {
+		if (i === end || source.charCodeAt(i) === 10) {
+			// trim the slice [lineStart, i)
+			let a = lineStart, b = i
+			while (a < b) {
+				const cc = source.charCodeAt(a)
+				if (cc !== 32 && cc !== 9 && cc !== 13) break
+				a++
+			}
+			while (b > a) {
+				const cc = source.charCodeAt(b - 1)
+				if (cc !== 32 && cc !== 9 && cc !== 13) break
+				b--
+			}
+			if (b > a) out.push(source.slice(a, b))
+			lineStart = i + 1
+		}
+	}
+	return out
 }
 
 /** Regex matching disco flip mix events (any difficulty). Used to filter them
