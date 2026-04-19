@@ -714,16 +714,29 @@ function distributeInstrumentEvents(eventEnds: { [difficulty in Difficulty | 'al
 			if (eventEnds[difficulty].length === 0) {
 				continue // Skip adding modifiers to uncharted difficulties
 			}
-			eventEnds[difficulty].push(_.clone(instrumentEvent))
+			eventEnds[difficulty].push({
+				tick: instrumentEvent.tick,
+				type: instrumentEvent.type,
+				velocity: instrumentEvent.velocity,
+				channel: instrumentEvent.channel,
+				isStart: instrumentEvent.isStart,
+			})
 		}
 	}
 
 	return {
-		expert: _.orderBy(eventEnds.expert, ['tick', 'type'], ['asc', 'desc']),
-		hard: _.orderBy(eventEnds.hard, ['tick', 'type'], ['asc', 'desc']),
-		medium: _.orderBy(eventEnds.medium, ['tick', 'type'], ['asc', 'desc']),
-		easy: _.orderBy(eventEnds.easy, ['tick', 'type'], ['asc', 'desc']),
+		expert: eventEnds.expert.sort(compareTickAscTypeDesc),
+		hard: eventEnds.hard.sort(compareTickAscTypeDesc),
+		medium: eventEnds.medium.sort(compareTickAscTypeDesc),
+		easy: eventEnds.easy.sort(compareTickAscTypeDesc),
 	}
+}
+
+function compareTickAscTypeDesc(a: TrackEventEnd, b: TrackEventEnd): number {
+	if (a.tick !== b.tick) return a.tick - b.tick
+	if (a.type < b.type) return 1
+	if (a.type > b.type) return -1
+	return 0
 }
 
 /**
