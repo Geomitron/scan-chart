@@ -548,27 +548,43 @@ function trimSustains(
 
 function resolveDrumModifiers(trackEventGroups: TrackEvent[][], drumType: DrumType, format: 'chart' | 'mid'): UntimedNoteEvent[][] {
 	const noteEventGroups: UntimedNoteEvent[][] = []
-	const discoFlipEventTypes = [eventTypes.discoFlipOff, eventTypes.discoFlipOn, eventTypes.discoNoFlipOn] as const
 
-	let activeDiscoFlip: (typeof discoFlipEventTypes)[number] = eventTypes.discoFlipOff
+	let activeDiscoFlip: EventType = eventTypes.discoFlipOff
+	const notes: TrackEvent[] = []
+	const kicks: TrackEvent[] = []
+	const modifiers: EventType[] = []
 	for (const events of trackEventGroups) {
-		const notes = events.filter(e => isDrumNote(e.type) && !isKickNote(e.type))
-		const kicks = events.filter(e => isKickNote(e.type))
-		const modifiers = events.filter(e => !isDrumNote(e.type)).map(m => m.type)
-		const discoFlipModifier = _.chain(modifiers)
-			.filter(e => discoFlipEventTypes.includes(e as (typeof discoFlipEventTypes)[number]))
-			.min()
-			.value()
-		if (discoFlipModifier) {
-			activeDiscoFlip = discoFlipModifier as 51 | 52 | 53 // Set before checked for this event (start inclusive, end exclusive)
+		notes.length = 0
+		kicks.length = 0
+		modifiers.length = 0
+		let flamFlag: number = noteFlags.none
+		let hasOrange = false
+		let hasGreen = false
+		let discoFlipModifier: number | null = null
+
+		for (const e of events) {
+			const t = e.type
+			if (isKickNote(t)) {
+				kicks.push(e)
+			} else if (isDrumNote(t)) {
+				notes.push(e)
+				if (t === eventTypes.fiveGreenDrum) hasGreen = true
+				else if (t === eventTypes.fiveOrangeFourGreenDrum) hasOrange = true
+			} else {
+				modifiers.push(t)
+				if (t === eventTypes.forceFlam) flamFlag = noteFlags.flam
+				if (t === eventTypes.discoFlipOff || t === eventTypes.discoFlipOn || t === eventTypes.discoNoFlipOn) {
+					if (discoFlipModifier === null || t < discoFlipModifier) discoFlipModifier = t
+				}
+			}
 		}
-		if (notes.length + kicks.length === 0) {
-			continue // Skip any event groups with only modifiers
+		if (discoFlipModifier !== null) {
+			activeDiscoFlip = discoFlipModifier as EventType
 		}
+		if (notes.length + kicks.length === 0) continue
 
 		const noteEventGroup: UntimedNoteEvent[] = []
 
-		const flamFlag = modifiers.find(e => e === eventTypes.forceFlam) ? noteFlags.flam : noteFlags.none
 		for (const kick of kicks) {
 			const kickTypeFlag = kick.type === eventTypes.kick ? noteFlags.none : noteFlags.doubleKick
 			noteEventGroup.push({
@@ -579,8 +595,7 @@ function resolveDrumModifiers(trackEventGroups: TrackEvent[][], drumType: DrumTy
 			})
 		}
 
-		const hasOrangeAndGreen =
-			!!notes.find(e => e.type === eventTypes.fiveGreenDrum) && !!notes.find(e => e.type === eventTypes.fiveOrangeFourGreenDrum)
+		const hasOrangeAndGreen = hasOrange && hasGreen
 
 		for (const note of notes) {
 			const type = getDrumNoteTypeFromEventType(note.type, hasOrangeAndGreen)!
