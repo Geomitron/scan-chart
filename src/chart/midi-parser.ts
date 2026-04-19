@@ -337,34 +337,47 @@ function getTracks(midiData: MidiData) {
 	const unrecognizedMidiTracks: { trackName: string; events: MidiEvent[] }[] = []
 
 	for (const [i, track] of midiData.tracks.entries()) {
-		// Match YARG.Core's MidiExtensions.GetTrackName: return the FIRST
-		// `SequenceTrackName` event (FF 03) seen at tick 0, even if it
-		// doesn't match any recognized instrument track. The early `break`
-		// below ensures we don't continue scanning for a "better" name.
-		// Some charts (e.g. "Culture Killer - Blindfolded Death") have a
-		// bogus leading trackname like `[ENHANCED_OPENS]` followed by the
-		// real `PART BASS` — YARG honors the first and skips the track.
-		let trackName: string | null = null
+		// We intentionally do NOT match YARG.Core's GetTrackName here, which
+		// returns the FIRST tick-0 trackName even if it isn't a recognized
+		// instrument. Some real charts (e.g. "Culture Killer - Blindfolded
+		// Death", "Periphery - Ji", "school food punishment - close, down,
+		// back to") emit a bogus leading trackName at tick 0 immediately
+		// followed by the real instrument trackName, also at tick 0:
+		//
+		//   [ENHANCED_OPENS] → PART BASS    (Culture Killer)
+		//   TEMPO TRACK      → PART DRUMS   (Periphery - Ji)
+		//   <song title>     → PART DRUMS   (school food punishment)
+		//
+		// YARG drops these tracks; we keep them. Walk every tick-0 trackName
+		// and accept the first one that matches a recognized instrument.
+		// Capture the first tick-0 trackName for unrecognized-track
+		// round-trip purposes regardless of whether anything matched.
+		let firstTickZeroTrackName: string | null = null
+		let recognizedTrackName: TrackName | null = null
 		for (const event of track) {
 			if (event.deltaTime !== 0) {
 				break
 			}
 			if (event.type === 'trackName') {
-				trackName = event.text
-				break
+				if (firstTickZeroTrackName === null) {
+					firstTickZeroTrackName = event.text
+				}
+				if (recognizedTrackName === null && trackNames.includes(event.text as TrackName)) {
+					recognizedTrackName = event.text as TrackName
+				}
 			}
 		}
 
-		if (trackName !== null && trackNames.includes(trackName as TrackName)) {
+		if (recognizedTrackName !== null) {
 			tracks.push({
-				trackName: trackName as TrackName,
+				trackName: recognizedTrackName,
 				trackEvents: track,
 			})
 		} else if (i !== 0) {
 			// Track 0 is the conductor track (tempo/timeSignature) and isn't a
 			// musical track — skip it from unrecognized capture.
 			unrecognizedMidiTracks.push({
-				trackName: trackName ?? '',
+				trackName: firstTickZeroTrackName ?? '',
 				events: track,
 			})
 		}
