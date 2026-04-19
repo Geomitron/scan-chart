@@ -452,39 +452,9 @@ function scanInstrumentTrack(
 	const unrecognizedEvents: MidiEvent[] = []
 
 	for (const event of events) {
-		// SysEx event (tap modifier or open)
-		if (event.type === 'sysEx' || event.type === 'endSysEx') {
-			// Phase Shift SysEx event header: 50 53 00 00 <diff> <type> <isStart>
-			const isPhaseShiftHeader =
-				event.data.length > 6 &&
-				event.data[0] === 0x50 &&
-				event.data[1] === 0x53 &&
-				event.data[2] === 0x00 &&
-				event.data[3] === 0x00
-			const type =
-				!isPhaseShiftHeader ? null
-				: event.data[5] === 0x01 ? eventTypes.forceOpen
-				: event.data[5] === 0x04 ? eventTypes.forceTap
-				: null
-
-			if (type !== null) {
-				const d = event.data[4]
-				const arr = d === 0xff ? eeAll
-					: d === 0 ? eeEasy
-					: d === 1 ? eeMedium
-					: d === 2 ? eeHard
-					: eeExpert
-				arr.push({
-					tick: event.deltaTime,
-					type,
-					channel: 1,
-					velocity: 127,
-					isStart: event.data[6] === 0x01,
-				})
-			} else {
-				unrecognizedEvents.push(event)
-			}
-		} else if (event.type === 'noteOn' || event.type === 'noteOff') {
+		// Hot path: note events are ~90% of a typical instrument track. Dispatch them
+		// first so we don't fall through sysEx/text checks for every note event.
+		if (event.type === 'noteOn' || event.type === 'noteOff') {
 			// Within this branch, the event is definitely a note event — a noteOn with
 			// velocity 0 is semantically a noteOff for paired-start/end tracking.
 			const isOff = event.type === 'noteOff' || event.velocity === 0
@@ -574,6 +544,40 @@ function scanInstrumentTrack(
 			}
 
 			if (!consumed) unrecognizedEvents.push(event)
+			continue
+		}
+		// SysEx event (tap modifier or open)
+		if (event.type === 'sysEx' || event.type === 'endSysEx') {
+			// Phase Shift SysEx event header: 50 53 00 00 <diff> <type> <isStart>
+			const isPhaseShiftHeader =
+				event.data.length > 6 &&
+				event.data[0] === 0x50 &&
+				event.data[1] === 0x53 &&
+				event.data[2] === 0x00 &&
+				event.data[3] === 0x00
+			const type =
+				!isPhaseShiftHeader ? null
+				: event.data[5] === 0x01 ? eventTypes.forceOpen
+				: event.data[5] === 0x04 ? eventTypes.forceTap
+				: null
+
+			if (type !== null) {
+				const d = event.data[4]
+				const arr = d === 0xff ? eeAll
+					: d === 0 ? eeEasy
+					: d === 1 ? eeMedium
+					: d === 2 ? eeHard
+					: eeExpert
+				arr.push({
+					tick: event.deltaTime,
+					type,
+					channel: 1,
+					velocity: 127,
+					isStart: event.data[6] === 0x01,
+				})
+			} else {
+				unrecognizedEvents.push(event)
+			}
 		} else if (event.type === 'text') {
 			let consumedAsNote = false
 			if (instrumentType === instrumentTypes.drums) {
