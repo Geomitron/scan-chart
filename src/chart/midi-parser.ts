@@ -416,22 +416,28 @@ function scanInstrumentTrack(
 	trackName: string,
 ): TrackScanResult {
 	let enhancedOpens = false
+	const eeAll: TrackEventEnd[] = []
+	const eeExpert: TrackEventEnd[] = []
+	const eeHard: TrackEventEnd[] = []
+	const eeMedium: TrackEventEnd[] = []
+	const eeEasy: TrackEventEnd[] = []
 	const eventEnds: { [difficulty in Difficulty | 'all']: TrackEventEnd[] } = {
-		all: [],
-		expert: [],
-		hard: [],
-		medium: [],
-		easy: [],
+		all: eeAll,
+		expert: eeExpert,
+		hard: eeHard,
+		medium: eeMedium,
+		easy: eeEasy,
 	}
 	const textEvents: { tick: number; text: string }[] = []
-	// Versus phrase + animation collectors need note-on/note-off pairing.
-	const versusStarts = new Map<number, number>() // noteNumber → startTick
+	// Versus phrase 105/106 pairing. Only these two note numbers ever appear,
+	// so hold two scalars instead of a Map allocation.
+	let versusStart105 = -1
+	let versusStart106 = -1
 	const versusPhrases: { tick: number; length: number; isPlayer2: boolean }[] = []
 	const animStarts = new Map<number, number>() // noteNumber → startTick
 	const animations: { tick: number; length: number; noteNumber: number }[] = []
-	const animationFilter = instrumentType === instrumentTypes.drums
-		? (n: number) => n >= 24 && n <= 51
-		: (n: number) => n >= 40 && n <= 59
+	const animMin = instrumentType === instrumentTypes.drums ? 24 : 40
+	const animMax = instrumentType === instrumentTypes.drums ? 51 : 59
 	// Events the typed parser doesn't consume — preserved verbatim for round-trip.
 	const unrecognizedEvents: MidiEvent[] = []
 
@@ -452,7 +458,13 @@ function scanInstrumentTrack(
 				: null
 
 			if (type !== null) {
-				eventEnds[event.data[4] === 0xff ? 'all' : discoFlipDifficultyMap[event.data[4]]].push({
+				const d = event.data[4]
+				const arr = d === 0xff ? eeAll
+					: d === 0 ? eeEasy
+					: d === 1 ? eeMedium
+					: d === 2 ? eeHard
+					: eeExpert
+				arr.push({
 					tick: event.deltaTime,
 					type,
 					channel: 1,
@@ -464,21 +476,26 @@ function scanInstrumentTrack(
 			}
 		} else if (event.type === 'noteOn' || event.type === 'noteOff') {
 			const isOff = event.type === 'noteOff' || (event.type === 'noteOn' && event.velocity === 0)
+			const nn = event.noteNumber
 			let consumed = false
 
 			// Collect versus phrase markers (notes 105/106). These don't overlap
 			// with any note-shaped events, so we don't fall through.
-			if (event.noteNumber === 105 || event.noteNumber === 106) {
+			if (nn === 105) {
 				if (!isOff) {
-					if (!versusStarts.has(event.noteNumber)) {
-						versusStarts.set(event.noteNumber, event.deltaTime)
-					}
-				} else {
-					const startTick = versusStarts.get(event.noteNumber)
-					if (startTick !== undefined) {
-						versusPhrases.push({ tick: startTick, length: event.deltaTime - startTick, isPlayer2: event.noteNumber === 106 })
-						versusStarts.delete(event.noteNumber)
-					}
+					if (versusStart105 === -1) versusStart105 = event.deltaTime
+				} else if (versusStart105 !== -1) {
+					versusPhrases.push({ tick: versusStart105, length: event.deltaTime - versusStart105, isPlayer2: false })
+					versusStart105 = -1
+				}
+				continue
+			}
+			if (nn === 106) {
+				if (!isOff) {
+					if (versusStart106 === -1) versusStart106 = event.deltaTime
+				} else if (versusStart106 !== -1) {
+					versusPhrases.push({ tick: versusStart106, length: event.deltaTime - versusStart106, isPlayer2: true })
+					versusStart106 = -1
 				}
 				continue
 			}
@@ -486,33 +503,33 @@ function scanInstrumentTrack(
 			// Collect animation events (notes 24-51 drums, 40-59 fret). These
 			// overlap with easy-difficulty playable notes (60-66), so the event
 			// must also fall through to the difficulty-based dispatch below.
-			if (animationFilter(event.noteNumber)) {
+			if (nn >= animMin && nn <= animMax) {
 				if (!isOff) {
-					if (!animStarts.has(event.noteNumber)) {
-						animStarts.set(event.noteNumber, event.deltaTime)
+					if (!animStarts.has(nn)) {
+						animStarts.set(nn, event.deltaTime)
 					}
 				} else {
-					const startTick = animStarts.get(event.noteNumber)
+					const startTick = animStarts.get(nn)
 					if (startTick !== undefined) {
-						animations.push({ tick: startTick, length: event.deltaTime - startTick, noteNumber: event.noteNumber })
-						animStarts.delete(event.noteNumber)
+						animations.push({ tick: startTick, length: event.deltaTime - startTick, noteNumber: nn })
+						animStarts.delete(nn)
 					}
 				}
 				consumed = true
 				// fall through — animation note ranges overlap easy-difficulty notes
 			}
 
-			const difficulty =
-				event.noteNumber <= 66 ? 'easy'
-				: event.noteNumber <= 78 ? 'medium'
-				: event.noteNumber <= 90 ? 'hard'
-				: event.noteNumber <= 102 ? 'expert'
-				: 'all'
+			let diffArr: TrackEventEnd[]
+			let difficulty: Difficulty | 'all'
+			if (nn <= 66) { diffArr = eeEasy; difficulty = 'easy' }
+			else if (nn <= 78) { diffArr = eeMedium; difficulty = 'medium' }
+			else if (nn <= 90) { diffArr = eeHard; difficulty = 'hard' }
+			else if (nn <= 102) { diffArr = eeExpert; difficulty = 'expert' }
+			else { diffArr = eeAll; difficulty = 'all' }
 			if (difficulty === 'all') {
-				// Instrument-wide event (solo marker, star power, etc...) (applies to all difficulties)
-				const type = getInstrumentEventType(event.noteNumber)
+				const type = getInstrumentEventType(nn)
 				if (type !== null) {
-					eventEnds[difficulty].push({
+					diffArr.push({
 						tick: event.deltaTime,
 						type,
 						velocity: event.velocity,
@@ -523,12 +540,12 @@ function scanInstrumentTrack(
 				}
 			} else {
 				const type =
-					instrumentType === instrumentTypes.sixFret ? get6FretNoteType(event.noteNumber, difficulty)
-					: instrumentType === instrumentTypes.drums ? getDrumsNoteType(event.noteNumber, difficulty)
-					: instrumentType === instrumentTypes.fiveFret ? get5FretNoteType(event.noteNumber, difficulty, enhancedOpens)
+					instrumentType === instrumentTypes.sixFret ? get6FretNoteType(nn, difficulty)
+					: instrumentType === instrumentTypes.drums ? getDrumsNoteType(nn, difficulty)
+					: instrumentType === instrumentTypes.fiveFret ? get5FretNoteType(nn, difficulty, enhancedOpens)
 					: null
 				if (type !== null) {
-					eventEnds[difficulty].push({
+					diffArr.push({
 						tick: event.deltaTime,
 						type,
 						velocity: event.velocity,
