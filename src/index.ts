@@ -2,9 +2,9 @@ import { md5 } from 'js-md5'
 import * as _ from 'lodash'
 
 import { scanAudio } from './audio'
-import { scanChart } from './chart'
+import { parseChartAndIni, ParseChartAndIniResult, scanParsedChart } from './chart'
 import { scanImage } from './image'
-import { defaultMetadata, scanIni } from './ini'
+import { defaultMetadata } from './ini'
 import { Instrument, ScanChartFolderConfig, ScannedChart } from './interfaces'
 import { RequireMatchingProps, Subset } from './utils'
 import { scanVideo } from './video'
@@ -12,13 +12,19 @@ import { scanVideo } from './video'
 export * from './interfaces'
 export * from './chart/note-parsing-interfaces'
 export { parseChartFile } from './chart/notes-parser'
+export { parseChartAndIni } from './chart'
+export type { ParsedChart, ParseChartAndIniResult } from './chart'
 export { scanIni } from './ini'
 export { calculateTrackHash } from './chart/track-hasher'
 
 /**
- * Scans `files` as a chart folder, and returns a `ScannedChart` object.
+ * Validate, hash, and asset-scan a parsed chart folder. Pair with `parseChartAndIni()` to get the input.
  */
-export function scanChartFolder(files: { fileName: string; data: Uint8Array }[], config?: ScanChartFolderConfig): ScannedChart {
+export function scanChart(
+	files: { fileName: string; data: Uint8Array }[],
+	parseResult: ParseChartAndIniResult,
+	config?: ScanChartFolderConfig,
+): ScannedChart {
 	config = {
 		includeMd5: true,
 		includeBTrack: false,
@@ -33,20 +39,18 @@ export function scanChartFolder(files: { fileName: string; data: Uint8Array }[],
 
 	chart.md5 = config.includeMd5 ? getChartMD5(files) : 'md5 calculation skipped'
 
-	const iniData = scanIni(files)
-	chart.folderIssues.push(...iniData.folderIssues)
-	chart.metadataIssues.push(...iniData.metadataIssues)
+	chart.folderIssues.push(...parseResult.iniFolderIssues)
+	chart.metadataIssues.push(...parseResult.iniMetadataIssues)
+	chart.folderIssues.push(...parseResult.chartFolderIssues)
 
-	const chartData = scanChart(files, iniData.metadata ?? defaultMetadata, config.includeBTrack)
-	chart.chartHash = chartData.chartHash ?? undefined
-	chart.folderIssues.push(...chartData.folderIssues)
-
-	if (chartData.notesData) {
+	if (parseResult.parsedChart) {
+		const chartData = scanParsedChart(parseResult.parsedChart, config.includeBTrack)
+		chart.chartHash = chartData.chartHash
 		chart.notesData = chartData.notesData
 		const instruments = chartData.notesData.instruments
-		if (iniData.metadata) {
+		if (parseResult.iniMetadata) {
 			const checkMissingDifficulty = (instrument: Instrument, diffKey: keyof typeof defaultMetadata) => {
-				if (instruments.includes(instrument) && iniData.metadata[diffKey] === defaultMetadata[diffKey]) {
+				if (instruments.includes(instrument) && parseResult.iniMetadata![diffKey] === defaultMetadata[diffKey]) {
 					chart.metadataIssues.push({ metadataIssue: 'missingValue', description: `Metadata is missing a "${diffKey}" value.` })
 				}
 			}
@@ -60,12 +64,12 @@ export function scanChartFolder(files: { fileName: string; data: Uint8Array }[],
 			checkMissingDifficulty('guitarcoopghl', 'diff_guitar_coop_ghl')
 			checkMissingDifficulty('rhythmghl', 'diff_rhythm_ghl')
 			checkMissingDifficulty('bassghl', 'diff_bassghl')
-			if (chartData.notesData.hasVocals && iniData.metadata.diff_vocals === defaultMetadata.diff_vocals) {
+			if (chartData.notesData.hasVocals && parseResult.iniMetadata.diff_vocals === defaultMetadata.diff_vocals) {
 				chart.metadataIssues.push({ metadataIssue: 'missingValue', description: 'Metadata is missing a "diff_vocals" value.' })
 			}
 
 			const checkExtraDifficulty = (instrument: Instrument, diffKey: keyof typeof defaultMetadata) => {
-				if (iniData.metadata[diffKey] !== defaultMetadata[diffKey] && !instruments.includes(instrument)) {
+				if (parseResult.iniMetadata![diffKey] !== defaultMetadata[diffKey] && !instruments.includes(instrument)) {
 					chart.metadataIssues.push({
 						metadataIssue: 'extraValue',
 						description: `Metadata contains "${diffKey}", but ${instrument} is not charted.`,
@@ -82,7 +86,7 @@ export function scanChartFolder(files: { fileName: string; data: Uint8Array }[],
 			checkExtraDifficulty('guitarcoopghl', 'diff_guitar_coop_ghl')
 			checkExtraDifficulty('rhythmghl', 'diff_rhythm_ghl')
 			checkExtraDifficulty('bassghl', 'diff_bassghl')
-			if (iniData.metadata.diff_vocals !== defaultMetadata.diff_vocals && !chartData.notesData.hasVocals) {
+			if (parseResult.iniMetadata.diff_vocals !== defaultMetadata.diff_vocals && !chartData.notesData.hasVocals) {
 				chart.metadataIssues.push({
 					metadataIssue: 'extraValue',
 					description: 'Metadata contains "diff_vocals", but vocals are not charted.',
@@ -91,17 +95,17 @@ export function scanChartFolder(files: { fileName: string; data: Uint8Array }[],
 		}
 	}
 
-	if (iniData.metadata) {
+	if (parseResult.iniMetadata) {
 		// Use metadata from .ini file if it exists (filled in with defaults for properties that are not included)
-		_.assign(chart, iniData.metadata)
-	} else if (chartData.metadata) {
+		_.assign(chart, parseResult.iniMetadata)
+	} else if (parseResult.parsedChart?.metadata) {
 		// Use metadata from .chart file if it exists
-		_.assign(chart, chartData.metadata)
+		_.assign(chart, parseResult.parsedChart.metadata)
 	} else {
 		// No metadata available
 		chart.playable = false
 	}
-	chart.chart_offset = chartData.metadata?.delay ?? 0
+	chart.chart_offset = parseResult.parsedChart?.metadata?.delay ?? 0
 
 	const imageData = scanImage(files)
 	chart.folderIssues.push(...imageData.folderIssues)
@@ -115,7 +119,7 @@ export function scanChartFolder(files: { fileName: string; data: Uint8Array }[],
 	const audioData = scanAudio(files)
 	chart.folderIssues.push(...audioData.folderIssues)
 
-	if (!chartData.notesData || chart.folderIssues.find(i => i!.folderIssue === 'noAudio') /* TODO: || !audioData.audioHash */) {
+	if (!parseResult.parsedChart || chart.folderIssues.find(i => i!.folderIssue === 'noAudio') /* TODO: || !audioData.audioHash */) {
 		chart.playable = false
 	}
 
@@ -124,6 +128,16 @@ export function scanChartFolder(files: { fileName: string; data: Uint8Array }[],
 	chart.hasVideoBackground = videoData.hasVideoBackground
 
 	return chart as ScannedChart
+}
+
+/**
+ * Scans `files` as a chart folder, and returns a `ScannedChart` object.
+ *
+ * @deprecated Call `parseChartAndIni()` + `scanChart()` directly. Preserved
+ * as a back-compat shim for existing callers.
+ */
+export function scanChartFolder(files: { fileName: string; data: Uint8Array }[], config?: ScanChartFolderConfig): ScannedChart {
+	return scanChart(files, parseChartAndIni(files), config)
 }
 
 function getChartMD5(files: { fileName: string; data: Uint8Array }[]) {

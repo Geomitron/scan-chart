@@ -23,9 +23,24 @@ Note: running this will print usage information. Add command line arguments to t
 
 ```ts
 /**
- * Scans `files` as a chart folder, and returns a `ScannedChart` object.
+ * Parses a chart folder's `notes.{mid,chart}` and `song.ini` into a `ParsedChart`.
+ * No hashing or audio/image scanning.
+ */
+function parseChartAndIni(files: { fileName: string; data: Uint8Array }[]): ParseChartAndIniResult
+
+/**
+ * Validates, hashes, and asset-scans the parsed chart folder. Pair with
+ * `parseChartAndIni()` to get the input. Returns the same `ScannedChart`
+ * shape as the previous `scanChartFolder()` did.
+ */
+function scanChart(files: { fileName: string; data: Uint8Array }[], parseResult: ParseChartAndIniResult, config?: ScanChartFolderConfig): ScannedChart
+
+/**
+ * @deprecated Back-compat shim equivalent to
+ * `scanChart(files, parseChartAndIni(files), config)`. Prefer the two-step form.
  */
 function scanChartFolder(files: { fileName: string; data: Uint8Array }[], config?: ScanChartFolderConfig): ScannedChart
+
 function parseChartFile(data: Uint8Array, format: 'chart' | 'mid', iniChartModifiers: IniChartModifiers): ParsedChart
 function calculateTrackHash(parsedChart: ParsedChart, instrument: Instrument, difficulty: Difficulty): { hash: string, btrack: Uint8Array }
 
@@ -43,6 +58,21 @@ interface ScanChartFolderConfig {
    * Default: `false`.
    */
   includeBTrack: boolean
+}
+
+interface ParseChartAndIniResult {
+	/** The parsed chart, or `null` if a chart file could not be found or could not be parsed. Inspect `chartFolderIssues` for the reason. */
+	parsedChart: ParsedChart | null
+	/** Folder-level issues from chart file discovery and parsing (`noChart`, `invalidChart`, `multipleChart`, `badChart`). */
+	chartFolderIssues: { folderIssue: FolderIssueType; description: string }[]
+	/** The metadata parsed from `song.ini`, or `null` if no ini was present. */
+	iniMetadata: { /* same shape as defaultMetadata */ } | null
+	/** Folder-level issues from ini scanning (`noMetadata`, `invalidIni`, `invalidMetadata`, `badIniLine`, `multipleIniFiles`). */
+	iniFolderIssues: { folderIssue: FolderIssueType; description: string }[]
+	/** Validation issues with ini values. */
+	iniMetadataIssues: { metadataIssue: MetadataIssueType; description: string }[]
+	/** ini key/value pairs not in scan-chart's known list. */
+	iniUnknownValues: { [key: string]: string }
 }
 
 interface ScannedChart {
@@ -350,6 +380,15 @@ type NoteType =
 	| 'greenTomOrCymbalMarker'
 
 interface ParsedChart {
+	/**
+	 * The raw bytes of the source chart file. Needed by `scanParsedChart` to
+	 * compute `chartHash` (which is `blake3(chartBytes ++ ini-modifier name/value pairs)`).
+	 */
+	chartBytes: Uint8Array
+	/** The format the chart was parsed from. */
+	format: 'chart' | 'mid'
+	/** The fully-resolved ini modifiers that influenced parsing. */
+	iniChartModifiers: IniChartModifiers
 	resolution: number
 	drumType: DrumType | null
 	metadata: {
