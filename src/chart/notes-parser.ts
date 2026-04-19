@@ -80,6 +80,7 @@ export function parseChartFile(data: Uint8Array, format: 'chart' | 'mid', partia
 				textEvents: setEventMsTimes(track.textEvents, timedTempos, rawChartData.chartTicksPerBeat),
 				versusPhrases: setEventMsTimes(track.versusPhrases, timedTempos, rawChartData.chartTicksPerBeat),
 				animations: setEventMsTimes(track.animations, timedTempos, rawChartData.chartTicksPerBeat),
+				unrecognizedMidiEvents: track.unrecognizedMidiEvents,
 				noteEventGroups: _.chain(track.trackEvents)
 					.thru(events => trimSustains(events, iniChartModifiers.sustain_cutoff_threshold, rawChartData.chartTicksPerBeat, format))
 					.groupBy(note => note.tick)
@@ -111,6 +112,8 @@ export function parseChartFile(data: Uint8Array, format: 'chart' | 'mid', partia
 		vocalTracks: normalizedVocalTracks,
 		endEvents: setEventMsTimes(rawChartData.endEvents, timedTempos, rawChartData.chartTicksPerBeat),
 		unrecognizedEvents: setEventMsTimes(rawChartData.unrecognizedEvents, timedTempos, rawChartData.chartTicksPerBeat),
+		unrecognizedMidiTracks: rawChartData.unrecognizedMidiTracks,
+		unrecognizedChartSections: rawChartData.unrecognizedChartSections,
 		tempos: timedTempos,
 		timeSignatures: setEventMsTimes(rawChartData.timeSignatures, timedTempos, rawChartData.chartTicksPerBeat),
 		sections: setEventMsTimes(rawChartData.sections, timedTempos, rawChartData.chartTicksPerBeat),

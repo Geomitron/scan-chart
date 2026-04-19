@@ -1,3 +1,4 @@
+import type { MidiEvent } from 'midi-file'
 import { Difficulty, Instrument, NotesData } from 'src/interfaces'
 import { ObjectValues } from 'src/utils'
 
@@ -91,6 +92,27 @@ export interface RawChartData {
 	 * away, malformed events that get dropped).
 	 */
 	parseIssues: Omit<NotesData['chartIssues'][number], 'description'>[]
+	/**
+	 * Whole MIDI tracks whose `trackName` isn't recognized as a parseable
+	 * instrument/vocal/EVENTS track. Stored verbatim as raw `MidiEvent[]` (delta
+	 * times in absolute ticks, matching the rest of the parser). Round-trip
+	 * writers re-emit these as-is so unrecognized tracks (VENUE, BEAT, PART
+	 * REAL_GUITAR, PART REAL_DRUMS_PS, custom tracks, etc.) survive a
+	 * parse → write → parse loop.
+	 *
+	 * `.chart` always returns `[]` here — see `unrecognizedChartSections` for
+	 * the `.chart` equivalent.
+	 */
+	unrecognizedMidiTracks: { trackName: string; events: MidiEvent[] }[]
+	/**
+	 * `.chart` sections whose name is not Song/SyncTrack/Events and isn't
+	 * resolvable as an instrument+difficulty track. Stored verbatim as the
+	 * lines that appeared inside the `[Section] { ... }` block, so writers
+	 * can re-emit them for round-trip.
+	 *
+	 * MIDI always returns `[]` here.
+	 */
+	unrecognizedChartSections: { name: string; lines: string[] }[]
 	trackData: {
 		instrument: Instrument
 		difficulty: Difficulty
@@ -159,6 +181,15 @@ export interface RawChartData {
 			/** The MIDI note number identifying the animation */
 			noteNumber: number
 		}[]
+		/**
+		 * MIDI events on this track that the typed parser didn't consume —
+		 * stray noteOn/noteOff outside the recognized note ranges, text/sysex/
+		 * meta events not routed to a typed field. Stored verbatim (deltaTime
+		 * is in absolute ticks) so writers can re-emit them for round-trip.
+		 *
+		 * `.chart` always returns `[]` here.
+		 */
+		unrecognizedMidiEvents: MidiEvent[]
 	}[]
 }
 
@@ -204,6 +235,15 @@ export interface VocalTrackData {
 		tick: number
 		text: string
 	}[]
+	/**
+	 * MIDI events on this vocal track the scanner didn't consume — stray
+	 * noteOn/noteOff outside recognized vocal note ranges (not 0/1/105/106/116
+	 * and not 36–84/96/97), plus sysEx / meta / channel events. Stored verbatim
+	 * (deltaTime is absolute ticks) so writers can re-emit them for round-trip.
+	 *
+	 * `.chart` always returns `[]` here.
+	 */
+	unrecognizedMidiEvents: MidiEvent[]
 }
 
 export type EventType = ObjectValues<typeof eventTypes>
