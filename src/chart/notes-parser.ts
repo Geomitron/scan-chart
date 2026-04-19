@@ -458,59 +458,54 @@ function setEventGroupMsTimes<T extends { tick: number; length?: number }>(
 	events: T[][],
 	tempos: { tick: number; beatsPerMinute: number; msTime: number }[],
 	chartTicksPerBeat: number,
-) {
-	return setEventOrEventGroupMsTimes(events, tempos, chartTicksPerBeat) as (T & { msTime: number; msLength: number })[][]
+): (T & { msTime: number; msLength: number })[][] {
+	const temposLen = tempos.length
+	let lastTempoIndex = 0
+	for (const group of events) {
+		for (let i = 0; i < group.length; i++) {
+			const ev = group[i] as T & { msTime: number; msLength: number }
+			while (lastTempoIndex + 1 < temposLen && tempos[lastTempoIndex + 1].tick <= ev.tick) lastTempoIndex++
+			const lastTempo = tempos[lastTempoIndex]
+			ev.msTime = lastTempo.msTime + ((ev.tick - lastTempo.tick) * 60000) / (lastTempo.beatsPerMinute * chartTicksPerBeat)
+			const len = ev.length
+			if (len) {
+				let endTempoIndex = lastTempoIndex
+				const endTick = ev.tick + len
+				while (endTempoIndex + 1 < temposLen && tempos[endTempoIndex + 1].tick <= endTick) endTempoIndex++
+				const endTempo = tempos[endTempoIndex]
+				ev.msLength = endTempo.msTime - ev.msTime + ((endTick - endTempo.tick) * 60000) / (endTempo.beatsPerMinute * chartTicksPerBeat)
+			} else {
+				ev.msLength = 0
+			}
+		}
+	}
+	return events as (T & { msTime: number; msLength: number })[][]
 }
+
 function setEventMsTimes<T extends { tick: number; length?: number }>(
 	events: T[],
 	tempos: { tick: number; beatsPerMinute: number; msTime: number }[],
 	chartTicksPerBeat: number,
-) {
-	return setEventOrEventGroupMsTimes(events, tempos, chartTicksPerBeat) as (T & { msTime: number; msLength: number })[]
-}
-function setEventOrEventGroupMsTimes<T extends { tick: number; length?: number }>(
-	events: T[] | T[][],
-	tempos: { tick: number; beatsPerMinute: number; msTime: number }[],
-	chartTicksPerBeat: number,
-) {
+): (T & { msTime: number; msLength: number })[] {
+	const temposLen = tempos.length
 	let lastTempoIndex = 0
-
-	const processNextEvent = (event: T) => {
-		while (tempos[lastTempoIndex + 1] && tempos[lastTempoIndex + 1].tick <= event.tick) {
-			lastTempoIndex++
-		}
-
+	for (let i = 0; i < events.length; i++) {
+		const ev = events[i] as T & { msTime: number; msLength: number }
+		while (lastTempoIndex + 1 < temposLen && tempos[lastTempoIndex + 1].tick <= ev.tick) lastTempoIndex++
 		const lastTempo = tempos[lastTempoIndex]
-		const newEvent = event as T & { msTime: number; msLength: number }
-
-		newEvent.msTime = lastTempo.msTime + ((event.tick - lastTempo.tick) * 60000) / (lastTempo.beatsPerMinute * chartTicksPerBeat)
-
-		if (event.length) {
+		ev.msTime = lastTempo.msTime + ((ev.tick - lastTempo.tick) * 60000) / (lastTempo.beatsPerMinute * chartTicksPerBeat)
+		const len = ev.length
+		if (len) {
 			let endTempoIndex = lastTempoIndex
-			while (tempos[endTempoIndex + 1] && tempos[endTempoIndex + 1].tick <= event.tick + event.length) {
-				endTempoIndex++
-			}
+			const endTick = ev.tick + len
+			while (endTempoIndex + 1 < temposLen && tempos[endTempoIndex + 1].tick <= endTick) endTempoIndex++
 			const endTempo = tempos[endTempoIndex]
-			newEvent.msLength =
-				// eslint-disable-next-line max-len
-				endTempo.msTime - newEvent.msTime + ((event.tick + event.length - endTempo.tick) * 60000) / (endTempo.beatsPerMinute * chartTicksPerBeat)
+			ev.msLength = endTempo.msTime - ev.msTime + ((endTick - endTempo.tick) * 60000) / (endTempo.beatsPerMinute * chartTicksPerBeat)
 		} else {
-			newEvent.msLength = 0
+			ev.msLength = 0
 		}
 	}
-
-	if (Array.isArray(events[0])) {
-		for (const eventGroup of events as T[][]) {
-			for (const event of eventGroup) {
-				processNextEvent(event)
-			}
-		}
-	} else {
-		for (const event of events as T[]) {
-			processNextEvent(event)
-		}
-	}
-	return events as (T & { msTime: number; msLength: number })[][] | (T & { msTime: number; msLength: number })[]
+	return events as (T & { msTime: number; msLength: number })[]
 }
 
 function groupByTick(events: TrackEvent[]): TrackEvent[][] {
