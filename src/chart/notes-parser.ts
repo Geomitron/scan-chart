@@ -1,4 +1,3 @@
-import * as _ from 'lodash'
 
 import { Difficulty, DrumType, drumTypes, getInstrumentType, Instrument, instrumentTypes } from 'src/interfaces'
 import { parseNotesFromChart } from './chart-parser'
@@ -939,13 +938,16 @@ function isFretChord(note: TrackEvent[]) {
 }
 
 function isInFretNote(inNote: TrackEvent[], outerNote: TrackEvent[]) {
-	return (
-		_.differenceBy(
-			inNote.filter(n => isFretNote(n.type)),
-			outerNote.filter(n => isFretNote(n.type)),
-			note => note.type,
-		).length === 0
-	)
+	// True if every fret note type in `inNote` also appears in `outerNote`.
+	for (const n of inNote) {
+		if (!isFretNote(n.type)) continue
+		let found = false
+		for (const o of outerNote) {
+			if (o.type === n.type) { found = true; break }
+		}
+		if (!found) return false
+	}
+	return true
 }
 
 function getFretNoteTypeFromEventType(eventType: EventType): NoteType | null {
@@ -988,7 +990,7 @@ function snapChords(noteGroups: UntimedNoteEvent[][], chord_snap_threshold: numb
 
 	for (let i = 1; i < noteGroups.length; i++) {
 		const noteGroup = noteGroups[i]
-		const lastNoteGroup = _.last(newNoteGroups)!
+		const lastNoteGroup = newNoteGroups[newNoteGroups.length - 1]
 
 		if (noteGroup[0].tick - lastNoteGroup[0].tick >= chord_snap_threshold) {
 			newNoteGroups.push(noteGroup)
