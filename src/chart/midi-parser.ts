@@ -746,14 +746,13 @@ function getTrackEvents(trackEventEnds: { [key in Difficulty]: TrackEventEnd[] }
 	const trackEvents: { [key in Difficulty]: MidiTrackEvent[] } = { expert: [], hard: [], medium: [], easy: [] }
 
 	for (const difficulty of difficulties) {
-		const partialTrackEventsMap = _.chain(eventTypes)
-			.values()
-			.map(k => [k, []])
-			.fromPairs()
-			.value() as { [key in EventType]: MidiTrackEvent[] }
+		// Lazy partial-event lists keyed by event type. Most types never appear on a
+		// given difficulty, so only allocate a list when we see one.
+		const partialTrackEventsMap: { [key: string]: MidiTrackEvent[] | undefined } = {}
+		const out = trackEvents[difficulty]
 
 		for (const trackEventEnd of trackEventEnds[difficulty]) {
-			const partialTrackEvents = partialTrackEventsMap[trackEventEnd.type]
+			let partialTrackEvents = partialTrackEventsMap[trackEventEnd.type]
 			if (trackEventEnd.isStart) {
 				const partialTrackEvent: MidiTrackEvent = {
 					tick: trackEventEnd.tick,
@@ -762,21 +761,33 @@ function getTrackEvents(trackEventEnds: { [key in Difficulty]: TrackEventEnd[] }
 					velocity: trackEventEnd.velocity,
 					channel: trackEventEnd.channel,
 				}
+				if (partialTrackEvents === undefined) {
+					partialTrackEvents = []
+					partialTrackEventsMap[trackEventEnd.type] = partialTrackEvents
+				}
 				partialTrackEvents.push(partialTrackEvent)
-				trackEvents[difficulty].push(partialTrackEvent)
-			} else if (partialTrackEvents.length) {
+				out.push(partialTrackEvent)
+			} else if (partialTrackEvents !== undefined && partialTrackEvents.length) {
 				let partialTrackEventIndex = partialTrackEvents.length - 1
 				while (partialTrackEventIndex >= 0 && partialTrackEvents[partialTrackEventIndex].channel !== trackEventEnd.channel) {
 					partialTrackEventIndex-- // Find the most recent partial event on the same channel
 				}
 				if (partialTrackEventIndex >= 0) {
-					const partialTrackEvent = _.pullAt(partialTrackEvents, partialTrackEventIndex)[0]
+					const partialTrackEvent = partialTrackEvents[partialTrackEventIndex]
+					partialTrackEvents.splice(partialTrackEventIndex, 1)
 					partialTrackEvent.length = trackEventEnd.tick - partialTrackEvent.tick
 				}
 			}
 		}
 
-		_.remove(trackEvents[difficulty], e => e.length === -1) // Remove all remaining partial events
+		// In-place filter: remove any remaining partial events whose length was never set.
+		let write = 0
+		for (let read = 0; read < out.length; read++) {
+			if (out[read].length !== -1) {
+				out[write++] = out[read]
+			}
+		}
+		out.length = write
 	}
 
 	return trackEvents
