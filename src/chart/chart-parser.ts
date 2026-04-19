@@ -309,6 +309,12 @@ function getFileSections(chartText: string) {
  * out from textEvents since they're consumed as disco flip modifiers. */
 const chartDiscoFlipRegex = /^\s*\[?mix[ _][0-3][ _]drums[0-5](d|dnoflip|easy|easynokick|)\]?\s*$/
 
+// Hoisted regexes — avoid re-parsing on every parseTrackLine call.
+const chartLineEQuoted = /^(\d+) = E "([^"\r\n]*)"$/
+const chartLineEUnquoted = /^(\d+) = E ([^\r\n]+?)$/
+const chartLineNS = /^(\d+) = ([NS]) (\w+)( \d+)?$/
+const chartLineDiscoFlipE = /^\s*\[?mix[ _]([0-3])[ _]drums([0-5])(d|dnoflip|easy|easynokick|)\]?\s*$/
+
 /**
  * Events parsed from a single .chart track line. Note-shaped events flow into
  * `trackEvents` and friends via the distribution loop; text and versus events
@@ -330,8 +336,25 @@ type ParsedTrackLine = ParsedNoteEvent | ParsedTextEvent | ParsedVersusEvent
  *   TICK = N VALUE LENGTH    → note (with instrument-specific mapping)
  */
 function parseTrackLine(line: string, instrument: Instrument, difficulty: Difficulty): ParsedTrackLine | null {
+	// Most lines are N/S (notes). Try them first to short-circuit the common case.
+	const nsMatch = chartLineNS.exec(line)
+	if (nsMatch) {
+		const tick = Number(nsMatch[1])
+		const typeCode = nsMatch[2]
+		const value = nsMatch[3]
+		const length = Number(nsMatch[4]) || 0
+		if (typeCode === 'S') {
+			if (value === '0' || value === '1') {
+				return { kind: 'versus', tick, length, isPlayer2: value === '1' }
+			}
+			const type = getSEventType(value)
+			return type !== null ? { kind: 'note', tick, type, length } : null
+		}
+		const type = getNEventType(value, instrument)
+		return type !== null ? { kind: 'note', tick, type, length } : null
+	}
 	// E events have quoted arbitrary text, so handle them separately from N/S.
-	const eMatch = /^(\d+) = E "([^"\r\n]*)"$/.exec(line) ?? /^(\d+) = E ([^\r\n]+?)$/.exec(line)
+	const eMatch = chartLineEQuoted.exec(line) ?? chartLineEUnquoted.exec(line)
 	if (eMatch) {
 		const tick = Number(eMatch[1])
 		const value = eMatch[2]
@@ -343,25 +366,6 @@ function parseTrackLine(line: string, instrument: Instrument, difficulty: Diffic
 		const stripped = value.replace(/^\[/, '').replace(/\]$/, '').trim()
 		if (stripped === 'ENABLE_CHART_DYNAMICS' || stripped === 'ENHANCED_OPENS') return null
 		return { kind: 'text', tick, text: value }
-	}
-	// N/S events have numeric value + optional length
-	const nsMatch = /^(\d+) = ([NS]) (\w+)( \d+)?$/.exec(line)
-	if (nsMatch) {
-		const tick = Number(nsMatch[1])
-		const typeCode = nsMatch[2]
-		const value = nsMatch[3]
-		const length = Number(nsMatch[4]) || 0
-		if (typeCode === 'S') {
-			// S 0 (player 1) / S 1 (player 2) are versus phrases, not note-shaped
-			if (value === '0' || value === '1') {
-				return { kind: 'versus', tick, length, isPlayer2: value === '1' }
-			}
-			const type = getSEventType(value)
-			return type !== null ? { kind: 'note', tick, type, length } : null
-		}
-		// N: instrument-dependent note mapping
-		const type = getNEventType(value, instrument)
-		return type !== null ? { kind: 'note', tick, type, length } : null
 	}
 	return null
 }
