@@ -1,5 +1,3 @@
-import * as _ from 'lodash'
-
 import { Difficulty, Instrument } from 'src/interfaces'
 import { getEncoding } from 'src/utils'
 import { EventType, eventTypes, RawChartData } from './note-parsing-interfaces'
@@ -82,16 +80,19 @@ export function parseNotesFromChart(data: Uint8Array): RawChartData {
 	const chartText = decoder.decode(data)
 
 	const fileSections = getFileSections(chartText)
-	if (_.values(fileSections).length === 0) {
+	const fileSectionKeys = Object.keys(fileSections)
+	if (fileSectionKeys.length === 0) {
 		throw 'Invalid .chart file: no sections were found.'
 	}
 
-	const metadata = _.chain(fileSections['Song'])
-		.map(line => /^(.+?) = "?(.*?)"?$/.exec(line))
-		.compact()
-		.map(([, key, value]) => [key, value])
-		.fromPairs()
-		.value()
+	const metadata: { [key: string]: string } = {}
+	const songLines = fileSections['Song']
+	if (songLines) {
+		for (const line of songLines) {
+			const m = chartSongMetaRegex.exec(line)
+			if (m) metadata[m[1]] = m[2]
+		}
+	}
 
 	const resolution = Number(metadata['Resolution'])
 	if (!resolution) {
@@ -130,129 +131,108 @@ export function parseNotesFromChart(data: Uint8Array): RawChartData {
 				unrecognizedMidiEvents: [],
 			},
 		},
-		tempos: _.chain(fileSections['SyncTrack'])
-			.map(line => /^(\d+) = B (\d+)$/.exec(line))
-			.compact()
-			.map(([, stringTick, stringMillibeatsPerMinute]) => ({
-				tick: Number(stringTick),
-				beatsPerMinute: Number(stringMillibeatsPerMinute) / 1000,
-			}))
-			.tap(tempos => {
-				const zeroTempo = tempos.find(tempo => tempo.beatsPerMinute === 0)
-				if (zeroTempo) {
-					throw `Invalid .chart file: Tempo at tick ${zeroTempo.tick} was zero.`
-				}
-				if (!tempos[0] || tempos[0].tick !== 0) {
-					tempos.unshift({ tick: 0, beatsPerMinute: 120 })
-				}
-			})
-			.value(),
-		timeSignatures: _.chain(fileSections['SyncTrack'])
-			.map(line => /^(\d+) = TS (\d+)(?: (\d+))?$/.exec(line))
-			.compact()
-			.map(([, stringTick, stringNumerator, stringDenominatorExp]) => ({
-				tick: Number(stringTick),
-				numerator: Number(stringNumerator),
-				denominator: stringDenominatorExp ? Math.pow(2, Number(stringDenominatorExp)) : 4,
-			}))
-			.tap(timeSignatures => {
-				const zeroTimeSignatureN = timeSignatures.find(timeSignature => timeSignature.numerator === 0)
-				const zeroTimeSignatureD = timeSignatures.find(timeSignature => timeSignature.denominator === 0)
-				if (zeroTimeSignatureN) {
-					throw `Invalid .mid file: Time signature numerator at tick ${zeroTimeSignatureN.tick} was zero.`
-				}
-				if (zeroTimeSignatureD) {
-					throw `Invalid .mid file: Time signature denominator at tick ${zeroTimeSignatureD.tick} was zero.`
-				}
-				if (!timeSignatures[0] || timeSignatures[0].tick !== 0) {
-					timeSignatures.unshift({ tick: 0, numerator: 4, denominator: 4 })
-				}
-			})
-			.value(),
+		tempos: parseChartTempos(fileSections['SyncTrack']),
+		timeSignatures: parseChartTimeSignatures(fileSections['SyncTrack']),
 		sections: eventsScan.sections,
 		endEvents: eventsScan.endEvents,
 		unrecognizedEvents: eventsScan.unrecognizedEvents,
 		parseIssues: [],
 		unrecognizedMidiTracks: [], // MIDI-only
-		unrecognizedChartSections: _.chain(fileSections)
-			.toPairs()
-			.filter(([sectionName]) =>
-				sectionName !== 'Song' && sectionName !== 'SyncTrack' && sectionName !== 'Events'
-				&& !(sectionName in trackNameMap),
-			)
-			.map(([name, lines]) => ({ name, lines: [...lines] }))
-			.value(),
-		trackData: _.chain(fileSections)
-			.pick(_.keys(trackNameMap))
-			.toPairs()
-			.map(([trackName, lines]) => {
-				const { instrument, difficulty } = trackNameMap[trackName as TrackName]
-				// Single parsing pass that produces note-shaped events (`{ tick, type, length }`)
-				// plus data-carrying events (text, versus). Note-shaped events flow through
-				// the same distribution loop as before; the data-carrying ones are routed
-				// to their dedicated arrays inside the same loop.
-				const parsedEvents = _.chain(lines)
-					.map(line => parseTrackLine(line, instrument, difficulty))
-					.compact()
-					.orderBy('tick') // Most parsers reject charts that aren't already sorted, but it's easier to just sort it here
-					.value()
-
-				// Merge solo/soloend pairs in place (note-shaped events only)
-				const trackEvents = mergeSoloEvents(
-					parsedEvents.filter((e): e is ParsedNoteEvent => e.kind === 'note'),
-				)
-
-				const result: RawChartData['trackData'][number] = {
-					instrument,
-					difficulty,
-					starPowerSections: [],
-					rejectedStarPowerSections: [],
-					soloSections: [],
-					flexLanes: [],
-					drumFreestyleSections: [],
-					trackEvents: [],
-					textEvents: [],
-					versusPhrases: [],
-					animations: [], // .chart format does not have note-based animations
-					unrecognizedMidiEvents: [], // MIDI-only
-				}
-
-				for (const event of trackEvents) {
-					if (event.type === eventTypes.starPower) {
-						result.starPowerSections.push(event)
-					} else if (event.type === eventTypes.rejectedStarPower) {
-						result.rejectedStarPowerSections.push(event)
-					} else if (event.type === eventTypes.soloSection) {
-						result.soloSections.push(event)
-					} else if (event.type === eventTypes.flexLaneSingle || event.type === eventTypes.flexLaneDouble) {
-						result.flexLanes.push({
-							tick: event.tick,
-							length: event.length,
-							isDouble: event.type === eventTypes.flexLaneDouble,
-						})
-					} else if (event.type === eventTypes.freestyleSection) {
-						result.drumFreestyleSections.push({
-							tick: event.tick,
-							length: event.length,
-							isCoda: firstCodaTick === null ? false : event.tick >= firstCodaTick,
-						})
-					} else {
-						result.trackEvents.push(event)
-					}
-				}
-
-				for (const event of parsedEvents) {
-					if (event.kind === 'text') {
-						result.textEvents.push({ tick: event.tick, text: event.text })
-					} else if (event.kind === 'versus') {
-						result.versusPhrases.push({ tick: event.tick, length: event.length, isPlayer2: event.isPlayer2 })
-					}
-				}
-
-				return result
-			})
-			.value(),
+		unrecognizedChartSections: buildUnrecognizedChartSections(fileSections, fileSectionKeys),
+		trackData: buildChartTrackData(fileSections, firstCodaTick),
 	}
+}
+
+function buildUnrecognizedChartSections(
+	fileSections: { [k: string]: string[] },
+	fileSectionKeys: string[],
+): { name: string; lines: string[] }[] {
+	const out: { name: string; lines: string[] }[] = []
+	for (const name of fileSectionKeys) {
+		if (name === 'Song' || name === 'SyncTrack' || name === 'Events') continue
+		if (name in trackNameMap) continue
+		out.push({ name, lines: [...fileSections[name]] })
+	}
+	return out
+}
+
+function buildChartTrackData(
+	fileSections: { [k: string]: string[] },
+	firstCodaTick: number | null,
+): RawChartData['trackData'] {
+	const out: RawChartData['trackData'] = []
+	// Iterate in `trackNameMap` order (matches lodash's `_.pick(fileSections, _.keys(trackNameMap))`)
+	// so `trackData` output order is deterministic regardless of how the chart file orders sections.
+	for (const trackName of Object.keys(trackNameMap) as TrackName[]) {
+		const lines = fileSections[trackName]
+		if (!lines) continue
+		const { instrument, difficulty } = trackNameMap[trackName]
+
+		// Single parsing pass that produces note-shaped events ({tick, type, length})
+		// plus data-carrying events (text, versus).
+		const parsedEvents: ParsedTrackLine[] = []
+		for (const line of lines) {
+			const parsed = parseTrackLine(line, instrument, difficulty)
+			if (parsed !== null) parsedEvents.push(parsed)
+		}
+		// Most parsers reject charts that aren't already sorted, but sort here for safety.
+		parsedEvents.sort((a, b) => a.tick - b.tick)
+
+		// Merge solo/soloend pairs in place (note-shaped events only)
+		const trackEvents = mergeSoloEvents(
+			parsedEvents.filter((e): e is ParsedNoteEvent => e.kind === 'note'),
+		)
+
+		const result: RawChartData['trackData'][number] = {
+			instrument,
+			difficulty,
+			starPowerSections: [],
+			rejectedStarPowerSections: [],
+			soloSections: [],
+			flexLanes: [],
+			drumFreestyleSections: [],
+			trackEvents: [],
+			textEvents: [],
+			versusPhrases: [],
+			animations: [],
+			unrecognizedMidiEvents: [],
+		}
+
+		for (const event of trackEvents) {
+			if (event.type === eventTypes.starPower) {
+				result.starPowerSections.push(event)
+			} else if (event.type === eventTypes.rejectedStarPower) {
+				result.rejectedStarPowerSections.push(event)
+			} else if (event.type === eventTypes.soloSection) {
+				result.soloSections.push(event)
+			} else if (event.type === eventTypes.flexLaneSingle || event.type === eventTypes.flexLaneDouble) {
+				result.flexLanes.push({
+					tick: event.tick,
+					length: event.length,
+					isDouble: event.type === eventTypes.flexLaneDouble,
+				})
+			} else if (event.type === eventTypes.freestyleSection) {
+				result.drumFreestyleSections.push({
+					tick: event.tick,
+					length: event.length,
+					isCoda: firstCodaTick === null ? false : event.tick >= firstCodaTick,
+				})
+			} else {
+				result.trackEvents.push(event)
+			}
+		}
+
+		for (const event of parsedEvents) {
+			if (event.kind === 'text') {
+				result.textEvents.push({ tick: event.tick, text: event.text })
+			} else if (event.kind === 'versus') {
+				result.versusPhrases.push({ tick: event.tick, length: event.length, isPlayer2: event.isPlayer2 })
+			}
+		}
+
+		out.push(result)
+	}
+	return out
 }
 
 function getFileSections(chartText: string) {
@@ -261,42 +241,35 @@ function getFileSections(chartText: string) {
 	let readStartIndex = 0
 	let readingSection = false
 	let thisSection: string | null = null
-	for (let i = 0; i < chartText.length; i++) {
+	const len = chartText.length
+	for (let i = 0; i < len; i++) {
+		const c = chartText.charCodeAt(i)
 		if (readingSection) {
-			if (chartText[i] === ']') {
+			if (c === 93) { // ']'
 				readingSection = false
 				thisSection = chartText.slice(readStartIndex, i)
-			}
-			if (chartText[i] === '\n') {
+			} else if (c === 10) { // '\n'
 				throw `Invalid .chart file: unexpected new line when parsing section at index ${i}`
 			}
 			continue // Keep reading section until it ends
 		}
 
-		if (chartText[i] === '=') {
+		if (c === 61) { // '='
 			skipLine = true
-		} // Skip all user-entered values
-		if (chartText[i] === '\n') {
+		} else if (c === 10) { // '\n'
 			skipLine = false
 		}
-		if (skipLine) {
-			continue
-		} // Keep skipping until '\n' is found
+		if (skipLine) continue
 
-		if (chartText[i] === '{') {
+		if (c === 123) { // '{'
 			skipLine = true
 			readStartIndex = i + 1
-		} else if (chartText[i] === '}') {
+		} else if (c === 125) { // '}'
 			if (!thisSection) {
 				throw `Invalid .chart file: end of section reached before a section name was found at index ${i}`
 			}
-			// Trim each line because of Windows \r\n shenanigans
-			sections[thisSection] = chartText
-				.slice(readStartIndex, i)
-				.split('\n')
-				.map(line => line.trim())
-				.filter(line => line.length)
-		} else if (chartText[i] === '[') {
+			sections[thisSection] = splitTrimmedNonEmptyLines(chartText, readStartIndex, i)
+		} else if (c === 91) { // '['
 			readStartIndex = i + 1
 			readingSection = true
 		}
@@ -305,9 +278,91 @@ function getFileSections(chartText: string) {
 	return sections
 }
 
+/**
+ * Slice `source` from `start` to `end`, split on '\n', trim each line, and
+ * drop empty results — in one pass with no intermediate arrays.
+ */
+function splitTrimmedNonEmptyLines(source: string, start: number, end: number): string[] {
+	const out: string[] = []
+	let lineStart = start
+	for (let i = start; i <= end; i++) {
+		if (i === end || source.charCodeAt(i) === 10) {
+			// trim the slice [lineStart, i)
+			let a = lineStart, b = i
+			while (a < b) {
+				const cc = source.charCodeAt(a)
+				if (cc !== 32 && cc !== 9 && cc !== 13) break
+				a++
+			}
+			while (b > a) {
+				const cc = source.charCodeAt(b - 1)
+				if (cc !== 32 && cc !== 9 && cc !== 13) break
+				b--
+			}
+			if (b > a) out.push(source.slice(a, b))
+			lineStart = i + 1
+		}
+	}
+	return out
+}
+
 /** Regex matching disco flip mix events (any difficulty). Used to filter them
  * out from textEvents since they're consumed as disco flip modifiers. */
 const chartDiscoFlipRegex = /^\s*\[?mix[ _][0-3][ _]drums[0-5](d|dnoflip|easy|easynokick|)\]?\s*$/
+
+// Hoisted regexes — avoid re-parsing on every parseTrackLine call.
+const chartLineEQuoted = /^(\d+) = E "([^"\r\n]*)"$/
+const chartLineEUnquoted = /^(\d+) = E ([^\r\n]+?)$/
+const chartLineNS = /^(\d+) = ([NS]) (\w+)( \d+)?$/
+const chartLineDiscoFlipE = /^\s*\[?mix[ _]([0-3])[ _]drums([0-5])(d|dnoflip|easy|easynokick|)\]?\s*$/
+const chartSyncTempo = /^(\d+) = B (\d+)$/
+const chartSyncTS = /^(\d+) = TS (\d+)(?: (\d+))?$/
+const chartSongMetaRegex = /^(.+?) = "?(.*?)"?$/
+
+function parseChartTempos(lines: string[]): { tick: number; beatsPerMinute: number }[] {
+	const tempos: { tick: number; beatsPerMinute: number }[] = []
+	for (const line of lines) {
+		const m = chartSyncTempo.exec(line)
+		if (!m) continue
+		tempos.push({ tick: Number(m[1]), beatsPerMinute: Number(m[2]) / 1000 })
+	}
+	for (const tempo of tempos) {
+		if (tempo.beatsPerMinute === 0) {
+			throw `Invalid .chart file: Tempo at tick ${tempo.tick} was zero.`
+		}
+	}
+	if (!tempos[0] || tempos[0].tick !== 0) {
+		tempos.unshift({ tick: 0, beatsPerMinute: 120 })
+	}
+	return tempos
+}
+
+function parseChartTimeSignatures(lines: string[]): { tick: number; numerator: number; denominator: number }[] {
+	const result: { tick: number; numerator: number; denominator: number }[] = []
+	for (const line of lines) {
+		const m = chartSyncTS.exec(line)
+		if (!m) continue
+		result.push({
+			tick: Number(m[1]),
+			numerator: Number(m[2]),
+			denominator: m[3] ? Math.pow(2, Number(m[3])) : 4,
+		})
+	}
+	for (const ts of result) {
+		if (ts.numerator === 0) {
+			throw `Invalid .mid file: Time signature numerator at tick ${ts.tick} was zero.`
+		}
+	}
+	for (const ts of result) {
+		if (ts.denominator === 0) {
+			throw `Invalid .mid file: Time signature denominator at tick ${ts.tick} was zero.`
+		}
+	}
+	if (!result[0] || result[0].tick !== 0) {
+		result.unshift({ tick: 0, numerator: 4, denominator: 4 })
+	}
+	return result
+}
 
 /**
  * Events parsed from a single .chart track line. Note-shaped events flow into
@@ -330,8 +385,25 @@ type ParsedTrackLine = ParsedNoteEvent | ParsedTextEvent | ParsedVersusEvent
  *   TICK = N VALUE LENGTH    → note (with instrument-specific mapping)
  */
 function parseTrackLine(line: string, instrument: Instrument, difficulty: Difficulty): ParsedTrackLine | null {
+	// Most lines are N/S (notes). Try them first to short-circuit the common case.
+	const nsMatch = chartLineNS.exec(line)
+	if (nsMatch) {
+		const tick = Number(nsMatch[1])
+		const typeCode = nsMatch[2]
+		const value = nsMatch[3]
+		const length = Number(nsMatch[4]) || 0
+		if (typeCode === 'S') {
+			if (value === '0' || value === '1') {
+				return { kind: 'versus', tick, length, isPlayer2: value === '1' }
+			}
+			const type = getSEventType(value)
+			return type !== null ? { kind: 'note', tick, type, length } : null
+		}
+		const type = getNEventType(value, instrument)
+		return type !== null ? { kind: 'note', tick, type, length } : null
+	}
 	// E events have quoted arbitrary text, so handle them separately from N/S.
-	const eMatch = /^(\d+) = E "([^"\r\n]*)"$/.exec(line) ?? /^(\d+) = E ([^\r\n]+?)$/.exec(line)
+	const eMatch = chartLineEQuoted.exec(line) ?? chartLineEUnquoted.exec(line)
 	if (eMatch) {
 		const tick = Number(eMatch[1])
 		const value = eMatch[2]
@@ -343,25 +415,6 @@ function parseTrackLine(line: string, instrument: Instrument, difficulty: Diffic
 		const stripped = value.replace(/^\[/, '').replace(/\]$/, '').trim()
 		if (stripped === 'ENABLE_CHART_DYNAMICS' || stripped === 'ENHANCED_OPENS') return null
 		return { kind: 'text', tick, text: value }
-	}
-	// N/S events have numeric value + optional length
-	const nsMatch = /^(\d+) = ([NS]) (\w+)( \d+)?$/.exec(line)
-	if (nsMatch) {
-		const tick = Number(nsMatch[1])
-		const typeCode = nsMatch[2]
-		const value = nsMatch[3]
-		const length = Number(nsMatch[4]) || 0
-		if (typeCode === 'S') {
-			// S 0 (player 1) / S 1 (player 2) are versus phrases, not note-shaped
-			if (value === '0' || value === '1') {
-				return { kind: 'versus', tick, length, isPlayer2: value === '1' }
-			}
-			const type = getSEventType(value)
-			return type !== null ? { kind: 'note', tick, type, length } : null
-		}
-		// N: instrument-dependent note mapping
-		const type = getNEventType(value, instrument)
-		return type !== null ? { kind: 'note', tick, type, length } : null
 	}
 	return null
 }
@@ -524,7 +577,14 @@ function mergeSoloEvents(events: { tick: number; type: EventType; length: number
 		}
 	}
 
-	_.remove(events, event => event.type === eventTypes.soloSectionStart || event.type === eventTypes.soloSectionEnd)
+	let w = 0
+	for (let r = 0; r < events.length; r++) {
+		const t = events[r].type
+		if (t !== eventTypes.soloSectionStart && t !== eventTypes.soloSectionEnd) {
+			events[w++] = events[r]
+		}
+	}
+	events.length = w
 
 	return events
 }

@@ -1,4 +1,3 @@
-import * as _ from 'lodash'
 import { MidiData, MidiEvent, MidiSetTempoEvent, MidiTextEvent, MidiTimeSignatureEvent, parseMidi } from 'midi-file'
 
 import { difficulties, Difficulty, getInstrumentType, Instrument, InstrumentType, instrumentTypes } from 'src/interfaces'
@@ -73,6 +72,14 @@ const discoFlipDifficultyMap = ['easy', 'medium', 'hard', 'expert'] as const
 const fiveFretDiffStarts = { easy: 59, medium: 71, hard: 83, expert: 95 }
 const sixFretDiffStarts = { easy: 58, medium: 70, hard: 82, expert: 94 }
 const drumsDiffStarts = { easy: 60, medium: 72, hard: 84, expert: 96 }
+const midiDiscoFlipRegex = /^\s*\[?mix[ _]([0-3])[ _]drums([0-5])(d|dnoflip|easy|easynokick|)\]?\s*$/
+const eventsBracketedSectionRegex = /^\[(?:section|prc)[ _](.*)\]$/
+const eventsPlainSectionRegex = /^(?:section|prc)[ _](.*)$/
+const eventsEndRegex = /^\[?end\]?$/
+const eventsCodaRegex = /^\s*\[?coda\]?\s*$/
+const eventsLyricRegex = /^\[?\s*lyric[ \t]/
+const eventsPhraseStartRegex = /^\[?phrase_start\]?$/
+const eventsPhraseEndRegex = /^\[?phrase_end\]?$/
 
 interface TrackEventEnd {
 	tick: number
@@ -196,130 +203,137 @@ export function parseNotesFromMidi(data: Uint8Array, iniChartModifiers: IniChart
 		chartTicksPerBeat: midiFile.header.ticksPerBeat,
 		metadata: {}, // .mid does not have a mechanism for storing song metadata
 		vocalTracks,
-		tempos: _.chain(midiFile.tracks[0])
-			.filter((e): e is MidiSetTempoEvent => e.type === 'setTempo')
-			.map(e => ({
-				tick: e.deltaTime,
-				// Note that this operation is float64 division, and is impacted by floating point precision errors
-				beatsPerMinute: 60000000 / e.microsecondsPerBeat,
-			}))
-			.tap(tempos => {
-				const zeroTempo = tempos.find(tempo => tempo.beatsPerMinute === 0)
-				if (zeroTempo) {
-					throw `Invalid .mid file: Tempo at tick ${zeroTempo.tick} was zero.`
-				}
-				if (!tempos[0] || tempos[0].tick !== 0) {
-					tempos.unshift({ tick: 0, beatsPerMinute: 120 })
-				}
-			})
-			.value(),
-		timeSignatures: _.chain(midiFile.tracks[0])
-			.filter((e): e is MidiTimeSignatureEvent => e.type === 'timeSignature')
-			.map(e => ({
-				tick: e.deltaTime,
-				numerator: e.numerator,
-				denominator: e.denominator,
-			}))
-			.tap(timeSignatures => {
-				const zeroTimeSignatureN = timeSignatures.find(timeSignature => timeSignature.numerator === 0)
-				const zeroTimeSignatureD = timeSignatures.find(timeSignature => timeSignature.denominator === 0)
-				if (zeroTimeSignatureN) {
-					throw `Invalid .mid file: Time signature numerator at tick ${zeroTimeSignatureN.tick} was zero.`
-				}
-				if (zeroTimeSignatureD) {
-					throw `Invalid .mid file: Time signature denominator at tick ${zeroTimeSignatureD.tick} was zero.`
-				}
-				if (!timeSignatures[0] || timeSignatures[0].tick !== 0) {
-					timeSignatures.unshift({ tick: 0, numerator: 4, denominator: 4 })
-				}
-			})
-			.value(),
+		tempos: extractTempos(midiFile.tracks[0]),
+		timeSignatures: extractTimeSignatures(midiFile.tracks[0]),
 		sections: eventsScan.sections,
 		endEvents: eventsScan.endEvents,
 		unrecognizedEvents: eventsScan.unrecognizedEvents,
 		unrecognizedMidiTracks,
 		unrecognizedChartSections: [],
-		trackData: _.chain(tracks)
-			.filter(t => _.keys(instrumentNameMap).includes(t.trackName))
-			.map(t => {
-				const instrument = instrumentNameMap[t.trackName as InstrumentTrackName]
-				const instrumentType = getInstrumentType(instrument)
-				// Single scan pass extracts note-shaped events AND the
-				// data-carrying ones (text, versus, animations), plus the
-				// unrecognized events for round-trip preservation.
-				const { eventEnds, textEvents, versusPhrases, animations, unrecognizedEvents: trackUnrecognized } =
-					scanInstrumentTrack(t.trackEvents, instrumentType, t.trackName)
-				const distributed = distributeInstrumentEvents(eventEnds) // Removes 'all' difficulty
-				const pairedEvents = getTrackEvents(distributed) // Connects note ends together
-				const trackDifficulties = _.chain(pairedEvents)
-					.thru(events => splitMidiModifierSustains(events, instrumentType))
-					.thru(events => fixLegacyGhStarPower(events, instrumentType, iniChartModifiers))
-					.thru(events => fixFlexLaneLds(events))
-					.value()
-
-				return difficulties.map(difficulty => {
-					const result: RawChartData['trackData'][number] = {
-						instrument,
-						difficulty,
-						starPowerSections: [],
-						rejectedStarPowerSections: [],
-						soloSections: [],
-						flexLanes: [],
-						drumFreestyleSections: [],
-						trackEvents: [],
-						textEvents,
-						versusPhrases,
-						animations,
-						// All difficulties on a single MIDI track share the same
-						// per-track unrecognized events (the writer only emits one
-						// MIDI track, so storing them once is fine — the writer
-						// reads from any difficulty).
-						unrecognizedMidiEvents: trackUnrecognized,
-					}
-
-					for (const event of trackDifficulties[difficulty]) {
-						if (event.type === eventTypes.starPower) {
-							result.starPowerSections.push(event)
-						} else if (event.type === eventTypes.rejectedStarPower) {
-							result.rejectedStarPowerSections.push(event)
-						} else if (event.type === eventTypes.soloSection) {
-							result.soloSections.push(event)
-						} else if (event.type === eventTypes.flexLaneSingle || event.type === eventTypes.flexLaneDouble) {
-							result.flexLanes.push({
-								tick: event.tick,
-								length: event.length,
-								isDouble: event.type === eventTypes.flexLaneDouble,
-							})
-						} else if (event.type === eventTypes.freestyleSection) {
-							result.drumFreestyleSections.push({
-								tick: event.tick,
-								length: event.length,
-								isCoda: firstCodaTick === null ? false : event.tick >= firstCodaTick,
-							})
-						} else {
-							result.trackEvents.push(event)
-						}
-					}
-
-					return result
-				})
-			})
-			.flatMap()
-			.filter(track => {
-				// A track must have "real" content — actual notes or scorable sections.
-				// Tracks with only global modifier events (e.g. [ENABLE_CHART_DYNAMICS])
-				// and no actual notes should be filtered out so that round-trip behavior
-				// is stable (the writer doesn't need to emit placeholder text events).
-				const hasRealTrackEvents = track.trackEvents.some(e =>
-					e.type !== eventTypes.enableChartDynamics,
-				)
-				return hasRealTrackEvents
-					|| track.starPowerSections.length > 0
-					|| track.soloSections.length > 0
-			})
-			.value(),
+		trackData: buildMidiTrackData(tracks, iniChartModifiers, firstCodaTick),
 		parseIssues: [...parseIssues, ...eventsScan.parseIssues],
 	}
+}
+
+function buildMidiTrackData(
+	tracks: { trackName: TrackName; trackEvents: MidiEvent[] }[],
+	iniChartModifiers: IniChartModifiers,
+	firstCodaTick: number | null,
+): RawChartData['trackData'] {
+	const out: RawChartData['trackData'] = []
+
+	for (const t of tracks) {
+		const instrument = instrumentNameMap[t.trackName as InstrumentTrackName]
+		if (instrument === undefined) continue // vocal/EVENTS tracks handled elsewhere
+		const instrumentType = getInstrumentType(instrument)
+		const { eventEnds, textEvents, versusPhrases, animations, unrecognizedEvents: trackUnrecognized } =
+			scanInstrumentTrack(t.trackEvents, instrumentType, t.trackName)
+		const distributed = distributeInstrumentEvents(eventEnds)
+		const pairedEvents = getTrackEvents(distributed)
+		const step1 = splitMidiModifierSustains(pairedEvents, instrumentType)
+		const step2 = fixLegacyGhStarPower(step1, instrumentType, iniChartModifiers)
+		const trackDifficulties = fixFlexLaneLds(step2)
+
+		for (const difficulty of difficulties) {
+			const diffEvents = trackDifficulties[difficulty]
+			if (diffEvents.length === 0) continue // uncharted difficulty — no need to allocate/emit
+
+			const result: RawChartData['trackData'][number] = {
+				instrument,
+				difficulty,
+				starPowerSections: [],
+				rejectedStarPowerSections: [],
+				soloSections: [],
+				flexLanes: [],
+				drumFreestyleSections: [],
+				trackEvents: [],
+				textEvents,
+				versusPhrases,
+				animations,
+				unrecognizedMidiEvents: trackUnrecognized,
+			}
+
+			// Track "real content" flag inline so we don't need a second pass over
+			// result.trackEvents to decide whether to keep this difficulty result.
+			let hasRealTrackEvents = false
+			for (const event of diffEvents) {
+				switch (event.type) {
+					case eventTypes.starPower:
+						result.starPowerSections.push(event); break
+					case eventTypes.rejectedStarPower:
+						result.rejectedStarPowerSections.push(event); break
+					case eventTypes.soloSection:
+						result.soloSections.push(event); break
+					case eventTypes.flexLaneSingle:
+						result.flexLanes.push({ tick: event.tick, length: event.length, isDouble: false }); break
+					case eventTypes.flexLaneDouble:
+						result.flexLanes.push({ tick: event.tick, length: event.length, isDouble: true }); break
+					case eventTypes.freestyleSection:
+						result.drumFreestyleSections.push({
+							tick: event.tick,
+							length: event.length,
+							isCoda: firstCodaTick === null ? false : event.tick >= firstCodaTick,
+						}); break
+					default:
+						result.trackEvents.push(event)
+						if (!hasRealTrackEvents && event.type !== eventTypes.enableChartDynamics) {
+							hasRealTrackEvents = true
+						}
+				}
+			}
+
+			// Tracks with only global modifier events (e.g. [ENABLE_CHART_DYNAMICS])
+			// and no notes are dropped so writer round-trip stays stable.
+			if (hasRealTrackEvents || result.starPowerSections.length > 0 || result.soloSections.length > 0) {
+				out.push(result)
+			}
+		}
+	}
+
+	return out
+}
+
+function extractTempos(conductorTrack: MidiEvent[]): { tick: number; beatsPerMinute: number }[] {
+	const tempos: { tick: number; beatsPerMinute: number }[] = []
+	for (const e of conductorTrack) {
+		if (e.type !== 'setTempo') continue
+		tempos.push({
+			tick: e.deltaTime,
+			beatsPerMinute: 60000000 / (e as MidiSetTempoEvent).microsecondsPerBeat,
+		})
+	}
+	for (const tempo of tempos) {
+		if (tempo.beatsPerMinute === 0) {
+			throw `Invalid .mid file: Tempo at tick ${tempo.tick} was zero.`
+		}
+	}
+	if (!tempos[0] || tempos[0].tick !== 0) {
+		tempos.unshift({ tick: 0, beatsPerMinute: 120 })
+	}
+	return tempos
+}
+
+function extractTimeSignatures(conductorTrack: MidiEvent[]): { tick: number; numerator: number; denominator: number }[] {
+	const result: { tick: number; numerator: number; denominator: number }[] = []
+	for (const e of conductorTrack) {
+		if (e.type !== 'timeSignature') continue
+		const ts = e as MidiTimeSignatureEvent
+		result.push({ tick: e.deltaTime, numerator: ts.numerator, denominator: ts.denominator })
+	}
+	for (const ts of result) {
+		if (ts.numerator === 0) {
+			throw `Invalid .mid file: Time signature numerator at tick ${ts.tick} was zero.`
+		}
+	}
+	for (const ts of result) {
+		if (ts.denominator === 0) {
+			throw `Invalid .mid file: Time signature denominator at tick ${ts.tick} was zero.`
+		}
+	}
+	if (!result[0] || result[0].tick !== 0) {
+		result.unshift({ tick: 0, numerator: 4, denominator: 4 })
+	}
+	return result
 }
 
 function convertToAbsoluteTime(midiData: MidiData) {
@@ -412,28 +426,128 @@ function scanInstrumentTrack(
 	trackName: string,
 ): TrackScanResult {
 	let enhancedOpens = false
+	const eeAll: TrackEventEnd[] = []
+	const eeExpert: TrackEventEnd[] = []
+	const eeHard: TrackEventEnd[] = []
+	const eeMedium: TrackEventEnd[] = []
+	const eeEasy: TrackEventEnd[] = []
 	const eventEnds: { [difficulty in Difficulty | 'all']: TrackEventEnd[] } = {
-		all: [],
-		expert: [],
-		hard: [],
-		medium: [],
-		easy: [],
+		all: eeAll,
+		expert: eeExpert,
+		hard: eeHard,
+		medium: eeMedium,
+		easy: eeEasy,
 	}
 	const textEvents: { tick: number; text: string }[] = []
-	// Versus phrase + animation collectors need note-on/note-off pairing.
-	const versusStarts = new Map<number, number>() // noteNumber → startTick
+	// Versus phrase 105/106 pairing. Only these two note numbers ever appear,
+	// so hold two scalars instead of a Map allocation.
+	let versusStart105 = -1
+	let versusStart106 = -1
 	const versusPhrases: { tick: number; length: number; isPlayer2: boolean }[] = []
 	const animStarts = new Map<number, number>() // noteNumber → startTick
 	const animations: { tick: number; length: number; noteNumber: number }[] = []
-	const animationFilter = instrumentType === instrumentTypes.drums
-		? (n: number) => n >= 24 && n <= 51
-		: (n: number) => n >= 40 && n <= 59
+	const animMin = instrumentType === instrumentTypes.drums ? 24 : 40
+	const animMax = instrumentType === instrumentTypes.drums ? 51 : 59
 	// Events the typed parser doesn't consume — preserved verbatim for round-trip.
 	const unrecognizedEvents: MidiEvent[] = []
 
 	for (const event of events) {
+		const eventType = event.type
+		// Hot path: note events are ~90% of a typical instrument track. Dispatch them
+		// first so we don't fall through sysEx/text checks for every note event.
+		if (eventType === 'noteOn' || eventType === 'noteOff') {
+			// A noteOn with velocity 0 is semantically a noteOff for paired-start/end tracking,
+			// but `isStart` tracks the literal MIDI event type (not velocity) to match original
+			// downstream semantics.
+			const isStart = eventType === 'noteOn'
+			const velocity = event.velocity
+			const isOff = !isStart || velocity === 0
+			const nn = event.noteNumber
+			const channel = event.channel
+			let consumed = false
+
+			// Collect versus phrase markers (notes 105/106). These don't overlap
+			// with any note-shaped events, so we don't fall through.
+			if (nn === 105) {
+				if (!isOff) {
+					if (versusStart105 === -1) versusStart105 = event.deltaTime
+				} else if (versusStart105 !== -1) {
+					versusPhrases.push({ tick: versusStart105, length: event.deltaTime - versusStart105, isPlayer2: false })
+					versusStart105 = -1
+				}
+				continue
+			}
+			if (nn === 106) {
+				if (!isOff) {
+					if (versusStart106 === -1) versusStart106 = event.deltaTime
+				} else if (versusStart106 !== -1) {
+					versusPhrases.push({ tick: versusStart106, length: event.deltaTime - versusStart106, isPlayer2: true })
+					versusStart106 = -1
+				}
+				continue
+			}
+
+			// Collect animation events (notes 24-51 drums, 40-59 fret). These
+			// overlap with easy-difficulty playable notes (60-66), so the event
+			// must also fall through to the difficulty-based dispatch below.
+			if (nn >= animMin && nn <= animMax) {
+				if (!isOff) {
+					if (!animStarts.has(nn)) {
+						animStarts.set(nn, event.deltaTime)
+					}
+				} else {
+					const startTick = animStarts.get(nn)
+					if (startTick !== undefined) {
+						animations.push({ tick: startTick, length: event.deltaTime - startTick, noteNumber: nn })
+						animStarts.delete(nn)
+					}
+				}
+				consumed = true
+				// fall through — animation note ranges overlap easy-difficulty notes
+			}
+
+			let diffArr: TrackEventEnd[]
+			let difficulty: Difficulty | 'all'
+			if (nn <= 66) { diffArr = eeEasy; difficulty = 'easy' }
+			else if (nn <= 78) { diffArr = eeMedium; difficulty = 'medium' }
+			else if (nn <= 90) { diffArr = eeHard; difficulty = 'hard' }
+			else if (nn <= 102) { diffArr = eeExpert; difficulty = 'expert' }
+			else { diffArr = eeAll; difficulty = 'all' }
+			if (difficulty === 'all') {
+				const type = getInstrumentEventType(nn)
+				if (type !== null) {
+					diffArr.push({
+						tick: event.deltaTime,
+						type,
+						velocity,
+						channel,
+						isStart,
+					})
+					consumed = true
+				}
+			} else {
+				const type =
+					instrumentType === instrumentTypes.sixFret ? get6FretNoteType(nn, difficulty)
+					: instrumentType === instrumentTypes.drums ? getDrumsNoteType(nn, difficulty)
+					: instrumentType === instrumentTypes.fiveFret ? get5FretNoteType(nn, difficulty, enhancedOpens)
+					: null
+				if (type !== null) {
+					diffArr.push({
+						tick: event.deltaTime,
+						type,
+						velocity,
+						channel,
+						isStart,
+					})
+					consumed = true
+				}
+			}
+
+			if (!consumed) unrecognizedEvents.push(event)
+			continue
+		}
 		// SysEx event (tap modifier or open)
-		if (event.type === 'sysEx' || event.type === 'endSysEx') {
+		if (eventType === 'sysEx' || eventType === 'endSysEx') {
 			// Phase Shift SysEx event header: 50 53 00 00 <diff> <type> <isStart>
 			const isPhaseShiftHeader =
 				event.data.length > 6 &&
@@ -448,7 +562,13 @@ function scanInstrumentTrack(
 				: null
 
 			if (type !== null) {
-				eventEnds[event.data[4] === 0xff ? 'all' : discoFlipDifficultyMap[event.data[4]]].push({
+				const d = event.data[4]
+				const arr = d === 0xff ? eeAll
+					: d === 0 ? eeEasy
+					: d === 1 ? eeMedium
+					: d === 2 ? eeHard
+					: eeExpert
+				arr.push({
 					tick: event.deltaTime,
 					type,
 					channel: 1,
@@ -458,88 +578,10 @@ function scanInstrumentTrack(
 			} else {
 				unrecognizedEvents.push(event)
 			}
-		} else if (event.type === 'noteOn' || event.type === 'noteOff') {
-			const isOff = event.type === 'noteOff' || (event.type === 'noteOn' && event.velocity === 0)
-			let consumed = false
-
-			// Collect versus phrase markers (notes 105/106). These don't overlap
-			// with any note-shaped events, so we don't fall through.
-			if (event.noteNumber === 105 || event.noteNumber === 106) {
-				if (!isOff) {
-					if (!versusStarts.has(event.noteNumber)) {
-						versusStarts.set(event.noteNumber, event.deltaTime)
-					}
-				} else {
-					const startTick = versusStarts.get(event.noteNumber)
-					if (startTick !== undefined) {
-						versusPhrases.push({ tick: startTick, length: event.deltaTime - startTick, isPlayer2: event.noteNumber === 106 })
-						versusStarts.delete(event.noteNumber)
-					}
-				}
-				continue
-			}
-
-			// Collect animation events (notes 24-51 drums, 40-59 fret). These
-			// overlap with easy-difficulty playable notes (60-66), so the event
-			// must also fall through to the difficulty-based dispatch below.
-			if (animationFilter(event.noteNumber)) {
-				if (!isOff) {
-					if (!animStarts.has(event.noteNumber)) {
-						animStarts.set(event.noteNumber, event.deltaTime)
-					}
-				} else {
-					const startTick = animStarts.get(event.noteNumber)
-					if (startTick !== undefined) {
-						animations.push({ tick: startTick, length: event.deltaTime - startTick, noteNumber: event.noteNumber })
-						animStarts.delete(event.noteNumber)
-					}
-				}
-				consumed = true
-				// fall through — animation note ranges overlap easy-difficulty notes
-			}
-
-			const difficulty =
-				event.noteNumber <= 66 ? 'easy'
-				: event.noteNumber <= 78 ? 'medium'
-				: event.noteNumber <= 90 ? 'hard'
-				: event.noteNumber <= 102 ? 'expert'
-				: 'all'
-			if (difficulty === 'all') {
-				// Instrument-wide event (solo marker, star power, etc...) (applies to all difficulties)
-				const type = getInstrumentEventType(event.noteNumber)
-				if (type !== null) {
-					eventEnds[difficulty].push({
-						tick: event.deltaTime,
-						type,
-						velocity: event.velocity,
-						channel: event.channel,
-						isStart: event.type === 'noteOn',
-					})
-					consumed = true
-				}
-			} else {
-				const type =
-					instrumentType === instrumentTypes.sixFret ? get6FretNoteType(event.noteNumber, difficulty)
-					: instrumentType === instrumentTypes.drums ? getDrumsNoteType(event.noteNumber, difficulty)
-					: instrumentType === instrumentTypes.fiveFret ? get5FretNoteType(event.noteNumber, difficulty, enhancedOpens)
-					: null
-				if (type !== null) {
-					eventEnds[difficulty].push({
-						tick: event.deltaTime,
-						type,
-						velocity: event.velocity,
-						channel: event.channel,
-						isStart: event.type === 'noteOn',
-					})
-					consumed = true
-				}
-			}
-
-			if (!consumed) unrecognizedEvents.push(event)
-		} else if (event.type === 'text') {
+		} else if (eventType === 'text') {
 			let consumedAsNote = false
 			if (instrumentType === instrumentTypes.drums) {
-				const discoFlipMatch = event.text.match(/^\s*\[?mix[ _]([0-3])[ _]drums([0-5])(d|dnoflip|easy|easynokick|)\]?\s*$/)
+				const discoFlipMatch = midiDiscoFlipRegex.exec(event.text)
 				if (discoFlipMatch) {
 					const difficulty = sysExDifficultyMap[Number(discoFlipMatch[1])]
 					const flag = discoFlipMatch[3] as 'd' | 'dnoflip' | 'easy' | 'easynokick' | ''
@@ -572,7 +614,7 @@ function scanInstrumentTrack(
 				if (event.deltaTime === 0 && event.text === trackName) continue
 				textEvents.push({ tick: event.deltaTime, text: event.text })
 			}
-		} else if (event.type === 'trackName' || event.type === 'endOfTrack') {
+		} else if (eventType === 'trackName' || eventType === 'endOfTrack') {
 			// Trackname is the track identifier; endOfTrack is the MIDI marker.
 			// Both are required structural events — writers re-emit them — so
 			// they shouldn't appear in unrecognizedEvents.
@@ -707,16 +749,29 @@ function distributeInstrumentEvents(eventEnds: { [difficulty in Difficulty | 'al
 			if (eventEnds[difficulty].length === 0) {
 				continue // Skip adding modifiers to uncharted difficulties
 			}
-			eventEnds[difficulty].push(_.clone(instrumentEvent))
+			eventEnds[difficulty].push({
+				tick: instrumentEvent.tick,
+				type: instrumentEvent.type,
+				velocity: instrumentEvent.velocity,
+				channel: instrumentEvent.channel,
+				isStart: instrumentEvent.isStart,
+			})
 		}
 	}
 
 	return {
-		expert: _.orderBy(eventEnds.expert, ['tick', 'type'], ['asc', 'desc']),
-		hard: _.orderBy(eventEnds.hard, ['tick', 'type'], ['asc', 'desc']),
-		medium: _.orderBy(eventEnds.medium, ['tick', 'type'], ['asc', 'desc']),
-		easy: _.orderBy(eventEnds.easy, ['tick', 'type'], ['asc', 'desc']),
+		expert: eventEnds.expert.sort(compareTickAscTypeDesc),
+		hard: eventEnds.hard.sort(compareTickAscTypeDesc),
+		medium: eventEnds.medium.sort(compareTickAscTypeDesc),
+		easy: eventEnds.easy.sort(compareTickAscTypeDesc),
 	}
+}
+
+function compareTickAscTypeDesc(a: TrackEventEnd, b: TrackEventEnd): number {
+	if (a.tick !== b.tick) return a.tick - b.tick
+	if (a.type < b.type) return 1
+	if (a.type > b.type) return -1
+	return 0
 }
 
 /**
@@ -726,14 +781,13 @@ function getTrackEvents(trackEventEnds: { [key in Difficulty]: TrackEventEnd[] }
 	const trackEvents: { [key in Difficulty]: MidiTrackEvent[] } = { expert: [], hard: [], medium: [], easy: [] }
 
 	for (const difficulty of difficulties) {
-		const partialTrackEventsMap = _.chain(eventTypes)
-			.values()
-			.map(k => [k, []])
-			.fromPairs()
-			.value() as { [key in EventType]: MidiTrackEvent[] }
+		// Lazy partial-event lists keyed by event type. Most types never appear on a
+		// given difficulty, so only allocate a list when we see one.
+		const partialTrackEventsMap: { [key: string]: MidiTrackEvent[] | undefined } = {}
+		const out = trackEvents[difficulty]
 
 		for (const trackEventEnd of trackEventEnds[difficulty]) {
-			const partialTrackEvents = partialTrackEventsMap[trackEventEnd.type]
+			let partialTrackEvents = partialTrackEventsMap[trackEventEnd.type]
 			if (trackEventEnd.isStart) {
 				const partialTrackEvent: MidiTrackEvent = {
 					tick: trackEventEnd.tick,
@@ -742,21 +796,33 @@ function getTrackEvents(trackEventEnds: { [key in Difficulty]: TrackEventEnd[] }
 					velocity: trackEventEnd.velocity,
 					channel: trackEventEnd.channel,
 				}
+				if (partialTrackEvents === undefined) {
+					partialTrackEvents = []
+					partialTrackEventsMap[trackEventEnd.type] = partialTrackEvents
+				}
 				partialTrackEvents.push(partialTrackEvent)
-				trackEvents[difficulty].push(partialTrackEvent)
-			} else if (partialTrackEvents.length) {
+				out.push(partialTrackEvent)
+			} else if (partialTrackEvents !== undefined && partialTrackEvents.length) {
 				let partialTrackEventIndex = partialTrackEvents.length - 1
 				while (partialTrackEventIndex >= 0 && partialTrackEvents[partialTrackEventIndex].channel !== trackEventEnd.channel) {
 					partialTrackEventIndex-- // Find the most recent partial event on the same channel
 				}
 				if (partialTrackEventIndex >= 0) {
-					const partialTrackEvent = _.pullAt(partialTrackEvents, partialTrackEventIndex)[0]
+					const partialTrackEvent = partialTrackEvents[partialTrackEventIndex]
+					partialTrackEvents.splice(partialTrackEventIndex, 1)
 					partialTrackEvent.length = trackEventEnd.tick - partialTrackEvent.tick
 				}
 			}
 		}
 
-		_.remove(trackEvents[difficulty], e => e.length === -1) // Remove all remaining partial events
+		// In-place filter: remove any remaining partial events whose length was never set.
+		let write = 0
+		for (let read = 0; read < out.length; read++) {
+			if (out[read].length !== -1) {
+				out[write++] = out[read]
+			}
+		}
+		out.length = write
 	}
 
 	return trackEvents
@@ -809,7 +875,18 @@ function splitMidiModifierSustains(events: { [key in Difficulty]: MidiTrackEvent
 				continue
 			}
 
-			_.remove(activeModifiers, m => (m.length === 0 ? m.tick + m.length < event.tick : m.tick + m.length <= event.tick))
+			// In-place removal of ended modifiers. Zero-length modifiers die when
+			// event.tick passes them; nonzero die when event.tick reaches their end.
+			if (activeModifiers.length > 0) {
+				const eventTick = event.tick
+				let w = 0
+				for (let r = 0; r < activeModifiers.length; r++) {
+					const m = activeModifiers[r]
+					const ended = m.length === 0 ? m.tick < eventTick : m.tick + m.length <= eventTick
+					if (!ended) activeModifiers[w++] = m
+				}
+				activeModifiers.length = w
+			}
 
 			if (modifierSustains.includes(event.type)) {
 				activeModifiers.push(event)
@@ -927,20 +1004,22 @@ function fixLegacyGhStarPower(
 }
 
 function fixFlexLaneLds(events: { [key in Difficulty]: MidiTrackEvent[] }) {
-	_.remove(
-		events['easy'],
-		e => (e.type === eventTypes.flexLaneSingle || e.type === eventTypes.flexLaneDouble) && (e.velocity < 21 || e.velocity > 30),
-	)
-	_.remove(
-		events['medium'],
-		e => (e.type === eventTypes.flexLaneSingle || e.type === eventTypes.flexLaneDouble) && (e.velocity < 21 || e.velocity > 40),
-	)
-	_.remove(
-		events['hard'],
-		e => (e.type === eventTypes.flexLaneSingle || e.type === eventTypes.flexLaneDouble) && (e.velocity < 21 || e.velocity > 50),
-	)
-
+	filterFlexLaneVelocity(events.easy, 30)
+	filterFlexLaneVelocity(events.medium, 40)
+	filterFlexLaneVelocity(events.hard, 50)
 	return events
+}
+
+function filterFlexLaneVelocity(arr: MidiTrackEvent[], maxVelocity: number): void {
+	let w = 0
+	for (let r = 0; r < arr.length; r++) {
+		const e = arr[r]
+		const isFlex = e.type === eventTypes.flexLaneSingle || e.type === eventTypes.flexLaneDouble
+		if (!(isFlex && (e.velocity < 21 || e.velocity > maxVelocity))) {
+			arr[w++] = e
+		}
+	}
+	arr.length = w
 }
 
 
@@ -986,18 +1065,18 @@ function scanEventsTrack(tracks: { trackName: TrackName; trackEvents: MidiEvent[
 		// is the name). Brackets must match as a pair: a trailing `]` is not
 		// stripped unless the text also started with `[`. This preserves section
 		// names that legitimately end in `]` (e.g. `section <b>…</b> [credits]`).
-		const bracketedSection = /^\[(?:section|prc)[ _](.*)\]$/.exec(text)
-		const plainSection = !bracketedSection && /^(?:section|prc)[ _](.*)$/.exec(text)
+		const bracketedSection = eventsBracketedSectionRegex.exec(text)
+		const plainSection = !bracketedSection && eventsPlainSectionRegex.exec(text)
 		if (bracketedSection || plainSection) {
 			const name = (bracketedSection ?? plainSection as RegExpExecArray)[1]
 			result.sections.push({ tick, name })
 			continue
 		}
-		if (/^\[?end\]?$/.test(text)) {
+		if (eventsEndRegex.test(text)) {
 			result.endEvents.push({ tick })
 			continue
 		}
-		if (/^\s*\[?coda\]?\s*$/.test(text)) {
+		if (eventsCodaRegex.test(text)) {
 			result.codaEvents.push({ tick })
 			continue
 		}
@@ -1006,11 +1085,11 @@ function scanEventsTrack(tracks: { trackName: TrackName; trackEvents: MidiEvent[
 		// here. Record a parse issue so consumers can surface the misplacement,
 		// then fall through to unrecognizedEvents so the value round-trips back
 		// out — users can move it to PART VOCALS manually.
-		if (/^\[?\s*lyric[ \t]/.test(text)) {
+		if (eventsLyricRegex.test(text)) {
 			result.parseIssues.push({ instrument: null, difficulty: null, noteIssue: 'invalidLyric' })
-		} else if (/^\[?phrase_start\]?$/.test(text)) {
+		} else if (eventsPhraseStartRegex.test(text)) {
 			result.parseIssues.push({ instrument: null, difficulty: null, noteIssue: 'invalidPhraseStart' })
-		} else if (/^\[?phrase_end\]?$/.test(text)) {
+		} else if (eventsPhraseEndRegex.test(text)) {
 			result.parseIssues.push({ instrument: null, difficulty: null, noteIssue: 'invalidPhraseEnd' })
 		}
 

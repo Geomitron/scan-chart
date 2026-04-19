@@ -355,6 +355,10 @@ export const noteTypes = {
 	greenDrum: 17,
 } as const
 
+/** Upper bound on noteType integer values — used for dense array-indexed lookups.
+ * Keep in sync with the maximum value in `noteTypes` above. */
+export const noteTypeCount = Math.max(...Object.values(noteTypes)) + 1
+
 /** Note: specific values here are standardized; they are constants used in the track hash calculation. */
 export const noteFlags = {
 	none: 0,
