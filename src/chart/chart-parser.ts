@@ -130,45 +130,8 @@ export function parseNotesFromChart(data: Uint8Array): RawChartData {
 				unrecognizedMidiEvents: [],
 			},
 		},
-		tempos: _.chain(fileSections['SyncTrack'])
-			.map(line => /^(\d+) = B (\d+)$/.exec(line))
-			.compact()
-			.map(([, stringTick, stringMillibeatsPerMinute]) => ({
-				tick: Number(stringTick),
-				beatsPerMinute: Number(stringMillibeatsPerMinute) / 1000,
-			}))
-			.tap(tempos => {
-				const zeroTempo = tempos.find(tempo => tempo.beatsPerMinute === 0)
-				if (zeroTempo) {
-					throw `Invalid .chart file: Tempo at tick ${zeroTempo.tick} was zero.`
-				}
-				if (!tempos[0] || tempos[0].tick !== 0) {
-					tempos.unshift({ tick: 0, beatsPerMinute: 120 })
-				}
-			})
-			.value(),
-		timeSignatures: _.chain(fileSections['SyncTrack'])
-			.map(line => /^(\d+) = TS (\d+)(?: (\d+))?$/.exec(line))
-			.compact()
-			.map(([, stringTick, stringNumerator, stringDenominatorExp]) => ({
-				tick: Number(stringTick),
-				numerator: Number(stringNumerator),
-				denominator: stringDenominatorExp ? Math.pow(2, Number(stringDenominatorExp)) : 4,
-			}))
-			.tap(timeSignatures => {
-				const zeroTimeSignatureN = timeSignatures.find(timeSignature => timeSignature.numerator === 0)
-				const zeroTimeSignatureD = timeSignatures.find(timeSignature => timeSignature.denominator === 0)
-				if (zeroTimeSignatureN) {
-					throw `Invalid .mid file: Time signature numerator at tick ${zeroTimeSignatureN.tick} was zero.`
-				}
-				if (zeroTimeSignatureD) {
-					throw `Invalid .mid file: Time signature denominator at tick ${zeroTimeSignatureD.tick} was zero.`
-				}
-				if (!timeSignatures[0] || timeSignatures[0].tick !== 0) {
-					timeSignatures.unshift({ tick: 0, numerator: 4, denominator: 4 })
-				}
-			})
-			.value(),
+		tempos: parseChartTempos(fileSections['SyncTrack']),
+		timeSignatures: parseChartTimeSignatures(fileSections['SyncTrack']),
 		sections: eventsScan.sections,
 		endEvents: eventsScan.endEvents,
 		unrecognizedEvents: eventsScan.unrecognizedEvents,
@@ -316,6 +279,53 @@ const chartLineEQuoted = /^(\d+) = E "([^"\r\n]*)"$/
 const chartLineEUnquoted = /^(\d+) = E ([^\r\n]+?)$/
 const chartLineNS = /^(\d+) = ([NS]) (\w+)( \d+)?$/
 const chartLineDiscoFlipE = /^\s*\[?mix[ _]([0-3])[ _]drums([0-5])(d|dnoflip|easy|easynokick|)\]?\s*$/
+const chartSyncTempo = /^(\d+) = B (\d+)$/
+const chartSyncTS = /^(\d+) = TS (\d+)(?: (\d+))?$/
+
+function parseChartTempos(lines: string[]): { tick: number; beatsPerMinute: number }[] {
+	const tempos: { tick: number; beatsPerMinute: number }[] = []
+	for (const line of lines) {
+		const m = chartSyncTempo.exec(line)
+		if (!m) continue
+		tempos.push({ tick: Number(m[1]), beatsPerMinute: Number(m[2]) / 1000 })
+	}
+	for (const tempo of tempos) {
+		if (tempo.beatsPerMinute === 0) {
+			throw `Invalid .chart file: Tempo at tick ${tempo.tick} was zero.`
+		}
+	}
+	if (!tempos[0] || tempos[0].tick !== 0) {
+		tempos.unshift({ tick: 0, beatsPerMinute: 120 })
+	}
+	return tempos
+}
+
+function parseChartTimeSignatures(lines: string[]): { tick: number; numerator: number; denominator: number }[] {
+	const result: { tick: number; numerator: number; denominator: number }[] = []
+	for (const line of lines) {
+		const m = chartSyncTS.exec(line)
+		if (!m) continue
+		result.push({
+			tick: Number(m[1]),
+			numerator: Number(m[2]),
+			denominator: m[3] ? Math.pow(2, Number(m[3])) : 4,
+		})
+	}
+	for (const ts of result) {
+		if (ts.numerator === 0) {
+			throw `Invalid .mid file: Time signature numerator at tick ${ts.tick} was zero.`
+		}
+	}
+	for (const ts of result) {
+		if (ts.denominator === 0) {
+			throw `Invalid .mid file: Time signature denominator at tick ${ts.tick} was zero.`
+		}
+	}
+	if (!result[0] || result[0].tick !== 0) {
+		result.unshift({ tick: 0, numerator: 4, denominator: 4 })
+	}
+	return result
+}
 
 /**
  * Events parsed from a single .chart track line. Note-shaped events flow into
