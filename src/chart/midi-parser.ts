@@ -73,6 +73,14 @@ const discoFlipDifficultyMap = ['easy', 'medium', 'hard', 'expert'] as const
 const fiveFretDiffStarts = { easy: 59, medium: 71, hard: 83, expert: 95 }
 const sixFretDiffStarts = { easy: 58, medium: 70, hard: 82, expert: 94 }
 const drumsDiffStarts = { easy: 60, medium: 72, hard: 84, expert: 96 }
+const midiDiscoFlipRegex = /^\s*\[?mix[ _]([0-3])[ _]drums([0-5])(d|dnoflip|easy|easynokick|)\]?\s*$/
+const eventsBracketedSectionRegex = /^\[(?:section|prc)[ _](.*)\]$/
+const eventsPlainSectionRegex = /^(?:section|prc)[ _](.*)$/
+const eventsEndRegex = /^\[?end\]?$/
+const eventsCodaRegex = /^\s*\[?coda\]?\s*$/
+const eventsLyricRegex = /^\[?\s*lyric[ \t]/
+const eventsPhraseStartRegex = /^\[?phrase_start\]?$/
+const eventsPhraseEndRegex = /^\[?phrase_end\]?$/
 
 interface TrackEventEnd {
 	tick: number
@@ -560,7 +568,7 @@ function scanInstrumentTrack(
 		} else if (event.type === 'text') {
 			let consumedAsNote = false
 			if (instrumentType === instrumentTypes.drums) {
-				const discoFlipMatch = event.text.match(/^\s*\[?mix[ _]([0-3])[ _]drums([0-5])(d|dnoflip|easy|easynokick|)\]?\s*$/)
+				const discoFlipMatch = midiDiscoFlipRegex.exec(event.text)
 				if (discoFlipMatch) {
 					const difficulty = sysExDifficultyMap[Number(discoFlipMatch[1])]
 					const flag = discoFlipMatch[3] as 'd' | 'dnoflip' | 'easy' | 'easynokick' | ''
@@ -1043,18 +1051,18 @@ function scanEventsTrack(tracks: { trackName: TrackName; trackEvents: MidiEvent[
 		// is the name). Brackets must match as a pair: a trailing `]` is not
 		// stripped unless the text also started with `[`. This preserves section
 		// names that legitimately end in `]` (e.g. `section <b>…</b> [credits]`).
-		const bracketedSection = /^\[(?:section|prc)[ _](.*)\]$/.exec(text)
-		const plainSection = !bracketedSection && /^(?:section|prc)[ _](.*)$/.exec(text)
+		const bracketedSection = eventsBracketedSectionRegex.exec(text)
+		const plainSection = !bracketedSection && eventsPlainSectionRegex.exec(text)
 		if (bracketedSection || plainSection) {
 			const name = (bracketedSection ?? plainSection as RegExpExecArray)[1]
 			result.sections.push({ tick, name })
 			continue
 		}
-		if (/^\[?end\]?$/.test(text)) {
+		if (eventsEndRegex.test(text)) {
 			result.endEvents.push({ tick })
 			continue
 		}
-		if (/^\s*\[?coda\]?\s*$/.test(text)) {
+		if (eventsCodaRegex.test(text)) {
 			result.codaEvents.push({ tick })
 			continue
 		}
@@ -1063,11 +1071,11 @@ function scanEventsTrack(tracks: { trackName: TrackName; trackEvents: MidiEvent[
 		// here. Record a parse issue so consumers can surface the misplacement,
 		// then fall through to unrecognizedEvents so the value round-trips back
 		// out — users can move it to PART VOCALS manually.
-		if (/^\[?\s*lyric[ \t]/.test(text)) {
+		if (eventsLyricRegex.test(text)) {
 			result.parseIssues.push({ instrument: null, difficulty: null, noteIssue: 'invalidLyric' })
-		} else if (/^\[?phrase_start\]?$/.test(text)) {
+		} else if (eventsPhraseStartRegex.test(text)) {
 			result.parseIssues.push({ instrument: null, difficulty: null, noteIssue: 'invalidPhraseStart' })
-		} else if (/^\[?phrase_end\]?$/.test(text)) {
+		} else if (eventsPhraseEndRegex.test(text)) {
 			result.parseIssues.push({ instrument: null, difficulty: null, noteIssue: 'invalidPhraseEnd' })
 		}
 
