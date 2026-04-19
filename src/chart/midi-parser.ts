@@ -236,6 +236,9 @@ function buildMidiTrackData(
 		const trackDifficulties = fixFlexLaneLds(step2)
 
 		for (const difficulty of difficulties) {
+			const diffEvents = trackDifficulties[difficulty]
+			if (diffEvents.length === 0) continue // uncharted difficulty — no need to allocate/emit
+
 			const result: RawChartData['trackData'][number] = {
 				instrument,
 				difficulty,
@@ -254,7 +257,7 @@ function buildMidiTrackData(
 			// Track "real content" flag inline so we don't need a second pass over
 			// result.trackEvents to decide whether to keep this difficulty result.
 			let hasRealTrackEvents = false
-			for (const event of trackDifficulties[difficulty]) {
+			for (const event of diffEvents) {
 				switch (event.type) {
 					case eventTypes.starPower:
 						result.starPowerSections.push(event); break
