@@ -191,11 +191,13 @@ export function parseNotesFromChart(data: Uint8Array): RawChartData {
 				// plus data-carrying events (text, versus). Note-shaped events flow through
 				// the same distribution loop as before; the data-carrying ones are routed
 				// to their dedicated arrays inside the same loop.
-				const parsedEvents = _.chain(lines)
-					.map(line => parseTrackLine(line, instrument, difficulty))
-					.compact()
-					.orderBy('tick') // Most parsers reject charts that aren't already sorted, but it's easier to just sort it here
-					.value()
+				const parsedEvents: ParsedTrackLine[] = []
+				for (const line of lines) {
+					const parsed = parseTrackLine(line, instrument, difficulty)
+					if (parsed !== null) parsedEvents.push(parsed)
+				}
+				// Most parsers reject charts that aren't already sorted, but it's easier to just sort it here
+				parsedEvents.sort((a, b) => a.tick - b.tick)
 
 				// Merge solo/soloend pairs in place (note-shaped events only)
 				const trackEvents = mergeSoloEvents(
