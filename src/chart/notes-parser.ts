@@ -1058,17 +1058,16 @@ function sortAndFixInvalidEventOverlaps(events: { tick: number; length: number; 
 
 function sortAndFixInvalidNoteOverlaps(noteGroups: UntimedNoteEvent[][]) {
 	for (const noteGroup of noteGroups) {
+		if (noteGroup.length <= 1) continue
 		noteGroup.sort((a, b) => a.type - b.type || b.length - a.length || b.flags - a.flags) // Longest sustain is kept for duplicates
-		let removedNotes: UntimedNoteEvent[] | null = null
-		for (let i = 1; i < noteGroup.length; i++) {
-			if (noteGroup[i].type === noteGroup[i - 1].type) {
-				;(removedNotes ??= []).push(noteGroup[i])
+		// In-place dedup on consecutive same-type entries (first is kept — has longest sustain).
+		let w = 1
+		for (let r = 1; r < noteGroup.length; r++) {
+			if (noteGroup[r].type !== noteGroup[w - 1].type) {
+				noteGroup[w++] = noteGroup[r]
 			}
 		}
-
-		if (removedNotes) {
-			_.pullAll(noteGroup, removedNotes)
-		}
+		noteGroup.length = w
 	}
 
 	const previousNotesOfType = new Map<NoteType, UntimedNoteEvent>()
