@@ -1,7 +1,7 @@
 /**
- * Tests for writeMidiFile: header + TEMPO TRACK + EVENTS + unrecognized tracks.
- * Instrument/vocal track tests land with the follow-up PRs that port their
- * respective emitters.
+ * Tests for writeMidiFile: header + TEMPO TRACK + EVENTS + unrecognized tracks,
+ * PART DRUMS / GUITAR / GHL instrument tracks, and PART VOCALS / HARM1-3
+ * vocal tracks.
  */
 
 import { parseMidi } from 'midi-file'
@@ -732,5 +732,331 @@ describe('writeMidiFile: fret round-trip through parseChartAndIni', () => {
 		const reTrack = re.parsedChart!.trackData.find(t => t.instrument === 'guitarghl')!
 		const types = reTrack.noteEventGroups[0].map(n => n.type).sort()
 		expect(types).toEqual([noteTypes.open, noteTypes.white1].sort())
+	})
+})
+
+// ---------------------------------------------------------------------------
+// Vocal tracks
+// ---------------------------------------------------------------------------
+
+function findTrackByName(tracks: MidiEvent[][], name: string): MidiEvent[] | undefined {
+	return tracks.find(t => t.some(e => e.type === 'trackName' && (e as { text: string }).text === name))
+}
+
+function emptyPhrase(tick: number, length: number, opts: { player?: 1 | 2; lyrics?: { tick: number; text: string }[]; notes?: { tick: number; length: number; pitch: number; type?: 'pitched' | 'percussion' }[] } = {}) {
+	return {
+		tick,
+		length,
+		msTime: 0,
+		msLength: 0,
+		isPercussion: false,
+		player: opts.player,
+		notes: (opts.notes ?? []).map(n => ({ ...n, msTime: 0, msLength: 0, type: n.type ?? 'pitched' as const })),
+		lyrics: (opts.lyrics ?? []).map(l => ({ ...l, msTime: 0, flags: 0 })),
+	}
+}
+
+describe('writeMidiFile: vocal track layout', () => {
+	it('emits no vocal tracks when vocalTracks.parts is empty', () => {
+		const chart = createEmptyChart({ format: 'mid' })
+		const tracks = parseBack(writeMidiFile(chart)).tracks
+		expect(findTrackByName(tracks, 'PART VOCALS')).toBeUndefined()
+		expect(findTrackByName(tracks, 'HARM1')).toBeUndefined()
+	})
+
+	it('emits PART VOCALS when a vocals part is present', () => {
+		const chart = createEmptyChart({ format: 'mid' })
+		chart.vocalTracks.parts.vocals = {
+			notePhrases: [emptyPhrase(0, 480, { lyrics: [{ tick: 0, text: 'Hi' }] })],
+			staticLyricPhrases: [],
+			starPowerSections: [],
+			rangeShifts: [],
+			lyricShifts: [],
+			textEvents: [],
+		}
+		const tracks = parseBack(writeMidiFile(chart)).tracks
+		expect(findTrackByName(tracks, 'PART VOCALS')).toBeDefined()
+	})
+
+	it('emits HARM1 / HARM2 / HARM3 (not PART HARM*) track names', () => {
+		const chart = createEmptyChart({ format: 'mid' })
+		const emptyPart = { notePhrases: [], staticLyricPhrases: [], starPowerSections: [], rangeShifts: [], lyricShifts: [], textEvents: [] }
+		chart.vocalTracks.parts.harmony1 = { ...emptyPart, notePhrases: [emptyPhrase(0, 480)] }
+		chart.vocalTracks.parts.harmony2 = { ...emptyPart, staticLyricPhrases: [emptyPhrase(0, 480)] }
+		chart.vocalTracks.parts.harmony3 = emptyPart
+		const tracks = parseBack(writeMidiFile(chart)).tracks
+		expect(findTrackByName(tracks, 'HARM1')).toBeDefined()
+		expect(findTrackByName(tracks, 'HARM2')).toBeDefined()
+		expect(findTrackByName(tracks, 'HARM3')).toBeDefined()
+		expect(findTrackByName(tracks, 'PART HARM1')).toBeUndefined()
+	})
+})
+
+describe('writeMidiFile: vocal phrase markers', () => {
+	it('PART VOCALS emits notePhrases at note 105 by default', () => {
+		const chart = createEmptyChart({ format: 'mid' })
+		chart.vocalTracks.parts.vocals = {
+			notePhrases: [emptyPhrase(0, 480)],
+			staticLyricPhrases: [],
+			starPowerSections: [],
+			rangeShifts: [],
+			lyricShifts: [],
+			textEvents: [],
+		}
+		const track = findTrackByName(parseBack(writeMidiFile(chart)).tracks, 'PART VOCALS')!
+		expect(findNoteOns(track, 105)).toHaveLength(1)
+		expect(findNoteOns(track, 106)).toHaveLength(0)
+	})
+
+	it('PART VOCALS emits player:2 phrases at note 106', () => {
+		const chart = createEmptyChart({ format: 'mid' })
+		chart.vocalTracks.parts.vocals = {
+			notePhrases: [emptyPhrase(0, 480, { player: 1 }), emptyPhrase(480, 480, { player: 2 })],
+			staticLyricPhrases: [],
+			starPowerSections: [],
+			rangeShifts: [],
+			lyricShifts: [],
+			textEvents: [],
+		}
+		const track = findTrackByName(parseBack(writeMidiFile(chart)).tracks, 'PART VOCALS')!
+		expect(findNoteOns(track, 105)).toHaveLength(1)
+		expect(findNoteOns(track, 106)).toHaveLength(1)
+	})
+
+	it('HARM1 emits notePhrases at 105 and staticLyricPhrases at 106', () => {
+		const chart = createEmptyChart({ format: 'mid' })
+		chart.vocalTracks.parts.harmony1 = {
+			notePhrases: [emptyPhrase(0, 480), emptyPhrase(960, 480)],
+			staticLyricPhrases: [emptyPhrase(1920, 480)],
+			starPowerSections: [],
+			rangeShifts: [],
+			lyricShifts: [],
+			textEvents: [],
+		}
+		const track = findTrackByName(parseBack(writeMidiFile(chart)).tracks, 'HARM1')!
+		expect(findNoteOns(track, 105)).toHaveLength(2)
+		expect(findNoteOns(track, 106)).toHaveLength(1)
+	})
+
+	it('HARM2 emits ONLY staticLyricPhrases as note 106 (note 105 comes from HARM1 via CopyDown on re-parse)', () => {
+		const chart = createEmptyChart({ format: 'mid' })
+		chart.vocalTracks.parts.harmony2 = {
+			notePhrases: [emptyPhrase(0, 480)],
+			staticLyricPhrases: [emptyPhrase(480, 480)],
+			starPowerSections: [],
+			rangeShifts: [],
+			lyricShifts: [],
+			textEvents: [],
+		}
+		const track = findTrackByName(parseBack(writeMidiFile(chart)).tracks, 'HARM2')!
+		expect(findNoteOns(track, 105)).toHaveLength(0)
+		expect(findNoteOns(track, 106)).toHaveLength(1)
+	})
+
+	it('HARM3 emits no phrase markers at all', () => {
+		const chart = createEmptyChart({ format: 'mid' })
+		chart.vocalTracks.parts.harmony3 = {
+			notePhrases: [emptyPhrase(0, 480)],
+			staticLyricPhrases: [emptyPhrase(480, 480)],
+			starPowerSections: [],
+			rangeShifts: [],
+			lyricShifts: [],
+			textEvents: [],
+		}
+		const track = findTrackByName(parseBack(writeMidiFile(chart)).tracks, 'HARM3')!
+		expect(findNoteOns(track, 105)).toHaveLength(0)
+		expect(findNoteOns(track, 106)).toHaveLength(0)
+	})
+})
+
+describe('writeMidiFile: vocal notes and lyrics', () => {
+	it('emits pitched notes at their MIDI pitch (36-84)', () => {
+		const chart = createEmptyChart({ format: 'mid' })
+		chart.vocalTracks.parts.vocals = {
+			notePhrases: [emptyPhrase(0, 480, { notes: [{ tick: 0, length: 240, pitch: 60 }] })],
+			staticLyricPhrases: [],
+			starPowerSections: [],
+			rangeShifts: [],
+			lyricShifts: [],
+			textEvents: [],
+		}
+		const track = findTrackByName(parseBack(writeMidiFile(chart)).tracks, 'PART VOCALS')!
+		expect(findNoteOns(track, 60)).toHaveLength(1)
+	})
+
+	it('clamps out-of-range pitches to 60', () => {
+		const chart = createEmptyChart({ format: 'mid' })
+		chart.vocalTracks.parts.vocals = {
+			notePhrases: [emptyPhrase(0, 480, { notes: [{ tick: 0, length: 240, pitch: 200 }] })],
+			staticLyricPhrases: [],
+			starPowerSections: [],
+			rangeShifts: [],
+			lyricShifts: [],
+			textEvents: [],
+		}
+		const track = findTrackByName(parseBack(writeMidiFile(chart)).tracks, 'PART VOCALS')!
+		expect(findNoteOns(track, 60)).toHaveLength(1)
+		expect(findNoteOns(track, 200)).toHaveLength(0)
+	})
+
+	it('emits percussion notes at MIDI 96', () => {
+		const chart = createEmptyChart({ format: 'mid' })
+		chart.vocalTracks.parts.vocals = {
+			notePhrases: [emptyPhrase(0, 480, { notes: [{ tick: 0, length: 0, pitch: -1, type: 'percussion' }] })],
+			staticLyricPhrases: [],
+			starPowerSections: [],
+			rangeShifts: [],
+			lyricShifts: [],
+			textEvents: [],
+		}
+		const track = findTrackByName(parseBack(writeMidiFile(chart)).tracks, 'PART VOCALS')!
+		expect(findNoteOns(track, 96)).toHaveLength(1)
+	})
+
+	it('emits lyric meta events from phrase.lyrics', () => {
+		const chart = createEmptyChart({ format: 'mid' })
+		chart.vocalTracks.parts.vocals = {
+			notePhrases: [emptyPhrase(0, 480, { lyrics: [{ tick: 0, text: 'Hel-' }, { tick: 120, text: 'lo' }] })],
+			staticLyricPhrases: [],
+			starPowerSections: [],
+			rangeShifts: [],
+			lyricShifts: [],
+			textEvents: [],
+		}
+		const track = findTrackByName(parseBack(writeMidiFile(chart)).tracks, 'PART VOCALS')!
+		const lyrics = track.filter(e => e.type === 'lyrics') as { text: string }[]
+		expect(lyrics.map(l => l.text)).toEqual(['Hel-', 'lo'])
+	})
+
+	it('unions lyrics from both notePhrases and staticLyricPhrases (no duplicates)', () => {
+		const chart = createEmptyChart({ format: 'mid' })
+		chart.vocalTracks.parts.harmony1 = {
+			notePhrases: [emptyPhrase(0, 960, { lyrics: [{ tick: 0, text: 'A' }, { tick: 480, text: 'B' }] })],
+			staticLyricPhrases: [emptyPhrase(0, 960, { lyrics: [{ tick: 480, text: 'B' }, { tick: 720, text: 'C' }] })],
+			starPowerSections: [],
+			rangeShifts: [],
+			lyricShifts: [],
+			textEvents: [],
+		}
+		const track = findTrackByName(parseBack(writeMidiFile(chart)).tracks, 'HARM1')!
+		const lyrics = track.filter(e => e.type === 'lyrics') as { text: string }[]
+		expect(lyrics.map(l => l.text)).toEqual(['A', 'B', 'C'])
+	})
+})
+
+describe('writeMidiFile: vocal instrument-wide markers', () => {
+	it('emits star power as MIDI 116 on PART VOCALS / HARM1 only', () => {
+		const chart = createEmptyChart({ format: 'mid' })
+		const sp = { tick: 0, length: 480, msTime: 0, msLength: 0 }
+		chart.vocalTracks.parts.vocals = {
+			notePhrases: [], staticLyricPhrases: [],
+			starPowerSections: [sp],
+			rangeShifts: [], lyricShifts: [], textEvents: [],
+		}
+		chart.vocalTracks.parts.harmony2 = {
+			notePhrases: [], staticLyricPhrases: [emptyPhrase(0, 480)],
+			starPowerSections: [sp],
+			rangeShifts: [], lyricShifts: [], textEvents: [],
+		}
+		const tracks = parseBack(writeMidiFile(chart)).tracks
+		expect(findNoteOns(findTrackByName(tracks, 'PART VOCALS')!, 116)).toHaveLength(1)
+		// HARM2 star power suppressed — copied from HARM1 via CopyDown on re-parse.
+		expect(findNoteOns(findTrackByName(tracks, 'HARM2')!, 116)).toHaveLength(0)
+	})
+
+	it('emits rangeShifts as MIDI 0 and lyricShifts as MIDI 1', () => {
+		const chart = createEmptyChart({ format: 'mid' })
+		chart.vocalTracks.parts.vocals = {
+			notePhrases: [],
+			staticLyricPhrases: [],
+			starPowerSections: [],
+			rangeShifts: [{ tick: 0, length: 480, msTime: 0, msLength: 0 }],
+			lyricShifts: [{ tick: 480, length: 480, msTime: 0, msLength: 0 }],
+			textEvents: [],
+		}
+		const track = findTrackByName(parseBack(writeMidiFile(chart)).tracks, 'PART VOCALS')!
+		expect(findNoteOns(track, 0)).toHaveLength(1)
+		expect(findNoteOns(track, 1)).toHaveLength(1)
+	})
+
+	it('emits vocal text events (stance markers, Band_PlayFacialAnim)', () => {
+		const chart = createEmptyChart({ format: 'mid' })
+		chart.vocalTracks.parts.vocals = {
+			notePhrases: [],
+			staticLyricPhrases: [],
+			starPowerSections: [],
+			rangeShifts: [],
+			lyricShifts: [],
+			textEvents: [
+				{ tick: 0, msTime: 0, text: '[idle]' },
+				{ tick: 960, msTime: 0, text: '[mellow]' },
+			],
+		}
+		const track = findTrackByName(parseBack(writeMidiFile(chart)).tracks, 'PART VOCALS')!
+		const texts = track.filter(e => e.type === 'text') as { text: string }[]
+		expect(texts.map(t => t.text)).toEqual(['[idle]', '[mellow]'])
+	})
+})
+
+describe('writeMidiFile: vocal round-trip through parseChartAndIni', () => {
+	it('round-trips PART VOCALS with phrases, notes, and lyrics', () => {
+		const chart = createEmptyChart({ format: 'mid', resolution: 480 })
+		chart.vocalTracks.parts.vocals = {
+			notePhrases: [emptyPhrase(0, 960, {
+				lyrics: [{ tick: 0, text: 'Hel-' }, { tick: 240, text: 'lo' }],
+				notes: [
+					{ tick: 0, length: 240, pitch: 60 },
+					{ tick: 240, length: 240, pitch: 62 },
+				],
+			})],
+			staticLyricPhrases: [],
+			starPowerSections: [],
+			rangeShifts: [],
+			lyricShifts: [],
+			textEvents: [],
+		}
+		const re = parseChartAndIni([{ fileName: 'notes.mid', data: writeMidiFile(chart) }])
+		const reVocals = re.parsedChart!.vocalTracks.parts.vocals
+		expect(reVocals).toBeDefined()
+		expect(reVocals.notePhrases).toHaveLength(1)
+		expect(reVocals.notePhrases[0].lyrics.map(l => l.text)).toEqual(['Hel-', 'lo'])
+		expect(reVocals.notePhrases[0].notes.map(n => n.pitch)).toEqual([60, 62])
+	})
+
+	it('round-trips HARM1 + HARM2 + HARM3 with CopyDown semantics preserved', () => {
+		const chart = createEmptyChart({ format: 'mid', resolution: 480 })
+		const h1Phrase = emptyPhrase(0, 960, {
+			lyrics: [{ tick: 0, text: 'One' }],
+			notes: [{ tick: 0, length: 240, pitch: 60 }],
+		})
+		const h2Phrase = emptyPhrase(0, 960, {
+			lyrics: [{ tick: 0, text: 'Two' }],
+			notes: [{ tick: 0, length: 240, pitch: 62 }],
+		})
+		const h3Phrase = emptyPhrase(0, 960, {
+			lyrics: [{ tick: 0, text: 'Three' }],
+			notes: [{ tick: 0, length: 240, pitch: 64 }],
+		})
+		chart.vocalTracks.parts.harmony1 = {
+			notePhrases: [h1Phrase], staticLyricPhrases: [],
+			starPowerSections: [], rangeShifts: [], lyricShifts: [], textEvents: [],
+		}
+		chart.vocalTracks.parts.harmony2 = {
+			notePhrases: [h1Phrase], staticLyricPhrases: [h2Phrase],
+			starPowerSections: [], rangeShifts: [], lyricShifts: [], textEvents: [],
+		}
+		chart.vocalTracks.parts.harmony3 = {
+			notePhrases: [h1Phrase], staticLyricPhrases: [h1Phrase],
+			starPowerSections: [], rangeShifts: [], lyricShifts: [], textEvents: [],
+		}
+
+		const re = parseChartAndIni([{ fileName: 'notes.mid', data: writeMidiFile(chart) }])
+		const parts = re.parsedChart!.vocalTracks.parts
+		// HARM1 notes preserved
+		expect(parts.harmony1.notePhrases[0].notes[0].pitch).toBe(60)
+		// HARM2 keeps its own notes + gets HARM1 phrases via CopyDown
+		expect(parts.harmony2.notePhrases[0].notes.map(n => n.pitch).sort()).toEqual([60, 62])
+		// HARM3 gets HARM1 phrases (including notes) — HARM3's own notes survived via the phrase union
+		expect(parts.harmony3.notePhrases[0].notes.map(n => n.pitch)).toContain(60)
 	})
 })
