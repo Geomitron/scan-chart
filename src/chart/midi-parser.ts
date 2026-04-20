@@ -3,7 +3,7 @@ import { MidiData, MidiEvent, MidiSetTempoEvent, MidiTextEvent, MidiTimeSignatur
 import { difficulties, Difficulty, getInstrumentType, Instrument, InstrumentType, instrumentTypes } from 'src/interfaces'
 import { EventType, eventTypes, IniChartModifiers, RawChartData, VocalTrackData } from './note-parsing-interfaces'
 import { scanVocalTrack } from './lyric-parser'
-import { drumsDiffStarts } from './midi-note-numbers'
+import { drumsDiffStarts, fiveFretDiffStarts, fiveFretLaneOffsets, sixFretDiffStarts, sixFretLaneOffsets } from './midi-note-numbers'
 
 // Union two phrase lists, dedup by tick (keep longest length), sort by tick.
 function mergePhraseLists(a: { tick: number; length: number }[], b: { tick: number; length: number }[]): { tick: number; length: number }[] {
@@ -70,8 +70,6 @@ const instrumentNameMap: { [key in InstrumentTrackName]: Instrument } = {
 
 const sysExDifficultyMap = ['easy', 'medium', 'hard', 'expert'] as const
 const discoFlipDifficultyMap = ['easy', 'medium', 'hard', 'expert'] as const
-const fiveFretDiffStarts = { easy: 59, medium: 71, hard: 83, expert: 95 }
-const sixFretDiffStarts = { easy: 58, medium: 70, hard: 82, expert: 94 }
 const midiDiscoFlipRegex = /^\s*\[?mix[ _]([0-3])[ _]drums([0-5])(d|dnoflip|easy|easynokick|)\]?\s*$/
 const eventsBracketedSectionRegex = /^\[(?:section|prc)[ _](.*)\]$/
 const eventsPlainSectionRegex = /^(?:section|prc)[ _](.*)$/
@@ -675,49 +673,30 @@ function getInstrumentEventType(note: number) {
 
 function get6FretNoteType(note: number, difficulty: Difficulty) {
 	switch (note - sixFretDiffStarts[difficulty]) {
-		case 0:
-			return eventTypes.open // Not forceOpen
-		case 1:
-			return eventTypes.white1
-		case 2:
-			return eventTypes.white2
-		case 3:
-			return eventTypes.white3
-		case 4:
-			return eventTypes.black1
-		case 5:
-			return eventTypes.black2
-		case 6:
-			return eventTypes.black3
-		case 7:
-			return eventTypes.forceHopo
-		case 8:
-			return eventTypes.forceStrum
-		default:
-			return null
+		case sixFretLaneOffsets.open:      return eventTypes.open // Not forceOpen
+		case sixFretLaneOffsets.white1:    return eventTypes.white1
+		case sixFretLaneOffsets.white2:    return eventTypes.white2
+		case sixFretLaneOffsets.white3:    return eventTypes.white3
+		case sixFretLaneOffsets.black1:    return eventTypes.black1
+		case sixFretLaneOffsets.black2:    return eventTypes.black2
+		case sixFretLaneOffsets.black3:    return eventTypes.black3
+		case sixFretLaneOffsets.forceHopo: return eventTypes.forceHopo
+		case sixFretLaneOffsets.forceStrum: return eventTypes.forceStrum
+		default:                           return null
 	}
 }
 
 function get5FretNoteType(note: number, difficulty: Difficulty, enhancedOpens: boolean) {
 	switch (note - fiveFretDiffStarts[difficulty]) {
-		case 0:
-			return enhancedOpens ? eventTypes.open : null // Not forceOpen
-		case 1:
-			return eventTypes.green
-		case 2:
-			return eventTypes.red
-		case 3:
-			return eventTypes.yellow
-		case 4:
-			return eventTypes.blue
-		case 5:
-			return eventTypes.orange
-		case 6:
-			return eventTypes.forceHopo
-		case 7:
-			return eventTypes.forceStrum
-		default:
-			return null
+		case fiveFretLaneOffsets.open:       return enhancedOpens ? eventTypes.open : null // Not forceOpen
+		case fiveFretLaneOffsets.green:      return eventTypes.green
+		case fiveFretLaneOffsets.red:        return eventTypes.red
+		case fiveFretLaneOffsets.yellow:     return eventTypes.yellow
+		case fiveFretLaneOffsets.blue:       return eventTypes.blue
+		case fiveFretLaneOffsets.orange:     return eventTypes.orange
+		case fiveFretLaneOffsets.forceHopo:  return eventTypes.forceHopo
+		case fiveFretLaneOffsets.forceStrum: return eventTypes.forceStrum
+		default:                             return null
 	}
 }
 
