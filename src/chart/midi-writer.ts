@@ -257,7 +257,10 @@ function buildUnrecognizedTrack(events: MidiEvent[]): MidiEvent[] {
 	const out: MidiEvent[] = []
 	for (const e of events) {
 		const absTick = e.deltaTime
-		out.push({ ...e, deltaTime: absTick - prevTick })
+		// Object.assign is noticeably faster than {...e, …} spread on V8 — tsup
+		// transpiles the spread to __spreadProps(__spreadValues(...)) which
+		// iterates property descriptors.
+		out.push(Object.assign({}, e, { deltaTime: absTick - prevTick }) as MidiEvent)
 		prevTick = absTick
 	}
 	return out
@@ -539,7 +542,7 @@ function buildDrumTrack(
 				events.push({
 					tick: ev.deltaTime,
 					seq: unrecSeqBase + unrecSeq++,
-					event: { ...ev, deltaTime: 0 } as MidiEvent,
+					event: Object.assign({}, ev, { deltaTime: 0 }) as MidiEvent,
 				})
 			}
 		}
@@ -1002,7 +1005,7 @@ function buildFretTrack(
 				events.push({
 					tick: ev.deltaTime,
 					seq: unrecSeqBase + unrecSeq++,
-					event: { ...ev, deltaTime: 0 } as MidiEvent,
+					event: Object.assign({}, ev, { deltaTime: 0 }) as MidiEvent,
 				})
 			}
 		}
