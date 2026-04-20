@@ -22,6 +22,12 @@ import {
 	VocalTrackData,
 } from './note-parsing-interfaces'
 import { parseLyricFlags, stripLyricSymbols } from './lyric-parser'
+import {
+	isFretChordRawEvents,
+	isFretEventType,
+	isInFretNoteRawEvents,
+	isSameFretNoteRawEvents,
+} from './natural-hopo'
 
 type TrackEvent = RawChartData['trackData'][number]['trackEvents'][number]
 type UntimedNoteEvent = Omit<NoteEvent, 'msTime' | 'msLength'>
@@ -783,7 +789,7 @@ function resolveFretModifiers(
 		let longestNote: TrackEvent | null = null
 		for (const e of events) {
 			const t = e.type
-			if (isFretNote(t)) {
+			if (isFretEventType(t)) {
 				notes.push(e)
 				if (!longestNote || e.length > longestNote.length) longestNote = e
 			} else if (t === eventTypes.forceOpen) {
@@ -810,7 +816,7 @@ function resolveFretModifiers(
 			let w = 0
 			for (let r = 0; r < events.length; r++) {
 				const et = events[r].type
-				if (!isFretNote(et) && et !== eventTypes.forceOpen) events[w++] = events[r]
+				if (!isFretEventType(et) && et !== eventTypes.forceOpen) events[w++] = events[r]
 			}
 			events.length = w
 			events.push(longestNote)
@@ -823,10 +829,10 @@ function resolveFretModifiers(
 		const isNaturalHopo =
 			!!lastNotes &&
 			effectiveNotes[0].tick - lastNotes[0].tick <= hopoThresholdTicks &&
-			!isFretChord(effectiveNotes) &&
-			!isSameFretNote(events, lastNotes) &&
+			!isFretChordRawEvents(effectiveNotes) &&
+			!isSameFretNoteRawEvents(events, lastNotes) &&
 			// This .mid exception is due to compatibility concerns with older games that primarily use .mid
-			!(format === 'mid' && isFretChord(lastNotes) && isInFretNote(effectiveNotes, lastNotes))
+			!(format === 'mid' && isFretChordRawEvents(lastNotes) && isInFretNoteRawEvents(effectiveNotes, lastNotes))
 		const forceResult =
 			hasForceTap ? noteFlags.tap
 			: hasForceHopo ? noteFlags.hopo
@@ -849,89 +855,6 @@ function resolveFretModifiers(
 	}
 
 	return noteEventGroups
-}
-
-function isFretNote(type: EventType) {
-	switch (type) {
-		case eventTypes.open:
-		case eventTypes.green:
-		case eventTypes.red:
-		case eventTypes.yellow:
-		case eventTypes.blue:
-		case eventTypes.orange:
-		case eventTypes.black3:
-		case eventTypes.black2:
-		case eventTypes.black1:
-		case eventTypes.white3:
-		case eventTypes.white2:
-		case eventTypes.white1:
-			return true
-		default:
-			return false
-	}
-}
-
-function isSameFretNote(note1: TrackEvent[], note2: TrackEvent[]) {
-	for (const n1 of note1) {
-		if (!isFretNote(n1.type)) {
-			continue
-		}
-
-		for (const n2 of note2) {
-			if (!isFretNote(n2.type)) {
-				continue
-			}
-
-			if (n1.type !== n2.type) {
-				return false
-			}
-		}
-	}
-
-	for (const n2 of note2) {
-		if (!isFretNote(n2.type)) {
-			continue
-		}
-
-		for (const n1 of note1) {
-			if (!isFretNote(n1.type)) {
-				continue
-			}
-
-			if (n2.type !== n1.type) {
-				return false
-			}
-		}
-	}
-
-	return true
-}
-
-function isFretChord(note: TrackEvent[]) {
-	let firstNoteType: EventType | null = null
-	for (const n of note) {
-		if (isFretNote(n.type)) {
-			if (firstNoteType === null) {
-				firstNoteType = n.type
-			} else if (firstNoteType !== n.type) {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-function isInFretNote(inNote: TrackEvent[], outerNote: TrackEvent[]) {
-	// True if every fret note type in `inNote` also appears in `outerNote`.
-	for (const n of inNote) {
-		if (!isFretNote(n.type)) continue
-		let found = false
-		for (const o of outerNote) {
-			if (o.type === n.type) { found = true; break }
-		}
-		if (!found) return false
-	}
-	return true
 }
 
 function getFretNoteTypeFromEventType(eventType: EventType): NoteType | null {
