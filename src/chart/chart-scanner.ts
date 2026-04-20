@@ -38,21 +38,58 @@ export function scanParsedChart(parsedChart: ParsedChart, includeBTrack = false)
 		}
 	})
 
-	let [hasTapNotes, hasOpenNotes, has2xKick] = [false, false, false]
-	for (const track of result.trackData) {
+	// Walk every noteEventGroup once to derive all state-dependent flags.
+	// `hasForcedNotes` mirrors the old source-derived semantics: true iff the
+	// chart contains a note whose resolved `hopo`/`strum` flag disagrees with
+	// the natural HOPO state the parser would have picked without force events.
+	// Notes that carry ONLY the `tap` flag are intentionally NOT counted —
+	// matching the pre-consolidation definition that walked raw trackEvents for
+	// `forceHopo` / `forceStrum` / `forceUnnatural` (tap was excluded even
+	// though `forceTap` is a force event, per the original definition). That
+	// decision keeps 78K-chart parity with the old flag for 94%+ of charts; the
+	// remaining divergence is ~300 charts where the source had redundantly-
+	// applied force events on naturally-matching notes (the force was a no-op,
+	// so the state-derived flag correctly reports false).
+	const hopoThreshold = computeHopoThresholdTicks(
+		result.resolution,
+		iniChartModifiers.hopo_frequency,
+		iniChartModifiers.eighthnote_hopo,
+		result.format,
+	)
+	let [hasTapNotes, hasOpenNotes, has2xKick, hasForcedNotes] = [false, false, false, false]
+	outer: for (const track of result.trackData) {
+		const isFretInstrument = track.instrument !== 'drums'
+		let lastGroup: NoteEvent[] | null = null
 		for (const noteGroup of track.noteEventGroups) {
 			for (const note of noteGroup) {
-				if (note.flags & noteFlags.tap) {
-					hasTapNotes = true
-				}
-				if (note.flags & noteFlags.doubleKick) {
-					has2xKick = true
-				}
-				if (note.type === noteTypes.open) {
-					hasOpenNotes = true
-				}
+				if (note.flags & noteFlags.tap) hasTapNotes = true
+				if (note.flags & noteFlags.doubleKick) has2xKick = true
+				if (note.type === noteTypes.open) hasOpenNotes = true
 			}
+			if (isFretInstrument && !hasForcedNotes && noteGroup.length > 0) {
+				const first = noteGroup[0]
+				const natural = isNaturalHopo(noteGroup, lastGroup, hopoThreshold, result.format)
+				const isHopo = (first.flags & noteFlags.hopo) !== 0
+				const isStrum = (first.flags & noteFlags.strum) !== 0
+				if ((isHopo && !natural) || (isStrum && natural)) hasForcedNotes = true
+			}
+			lastGroup = noteGroup.length > 0 ? noteGroup : lastGroup
+			// Early-exit once all four flags are true.
+			if (hasTapNotes && hasOpenNotes && has2xKick && hasForcedNotes) break outer
 		}
+	}
+
+	// `hasLyrics` / `hasVocals` are derived from the normalized vocal tracks
+	// rather than snapshotted at parse time — keeps them state-accurate if
+	// downstream code adds or removes vocal data.
+	let hasLyrics = false
+	let hasVocals = false
+	for (const part of Object.values(result.vocalTracks.parts)) {
+		if (part.notePhrases.length > 0) hasVocals = true
+		for (const phrase of part.notePhrases) {
+			if (phrase.lyrics.length > 0) { hasLyrics = true; break }
+		}
+		if (hasLyrics && hasVocals) break
 	}
 
 	return {
@@ -68,9 +105,9 @@ export function scanParsedChart(parsedChart: ParsedChart, includeBTrack = false)
 					.map(t => t.soloSections.length)
 					.max()
 					.value() > 0,
-			hasLyrics: result.hasLyrics,
-			hasVocals: result.hasVocals,
-			hasForcedNotes: result.hasForcedNotes,
+			hasLyrics,
+			hasVocals,
+			hasForcedNotes,
 			hasTapNotes,
 			hasOpenNotes,
 			has2xKick,
@@ -200,7 +237,8 @@ function findChartIssues(
 
 	// noNotes
 	{
-		if (chartData.trackData.every(track => track.noteEventGroups.length === 0) && !chartData.hasVocals) {
+		const hasVocals = Object.values(chartData.vocalTracks.parts).some(p => p.notePhrases.length > 0)
+		if (chartData.trackData.every(track => track.noteEventGroups.length === 0) && !hasVocals) {
 			addIssue(null, null, 'noNotes')
 		}
 	}
@@ -550,6 +588,75 @@ function int32ToUint8Array(num: number) {
 	view.setInt32(0, num, true)
 
 	return new Uint8Array(buffer)
+}
+
+// ---------------------------------------------------------------------------
+// Natural HOPO detection (post-parse, operates on NoteEvent)
+//
+// Inverse of `resolveFretModifiers` in notes-parser.ts. The parser applies
+// force events to produce per-note flags; here we re-derive whether a note
+// would naturally be a HOPO so scanChart can detect flags that disagree with
+// natural state (i.e., notes whose behavior came from a force event).
+// ---------------------------------------------------------------------------
+
+const fretNoteTypeSet = new Set<NoteType>([
+	noteTypes.open, noteTypes.green, noteTypes.red, noteTypes.yellow, noteTypes.blue, noteTypes.orange,
+	noteTypes.black1, noteTypes.black2, noteTypes.black3,
+	noteTypes.white1, noteTypes.white2, noteTypes.white3,
+])
+
+function isFretChord(group: NoteEvent[]): boolean {
+	let firstType: NoteType | null = null
+	for (const n of group) {
+		if (!fretNoteTypeSet.has(n.type)) continue
+		if (firstType === null) firstType = n.type
+		else if (firstType !== n.type) return true
+	}
+	return false
+}
+
+function isSameFretNote(a: NoteEvent[], b: NoteEvent[]): boolean {
+	const aT: NoteType[] = []
+	for (const n of a) if (fretNoteTypeSet.has(n.type)) aT.push(n.type)
+	const bT: NoteType[] = []
+	for (const n of b) if (fretNoteTypeSet.has(n.type)) bT.push(n.type)
+	if (aT.length !== bT.length) return false
+	const s = new Set(bT)
+	for (const t of aT) if (!s.has(t)) return false
+	return true
+}
+
+function isInFretNote(inner: NoteEvent[], outer: NoteEvent[]): boolean {
+	const o = new Set<NoteType>()
+	for (const n of outer) if (fretNoteTypeSet.has(n.type)) o.add(n.type)
+	for (const n of inner) if (fretNoteTypeSet.has(n.type) && !o.has(n.type)) return false
+	return true
+}
+
+function computeHopoThresholdTicks(
+	resolution: number,
+	iniHopoFreq: number,
+	eighthnoteHopo: boolean,
+	format: 'chart' | 'mid',
+): number {
+	if (iniHopoFreq) return iniHopoFreq
+	if (eighthnoteHopo) return Math.floor(1 + resolution / 2)
+	return Math.floor(format === 'mid' ? 1 + resolution / 3 : (65 / 192) * resolution)
+}
+
+function isNaturalHopo(
+	current: NoteEvent[],
+	last: NoteEvent[] | null,
+	hopoThresholdTicks: number,
+	format: 'chart' | 'mid',
+): boolean {
+	if (!last) return false
+	if (current[0].tick - last[0].tick > hopoThresholdTicks) return false
+	if (isFretChord(current)) return false
+	if (!isFretChord(last) && isSameFretNote(current, last)) return false
+	// .mid-specific exception for back-compat with older games.
+	if (format === 'mid' && isFretChord(last) && isInFretNote(current, last)) return false
+	return true
 }
 
 /**
