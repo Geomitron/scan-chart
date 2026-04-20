@@ -1,4 +1,5 @@
 import type { MidiEvent } from 'midi-file'
+import { defaultMetadata } from 'src/ini'
 import { Difficulty, Instrument, NotesData } from 'src/interfaces'
 import { ObjectValues } from 'src/utils'
 
@@ -13,15 +14,24 @@ export interface IniChartModifiers {
 	pro_drums: boolean
 }
 
-export const defaultIniChartModifiers = {
-	song_length: 0,
-	hopo_frequency: 0,
-	eighthnote_hopo: false,
-	multiplier_note: 0,
-	sustain_cutoff_threshold: -1,
-	chord_snap_threshold: 0,
-	five_lane_drums: false,
-	pro_drums: false,
+/**
+ * Projection of the 8 `song.ini` fields that influence chart parsing, with
+ * defaults derived from {@link defaultMetadata}. Exported so consumers who
+ * call `parseChartFile` directly can construct a `Partial<IniChartModifiers>`
+ * on top of known defaults without having to duplicate the values here.
+ *
+ * Kept as a projection (rather than a standalone literal) so these 8 defaults
+ * can never drift from the 40-field source of truth in {@link defaultMetadata}.
+ */
+export const defaultIniChartModifiers: IniChartModifiers = {
+	song_length: defaultMetadata.song_length,
+	hopo_frequency: defaultMetadata.hopo_frequency,
+	eighthnote_hopo: defaultMetadata.eighthnote_hopo,
+	multiplier_note: defaultMetadata.multiplier_note,
+	sustain_cutoff_threshold: defaultMetadata.sustain_cutoff_threshold,
+	chord_snap_threshold: defaultMetadata.chord_snap_threshold,
+	five_lane_drums: defaultMetadata.five_lane_drums,
+	pro_drums: defaultMetadata.pro_drums,
 }
 
 /**
@@ -36,16 +46,22 @@ export const defaultIniChartModifiers = {
  */
 export interface RawChartData {
 	chartTicksPerBeat: number
-	metadata: {
-		name?: string
-		artist?: string
-		album?: string
-		genre?: string
-		year?: string
-		charter?: string
-		diff_guitar?: number
-		delay?: number
-		preview_start_time?: number
+	/**
+	 * Song metadata. Parsers populate only what the source file carries
+	 * (the [Song] section for .chart; nothing for .mid). `parseChartAndIni`
+	 * overlays `song.ini` values on top of this, with ini winning where both
+	 * are present, and populates `extraIniFields` from unknown ini keys.
+	 */
+	metadata: Partial<typeof defaultMetadata> & {
+		/** Unknown song.ini key/value pairs, preserved for round-trip writing. */
+		extraIniFields?: { [key: string]: string }
+		/**
+		 * `[Song].Offset` from the .chart file body, in milliseconds. Distinct
+		 * from the ini-origin `delay` field — games recognize `Offset` only in
+		 * [Song], and `delay` only in song.ini. Kept as a separate key so the
+		 * two never collide on the ini-wins merge in `parseChartAndIni`.
+		 */
+		chart_offset?: number
 	}
 	/**
 	 * Vocal track data keyed by part name.

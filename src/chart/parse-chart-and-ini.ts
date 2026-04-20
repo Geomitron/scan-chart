@@ -1,6 +1,6 @@
 import * as _ from 'lodash'
 
-import { defaultMetadata, scanIni } from '../ini'
+import { scanIni } from '../ini'
 import { FolderIssueType, MetadataIssueType } from '../interfaces'
 import { getExtension, hasChartExtension, hasChartName } from '../utils'
 import { defaultIniChartModifiers, IniChartModifiers } from './note-parsing-interfaces'
@@ -29,15 +29,26 @@ export interface ParseChartAndIniResult {
 	/**
 	 * The parsed chart, or `null` if a chart file could not be found or could
 	 * not be parsed. Inspect `chartFolderIssues` for the reason.
+	 *
+	 * `parsedChart.metadata` holds the normalized metadata: values from
+	 * `song.ini` take precedence over the chart file's `[Song]` section, and
+	 * unknown ini key/value pairs are preserved in `metadata.extraIniFields`
+	 * for round-trip writing.
 	 */
 	parsedChart: ParsedChart | null
+	/**
+	 * `true` if the folder contains a parseable `song.ini` (i.e. a file was
+	 * present AND it had a readable `[Song]` section). Useful for downstream
+	 * checks that only make sense when ini-derived metadata is available —
+	 * e.g. "ini is missing a diff_X value" issues don't apply at all when the
+	 * ini file doesn't exist.
+	 */
+	hasIni: boolean
 	/**
 	 * Folder-level issues from chart file discovery and parsing
 	 * (`noChart`, `invalidChart`, `multipleChart`, `badChart`).
 	 */
 	chartFolderIssues: { folderIssue: FolderIssueType; description: string }[]
-	/** The metadata parsed from `song.ini`, or `null` if no ini was present. */
-	iniMetadata: typeof defaultMetadata | null
 	/**
 	 * Folder-level issues from ini scanning (`noMetadata`, `invalidIni`,
 	 * `invalidMetadata`, `badIniLine`, `multipleIniFiles`).
@@ -45,8 +56,6 @@ export interface ParseChartAndIniResult {
 	iniFolderIssues: { folderIssue: FolderIssueType; description: string }[]
 	/** Validation issues with ini values. */
 	iniMetadataIssues: { metadataIssue: MetadataIssueType; description: string }[]
-	/** ini key/value pairs not in scan-chart's known list. */
-	iniUnknownValues: { [key: string]: string }
 }
 
 /**
@@ -66,7 +75,22 @@ export function parseChartAndIni(files: { fileName: string; data: Uint8Array }[]
 	if (chartData) {
 		try {
 			const inner = parseChartFile(chartData, format!, iniChartModifiers)
+
+			// Merge [Song]-section metadata with song.ini metadata onto a single
+			// `parsedChart.metadata`. song.ini wins where both provide a value —
+			// the ini file is authoritative and the chart file's [Song] block is
+			// a legacy overlap. Unknown ini keys are preserved in `extraIniFields`
+			// for round-trip writing.
+			const mergedMetadata: ParsedChart['metadata'] = {
+				...inner.metadata,
+				...(iniData.metadata ?? {}),
+			}
+			if (Object.keys(iniData.unknownIniValues).length > 0) {
+				mergedMetadata.extraIniFields = { ...iniData.unknownIniValues }
+			}
+
 			parsedChart = Object.assign({}, inner, {
+				metadata: mergedMetadata,
 				chartBytes: chartData,
 				format: format!,
 				iniChartModifiers,
@@ -81,11 +105,10 @@ export function parseChartAndIni(files: { fileName: string; data: Uint8Array }[]
 
 	return {
 		parsedChart,
+		hasIni: iniData.metadata !== null,
 		chartFolderIssues,
-		iniMetadata: iniData.metadata,
 		iniFolderIssues: iniData.folderIssues,
 		iniMetadataIssues: iniData.metadataIssues,
-		iniUnknownValues: iniData.unknownIniValues,
 	}
 }
 
