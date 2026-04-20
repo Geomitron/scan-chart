@@ -3,6 +3,7 @@ import { MidiData, MidiEvent, MidiSetTempoEvent, MidiTextEvent, MidiTimeSignatur
 import { difficulties, Difficulty, getInstrumentType, Instrument, InstrumentType, instrumentTypes } from 'src/interfaces'
 import { EventType, eventTypes, IniChartModifiers, RawChartData, VocalTrackData } from './note-parsing-interfaces'
 import { scanVocalTrack } from './lyric-parser'
+import { drumsDiffStarts } from './midi-note-numbers'
 
 // Union two phrase lists, dedup by tick (keep longest length), sort by tick.
 function mergePhraseLists(a: { tick: number; length: number }[], b: { tick: number; length: number }[]): { tick: number; length: number }[] {
@@ -71,7 +72,6 @@ const sysExDifficultyMap = ['easy', 'medium', 'hard', 'expert'] as const
 const discoFlipDifficultyMap = ['easy', 'medium', 'hard', 'expert'] as const
 const fiveFretDiffStarts = { easy: 59, medium: 71, hard: 83, expert: 95 }
 const sixFretDiffStarts = { easy: 58, medium: 70, hard: 82, expert: 94 }
-const drumsDiffStarts = { easy: 60, medium: 72, hard: 84, expert: 96 }
 const midiDiscoFlipRegex = /^\s*\[?mix[ _]([0-3])[ _]drums([0-5])(d|dnoflip|easy|easynokick|)\]?\s*$/
 const eventsBracketedSectionRegex = /^\[(?:section|prc)[ _](.*)\]$/
 const eventsPlainSectionRegex = /^(?:section|prc)[ _](.*)$/

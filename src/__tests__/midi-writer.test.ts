@@ -207,3 +207,297 @@ describe('writeMidiFile: unrecognized MIDI tracks', () => {
 		expect(midi.tracks).toHaveLength(5) // TEMPO + EVENTS + 3 CUSTOM
 	})
 })
+
+// ---------------------------------------------------------------------------
+// Drum track tests
+// ---------------------------------------------------------------------------
+
+import type { ParsedChart } from '../chart/parse-chart-and-ini'
+import { noteFlags, noteTypes } from '../chart/note-parsing-interfaces'
+
+function emptyDrumTrack(
+	difficulty: 'expert' | 'hard' | 'medium' | 'easy' = 'expert',
+): ParsedChart['trackData'][number] {
+	return {
+		instrument: 'drums',
+		difficulty,
+		starPowerSections: [],
+		rejectedStarPowerSections: [],
+		soloSections: [],
+		flexLanes: [],
+		drumFreestyleSections: [],
+		textEvents: [],
+		versusPhrases: [],
+		animations: [],
+		unrecognizedMidiEvents: [],
+		noteEventGroups: [],
+	}
+}
+
+function note(tick: number, type: number, flags = 0, length = 0) {
+	return { tick, type, flags, length, msTime: 0, msLength: 0 }
+}
+
+function findNoteOns(track: MidiEvent[], noteNumber: number): MidiEvent[] {
+	return track.filter(e => e.type === 'noteOn' && (e as { noteNumber: number }).noteNumber === noteNumber)
+}
+
+describe('writeMidiFile: PART DRUMS track layout', () => {
+	it('emits a PART DRUMS track when the chart has a drum track', () => {
+		const chart = createEmptyChart({ format: 'mid' })
+		chart.trackData.push(emptyDrumTrack('expert'))
+		const midi = parseBack(writeMidiFile(chart))
+		const drumTrack = midi.tracks[2]
+		const names = findEvents(drumTrack, 'trackName')
+		expect((names[0] as { text: string }).text).toBe('PART DRUMS')
+	})
+
+	it('groups all drum difficulties into a single MIDI track', () => {
+		const chart = createEmptyChart({ format: 'mid' })
+		for (const d of ['expert', 'hard', 'medium', 'easy'] as const) {
+			chart.trackData.push(emptyDrumTrack(d))
+		}
+		const midi = parseBack(writeMidiFile(chart))
+		// 2 setup tracks + 1 PART DRUMS.
+		expect(midi.tracks).toHaveLength(3)
+	})
+})
+
+describe('writeMidiFile: drum note-number mapping', () => {
+	it('expert kick → MIDI 96; red → 97; yellow → 98; blue → 99; green → 100', () => {
+		const chart = createEmptyChart({ format: 'mid' })
+		const td = emptyDrumTrack('expert')
+		td.noteEventGroups.push([note(0, noteTypes.kick)])
+		td.noteEventGroups.push([note(120, noteTypes.redDrum)])
+		td.noteEventGroups.push([note(240, noteTypes.yellowDrum)])
+		td.noteEventGroups.push([note(360, noteTypes.blueDrum)])
+		td.noteEventGroups.push([note(480, noteTypes.greenDrum)])
+		chart.trackData.push(td)
+		const drumTrack = parseBack(writeMidiFile(chart)).tracks[2]
+		expect(findNoteOns(drumTrack, 96)).toHaveLength(1)
+		expect(findNoteOns(drumTrack, 97)).toHaveLength(1)
+		expect(findNoteOns(drumTrack, 98)).toHaveLength(1)
+		expect(findNoteOns(drumTrack, 99)).toHaveLength(1)
+		expect(findNoteOns(drumTrack, 100)).toHaveLength(1)
+	})
+
+	it('hard base is MIDI 84 (drumDiffBases.hard)', () => {
+		const chart = createEmptyChart({ format: 'mid' })
+		const td = emptyDrumTrack('hard')
+		td.noteEventGroups.push([note(0, noteTypes.kick)])
+		chart.trackData.push(td)
+		const drumTrack = parseBack(writeMidiFile(chart)).tracks[2]
+		expect(findNoteOns(drumTrack, 84)).toHaveLength(1)
+	})
+
+	it('double-kick flag emits MIDI 95 only (no MIDI 96)', () => {
+		const chart = createEmptyChart({ format: 'mid' })
+		const td = emptyDrumTrack('expert')
+		td.noteEventGroups.push([note(0, noteTypes.kick, noteFlags.doubleKick)])
+		chart.trackData.push(td)
+		const drumTrack = parseBack(writeMidiFile(chart)).tracks[2]
+		expect(findNoteOns(drumTrack, 95)).toHaveLength(1)
+		expect(findNoteOns(drumTrack, 96)).toHaveLength(0)
+	})
+
+	it('regular kick emits BEFORE double kick at the same tick', () => {
+		const chart = createEmptyChart({ format: 'mid' })
+		const td = emptyDrumTrack('expert')
+		td.noteEventGroups.push([
+			note(0, noteTypes.kick, noteFlags.doubleKick),
+			note(0, noteTypes.kick),
+		])
+		chart.trackData.push(td)
+		const drumTrack = parseBack(writeMidiFile(chart)).tracks[2]
+		const noteOns = drumTrack.filter(e => e.type === 'noteOn' && ((e as { noteNumber: number }).noteNumber === 95 || (e as { noteNumber: number }).noteNumber === 96))
+		expect(noteOns.map(e => (e as { noteNumber: number }).noteNumber)).toEqual([96, 95])
+	})
+})
+
+describe('writeMidiFile: drum velocity (accent/ghost)', () => {
+	it('accent flag → velocity 127', () => {
+		const chart = createEmptyChart({ format: 'mid' })
+		const td = emptyDrumTrack('expert')
+		td.noteEventGroups.push([note(0, noteTypes.redDrum, noteFlags.accent)])
+		chart.trackData.push(td)
+		const drumTrack = parseBack(writeMidiFile(chart)).tracks[2]
+		const noteOn = findNoteOns(drumTrack, 97)[0]
+		expect((noteOn as { velocity: number }).velocity).toBe(127)
+	})
+
+	it('ghost flag → velocity 1', () => {
+		const chart = createEmptyChart({ format: 'mid' })
+		const td = emptyDrumTrack('expert')
+		td.noteEventGroups.push([note(0, noteTypes.redDrum, noteFlags.ghost)])
+		chart.trackData.push(td)
+		const drumTrack = parseBack(writeMidiFile(chart)).tracks[2]
+		const noteOn = findNoteOns(drumTrack, 97)[0]
+		expect((noteOn as { velocity: number }).velocity).toBe(1)
+	})
+
+	it('plain note (no accent/ghost) → velocity 100', () => {
+		const chart = createEmptyChart({ format: 'mid' })
+		const td = emptyDrumTrack('expert')
+		td.noteEventGroups.push([note(0, noteTypes.redDrum)])
+		chart.trackData.push(td)
+		const drumTrack = parseBack(writeMidiFile(chart)).tracks[2]
+		const noteOn = findNoteOns(drumTrack, 97)[0]
+		expect((noteOn as { velocity: number }).velocity).toBe(100)
+	})
+
+	it('any accent/ghost emits [ENABLE_CHART_DYNAMICS] text event at tick 0', () => {
+		const chart = createEmptyChart({ format: 'mid' })
+		const td = emptyDrumTrack('expert')
+		td.noteEventGroups.push([note(0, noteTypes.redDrum, noteFlags.accent)])
+		chart.trackData.push(td)
+		const drumTrack = parseBack(writeMidiFile(chart)).tracks[2]
+		const texts = findEvents(drumTrack, 'text').map(e => (e as { text: string }).text)
+		expect(texts).toContain('[ENABLE_CHART_DYNAMICS]')
+	})
+})
+
+describe('writeMidiFile: tom markers (fourLanePro)', () => {
+	it('emits MIDI 110/111/112 tom markers for yellow/blue/green with tom flag', () => {
+		const chart = createEmptyChart({ format: 'mid' })
+		chart.drumType = 1 // fourLanePro
+		const td = emptyDrumTrack('expert')
+		td.noteEventGroups.push([note(0, noteTypes.yellowDrum, noteFlags.tom)])
+		td.noteEventGroups.push([note(120, noteTypes.blueDrum, noteFlags.tom)])
+		td.noteEventGroups.push([note(240, noteTypes.greenDrum, noteFlags.tom)])
+		chart.trackData.push(td)
+		const drumTrack = parseBack(writeMidiFile(chart)).tracks[2]
+		expect(findNoteOns(drumTrack, 110)).toHaveLength(1)
+		expect(findNoteOns(drumTrack, 111)).toHaveLength(1)
+		expect(findNoteOns(drumTrack, 112)).toHaveLength(1)
+	})
+
+	it('does NOT emit tom markers when drumType is fourLane (no cymbals)', () => {
+		const chart = createEmptyChart({ format: 'mid' })
+		chart.drumType = 0 // fourLane
+		const td = emptyDrumTrack('expert')
+		td.noteEventGroups.push([note(0, noteTypes.yellowDrum, noteFlags.tom)])
+		chart.trackData.push(td)
+		const drumTrack = parseBack(writeMidiFile(chart)).tracks[2]
+		expect(findNoteOns(drumTrack, 110)).toHaveLength(0)
+	})
+
+	it('fourLanePro with no tom markers emits a sentinel greenTomMarker', () => {
+		// All yellow/blue default cymbal (no tom flag) and no green — so no
+		// per-note tom markers. Chart is fourLanePro, so we need a sentinel at
+		// a tick safe to mark.
+		const chart = createEmptyChart({ format: 'mid' })
+		chart.drumType = 1
+		const td = emptyDrumTrack('expert')
+		td.noteEventGroups.push([note(0, noteTypes.kick)])              // safe
+		td.noteEventGroups.push([note(480, noteTypes.yellowDrum, noteFlags.cymbal)])
+		chart.trackData.push(td)
+		const drumTrack = parseBack(writeMidiFile(chart)).tracks[2]
+		expect(findNoteOns(drumTrack, 112)).toHaveLength(1)
+	})
+})
+
+describe('writeMidiFile: flam', () => {
+	it('emits one MIDI 109 flam marker per group regardless of notes', () => {
+		const chart = createEmptyChart({ format: 'mid' })
+		const td = emptyDrumTrack('expert')
+		td.noteEventGroups.push([
+			note(0, noteTypes.redDrum, noteFlags.flam),
+			note(0, noteTypes.yellowDrum, noteFlags.flam),
+		])
+		chart.trackData.push(td)
+		const drumTrack = parseBack(writeMidiFile(chart)).tracks[2]
+		expect(findNoteOns(drumTrack, 109)).toHaveLength(1)
+	})
+})
+
+describe('writeMidiFile: drum instrument-wide sections', () => {
+	it('emits star power as MIDI 116', () => {
+		const chart = createEmptyChart({ format: 'mid' })
+		const td = emptyDrumTrack('expert')
+		td.starPowerSections.push({ tick: 0, length: 1920, msTime: 0, msLength: 0 })
+		chart.trackData.push(td)
+		const drumTrack = parseBack(writeMidiFile(chart)).tracks[2]
+		expect(findNoteOns(drumTrack, 116)).toHaveLength(1)
+	})
+
+	it('emits solo sections as MIDI 103', () => {
+		const chart = createEmptyChart({ format: 'mid' })
+		const td = emptyDrumTrack('expert')
+		td.soloSections.push({ tick: 0, length: 480, msTime: 0, msLength: 0 })
+		chart.trackData.push(td)
+		const drumTrack = parseBack(writeMidiFile(chart)).tracks[2]
+		expect(findNoteOns(drumTrack, 103)).toHaveLength(1)
+	})
+
+	it('emits activation/coda lanes as MIDI 120', () => {
+		const chart = createEmptyChart({ format: 'mid' })
+		const td = emptyDrumTrack('expert')
+		td.drumFreestyleSections.push({ tick: 0, length: 480, isCoda: false, msTime: 0, msLength: 0 })
+		chart.trackData.push(td)
+		const drumTrack = parseBack(writeMidiFile(chart)).tracks[2]
+		expect(findNoteOns(drumTrack, 120)).toHaveLength(1)
+	})
+
+	it('emits flex lanes as MIDI 126 (single) / 127 (double)', () => {
+		const chart = createEmptyChart({ format: 'mid' })
+		const td = emptyDrumTrack('expert')
+		td.flexLanes.push({ tick: 0, length: 480, isDouble: false, msTime: 0, msLength: 0 })
+		td.flexLanes.push({ tick: 480, length: 480, isDouble: true, msTime: 0, msLength: 0 })
+		chart.trackData.push(td)
+		const drumTrack = parseBack(writeMidiFile(chart)).tracks[2]
+		expect(findNoteOns(drumTrack, 126)).toHaveLength(1)
+		expect(findNoteOns(drumTrack, 127)).toHaveLength(1)
+	})
+})
+
+describe('writeMidiFile: drum round-trip through parseChartAndIni', () => {
+	it('round-trips base drum notes in fourLanePro', () => {
+		const chart = createEmptyChart({ format: 'mid', resolution: 480 })
+		chart.drumType = 1
+		chart.iniChartModifiers.pro_drums = true
+		const td = emptyDrumTrack('expert')
+		td.noteEventGroups.push([note(0, noteTypes.kick)])
+		td.noteEventGroups.push([note(480, noteTypes.redDrum)])
+		td.noteEventGroups.push([note(960, noteTypes.yellowDrum, noteFlags.cymbal)])
+		td.noteEventGroups.push([note(1440, noteTypes.blueDrum)])
+		td.noteEventGroups.push([note(1920, noteTypes.greenDrum, noteFlags.cymbal)])
+		chart.trackData.push(td)
+
+		const re = parseChartAndIni([
+			{ fileName: 'notes.mid', data: writeMidiFile(chart) },
+			{ fileName: 'song.ini', data: new TextEncoder().encode('[Song]\npro_drums = True\n') },
+		])
+		const reTrack = re.parsedChart!.trackData.find(t => t.instrument === 'drums' && t.difficulty === 'expert')!
+		const types = reTrack.noteEventGroups.flatMap(g => g.map(n => ({ tick: n.tick, type: n.type })))
+		expect(types).toEqual([
+			{ tick: 0, type: noteTypes.kick },
+			{ tick: 480, type: noteTypes.redDrum },
+			{ tick: 960, type: noteTypes.yellowDrum },
+			{ tick: 1440, type: noteTypes.blueDrum },
+			{ tick: 1920, type: noteTypes.greenDrum },
+		])
+	})
+
+	it('round-trips accent / ghost / flam / doubleKick flags on drum notes', () => {
+		const chart = createEmptyChart({ format: 'mid', resolution: 480 })
+		chart.drumType = 1
+		chart.iniChartModifiers.pro_drums = true
+		const td = emptyDrumTrack('expert')
+		td.noteEventGroups.push([note(0, noteTypes.kick, noteFlags.doubleKick)])
+		td.noteEventGroups.push([note(480, noteTypes.redDrum, noteFlags.accent)])
+		td.noteEventGroups.push([note(960, noteTypes.yellowDrum, noteFlags.ghost)])
+		td.noteEventGroups.push([note(1440, noteTypes.redDrum, noteFlags.flam)])
+		chart.trackData.push(td)
+
+		const re = parseChartAndIni([
+			{ fileName: 'notes.mid', data: writeMidiFile(chart) },
+			{ fileName: 'song.ini', data: new TextEncoder().encode('[Song]\npro_drums = True\n') },
+		])
+		const reTrack = re.parsedChart!.trackData.find(t => t.instrument === 'drums' && t.difficulty === 'expert')!
+		const flags = reTrack.noteEventGroups.map(g => g[0].flags)
+		expect(flags[0] & noteFlags.doubleKick).toBeTruthy()
+		expect(flags[1] & noteFlags.accent).toBeTruthy()
+		expect(flags[2] & noteFlags.ghost).toBeTruthy()
+		expect(flags[3] & noteFlags.flam).toBeTruthy()
+	})
+})
