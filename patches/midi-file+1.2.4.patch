@@ -20,9 +20,36 @@ index 50ed069..f6828a5 100644
  
  Parser.prototype.readVarInt = function() {
 diff --git a/node_modules/midi-file/lib/midi-writer.js b/node_modules/midi-file/lib/midi-writer.js
-index c1a438d..3e30cee 100644
+index c1a438d..4dad1e1 100644
 --- a/node_modules/midi-file/lib/midi-writer.js
 +++ b/node_modules/midi-file/lib/midi-writer.js
+@@ -22,7 +22,7 @@ function writeMidi(data, opts) {
+     writeTrack(w, tracks[i], opts)
+   }
+ 
+-  return w.buffer
++  return w.used()
+ }
+ 
+ function writeHeader(w, header, numTracks) {
+@@ -42,7 +42,7 @@ function writeHeader(w, header, numTracks) {
+   h.writeUInt16(numTracks)
+   h.writeUInt16(timeDivision)
+ 
+-  w.writeChunk('MThd', h.buffer)
++  w.writeChunk('MThd', h.used())
+ }
+ 
+ function writeTrack(w, track, opts) {
+@@ -57,7 +57,7 @@ function writeTrack(w, track, opts) {
+ 
+     eventTypeByte = writeEvent(t, track[i], eventTypeByte, opts.useByte9ForNoteOff)
+   }
+-  w.writeChunk('MTrk', t.buffer)
++  w.writeChunk('MTrk', t.used())
+ }
+ 
+ function writeEvent(w, event, lastEventTypeByte, useByte9ForNoteOff) {
 @@ -80,50 +80,43 @@ function writeEvent(w, event, lastEventTypeByte, useByte9ForNoteOff) {
      case 'text':
        w.writeUInt8(0xFF)
@@ -81,15 +108,101 @@ index c1a438d..3e30cee 100644
        break;
  
      case 'channelPrefix':
-@@ -321,15 +314,22 @@ Writer.prototype.writeInt32 = Writer.prototype.writeUInt32
+@@ -277,59 +270,84 @@ function writeEvent(w, event, lastEventTypeByte, useByte9ForNoteOff) {
+ }
+ 
+ 
+-function Writer() {
+-  this.buffer = []
++function Writer(initialCapacity) {
++  this.buffer = new Uint8Array(initialCapacity || 1024)
++  this.pos = 0
++}
++
++Writer.prototype._ensure = function(n) {
++  var need = this.pos + n
++  var cap = this.buffer.length
++  if (need <= cap) return
++  while (cap < need) cap *= 2
++  var bigger = new Uint8Array(cap)
++  bigger.set(this.buffer.subarray(0, this.pos))
++  this.buffer = bigger
++}
++
++Writer.prototype.used = function() {
++  return this.buffer.subarray(0, this.pos)
+ }
+ 
+ Writer.prototype.writeUInt8 = function(v) {
+-  this.buffer.push(v & 0xFF)
++  if (this.pos >= this.buffer.length) this._ensure(1)
++  this.buffer[this.pos++] = v & 0xFF
+ }
+ Writer.prototype.writeInt8 = Writer.prototype.writeUInt8
+ 
+ Writer.prototype.writeUInt16 = function(v) {
+-  var b0 = (v >> 8) & 0xFF,
+-      b1 = v & 0xFF
+-
+-  this.writeUInt8(b0)
+-  this.writeUInt8(b1)
++  this._ensure(2)
++  var buf = this.buffer
++  buf[this.pos++] = (v >> 8) & 0xFF
++  buf[this.pos++] = v & 0xFF
+ }
+ Writer.prototype.writeInt16 = Writer.prototype.writeUInt16
+ 
+ Writer.prototype.writeUInt24 = function(v) {
+-  var b0 = (v >> 16) & 0xFF,
+-      b1 = (v >> 8) & 0xFF,
+-      b2 = v & 0xFF
+-
+-  this.writeUInt8(b0)
+-  this.writeUInt8(b1)
+-  this.writeUInt8(b2)
++  this._ensure(3)
++  var buf = this.buffer
++  buf[this.pos++] = (v >> 16) & 0xFF
++  buf[this.pos++] = (v >> 8) & 0xFF
++  buf[this.pos++] = v & 0xFF
+ }
+ Writer.prototype.writeInt24 = Writer.prototype.writeUInt24
+ 
+ Writer.prototype.writeUInt32 = function(v) {
+-  var b0 = (v >> 24) & 0xFF,
+-      b1 = (v >> 16) & 0xFF,
+-      b2 = (v >> 8) & 0xFF,
+-      b3 = v & 0xFF
+-
+-  this.writeUInt8(b0)
+-  this.writeUInt8(b1)
+-  this.writeUInt8(b2)
+-  this.writeUInt8(b3)
++  this._ensure(4)
++  var buf = this.buffer
++  buf[this.pos++] = (v >> 24) & 0xFF
++  buf[this.pos++] = (v >> 16) & 0xFF
++  buf[this.pos++] = (v >> 8) & 0xFF
++  buf[this.pos++] = v & 0xFF
+ }
+ Writer.prototype.writeInt32 = Writer.prototype.writeUInt32
  
  
  Writer.prototype.writeBytes = function(arr) {
 -  this.buffer = this.buffer.concat(Array.prototype.slice.call(arr, 0))
-+  var buf = this.buffer
++  // arr can be Uint8Array, Buffer, or a plain Array of byte values.
 +  var len = arr.length
-+  for (var i = 0; i < len; i++) {
-+    buf.push(arr[i])
++  this._ensure(len)
++  var buf = this.buffer
++  if (arr.buffer !== undefined) {
++    // Typed array / Buffer — bulk copy via .set().
++    buf.set(arr, this.pos)
++    this.pos += len
++  } else {
++    for (var i = 0; i < len; i++) {
++      buf[this.pos++] = arr[i] & 0xFF
++    }
 +  }
  }
  
@@ -110,3 +223,61 @@ index c1a438d..3e30cee 100644
  }
  
  Writer.prototype.writeVarInt = function(v) {
+@@ -337,18 +355,46 @@ Writer.prototype.writeVarInt = function(v) {
+ 
+   if (v <= 0x7F) {
+     this.writeUInt8(v)
+-  } else {
+-    var i = v
+-    var bytes = []
+-    bytes.push(i & 0x7F)
+-    i >>= 7
+-    while (i) {
+-      var b = i & 0x7F | 0x80
+-      bytes.push(b)
+-      i >>= 7
+-    }
+-    this.writeBytes(bytes.reverse())
++    return
++  }
++  // Inline the varint emission to avoid allocating a temp array + reverse().
++  // A var-int is at most 5 bytes in MIDI (28-bit values).
++  var b4 = v & 0x7F
++  v >>= 7
++  var b3 = (v & 0x7F) | 0x80
++  v >>= 7
++  if (v === 0) {
++    this._ensure(2)
++    this.buffer[this.pos++] = b3
++    this.buffer[this.pos++] = b4
++    return
++  }
++  var b2 = (v & 0x7F) | 0x80
++  v >>= 7
++  if (v === 0) {
++    this._ensure(3)
++    this.buffer[this.pos++] = b2
++    this.buffer[this.pos++] = b3
++    this.buffer[this.pos++] = b4
++    return
++  }
++  var b1 = (v & 0x7F) | 0x80
++  v >>= 7
++  if (v === 0) {
++    this._ensure(4)
++    this.buffer[this.pos++] = b1
++    this.buffer[this.pos++] = b2
++    this.buffer[this.pos++] = b3
++    this.buffer[this.pos++] = b4
++    return
+   }
++  var b0 = (v & 0x7F) | 0x80
++  this._ensure(5)
++  this.buffer[this.pos++] = b0
++  this.buffer[this.pos++] = b1
++  this.buffer[this.pos++] = b2
++  this.buffer[this.pos++] = b3
++  this.buffer[this.pos++] = b4
+ }
+ 
+ Writer.prototype.writeChunk = function(id, data) {
