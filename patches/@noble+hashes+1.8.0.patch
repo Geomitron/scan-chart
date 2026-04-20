@@ -1,0 +1,72 @@
+diff --git a/node_modules/@noble/hashes/blake2.js b/node_modules/@noble/hashes/blake2.js
+index 0000000..0000001 100644
+--- a/node_modules/@noble/hashes/blake2.js
++++ b/node_modules/@noble/hashes/blake2.js
+@@ -311,26 +311,51 @@ exports.BLAKE2b = BLAKE2b;
+  * @param opts - dkLen output length, key for MAC mode, salt, personalization
+  */
+ exports.blake2b = (0, utils_ts_1.createOptHasher)((opts) => new BLAKE2b(opts));
++// Inlined G1s/G2s — the upstream version returned {a,b,c,d} objects per call,
++// which allocated 16 objects per round × R rounds per compress — dominated GC
++// in the chart-hasher path. Inlining eliminates the allocation entirely.
++//
++// G1s(a,b,c,d,x):  a = (a+b+x)|0;  d = rotr(d^a,16);  c = (c+d)|0;  b = rotr(b^c,12)
++// G2s(a,b,c,d,x):  a = (a+b+x)|0;  d = rotr(d^a, 8);  c = (c+d)|0;  b = rotr(b^c, 7)
++// rotr(w, s) = (w << (32 - s)) | (w >>> s)
++//
+ // prettier-ignore
+ function compress(s, offset, msg, rounds, v0, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v15) {
+     let j = 0;
++    let x, t;
+     for (let i = 0; i < rounds; i++) {
+-        ({ a: v0, b: v4, c: v8, d: v12 } = (0, _blake_ts_1.G1s)(v0, v4, v8, v12, msg[offset + s[j++]]));
+-        ({ a: v0, b: v4, c: v8, d: v12 } = (0, _blake_ts_1.G2s)(v0, v4, v8, v12, msg[offset + s[j++]]));
+-        ({ a: v1, b: v5, c: v9, d: v13 } = (0, _blake_ts_1.G1s)(v1, v5, v9, v13, msg[offset + s[j++]]));
+-        ({ a: v1, b: v5, c: v9, d: v13 } = (0, _blake_ts_1.G2s)(v1, v5, v9, v13, msg[offset + s[j++]]));
+-        ({ a: v2, b: v6, c: v10, d: v14 } = (0, _blake_ts_1.G1s)(v2, v6, v10, v14, msg[offset + s[j++]]));
+-        ({ a: v2, b: v6, c: v10, d: v14 } = (0, _blake_ts_1.G2s)(v2, v6, v10, v14, msg[offset + s[j++]]));
+-        ({ a: v3, b: v7, c: v11, d: v15 } = (0, _blake_ts_1.G1s)(v3, v7, v11, v15, msg[offset + s[j++]]));
+-        ({ a: v3, b: v7, c: v11, d: v15 } = (0, _blake_ts_1.G2s)(v3, v7, v11, v15, msg[offset + s[j++]]));
+-        ({ a: v0, b: v5, c: v10, d: v15 } = (0, _blake_ts_1.G1s)(v0, v5, v10, v15, msg[offset + s[j++]]));
+-        ({ a: v0, b: v5, c: v10, d: v15 } = (0, _blake_ts_1.G2s)(v0, v5, v10, v15, msg[offset + s[j++]]));
+-        ({ a: v1, b: v6, c: v11, d: v12 } = (0, _blake_ts_1.G1s)(v1, v6, v11, v12, msg[offset + s[j++]]));
+-        ({ a: v1, b: v6, c: v11, d: v12 } = (0, _blake_ts_1.G2s)(v1, v6, v11, v12, msg[offset + s[j++]]));
+-        ({ a: v2, b: v7, c: v8, d: v13 } = (0, _blake_ts_1.G1s)(v2, v7, v8, v13, msg[offset + s[j++]]));
+-        ({ a: v2, b: v7, c: v8, d: v13 } = (0, _blake_ts_1.G2s)(v2, v7, v8, v13, msg[offset + s[j++]]));
+-        ({ a: v3, b: v4, c: v9, d: v14 } = (0, _blake_ts_1.G1s)(v3, v4, v9, v14, msg[offset + s[j++]]));
+-        ({ a: v3, b: v4, c: v9, d: v14 } = (0, _blake_ts_1.G2s)(v3, v4, v9, v14, msg[offset + s[j++]]));
++        // G1s(v0,v4,v8,v12)
++        x = msg[offset + s[j++]]; v0 = (v0 + v4 + x) | 0; t = v12 ^ v0; v12 = (t << 16) | (t >>> 16); v8 = (v8 + v12) | 0; t = v4 ^ v8; v4 = (t << 20) | (t >>> 12);
++        // G2s(v0,v4,v8,v12)
++        x = msg[offset + s[j++]]; v0 = (v0 + v4 + x) | 0; t = v12 ^ v0; v12 = (t << 24) | (t >>> 8);  v8 = (v8 + v12) | 0; t = v4 ^ v8; v4 = (t << 25) | (t >>> 7);
++        // G1s(v1,v5,v9,v13)
++        x = msg[offset + s[j++]]; v1 = (v1 + v5 + x) | 0; t = v13 ^ v1; v13 = (t << 16) | (t >>> 16); v9 = (v9 + v13) | 0; t = v5 ^ v9; v5 = (t << 20) | (t >>> 12);
++        // G2s(v1,v5,v9,v13)
++        x = msg[offset + s[j++]]; v1 = (v1 + v5 + x) | 0; t = v13 ^ v1; v13 = (t << 24) | (t >>> 8);  v9 = (v9 + v13) | 0; t = v5 ^ v9; v5 = (t << 25) | (t >>> 7);
++        // G1s(v2,v6,v10,v14)
++        x = msg[offset + s[j++]]; v2 = (v2 + v6 + x) | 0; t = v14 ^ v2; v14 = (t << 16) | (t >>> 16); v10 = (v10 + v14) | 0; t = v6 ^ v10; v6 = (t << 20) | (t >>> 12);
++        // G2s(v2,v6,v10,v14)
++        x = msg[offset + s[j++]]; v2 = (v2 + v6 + x) | 0; t = v14 ^ v2; v14 = (t << 24) | (t >>> 8);  v10 = (v10 + v14) | 0; t = v6 ^ v10; v6 = (t << 25) | (t >>> 7);
++        // G1s(v3,v7,v11,v15)
++        x = msg[offset + s[j++]]; v3 = (v3 + v7 + x) | 0; t = v15 ^ v3; v15 = (t << 16) | (t >>> 16); v11 = (v11 + v15) | 0; t = v7 ^ v11; v7 = (t << 20) | (t >>> 12);
++        // G2s(v3,v7,v11,v15)
++        x = msg[offset + s[j++]]; v3 = (v3 + v7 + x) | 0; t = v15 ^ v3; v15 = (t << 24) | (t >>> 8);  v11 = (v11 + v15) | 0; t = v7 ^ v11; v7 = (t << 25) | (t >>> 7);
++        // G1s(v0,v5,v10,v15)
++        x = msg[offset + s[j++]]; v0 = (v0 + v5 + x) | 0; t = v15 ^ v0; v15 = (t << 16) | (t >>> 16); v10 = (v10 + v15) | 0; t = v5 ^ v10; v5 = (t << 20) | (t >>> 12);
++        // G2s(v0,v5,v10,v15)
++        x = msg[offset + s[j++]]; v0 = (v0 + v5 + x) | 0; t = v15 ^ v0; v15 = (t << 24) | (t >>> 8);  v10 = (v10 + v15) | 0; t = v5 ^ v10; v5 = (t << 25) | (t >>> 7);
++        // G1s(v1,v6,v11,v12)
++        x = msg[offset + s[j++]]; v1 = (v1 + v6 + x) | 0; t = v12 ^ v1; v12 = (t << 16) | (t >>> 16); v11 = (v11 + v12) | 0; t = v6 ^ v11; v6 = (t << 20) | (t >>> 12);
++        // G2s(v1,v6,v11,v12)
++        x = msg[offset + s[j++]]; v1 = (v1 + v6 + x) | 0; t = v12 ^ v1; v12 = (t << 24) | (t >>> 8);  v11 = (v11 + v12) | 0; t = v6 ^ v11; v6 = (t << 25) | (t >>> 7);
++        // G1s(v2,v7,v8,v13)
++        x = msg[offset + s[j++]]; v2 = (v2 + v7 + x) | 0; t = v13 ^ v2; v13 = (t << 16) | (t >>> 16); v8 = (v8 + v13) | 0; t = v7 ^ v8; v7 = (t << 20) | (t >>> 12);
++        // G2s(v2,v7,v8,v13)
++        x = msg[offset + s[j++]]; v2 = (v2 + v7 + x) | 0; t = v13 ^ v2; v13 = (t << 24) | (t >>> 8);  v8 = (v8 + v13) | 0; t = v7 ^ v8; v7 = (t << 25) | (t >>> 7);
++        // G1s(v3,v4,v9,v14)
++        x = msg[offset + s[j++]]; v3 = (v3 + v4 + x) | 0; t = v14 ^ v3; v14 = (t << 16) | (t >>> 16); v9 = (v9 + v14) | 0; t = v4 ^ v9; v4 = (t << 20) | (t >>> 12);
++        // G2s(v3,v4,v9,v14)
++        x = msg[offset + s[j++]]; v3 = (v3 + v4 + x) | 0; t = v14 ^ v3; v14 = (t << 24) | (t >>> 8);  v9 = (v9 + v14) | 0; t = v4 ^ v9; v4 = (t << 25) | (t >>> 7);
+     }
+     return { v0, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v15 };
+ }
