@@ -1,84 +1,26 @@
 diff --git a/node_modules/midi-file/lib/midi-parser.js b/node_modules/midi-file/lib/midi-parser.js
-index 50ed069..93868ee 100644
+index 50ed069..f6828a5 100644
 --- a/node_modules/midi-file/lib/midi-parser.js
 +++ b/node_modules/midi-file/lib/midi-parser.js
-@@ -308,9 +308,47 @@ Parser.prototype.readBytes = function(len) {
-   return bytes
+@@ -309,8 +309,15 @@ Parser.prototype.readBytes = function(len) {
  }
-
-+var sharedUtf8Decoder = new TextDecoder('utf-8')
-+
+ 
  Parser.prototype.readString = function(len) {
--  var bytes = this.readBytes(len)
--  return String.fromCharCode.apply(null, bytes)
 +  // Strings can be multibyte-encoded or not.
-+  // Fast path: all ASCII (bytes < 0x80) -> fromCharCode directly, no TextDecoder.
-+  // Slow path: try UTF-8, fall back to Latin-1 if UTF-8 produces replacement chars.
-+  var start = this.pos
-+  var end = start + len
-+  var buffer = this.buffer
-+  var allAscii = true
-+  for (var i = start; i < end; i++) {
-+    if (buffer[i] >= 0x80) { allAscii = false; break }
-+  }
-+  this.pos = end
-+  if (allAscii) {
-+    // fromCharCode.apply is the fastest path for small ASCII strings.
-+    // For very long strings, the stack can blow up — chunk it.
-+    var CHUNK = 0x8000
-+    if (len <= CHUNK) {
-+      // Use subarray (no copy) when available (Uint8Array); fall back to slice for plain arrays.
-+      var view = buffer.subarray ? buffer.subarray(start, end) : buffer.slice(start, end)
-+      return String.fromCharCode.apply(null, view)
-+    }
-+    var out = ''
-+    for (var j = start; j < end; j += CHUNK) {
-+      var chunkEnd = j + CHUNK < end ? j + CHUNK : end
-+      var chunk = buffer.subarray ? buffer.subarray(j, chunkEnd) : buffer.slice(j, chunkEnd)
-+      out += String.fromCharCode.apply(null, chunk)
-+    }
-+    return out
-+  }
-+  // Non-ASCII: try UTF-8 decode; fall back to Latin-1 (fromCharCode per byte) if
-+  // UTF-8 produced replacement chars or didn't shorten the string.
-+  var bytes = buffer.subarray ? buffer.subarray(start, end) : buffer.slice(start, end)
-+  var multibyteString = sharedUtf8Decoder.decode(bytes)
-+  // Latin-1 interpretation: each byte → one codepoint. Length equals `len`.
-+  if (multibyteString.length < len && multibyteString.indexOf('\uFFFD') === -1) {
++  // Try UTF-8 first; fall back to Latin-1 if UTF-8 produces replacement chars.
+   var bytes = this.readBytes(len)
+-  return String.fromCharCode.apply(null, bytes)
++  var multibyteString = new TextDecoder().decode(bytes)
++  var singlebyteString = String.fromCharCode.apply(null, bytes)
++  if (singlebyteString.length > multibyteString.length && !multibyteString.includes('\uFFFD')) {
 +    return multibyteString
 +  }
-+  // Build Latin-1 string via fromCharCode on the byte values.
-+  return String.fromCharCode.apply(null, bytes)
++  return singlebyteString
  }
-
+ 
  Parser.prototype.readVarInt = function() {
-@@ -321,14 +359,19 @@ Parser.prototype.readBytes = function(len) {
-
- Parser.prototype.readVarInt = function() {
-   var result = 0
--  while (!this.eof()) {
--    var b = this.readUInt8()
-+  var buffer = this.buffer
-+  var pos = this.pos
-+  var bufferLen = this.bufferLen
-+  while (pos < bufferLen) {
-+    var b = buffer[pos++]
-     if (b & 0x80) {
-       result += (b & 0x7f)
-       result <<= 7
-     } else {
-       // b is last byte
-+      this.pos = pos
-       return result + b
-     }
-   }
-   // premature eof
-+  this.pos = pos
-   return result
- }
-
 diff --git a/node_modules/midi-file/lib/midi-writer.js b/node_modules/midi-file/lib/midi-writer.js
-index c1a438d..cbd1a73 100644
+index c1a438d..3e30cee 100644
 --- a/node_modules/midi-file/lib/midi-writer.js
 +++ b/node_modules/midi-file/lib/midi-writer.js
 @@ -80,50 +80,43 @@ function writeEvent(w, event, lastEventTypeByte, useByte9ForNoteOff) {
@@ -89,7 +31,7 @@ index c1a438d..cbd1a73 100644
 -      w.writeString(text)
 +      w.writeStringWithLength(text)
        break;
-
+ 
      case 'copyrightNotice':
        w.writeUInt8(0xFF)
        w.writeUInt8(0x02)
@@ -97,7 +39,7 @@ index c1a438d..cbd1a73 100644
 -      w.writeString(text)
 +      w.writeStringWithLength(text)
        break;
-
+ 
      case 'trackName':
        w.writeUInt8(0xFF)
        w.writeUInt8(0x03)
@@ -105,7 +47,7 @@ index c1a438d..cbd1a73 100644
 -      w.writeString(text)
 +      w.writeStringWithLength(text)
        break;
-
+ 
      case 'instrumentName':
        w.writeUInt8(0xFF)
        w.writeUInt8(0x04)
@@ -113,7 +55,7 @@ index c1a438d..cbd1a73 100644
 -      w.writeString(text)
 +      w.writeStringWithLength(text)
        break;
-
+ 
      case 'lyrics':
        w.writeUInt8(0xFF)
        w.writeUInt8(0x05)
@@ -121,7 +63,7 @@ index c1a438d..cbd1a73 100644
 -      w.writeString(text)
 +      w.writeStringWithLength(text)
        break;
-
+ 
      case 'marker':
        w.writeUInt8(0xFF)
        w.writeUInt8(0x06)
@@ -129,7 +71,7 @@ index c1a438d..cbd1a73 100644
 -      w.writeString(text)
 +      w.writeStringWithLength(text)
        break;
-
+ 
      case 'cuePoint':
        w.writeUInt8(0xFF)
        w.writeUInt8(0x07)
@@ -137,11 +79,20 @@ index c1a438d..cbd1a73 100644
 -      w.writeString(text)
 +      w.writeStringWithLength(text)
        break;
-
+ 
      case 'channelPrefix':
-@@ -325,11 +318,14 @@ Writer.prototype.writeBytes = function(arr) {
+@@ -321,15 +314,22 @@ Writer.prototype.writeInt32 = Writer.prototype.writeUInt32
+ 
+ 
+ Writer.prototype.writeBytes = function(arr) {
+-  this.buffer = this.buffer.concat(Array.prototype.slice.call(arr, 0))
++  var buf = this.buffer
++  var len = arr.length
++  for (var i = 0; i < len; i++) {
++    buf.push(arr[i])
++  }
  }
-
+ 
  Writer.prototype.writeString = function(str) {
 -  var i, len = str.length, arr = []
 -  for (i=0; i < len; i++) {
@@ -157,5 +108,5 @@ index c1a438d..cbd1a73 100644
 +  this.writeVarInt(bytes.length)
 +  this.writeBytes(bytes)
  }
-
+ 
  Writer.prototype.writeVarInt = function(v) {
