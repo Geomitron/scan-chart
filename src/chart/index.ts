@@ -1,3 +1,4 @@
+export * from './chart-document'
 export * from './chart-scanner'
 export * from './chart-writer'
 export * from './create-chart'
