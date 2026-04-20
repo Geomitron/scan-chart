@@ -7,6 +7,7 @@ import { base64url } from 'rfc4648'
 import { defaultMetadata } from 'src/ini'
 import { ChartIssueType, Difficulty, getInstrumentType, Instrument, instrumentTypes, NotesData } from '../interfaces'
 import { msToExactTime } from '../utils'
+import { computeHopoThresholdTicks, isNaturalHopo } from './natural-hopo'
 import { IniChartModifiers, NoteEvent, noteFlags, NoteType, noteTypes } from './note-parsing-interfaces'
 import { ParsedChart } from './parse-chart-and-ini'
 import { calculateTrackHash, pruneEmptyPhrases } from './track-hasher'
@@ -588,75 +589,6 @@ function int32ToUint8Array(num: number) {
 	view.setInt32(0, num, true)
 
 	return new Uint8Array(buffer)
-}
-
-// ---------------------------------------------------------------------------
-// Natural HOPO detection (post-parse, operates on NoteEvent)
-//
-// Inverse of `resolveFretModifiers` in notes-parser.ts. The parser applies
-// force events to produce per-note flags; here we re-derive whether a note
-// would naturally be a HOPO so scanChart can detect flags that disagree with
-// natural state (i.e., notes whose behavior came from a force event).
-// ---------------------------------------------------------------------------
-
-const fretNoteTypeSet = new Set<NoteType>([
-	noteTypes.open, noteTypes.green, noteTypes.red, noteTypes.yellow, noteTypes.blue, noteTypes.orange,
-	noteTypes.black1, noteTypes.black2, noteTypes.black3,
-	noteTypes.white1, noteTypes.white2, noteTypes.white3,
-])
-
-function isFretChord(group: NoteEvent[]): boolean {
-	let firstType: NoteType | null = null
-	for (const n of group) {
-		if (!fretNoteTypeSet.has(n.type)) continue
-		if (firstType === null) firstType = n.type
-		else if (firstType !== n.type) return true
-	}
-	return false
-}
-
-function isSameFretNote(a: NoteEvent[], b: NoteEvent[]): boolean {
-	const aT: NoteType[] = []
-	for (const n of a) if (fretNoteTypeSet.has(n.type)) aT.push(n.type)
-	const bT: NoteType[] = []
-	for (const n of b) if (fretNoteTypeSet.has(n.type)) bT.push(n.type)
-	if (aT.length !== bT.length) return false
-	const s = new Set(bT)
-	for (const t of aT) if (!s.has(t)) return false
-	return true
-}
-
-function isInFretNote(inner: NoteEvent[], outer: NoteEvent[]): boolean {
-	const o = new Set<NoteType>()
-	for (const n of outer) if (fretNoteTypeSet.has(n.type)) o.add(n.type)
-	for (const n of inner) if (fretNoteTypeSet.has(n.type) && !o.has(n.type)) return false
-	return true
-}
-
-function computeHopoThresholdTicks(
-	resolution: number,
-	iniHopoFreq: number,
-	eighthnoteHopo: boolean,
-	format: 'chart' | 'mid',
-): number {
-	if (iniHopoFreq) return iniHopoFreq
-	if (eighthnoteHopo) return Math.floor(1 + resolution / 2)
-	return Math.floor(format === 'mid' ? 1 + resolution / 3 : (65 / 192) * resolution)
-}
-
-function isNaturalHopo(
-	current: NoteEvent[],
-	last: NoteEvent[] | null,
-	hopoThresholdTicks: number,
-	format: 'chart' | 'mid',
-): boolean {
-	if (!last) return false
-	if (current[0].tick - last[0].tick > hopoThresholdTicks) return false
-	if (isFretChord(current)) return false
-	if (!isFretChord(last) && isSameFretNote(current, last)) return false
-	// .mid-specific exception for back-compat with older games.
-	if (format === 'mid' && isFretChord(last) && isInFretNote(current, last)) return false
-	return true
 }
 
 /**
