@@ -14,7 +14,8 @@ export * from './chart/note-parsing-interfaces'
 export { parseChartFile } from './chart/notes-parser'
 export { parseChartAndIni, createEmptyChart } from './chart'
 export type { ParsedChart, ParseChartAndIniResult } from './chart'
-export { scanIni } from './ini'
+export { scanIni, writeIniFile } from './ini'
+export type { IniMetadata } from './ini'
 export { calculateTrackHash } from './chart/track-hasher'
 
 /**
