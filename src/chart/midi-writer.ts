@@ -1,14 +1,12 @@
 /**
  * MIDI binary writer — serializes a ParsedChart back to a Format-1 `.mid` file.
  *
- * Currently emits:
+ * Emits:
  *   - TEMPO TRACK (tempo + time-signature meta events)
  *   - EVENTS track (sections + end events + unrecognized global events + coda)
- *   - PART DRUMS instrument tracks (4-lane / 4-lane-pro / 5-lane with full
- *     modifier support)
+ *   - PART DRUMS / GUITAR / GHL instrument tracks
+ *   - PART VOCALS / HARM1 / HARM2 / HARM3 vocal tracks
  *   - Unrecognized MIDI tracks (verbatim pass-through)
- *
- * PART GUITAR / GHL / PART VOCALS / HARM1-3 land in follow-up PRs.
  */
 
 import type { MidiData, MidiEvent } from '@geomitron/midi-file'
@@ -19,6 +17,7 @@ import { drumsDiffStarts, fiveFretDiffStarts, fiveFretLaneOffsets, sixFretDiffSt
 import { computeHopoThresholdTicks, isNaturalHopo } from './natural-hopo'
 import type { NoteEvent, NoteType } from './note-parsing-interfaces'
 import { noteFlags, noteTypes } from './note-parsing-interfaces'
+import type { NormalizedVocalPart, NormalizedVocalTrack } from './note-parsing-interfaces'
 import type { ParsedChart } from './parse-chart-and-ini'
 
 type ParsedTrack = ParsedChart['trackData'][number]
@@ -45,11 +44,9 @@ interface AbsoluteEvent {
  * Output track layout:
  *   0 — TEMPO TRACK (BPM + time signatures)
  *   1 — EVENTS (sections, end events, global events, coda)
- *   N — PART DRUMS (one track per drum instrument group, all difficulties)
+ *   N — Instrument tracks (PART DRUMS / GUITAR / GHL — one per group)
+ *   N — Vocal tracks (PART VOCALS / HARM1 / HARM2 / HARM3)
  *   N — Unrecognized MIDI tracks (verbatim pass-through)
- *
- * Fret tracks (PART GUITAR, GHL) and vocal tracks (PART VOCALS, HARM1/2/3)
- * are emitted by follow-up PRs — this entry point skips them for now.
  */
 export function writeMidiFile(chart: ParsedChart): Uint8Array {
 	const trackMap = new Map<string, MidiEvent[]>()
@@ -94,7 +91,20 @@ export function writeMidiFile(chart: ParsedChart): Uint8Array {
 		} else if (fiveFretInstruments.has(g.instrument) || sixFretInstruments.has(g.instrument)) {
 			trackMap.set(mapKey, buildFretTrack(g.entries, chart, g.trackName))
 		}
-		// vocals land in PR #5d; skip for now.
+	}
+
+	// Vocal tracks (PART VOCALS / HARM1-3). Emission order matches the
+	// canonical ordering so re-parse → re-write is byte-stable.
+	const vocalTracks = chart.vocalTracks
+	if (vocalTracks) {
+		for (const partName of ['vocals', 'harmony1', 'harmony2', 'harmony3']) {
+			const part = vocalTracks.parts[partName]
+			if (!part) continue
+			const trackName = vocalPartToTrackName[partName]
+			let mapKey = trackName
+			while (trackMap.has(mapKey)) mapKey = `${trackName}__dup${dupSuffix++}`
+			trackMap.set(mapKey, buildVocalPartTrack(partName, part, vocalTracks, trackName))
+		}
 	}
 
 	// Unrecognized whole tracks (VENUE, BEAT, PART REAL_*, custom tracks) are
@@ -318,6 +328,15 @@ const instrumentTrackNames: Record<string, string> = {
 	guitarcoopghl: 'PART GUITAR COOP GHL',
 	rhythmghl: 'PART RHYTHM GHL',
 	bassghl: 'PART BASS GHL',
+}
+
+// HARM1/2/3 (not PART HARM1/2/3) — matches the convention used by most MIDI
+// chart files in the wild, including ones re-exported by YARG/ChartDump.
+const vocalPartToTrackName: Record<string, string> = {
+	vocals: 'PART VOCALS',
+	harmony1: 'HARM1',
+	harmony2: 'HARM2',
+	harmony3: 'HARM3',
 }
 
 // ---------------------------------------------------------------------------
@@ -1252,4 +1271,177 @@ function reconstructModifierRanges(
 		ranges.push({ tick: rangeStart, length: lastModifiedTick - rangeStart + 1 })
 	}
 	return ranges
+}
+
+// ---------------------------------------------------------------------------
+// Vocal tracks (PART VOCALS / HARM1 / HARM2 / HARM3)
+// ---------------------------------------------------------------------------
+
+/**
+ * Build a PART VOCALS / HARM1-3 MIDI track from normalized vocal data.
+ *
+ * scan-chart separates note 105 (scoring phrases → `notePhrases`) from note 106
+ * (static lyric phrases → `staticLyricPhrases`) at parse time. YARG's
+ * CopyDownPhrases copies HARM1's `notePhrases` onto HARM2/HARM3 at parse
+ * time — to avoid re-emitting those copies and double-counting on re-parse:
+ *
+ *   - PART VOCALS emits `notePhrases` at note 105 / 106 (player field decides)
+ *   - HARM1 emits `notePhrases` as note 105, `staticLyricPhrases` as note 106
+ *   - HARM2 emits only `staticLyricPhrases` as note 106 (note 105 comes from
+ *     HARM1 via CopyDown on re-parse)
+ *   - HARM3 emits no phrase markers at all
+ *
+ * Lyric and note events are union'd across both phrase sets (note 105 and
+ * 106 can have different boundaries, so a lyric/note may appear in only one
+ * set but still needs to be emitted).
+ *
+ * Zero-length vocal notes are preserved via per-event `seq` tags so
+ * `finalizeMidiTrack` keeps noteOn immediately before its matching noteOff.
+ *
+ * Range shifts (note 0) and lyric shifts (note 1) are per-part for lossless
+ * round-trip — PART VOCALS and HARM1 often have distinct marker sets.
+ */
+function buildVocalPartTrack(
+	partName: string,
+	part: NormalizedVocalPart,
+	vocalTracks: NormalizedVocalTrack,
+	trackName: string,
+): MidiEvent[] {
+	const events: AbsoluteEvent[] = []
+
+	events.push({
+		tick: 0,
+		event: { deltaTime: 0, meta: true, type: 'trackName', text: trackName } as MidiEvent,
+	})
+
+	const isHarm3 = partName === 'harmony3'
+	const isHarm2 = partName === 'harmony2'
+	const isPartVocals = partName === 'vocals'
+
+	// Phrase markers.
+	if (isHarm3) {
+		// no-op: all phrases come from CopyDown on re-parse.
+	} else if (isHarm2) {
+		for (const phrase of part.staticLyricPhrases) {
+			addNoteOnOff(events, phrase.tick, Math.max(phrase.length, 1), 106, 100)
+		}
+	} else if (isPartVocals) {
+		for (const phrase of part.notePhrases) {
+			const noteNumber = phrase.player === 2 ? 106 : 105
+			addNoteOnOff(events, phrase.tick, Math.max(phrase.length, 1), noteNumber, 100)
+		}
+	} else {
+		// harmony1
+		for (const phrase of part.notePhrases) {
+			addNoteOnOff(events, phrase.tick, Math.max(phrase.length, 1), 105, 100)
+		}
+		for (const phrase of part.staticLyricPhrases) {
+			addNoteOnOff(events, phrase.tick, Math.max(phrase.length, 1), 106, 100)
+		}
+	}
+
+	// Union lyrics across notePhrases + staticLyricPhrases (different phrase
+	// boundaries can place the same lyric in only one set — emitting the union
+	// preserves all lyrics on the track).
+	const seenLyricKeys = new Set<string>()
+	const allLyrics: { tick: number; text: string }[] = []
+	for (const phrases of [part.notePhrases, part.staticLyricPhrases]) {
+		for (const phrase of phrases) {
+			for (const lyric of phrase.lyrics) {
+				const key = `${lyric.tick}:${lyric.text}`
+				if (!seenLyricKeys.has(key)) {
+					seenLyricKeys.add(key)
+					allLyrics.push(lyric)
+				}
+			}
+		}
+	}
+	allLyrics.sort((a, b) => a.tick - b.tick)
+	for (const lyric of allLyrics) {
+		events.push({
+			tick: lyric.tick,
+			event: { deltaTime: 0, meta: true, type: 'lyrics', text: lyric.text } as MidiEvent,
+		})
+	}
+
+	// Union notes across the same two phrase sets.
+	const seenNoteKeys = new Set<string>()
+	const allNotes: { tick: number; length: number; pitch: number; type: 'pitched' | 'percussion' }[] = []
+	for (const phrases of [part.notePhrases, part.staticLyricPhrases]) {
+		for (const phrase of phrases) {
+			for (const note of phrase.notes) {
+				const key = `${note.tick}:${note.pitch}:${note.length}`
+				if (!seenNoteKeys.has(key)) {
+					seenNoteKeys.add(key)
+					allNotes.push(note)
+				}
+			}
+		}
+	}
+	allNotes.sort((a, b) => a.tick - b.tick)
+
+	let vocalNoteSeq = 1_000_000
+	for (const note of allNotes) {
+		const midiPitch = note.type === 'pitched'
+			? (note.pitch >= 36 && note.pitch <= 84 ? note.pitch : 60)
+			: 96
+		events.push({
+			tick: note.tick,
+			seq: vocalNoteSeq++,
+			event: { deltaTime: 0, channel: 0, type: 'noteOn', noteNumber: midiPitch, velocity: 100 } as MidiEvent,
+		})
+		events.push({
+			tick: note.tick + note.length,
+			seq: vocalNoteSeq++,
+			event: { deltaTime: 0, channel: 0, type: 'noteOff', noteNumber: midiPitch, velocity: 0 } as MidiEvent,
+		})
+	}
+
+	// Star power sections → note 116. HARM2/HARM3 starPowerSections are also
+	// copied from HARM1 by CopyDown on re-parse, so only HARM1 / PART VOCALS
+	// need to emit them.
+	if (!isHarm2 && !isHarm3) {
+		for (const sp of part.starPowerSections) {
+			addNoteOnOff(events, sp.tick, Math.max(sp.length, 1), 116, 100)
+		}
+	}
+
+	// Vocal-track text events (stance markers, Band_PlayFacialAnim, etc.).
+	// YARG marks a VocalsPart non-empty iff it has phrases or text events, so
+	// emitting these is required for round-tripping stance-only tracks.
+	for (const te of part.textEvents) {
+		events.push({
+			tick: te.tick,
+			event: { deltaTime: 0, meta: true, type: 'text', text: te.text } as MidiEvent,
+		})
+	}
+
+	// Per-part range shifts (note 0) and lyric shifts (note 1). Fall back to
+	// the track-level arrays only if the per-part arrays are empty and this
+	// part owns the track-level data (PART VOCALS, or HARM1 when PART VOCALS
+	// is absent). YARG's GetRangeShifts reads these markers per-track.
+	const partOwnsTrackLevel =
+		partName === 'vocals' || (partName === 'harmony1' && !vocalTracks.parts.vocals)
+
+	if (part.rangeShifts.length > 0) {
+		for (const rs of part.rangeShifts) {
+			addNoteOnOff(events, rs.tick, Math.max(rs.length, 1), 0, 100)
+		}
+	} else if (partOwnsTrackLevel) {
+		for (const rs of vocalTracks.rangeShifts) {
+			addNoteOnOff(events, rs.tick, Math.max(rs.length, 1), 0, 100)
+		}
+	}
+
+	if (part.lyricShifts.length > 0) {
+		for (const ls of part.lyricShifts) {
+			addNoteOnOff(events, ls.tick, Math.max(ls.length, 1), 1, 100)
+		}
+	} else if (partOwnsTrackLevel) {
+		for (const ls of vocalTracks.lyricShifts) {
+			addNoteOnOff(events, ls.tick, Math.max(ls.length, 1), 1, 100)
+		}
+	}
+
+	return finalizeMidiTrack(events)
 }

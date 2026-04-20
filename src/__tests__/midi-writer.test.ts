@@ -458,3 +458,153 @@ describe('writeMidiFile round-trip: GHL (6-fret) tracks', () => {
 		expect(group.map(n => n.type).sort()).toEqual([noteTypes.open, noteTypes.white1].sort())
 	})
 })
+
+// ---------------------------------------------------------------------------
+// Vocal track round-trip tests
+// ---------------------------------------------------------------------------
+
+function phrase(tick: number, length: number, opts: {
+	player?: 1 | 2
+	lyrics?: { tick: number; text: string }[]
+	notes?: { tick: number; length: number; pitch: number; type?: 'pitched' | 'percussion' }[]
+} = {}) {
+	return {
+		tick,
+		length,
+		msTime: 0,
+		msLength: 0,
+		isPercussion: false,
+		player: opts.player,
+		notes: (opts.notes ?? []).map(n => ({ ...n, msTime: 0, msLength: 0, type: n.type ?? ('pitched' as const) })),
+		lyrics: (opts.lyrics ?? []).map(l => ({ ...l, msTime: 0, flags: 0 })),
+	}
+}
+
+const EMPTY_VOCAL_PART = {
+	notePhrases: [],
+	staticLyricPhrases: [],
+	starPowerSections: [],
+	rangeShifts: [],
+	lyricShifts: [],
+	textEvents: [],
+}
+
+describe('writeMidiFile round-trip: vocal tracks', () => {
+	it('emits no vocal part when none is set', () => {
+		const chart = createEmptyChart({ format: 'mid' })
+		expect(roundTrip(chart).vocalTracks.parts.vocals).toBeUndefined()
+	})
+
+	it('preserves PART VOCALS with a phrase, a note, and lyrics', () => {
+		const chart = createEmptyChart({ format: 'mid', resolution: 480 })
+		chart.vocalTracks.parts.vocals = {
+			...EMPTY_VOCAL_PART,
+			notePhrases: [phrase(0, 960, {
+				lyrics: [{ tick: 0, text: 'Hel-' }, { tick: 240, text: 'lo' }],
+				notes: [
+					{ tick: 0, length: 240, pitch: 60 },
+					{ tick: 240, length: 240, pitch: 62 },
+				],
+			})],
+		}
+		const vocals = roundTrip(chart).vocalTracks.parts.vocals
+		expect(vocals).toBeDefined()
+		expect(vocals.notePhrases).toHaveLength(1)
+		expect(vocals.notePhrases[0].lyrics.map(l => ({ tick: l.tick, text: l.text }))).toEqual([
+			{ tick: 0, text: 'Hel-' },
+			{ tick: 240, text: 'lo' },
+		])
+		expect(vocals.notePhrases[0].notes.map(n => ({ tick: n.tick, pitch: n.pitch }))).toEqual([
+			{ tick: 0, pitch: 60 },
+			{ tick: 240, pitch: 62 },
+		])
+	})
+
+	it('preserves player-2 phrases', () => {
+		const chart = createEmptyChart({ format: 'mid' })
+		chart.vocalTracks.parts.vocals = {
+			...EMPTY_VOCAL_PART,
+			notePhrases: [
+				phrase(0, 480, { player: 1 }),
+				phrase(480, 480, { player: 2 }),
+			],
+		}
+		const vocals = roundTrip(chart).vocalTracks.parts.vocals
+		expect(vocals.notePhrases).toHaveLength(2)
+		const p2 = vocals.notePhrases.find(p => p.player === 2)
+		expect(p2).toBeDefined()
+	})
+
+	it('preserves HARM1 / HARM2 / HARM3 parts', () => {
+		const chart = createEmptyChart({ format: 'mid', resolution: 480 })
+		chart.vocalTracks.parts.harmony1 = {
+			...EMPTY_VOCAL_PART,
+			notePhrases: [phrase(0, 960, {
+				lyrics: [{ tick: 0, text: 'harm1' }],
+				notes: [{ tick: 0, length: 240, pitch: 60 }],
+			})],
+		}
+		chart.vocalTracks.parts.harmony2 = {
+			...EMPTY_VOCAL_PART,
+			staticLyricPhrases: [phrase(0, 960, {
+				lyrics: [{ tick: 0, text: 'harm2' }],
+				notes: [{ tick: 0, length: 240, pitch: 62 }],
+			})],
+		}
+		chart.vocalTracks.parts.harmony3 = {
+			...EMPTY_VOCAL_PART,
+			staticLyricPhrases: [phrase(0, 960, {
+				lyrics: [{ tick: 0, text: 'harm3' }],
+				notes: [{ tick: 0, length: 240, pitch: 64 }],
+			})],
+		}
+		const parts = roundTrip(chart).vocalTracks.parts
+		expect(parts.harmony1).toBeDefined()
+		expect(parts.harmony2).toBeDefined()
+		expect(parts.harmony3).toBeDefined()
+		expect(parts.harmony1.notePhrases[0].lyrics[0].text).toBe('harm1')
+		expect(parts.harmony2.staticLyricPhrases[0].lyrics.map(l => l.text)).toContain('harm2')
+		expect(parts.harmony3.staticLyricPhrases[0].lyrics.map(l => l.text)).toContain('harm3')
+	})
+
+	it('preserves vocal star power on PART VOCALS', () => {
+		const chart = createEmptyChart({ format: 'mid' })
+		chart.vocalTracks.parts.vocals = {
+			...EMPTY_VOCAL_PART,
+			notePhrases: [phrase(0, 480)],
+			starPowerSections: [{ tick: 0, length: 480, msTime: 0, msLength: 0 }],
+		}
+		const vocals = roundTrip(chart).vocalTracks.parts.vocals
+		expect(vocals.starPowerSections.map(s => ({ t: s.tick, l: s.length }))).toEqual([{ t: 0, l: 480 }])
+	})
+
+	it('preserves rangeShifts and lyricShifts', () => {
+		const chart = createEmptyChart({ format: 'mid' })
+		chart.vocalTracks.parts.vocals = {
+			...EMPTY_VOCAL_PART,
+			notePhrases: [phrase(0, 960)],
+			rangeShifts: [{ tick: 0, length: 480, msTime: 0, msLength: 0 }],
+			lyricShifts: [{ tick: 480, length: 480, msTime: 0, msLength: 0 }],
+		}
+		const vocals = roundTrip(chart).vocalTracks.parts.vocals
+		expect(vocals.rangeShifts.map(s => s.tick)).toContain(0)
+		expect(vocals.lyricShifts.map(s => s.tick)).toContain(480)
+	})
+
+	it('preserves vocal text events', () => {
+		const chart = createEmptyChart({ format: 'mid' })
+		chart.vocalTracks.parts.vocals = {
+			...EMPTY_VOCAL_PART,
+			notePhrases: [phrase(0, 960)],
+			textEvents: [
+				{ tick: 0, msTime: 0, text: '[idle]' },
+				{ tick: 480, msTime: 0, text: '[mellow]' },
+			],
+		}
+		const vocals = roundTrip(chart).vocalTracks.parts.vocals
+		expect(vocals.textEvents.map(t => ({ tick: t.tick, text: t.text }))).toEqual([
+			{ tick: 0, text: '[idle]' },
+			{ tick: 480, text: '[mellow]' },
+		])
+	})
+})
