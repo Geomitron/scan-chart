@@ -70,3 +70,20 @@ index 0000000..0000001 100644
      }
      return { v0, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v15 };
  }
+diff --git a/node_modules/@noble/hashes/blake3.js b/node_modules/@noble/hashes/blake3.js
+index 0000000..0000002 100644
+--- a/node_modules/@noble/hashes/blake3.js
++++ b/node_modules/@noble/hashes/blake3.js
+@@ -85,7 +85,11 @@ class BLAKE3 extends blake2_ts_1.BLAKE2 {
+     set() { }
+     b2Compress(counter, flags, buf, bufPos = 0) {
+         const { state: s, pos } = this;
+-        const { h, l } = (0, _u64_ts_1.fromBig)(BigInt(counter), true);
++        // Inlined fromBig(BigInt(counter), true) — counter is always a small
++        // safe integer (chunk index), so we can skip the BigInt alloc path.
++        // `le=true` returns { h: low 32, l: high 32 }.
++        const h = counter >>> 0;
++        const l = Math.floor(counter / 4294967296) >>> 0;
+         // prettier-ignore
+         const { v0, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v15 } = (0, blake2_ts_1.compress)(B3_SIGMA, bufPos, buf, 7, s[0], s[1], s[2], s[3], s[4], s[5], s[6], s[7], B3_IV[0], B3_IV[1], B3_IV[2], B3_IV[3], h, l, pos, flags);
+         s[0] = v0 ^ v8;
