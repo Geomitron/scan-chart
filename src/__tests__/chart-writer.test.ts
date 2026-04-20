@@ -1,28 +1,87 @@
 /**
- * Round-trip tests for writeChartFile: Song / SyncTrack / Events / unrecognized
- * sections. Instrument-track tests land with the follow-up PR that ports
- * serializeTrackSection.
+ * Round-trip tests for writeChartFile.
  *
  * All tests exercise the writer only through parseChartAndIni: build a
  * ParsedChart, write it out, re-parse, and assert on the resulting
  * ParsedChart. No assertions about the serialized .chart text (CRLF,
- * quoting, field order, section ordering) — the parser is the source of
- * truth for observable behavior.
+ * quoting, field order, section ordering, specific N numbers, etc.) —
+ * the parser is the source of truth for observable behavior.
  */
 
 import { describe, expect, it } from 'vitest'
 
 import { writeChartFile } from '../chart/chart-writer'
 import { createEmptyChart } from '../chart/create-chart'
+import { noteFlags, noteTypes, NoteEvent } from '../chart/note-parsing-interfaces'
 import { parseChartAndIni, type ParsedChart } from '../chart/parse-chart-and-ini'
 
-function roundTrip(chart: ParsedChart): ParsedChart {
-	const bytes = new TextEncoder().encode(writeChartFile(chart))
-	const result = parseChartAndIni([{ fileName: 'notes.chart', data: bytes }])
+function roundTrip(chart: ParsedChart, iniText?: string): ParsedChart {
+	const files: { fileName: string; data: Uint8Array }[] = [
+		{ fileName: 'notes.chart', data: new TextEncoder().encode(writeChartFile(chart)) },
+	]
+	if (iniText !== undefined) {
+		files.push({ fileName: 'song.ini', data: new TextEncoder().encode(iniText) })
+	}
+	const result = parseChartAndIni(files)
 	if (!result.parsedChart) {
 		throw new Error(`round-trip produced no parsedChart: ${JSON.stringify(result.chartFolderIssues)}`)
 	}
 	return result.parsedChart
+}
+
+function addDrumTrack(chart: ParsedChart, difficulty: 'expert' | 'hard' | 'medium' | 'easy' = 'expert') {
+	const track: ParsedChart['trackData'][number] = {
+		instrument: 'drums',
+		difficulty,
+		starPowerSections: [],
+		rejectedStarPowerSections: [],
+		soloSections: [],
+		flexLanes: [],
+		drumFreestyleSections: [],
+		textEvents: [],
+		versusPhrases: [],
+		animations: [],
+		unrecognizedMidiEvents: [],
+		noteEventGroups: [],
+	}
+	chart.trackData.push(track)
+	return track
+}
+
+function addFretTrack(chart: ParsedChart, instrument: ParsedChart['trackData'][number]['instrument'] = 'guitar') {
+	const track: ParsedChart['trackData'][number] = {
+		instrument,
+		difficulty: 'expert',
+		starPowerSections: [],
+		rejectedStarPowerSections: [],
+		soloSections: [],
+		flexLanes: [],
+		drumFreestyleSections: [],
+		textEvents: [],
+		versusPhrases: [],
+		animations: [],
+		unrecognizedMidiEvents: [],
+		noteEventGroups: [],
+	}
+	chart.trackData.push(track)
+	return track
+}
+
+function note(tick: number, type: number, flags = 0, length = 0): NoteEvent {
+	return { tick, type, flags, length, msTime: 0, msLength: 0 }
+}
+
+/** Flatten a track's noteEventGroups into `{ tick, type, flags, length }` tuples for easy comparison. */
+function flatNotes(track: ParsedChart['trackData'][number]) {
+	return track.noteEventGroups.flatMap(g =>
+		g.map(n => ({ tick: n.tick, type: n.type, flags: n.flags, length: n.length })),
+	)
+}
+
+function findTrack(chart: ParsedChart, instrument: ParsedChart['trackData'][number]['instrument'], difficulty = 'expert') {
+	const t = chart.trackData.find(t => t.instrument === instrument && t.difficulty === difficulty)
+	if (!t) throw new Error(`no ${difficulty} ${instrument} track in round-tripped chart`)
+	return t
 }
 
 describe('writeChartFile round-trip: [Song] metadata', () => {
@@ -69,16 +128,12 @@ describe('writeChartFile round-trip: [Song] metadata', () => {
 	})
 
 	it('does not leak ini `delay` into chart_offset', () => {
-		// delay is ini-only; writing a chart with no chart_offset and a `delay`
-		// value must not surface as chart_offset after round-trip.
 		const chart = createEmptyChart()
 		chart.metadata.delay = 999
 		expect(roundTrip(chart).metadata.chart_offset).toBeUndefined()
 	})
 
 	it('does not emit a chart_offset for the value 0', () => {
-		// 0 is the default in-game behavior; the writer skips it so we don't
-		// round-trip 0 as a meaningful Offset.
 		const chart = createEmptyChart()
 		chart.metadata.chart_offset = 0
 		expect(roundTrip(chart).metadata.chart_offset).toBeUndefined()
@@ -187,5 +242,143 @@ describe('writeChartFile round-trip: unrecognized chart sections', () => {
 		expect(roundTrip(chart).unrecognizedChartSections).toEqual([
 			{ name: 'MysteryBlock', lines: ['0 = foo', '100 = bar'] },
 		])
+	})
+})
+
+// ---------------------------------------------------------------------------
+// Track section round-trip tests
+// ---------------------------------------------------------------------------
+
+describe('writeChartFile round-trip: drum tracks', () => {
+	it('preserves a per-difficulty drum track (expert)', () => {
+		const chart = createEmptyChart()
+		const track = addDrumTrack(chart, 'expert')
+		track.noteEventGroups.push([note(480, noteTypes.redDrum)])
+		const re = roundTrip(chart)
+		expect(findTrack(re, 'drums', 'expert').noteEventGroups).toHaveLength(1)
+	})
+
+	it('preserves base 4-lane drum notes with ticks and lengths', () => {
+		const chart = createEmptyChart()
+		const track = addDrumTrack(chart)
+		track.noteEventGroups.push([note(0, noteTypes.kick)])
+		track.noteEventGroups.push([note(480, noteTypes.redDrum, 0, 240)])
+		track.noteEventGroups.push([note(960, noteTypes.yellowDrum)])
+		track.noteEventGroups.push([note(1440, noteTypes.blueDrum)])
+		track.noteEventGroups.push([note(1920, noteTypes.greenDrum)])
+		const re = roundTrip(chart)
+		const notes = flatNotes(findTrack(re, 'drums'))
+		expect(notes).toEqual([
+			expect.objectContaining({ tick: 0, type: noteTypes.kick, length: 0 }),
+			expect.objectContaining({ tick: 480, type: noteTypes.redDrum, length: 240 }),
+			expect.objectContaining({ tick: 960, type: noteTypes.yellowDrum, length: 0 }),
+			expect.objectContaining({ tick: 1440, type: noteTypes.blueDrum, length: 0 }),
+			expect.objectContaining({ tick: 1920, type: noteTypes.greenDrum, length: 0 }),
+		])
+	})
+
+	it('preserves double-kick (not as a regular kick)', () => {
+		const chart = createEmptyChart()
+		const track = addDrumTrack(chart)
+		track.noteEventGroups.push([note(0, noteTypes.kick, noteFlags.doubleKick)])
+		const re = roundTrip(chart)
+		const notes = flatNotes(findTrack(re, 'drums'))
+		expect(notes).toHaveLength(1)
+		expect(notes[0].flags & noteFlags.doubleKick).toBeTruthy()
+	})
+
+	it('preserves cymbal/accent/ghost flags in fourLanePro', () => {
+		const chart = createEmptyChart()
+		chart.drumType = 1
+		const track = addDrumTrack(chart)
+		track.noteEventGroups.push([note(0, noteTypes.redDrum, noteFlags.accent)])
+		track.noteEventGroups.push([note(480, noteTypes.yellowDrum, noteFlags.cymbal)])
+		track.noteEventGroups.push([note(960, noteTypes.blueDrum, noteFlags.ghost)])
+		track.noteEventGroups.push([note(1440, noteTypes.greenDrum, noteFlags.cymbal)])
+		const re = roundTrip(chart, '[Song]\npro_drums = True\n')
+		const notes = flatNotes(findTrack(re, 'drums'))
+		expect(notes[0].flags & noteFlags.accent).toBeTruthy()
+		expect(notes[1].flags & noteFlags.cymbal).toBeTruthy()
+		expect(notes[2].flags & noteFlags.ghost).toBeTruthy()
+		expect(notes[3].flags & noteFlags.cymbal).toBeTruthy()
+	})
+
+	// Flam (N 109) round-trip lives in the MIDI writer tests: the .chart parser
+	// doesn't recognize N 109, so flam doesn't survive a .chart round-trip.
+
+	it('preserves star power, solo sections, flex lanes, and activation lanes', () => {
+		const chart = createEmptyChart({ resolution: 480 })
+		const track = addDrumTrack(chart)
+		track.noteEventGroups.push([note(0, noteTypes.kick)])
+		track.starPowerSections.push({ tick: 0, length: 960, msTime: 0, msLength: 0 })
+		track.soloSections.push({ tick: 480, length: 480, msTime: 0, msLength: 0 })
+		track.flexLanes.push({ tick: 960, length: 480, isDouble: false, msTime: 0, msLength: 0 })
+		track.flexLanes.push({ tick: 1440, length: 480, isDouble: true, msTime: 0, msLength: 0 })
+		track.drumFreestyleSections.push({ tick: 1920, length: 480, isCoda: false, msTime: 0, msLength: 0 })
+		const re = roundTrip(chart)
+		const reTrack = findTrack(re, 'drums')
+		expect(reTrack.starPowerSections.map(s => ({ t: s.tick, l: s.length }))).toEqual([{ t: 0, l: 960 }])
+		expect(reTrack.soloSections.map(s => ({ t: s.tick, l: s.length }))).toEqual([{ t: 480, l: 480 }])
+		expect(reTrack.flexLanes.map(f => ({ t: f.tick, l: f.length, d: f.isDouble }))).toEqual([
+			{ t: 960, l: 480, d: false },
+			{ t: 1440, l: 480, d: true },
+		])
+		expect(reTrack.drumFreestyleSections.map(s => ({ t: s.tick, l: s.length }))).toEqual([{ t: 1920, l: 480 }])
+	})
+})
+
+describe('writeChartFile round-trip: 5-fret tracks', () => {
+	it('preserves base 5-fret notes on a guitar track', () => {
+		const chart = createEmptyChart()
+		const track = addFretTrack(chart, 'guitar')
+		track.noteEventGroups.push([note(0, noteTypes.green)])
+		track.noteEventGroups.push([note(100, noteTypes.red)])
+		track.noteEventGroups.push([note(200, noteTypes.yellow)])
+		track.noteEventGroups.push([note(300, noteTypes.blue)])
+		track.noteEventGroups.push([note(400, noteTypes.orange)])
+		track.noteEventGroups.push([note(500, noteTypes.open)])
+		const re = roundTrip(chart)
+		const notes = flatNotes(findTrack(re, 'guitar'))
+		expect(notes.map(n => ({ tick: n.tick, type: n.type }))).toEqual([
+			{ tick: 0, type: noteTypes.green },
+			{ tick: 100, type: noteTypes.red },
+			{ tick: 200, type: noteTypes.yellow },
+			{ tick: 300, type: noteTypes.blue },
+			{ tick: 400, type: noteTypes.orange },
+			{ tick: 500, type: noteTypes.open },
+		])
+	})
+
+	it('preserves the tap flag', () => {
+		const chart = createEmptyChart()
+		const track = addFretTrack(chart)
+		track.noteEventGroups.push([note(0, noteTypes.green, noteFlags.tap)])
+		const re = roundTrip(chart)
+		const notes = flatNotes(findTrack(re, 'guitar'))
+		expect(notes[0].flags & noteFlags.tap).toBeTruthy()
+	})
+
+	it('preserves a forced-hopo flag on a note whose natural state is strum', () => {
+		const chart = createEmptyChart({ resolution: 480 })
+		const track = addFretTrack(chart)
+		// Two greens far apart — neither is natural HOPO. Flag the second → round-trip keeps the HOPO flag.
+		track.noteEventGroups.push([note(0, noteTypes.green)])
+		track.noteEventGroups.push([note(1920, noteTypes.green, noteFlags.hopo)])
+		const re = roundTrip(chart)
+		const notes = flatNotes(findTrack(re, 'guitar'))
+		const hopoNote = notes.find(n => n.tick === 1920)!
+		expect(hopoNote.flags & noteFlags.hopo).toBeTruthy()
+	})
+
+	it('preserves star power and solo sections on a guitar track', () => {
+		const chart = createEmptyChart({ resolution: 480 })
+		const track = addFretTrack(chart)
+		track.noteEventGroups.push([note(0, noteTypes.green)])
+		track.starPowerSections.push({ tick: 0, length: 960, msTime: 0, msLength: 0 })
+		track.soloSections.push({ tick: 480, length: 480, msTime: 0, msLength: 0 })
+		const re = roundTrip(chart)
+		const reTrack = findTrack(re, 'guitar')
+		expect(reTrack.starPowerSections.map(s => ({ t: s.tick, l: s.length }))).toEqual([{ t: 0, l: 960 }])
+		expect(reTrack.soloSections.map(s => ({ t: s.tick, l: s.length }))).toEqual([{ t: 480, l: 480 }])
 	})
 })
