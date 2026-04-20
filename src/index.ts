@@ -48,9 +48,15 @@ export function scanChart(
 		chart.chartHash = chartData.chartHash
 		chart.notesData = chartData.notesData
 		const instruments = chartData.notesData.instruments
-		if (parseResult.iniMetadata) {
+		// Missing/extra diff_* issues are ini-centric — they're about whether
+		// the song.ini file declares an appropriate difficulty rating for each
+		// charted instrument. Skip the checks entirely when no ini was parsed:
+		// "ini is missing X" isn't a meaningful complaint if there's no ini at
+		// all (the folder-level `noMetadata` issue already flags that).
+		if (parseResult.hasIni) {
+			const metadata = parseResult.parsedChart.metadata
 			const checkMissingDifficulty = (instrument: Instrument, diffKey: keyof typeof defaultMetadata) => {
-				if (instruments.includes(instrument) && parseResult.iniMetadata![diffKey] === defaultMetadata[diffKey]) {
+				if (instruments.includes(instrument) && metadata[diffKey] === defaultMetadata[diffKey]) {
 					chart.metadataIssues.push({ metadataIssue: 'missingValue', description: `Metadata is missing a "${diffKey}" value.` })
 				}
 			}
@@ -64,12 +70,12 @@ export function scanChart(
 			checkMissingDifficulty('guitarcoopghl', 'diff_guitar_coop_ghl')
 			checkMissingDifficulty('rhythmghl', 'diff_rhythm_ghl')
 			checkMissingDifficulty('bassghl', 'diff_bassghl')
-			if (chartData.notesData.hasVocals && parseResult.iniMetadata.diff_vocals === defaultMetadata.diff_vocals) {
+			if (chartData.notesData.hasVocals && metadata.diff_vocals === defaultMetadata.diff_vocals) {
 				chart.metadataIssues.push({ metadataIssue: 'missingValue', description: 'Metadata is missing a "diff_vocals" value.' })
 			}
 
 			const checkExtraDifficulty = (instrument: Instrument, diffKey: keyof typeof defaultMetadata) => {
-				if (parseResult.iniMetadata![diffKey] !== defaultMetadata[diffKey] && !instruments.includes(instrument)) {
+				if (metadata[diffKey] !== defaultMetadata[diffKey] && !instruments.includes(instrument)) {
 					chart.metadataIssues.push({
 						metadataIssue: 'extraValue',
 						description: `Metadata contains "${diffKey}", but ${instrument} is not charted.`,
@@ -86,7 +92,7 @@ export function scanChart(
 			checkExtraDifficulty('guitarcoopghl', 'diff_guitar_coop_ghl')
 			checkExtraDifficulty('rhythmghl', 'diff_rhythm_ghl')
 			checkExtraDifficulty('bassghl', 'diff_bassghl')
-			if (parseResult.iniMetadata.diff_vocals !== defaultMetadata.diff_vocals && !chartData.notesData.hasVocals) {
+			if (metadata.diff_vocals !== defaultMetadata.diff_vocals && !chartData.notesData.hasVocals) {
 				chart.metadataIssues.push({
 					metadataIssue: 'extraValue',
 					description: 'Metadata contains "diff_vocals", but vocals are not charted.',
@@ -95,17 +101,16 @@ export function scanChart(
 		}
 	}
 
-	if (parseResult.iniMetadata) {
-		// Use metadata from .ini file if it exists (filled in with defaults for properties that are not included)
-		_.assign(chart, parseResult.iniMetadata)
-	} else if (parseResult.parsedChart?.metadata) {
-		// Use metadata from .chart file if it exists
-		_.assign(chart, parseResult.parsedChart.metadata)
+	if (parseResult.parsedChart) {
+		// Apply the merged metadata (ini overlays [Song], defaults fill gaps when ini is present).
+		// `chart_offset` is [Song]-only and `extraIniFields` is a round-trip
+		// preservation bag — neither belongs on the top-level ScannedChart
+		// surface, so strip them before assigning.
+		_.assign(chart, _.omit(parseResult.parsedChart.metadata, 'extraIniFields', 'chart_offset'))
+		chart.chart_offset = parseResult.parsedChart.metadata.chart_offset ?? 0
 	} else {
-		// No metadata available
 		chart.playable = false
 	}
-	chart.chart_offset = parseResult.parsedChart?.metadata?.delay ?? 0
 
 	const imageData = scanImage(files)
 	chart.folderIssues.push(...imageData.folderIssues)

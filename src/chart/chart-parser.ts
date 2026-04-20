@@ -114,8 +114,12 @@ export function parseNotesFromChart(data: Uint8Array): RawChartData {
 			year: metadata['Year']?.slice(2) || undefined, // Thank you GHTCP, very cool
 			charter: metadata['Charter'] || undefined,
 			diff_guitar: Number(metadata['Difficulty']) || undefined,
-			// "Offset" and "PreviewStart" are in units of seconds
-			delay: Number(metadata['Offset']) ? Number(metadata['Offset']) * 1000 : undefined,
+			// "Offset" and "PreviewStart" are in units of seconds.
+			// NOTE: [Song].Offset is a .chart-only property — distinct from
+			// song.ini's `delay`, which games recognize in .ini (but NOT in
+			// [Song]). We expose [Song].Offset under the `chart_offset` key so
+			// it never collides with the ini-origin `delay` on merge.
+			chart_offset: Number(metadata['Offset']) ? Number(metadata['Offset']) * 1000 : undefined,
 			preview_start_time: Number(metadata['PreviewStart']) ? Number(metadata['PreviewStart']) * 1000 : undefined,
 		},
 		vocalTracks: {
