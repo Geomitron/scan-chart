@@ -501,3 +501,236 @@ describe('writeMidiFile: drum round-trip through parseChartAndIni', () => {
 		expect(flags[3] & noteFlags.flam).toBeTruthy()
 	})
 })
+
+// ---------------------------------------------------------------------------
+// Fret / GHL track tests
+// ---------------------------------------------------------------------------
+
+function emptyFretTrack(
+	instrument: ParsedChart['trackData'][number]['instrument'] = 'guitar',
+	difficulty: 'expert' | 'hard' | 'medium' | 'easy' = 'expert',
+): ParsedChart['trackData'][number] {
+	return {
+		instrument,
+		difficulty,
+		starPowerSections: [],
+		rejectedStarPowerSections: [],
+		soloSections: [],
+		flexLanes: [],
+		drumFreestyleSections: [],
+		textEvents: [],
+		versusPhrases: [],
+		animations: [],
+		unrecognizedMidiEvents: [],
+		noteEventGroups: [],
+	}
+}
+
+describe('writeMidiFile: PART GUITAR / GHL track layout', () => {
+	it('emits a PART GUITAR track when the chart has a guitar track', () => {
+		const chart = createEmptyChart({ format: 'mid' })
+		chart.trackData.push(emptyFretTrack('guitar', 'expert'))
+		const midi = parseBack(writeMidiFile(chart))
+		const track = midi.tracks[2]
+		expect((findEvents(track, 'trackName')[0] as { text: string }).text).toBe('PART GUITAR')
+	})
+
+	it('emits a PART GUITAR GHL track when the chart has a guitarghl track', () => {
+		const chart = createEmptyChart({ format: 'mid' })
+		chart.trackData.push(emptyFretTrack('guitarghl', 'expert'))
+		const midi = parseBack(writeMidiFile(chart))
+		const track = midi.tracks[2]
+		expect((findEvents(track, 'trackName')[0] as { text: string }).text).toBe('PART GUITAR GHL')
+	})
+})
+
+describe('writeMidiFile: 5-fret note-number mapping', () => {
+	it('expert green→96, red→97, yellow→98, blue→99, orange→100 (5-fret 95+N)', () => {
+		const chart = createEmptyChart({ format: 'mid' })
+		const td = emptyFretTrack('guitar', 'expert')
+		td.noteEventGroups.push([note(0, noteTypes.green)])
+		td.noteEventGroups.push([note(120, noteTypes.red)])
+		td.noteEventGroups.push([note(240, noteTypes.yellow)])
+		td.noteEventGroups.push([note(360, noteTypes.blue)])
+		td.noteEventGroups.push([note(480, noteTypes.orange)])
+		chart.trackData.push(td)
+		const track = parseBack(writeMidiFile(chart)).tracks[2]
+		expect(findNoteOns(track, 96)).toHaveLength(1)
+		expect(findNoteOns(track, 97)).toHaveLength(1)
+		expect(findNoteOns(track, 98)).toHaveLength(1)
+		expect(findNoteOns(track, 99)).toHaveLength(1)
+		expect(findNoteOns(track, 100)).toHaveLength(1)
+	})
+
+	it('hard base is 83, medium 71, easy 59', () => {
+		const chart = createEmptyChart({ format: 'mid' })
+		for (const d of ['hard', 'medium', 'easy'] as const) {
+			const td = emptyFretTrack('guitar', d)
+			td.noteEventGroups.push([note(0, noteTypes.green)])
+			chart.trackData.push(td)
+		}
+		const track = parseBack(writeMidiFile(chart)).tracks[2]
+		expect(findNoteOns(track, 84)).toHaveLength(1) // hard 83+1
+		expect(findNoteOns(track, 72)).toHaveLength(1) // medium 71+1
+		expect(findNoteOns(track, 60)).toHaveLength(1) // easy 59+1
+	})
+})
+
+describe('writeMidiFile: GHL note-number mapping', () => {
+	it('expert white1→95, white2→96, white3→97, black1→98, black2→99, black3→100 (diffStart 94)', () => {
+		const chart = createEmptyChart({ format: 'mid' })
+		const td = emptyFretTrack('guitarghl', 'expert')
+		td.noteEventGroups.push([note(0, noteTypes.white1)])
+		td.noteEventGroups.push([note(120, noteTypes.white2)])
+		td.noteEventGroups.push([note(240, noteTypes.white3)])
+		td.noteEventGroups.push([note(360, noteTypes.black1)])
+		td.noteEventGroups.push([note(480, noteTypes.black2)])
+		td.noteEventGroups.push([note(600, noteTypes.black3)])
+		chart.trackData.push(td)
+		const track = parseBack(writeMidiFile(chart)).tracks[2]
+		expect(findNoteOns(track, 95)).toHaveLength(1)
+		expect(findNoteOns(track, 96)).toHaveLength(1)
+		expect(findNoteOns(track, 97)).toHaveLength(1)
+		expect(findNoteOns(track, 98)).toHaveLength(1)
+		expect(findNoteOns(track, 99)).toHaveLength(1)
+		expect(findNoteOns(track, 100)).toHaveLength(1) // 94 + 6
+	})
+
+	it('GHL open-in-chord emits at diffStart+0 = 94 (ENHANCED_OPENS mode)', () => {
+		const chart = createEmptyChart({ format: 'mid' })
+		const td = emptyFretTrack('guitarghl', 'expert')
+		// Chord of open + white1 triggers useEnhancedOpens → open emits at 94.
+		td.noteEventGroups.push([
+			note(0, noteTypes.open),
+			note(0, noteTypes.white1),
+		])
+		chart.trackData.push(td)
+		const track = parseBack(writeMidiFile(chart)).tracks[2]
+		expect(findNoteOns(track, 94)).toHaveLength(1) // open
+		expect(findNoteOns(track, 95)).toHaveLength(1) // white1
+	})
+})
+
+describe('writeMidiFile: 5-fret open notes', () => {
+	it('plain open (no chord) → forceOpen SysEx + noteOn at diffStart+1', () => {
+		const chart = createEmptyChart({ format: 'mid' })
+		const td = emptyFretTrack('guitar', 'expert')
+		td.noteEventGroups.push([note(0, noteTypes.open)])
+		chart.trackData.push(td)
+		const track = parseBack(writeMidiFile(chart)).tracks[2]
+		expect(findNoteOns(track, 96)).toHaveLength(1) // written as green (diffStart+1)
+		expect(findEvents(track, 'sysEx').length).toBeGreaterThanOrEqual(2) // on + off
+	})
+
+	it('open-in-chord triggers ENHANCED_OPENS text event + MIDI 95 (diffStart+0) for open', () => {
+		const chart = createEmptyChart({ format: 'mid' })
+		const td = emptyFretTrack('guitar', 'expert')
+		td.noteEventGroups.push([
+			note(0, noteTypes.open),
+			note(0, noteTypes.red),
+		])
+		chart.trackData.push(td)
+		const track = parseBack(writeMidiFile(chart)).tracks[2]
+		const texts = findEvents(track, 'text').map(e => (e as { text: string }).text)
+		expect(texts).toContain('[ENHANCED_OPENS]')
+		expect(findNoteOns(track, 95)).toHaveLength(1) // open at diffStart+0
+		expect(findNoteOns(track, 97)).toHaveLength(1) // red at diffStart+2
+	})
+})
+
+describe('writeMidiFile: fret force modifiers', () => {
+	it('hopo flag disagreeing with natural state emits forceHopo marker', () => {
+		const chart = createEmptyChart({ format: 'mid', resolution: 480 })
+		const td = emptyFretTrack('guitar', 'expert')
+		// Two identical notes with large gap: natural = strum. Flagging hopo
+		// creates a mismatch that needs forceHopo (offset 6, expert 95+6=101).
+		td.noteEventGroups.push([note(0, noteTypes.green)])
+		td.noteEventGroups.push([note(1920, noteTypes.green, noteFlags.hopo)])
+		chart.trackData.push(td)
+		const track = parseBack(writeMidiFile(chart)).tracks[2]
+		expect(findNoteOns(track, 101)).toHaveLength(1)
+	})
+
+	it('strum flag disagreeing with natural HOPO emits forceStrum marker', () => {
+		const chart = createEmptyChart({ format: 'mid', resolution: 480 })
+		const td = emptyFretTrack('guitar', 'expert')
+		// Two different notes close together: natural = hopo. Flagging strum
+		// creates a mismatch that needs forceStrum (offset 7, expert 95+7=102).
+		td.noteEventGroups.push([note(0, noteTypes.green)])
+		td.noteEventGroups.push([note(120, noteTypes.red, noteFlags.strum)])
+		chart.trackData.push(td)
+		const track = parseBack(writeMidiFile(chart)).tracks[2]
+		expect(findNoteOns(track, 102)).toHaveLength(1)
+	})
+
+	it('tap flag emits forceTap SysEx', () => {
+		const chart = createEmptyChart({ format: 'mid' })
+		const td = emptyFretTrack('guitar', 'expert')
+		td.noteEventGroups.push([note(0, noteTypes.green, noteFlags.tap)])
+		chart.trackData.push(td)
+		const track = parseBack(writeMidiFile(chart)).tracks[2]
+		const sysExEvents = findEvents(track, 'sysEx')
+		// forceTap SysEx has typeByte = 0x04
+		const tapOn = sysExEvents.find(e => (e as { data: Uint8Array }).data[5] === 0x04 && (e as { data: Uint8Array }).data[6] === 0x01)
+		expect(tapOn).toBeDefined()
+	})
+
+	it('does NOT emit force markers when flags match natural state', () => {
+		const chart = createEmptyChart({ format: 'mid', resolution: 480 })
+		const td = emptyFretTrack('guitar', 'expert')
+		// Two different notes close together: natural hopo; flag hopo → natural, no force.
+		td.noteEventGroups.push([note(0, noteTypes.green)])
+		td.noteEventGroups.push([note(120, noteTypes.red, noteFlags.hopo)])
+		chart.trackData.push(td)
+		const track = parseBack(writeMidiFile(chart)).tracks[2]
+		expect(findNoteOns(track, 101)).toHaveLength(0)
+		expect(findNoteOns(track, 102)).toHaveLength(0)
+	})
+})
+
+describe('writeMidiFile: fret instrument-wide sections', () => {
+	it('emits star power as MIDI 116 and solo as MIDI 103', () => {
+		const chart = createEmptyChart({ format: 'mid' })
+		const td = emptyFretTrack('guitar', 'expert')
+		td.noteEventGroups.push([note(0, noteTypes.green)])
+		td.starPowerSections.push({ tick: 0, length: 480, msTime: 0, msLength: 0 })
+		td.soloSections.push({ tick: 480, length: 240, msTime: 0, msLength: 0 })
+		chart.trackData.push(td)
+		const track = parseBack(writeMidiFile(chart)).tracks[2]
+		expect(findNoteOns(track, 116)).toHaveLength(1)
+		expect(findNoteOns(track, 103)).toHaveLength(1)
+	})
+})
+
+describe('writeMidiFile: fret round-trip through parseChartAndIni', () => {
+	it('round-trips 5-fret notes + hopo/tap modifiers', () => {
+		const chart = createEmptyChart({ format: 'mid', resolution: 480 })
+		const td = emptyFretTrack('guitar', 'expert')
+		td.noteEventGroups.push([note(0, noteTypes.green)])
+		td.noteEventGroups.push([note(1920, noteTypes.green, noteFlags.hopo)]) // forceHopo
+		td.noteEventGroups.push([note(3840, noteTypes.red, noteFlags.tap)])    // forceTap
+		chart.trackData.push(td)
+
+		const re = parseChartAndIni([{ fileName: 'notes.mid', data: writeMidiFile(chart) }])
+		const reTrack = re.parsedChart!.trackData.find(t => t.instrument === 'guitar' && t.difficulty === 'expert')!
+		const groups = reTrack.noteEventGroups
+		expect(groups).toHaveLength(3)
+		expect(groups[1][0].flags & noteFlags.hopo).toBeTruthy()
+		expect(groups[2][0].flags & noteFlags.tap).toBeTruthy()
+	})
+
+	it('round-trips GHL open + chord-with-open (ENHANCED_OPENS path)', () => {
+		const chart = createEmptyChart({ format: 'mid', resolution: 480 })
+		const td = emptyFretTrack('guitarghl', 'expert')
+		td.noteEventGroups.push([
+			note(0, noteTypes.open),
+			note(0, noteTypes.white1),
+		])
+		chart.trackData.push(td)
+
+		const re = parseChartAndIni([{ fileName: 'notes.mid', data: writeMidiFile(chart) }])
+		const reTrack = re.parsedChart!.trackData.find(t => t.instrument === 'guitarghl')!
+		const types = reTrack.noteEventGroups[0].map(n => n.type).sort()
+		expect(types).toEqual([noteTypes.open, noteTypes.white1].sort())
+	})
+})
