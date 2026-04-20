@@ -45,16 +45,6 @@ export function parseChartFile(data: Uint8Array, format: 'chart' | 'mid', partia
 		: drumTracks.find(track => track.trackEvents.find(e => isCymbalOrTomMarker(e.type))) ? drumTypes.fourLanePro
 		: drumTracks.find(track => track.trackEvents.find(e => e.type === eventTypes.fiveGreenDrum)) ? drumTypes.fiveLane
 		: drumTypes.fourLane
-	let hasForcedNotes = false
-	outer: for (const track of rawChartData.trackData) {
-		if (track.instrument === 'drums') continue
-		for (const e of track.trackEvents) {
-			if (e.type === eventTypes.forceUnnatural || e.type === eventTypes.forceHopo || e.type === eventTypes.forceStrum) {
-				hasForcedNotes = true
-				break outer
-			}
-		}
-	}
 
 	const normalizedVocalTracks = normalizeVocalTracks(rawChartData.vocalTracks, timedTempos, rawChartData.chartTicksPerBeat)
 	// Evaluate trackData first — normalizedVocalTracks is used below for phrase-level hasLyrics check.
@@ -89,12 +79,6 @@ export function parseChartFile(data: Uint8Array, format: 'chart' | 'mid', partia
 		resolution: rawChartData.chartTicksPerBeat,
 		drumType,
 		metadata: rawChartData.metadata,
-		// Check phrase-level lyrics to decide hasLyrics — raw lyric events that
-		// get filtered (brackets, whitespace-only) should not count.
-		hasLyrics: Object.values(normalizedVocalTracks.parts).some(p =>
-			p.notePhrases.some(ph => ph.lyrics.length > 0)),
-		hasVocals: Object.values(rawChartData.vocalTracks).some(v => v.vocalPhrases.length > 0),
-		hasForcedNotes,
 		parseIssues: rawChartData.parseIssues,
 		vocalTracks: normalizedVocalTracks,
 		endEvents: setEventMsTimes(rawChartData.endEvents, timedTempos, rawChartData.chartTicksPerBeat),
