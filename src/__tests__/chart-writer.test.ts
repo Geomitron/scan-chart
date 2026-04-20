@@ -239,3 +239,266 @@ describe('writeChartFile: output format', () => {
 		expect(out).toContain('[Song]\r\n{\r\n')
 	})
 })
+
+// ---------------------------------------------------------------------------
+// Track section tests
+// ---------------------------------------------------------------------------
+
+import { noteFlags, noteTypes } from '../chart/note-parsing-interfaces'
+
+/** Build a drum track and attach it to a chart. */
+function addDrumTrack(chart: ParsedChart, difficulty: 'expert' | 'hard' | 'medium' | 'easy' = 'expert') {
+	const track: ParsedChart['trackData'][number] = {
+		instrument: 'drums',
+		difficulty,
+		starPowerSections: [],
+		rejectedStarPowerSections: [],
+		soloSections: [],
+		flexLanes: [],
+		drumFreestyleSections: [],
+		textEvents: [],
+		versusPhrases: [],
+		animations: [],
+		unrecognizedMidiEvents: [],
+		noteEventGroups: [],
+	}
+	chart.trackData.push(track)
+	return track
+}
+
+function addFretTrack(chart: ParsedChart, instrument: ParsedChart['trackData'][number]['instrument'] = 'guitar') {
+	const track: ParsedChart['trackData'][number] = {
+		instrument,
+		difficulty: 'expert',
+		starPowerSections: [],
+		rejectedStarPowerSections: [],
+		soloSections: [],
+		flexLanes: [],
+		drumFreestyleSections: [],
+		textEvents: [],
+		versusPhrases: [],
+		animations: [],
+		unrecognizedMidiEvents: [],
+		noteEventGroups: [],
+	}
+	chart.trackData.push(track)
+	return track
+}
+
+function note(tick: number, type: number, flags = 0, length = 0): NoteEvent {
+	return { tick, type, flags, length, msTime: 0, msLength: 0 }
+}
+
+describe('writeChartFile: drum track emission', () => {
+	it('emits [ExpertDrums] section when there is an expert drum track', () => {
+		const chart = createEmptyChart()
+		addDrumTrack(chart, 'expert')
+		const out = writeChartFile(chart)
+		expect(out).toContain('[ExpertDrums]\r\n{\r\n')
+	})
+
+	it('emits [HardDrums] section for hard difficulty', () => {
+		const chart = createEmptyChart()
+		addDrumTrack(chart, 'hard')
+		expect(writeChartFile(chart)).toContain('[HardDrums]\r\n{\r\n')
+	})
+
+	it('emits base drum notes with their .chart note numbers', () => {
+		const chart = createEmptyChart()
+		const track = addDrumTrack(chart)
+		track.noteEventGroups.push([note(0, noteTypes.kick)])
+		track.noteEventGroups.push([note(480, noteTypes.redDrum, 0, 240)])
+		track.noteEventGroups.push([note(960, noteTypes.yellowDrum)])
+		track.noteEventGroups.push([note(1440, noteTypes.blueDrum)])
+		track.noteEventGroups.push([note(1920, noteTypes.greenDrum)])
+		const body = sectionBody(writeChartFile(chart), '[ExpertDrums]')
+		expect(body).toContain('  0 = N 0 0')
+		expect(body).toContain('  480 = N 1 240')
+		expect(body).toContain('  960 = N 2 0')
+		expect(body).toContain('  1440 = N 3 0')
+		expect(body).toContain('  1920 = N 4 0')
+	})
+
+	it('emits double kick as N 32 only (no base N 0)', () => {
+		const chart = createEmptyChart()
+		const track = addDrumTrack(chart)
+		track.noteEventGroups.push([note(0, noteTypes.kick, noteFlags.doubleKick)])
+		const body = sectionBody(writeChartFile(chart), '[ExpertDrums]')
+		expect(body).toContain('  0 = N 32 0')
+		expect(body).not.toContain('  0 = N 0 0')
+	})
+
+	it('emits cymbal markers only when drumType is fourLanePro', () => {
+		const chart = createEmptyChart()
+		const track = addDrumTrack(chart)
+		track.noteEventGroups.push([note(0, noteTypes.yellowDrum, noteFlags.cymbal)])
+		// fourLane (drumType=0 or null): no cymbal marker
+		const plain = sectionBody(writeChartFile(chart), '[ExpertDrums]')
+		expect(plain).not.toContain('N 66')
+
+		// fourLanePro (drumType=1): cymbal marker N 66 for yellow
+		chart.drumType = 1
+		const pro = sectionBody(writeChartFile(chart), '[ExpertDrums]')
+		expect(pro).toContain('  0 = N 66 0')
+	})
+
+	it('emits accent marker N 34 for red drum with accent flag', () => {
+		const chart = createEmptyChart()
+		const track = addDrumTrack(chart)
+		track.noteEventGroups.push([note(0, noteTypes.redDrum, noteFlags.accent)])
+		const body = sectionBody(writeChartFile(chart), '[ExpertDrums]')
+		expect(body).toContain('  0 = N 34 0')
+	})
+
+	it('emits ghost marker N 40 for red drum with ghost flag', () => {
+		const chart = createEmptyChart()
+		const track = addDrumTrack(chart)
+		track.noteEventGroups.push([note(0, noteTypes.redDrum, noteFlags.ghost)])
+		const body = sectionBody(writeChartFile(chart), '[ExpertDrums]')
+		expect(body).toContain('  0 = N 40 0')
+	})
+
+	it('emits one N 109 (flam) per group regardless of how many notes set the flag', () => {
+		const chart = createEmptyChart()
+		const track = addDrumTrack(chart)
+		track.noteEventGroups.push([
+			note(0, noteTypes.redDrum, noteFlags.flam),
+			note(0, noteTypes.yellowDrum, noteFlags.flam),
+		])
+		const body = sectionBody(writeChartFile(chart), '[ExpertDrums]')
+		expect(body.filter(l => l.endsWith('N 109 0'))).toHaveLength(1)
+	})
+
+	it('emits star power as S 2', () => {
+		const chart = createEmptyChart()
+		const track = addDrumTrack(chart)
+		track.starPowerSections.push({ tick: 0, length: 1920, msTime: 0, msLength: 0 })
+		const body = sectionBody(writeChartFile(chart), '[ExpertDrums]')
+		expect(body).toContain('  0 = S 2 1920')
+	})
+
+	it('emits solo sections with soloend at tick + length - 1', () => {
+		const chart = createEmptyChart()
+		const track = addDrumTrack(chart)
+		track.soloSections.push({ tick: 480, length: 480, msTime: 0, msLength: 0 })
+		const body = sectionBody(writeChartFile(chart), '[ExpertDrums]')
+		expect(body).toContain('  480 = E solo')
+		expect(body).toContain('  959 = E soloend')
+	})
+
+	it('emits flex lanes as S 65 (single) or S 66 (double)', () => {
+		const chart = createEmptyChart()
+		const track = addDrumTrack(chart)
+		track.flexLanes.push({ tick: 0, length: 480, isDouble: false, msTime: 0, msLength: 0 })
+		track.flexLanes.push({ tick: 480, length: 480, isDouble: true, msTime: 0, msLength: 0 })
+		const body = sectionBody(writeChartFile(chart), '[ExpertDrums]')
+		expect(body).toContain('  0 = S 65 480')
+		expect(body).toContain('  480 = S 66 480')
+	})
+
+	it('emits activation lanes as S 64', () => {
+		const chart = createEmptyChart()
+		const track = addDrumTrack(chart)
+		track.drumFreestyleSections.push({ tick: 0, length: 480, isCoda: false, msTime: 0, msLength: 0 })
+		const body = sectionBody(writeChartFile(chart), '[ExpertDrums]')
+		expect(body).toContain('  0 = S 64 480')
+	})
+})
+
+describe('writeChartFile: guitar track emission', () => {
+	it('emits [ExpertSingle] section name', () => {
+		const chart = createEmptyChart()
+		addFretTrack(chart)
+		expect(writeChartFile(chart)).toContain('[ExpertSingle]\r\n{\r\n')
+	})
+
+	it('emits 5-fret notes with their .chart note numbers', () => {
+		const chart = createEmptyChart()
+		const track = addFretTrack(chart)
+		track.noteEventGroups.push([note(0, noteTypes.green)])
+		track.noteEventGroups.push([note(100, noteTypes.red)])
+		track.noteEventGroups.push([note(200, noteTypes.yellow)])
+		track.noteEventGroups.push([note(300, noteTypes.blue)])
+		track.noteEventGroups.push([note(400, noteTypes.orange)])
+		track.noteEventGroups.push([note(500, noteTypes.open)])
+		const body = sectionBody(writeChartFile(chart), '[ExpertSingle]')
+		expect(body).toContain('  0 = N 0 0')
+		expect(body).toContain('  100 = N 1 0')
+		expect(body).toContain('  200 = N 2 0')
+		expect(body).toContain('  300 = N 3 0')
+		expect(body).toContain('  400 = N 4 0')
+		expect(body).toContain('  500 = N 7 0')
+	})
+
+	it('emits tap flag as N 6', () => {
+		const chart = createEmptyChart()
+		const track = addFretTrack(chart)
+		track.noteEventGroups.push([note(0, noteTypes.green, noteFlags.tap)])
+		const body = sectionBody(writeChartFile(chart), '[ExpertSingle]')
+		expect(body).toContain('  0 = N 0 0')
+		expect(body).toContain('  0 = N 6 0')
+	})
+
+	it('emits forceUnnatural N 5 when hopo flag disagrees with natural state', () => {
+		const chart = createEmptyChart({ resolution: 480 })
+		const track = addFretTrack(chart)
+		// Two isolated greens far apart: neither is natural HOPO (both would be strum).
+		// Flag the second as HOPO → mismatch → N 5 should be emitted.
+		track.noteEventGroups.push([note(0, noteTypes.green)])
+		track.noteEventGroups.push([note(1920, noteTypes.green, noteFlags.hopo)])
+		const body = sectionBody(writeChartFile(chart), '[ExpertSingle]')
+		expect(body).toContain('  1920 = N 5 0')
+	})
+})
+
+describe('writeChartFile: round-trip through parseChartAndIni', () => {
+	it('round-trips drum notes with cymbal/accent/ghost flags in fourLanePro', () => {
+		const chart = createEmptyChart({ resolution: 480 })
+		chart.drumType = 1
+		chart.iniChartModifiers.pro_drums = true
+		const track = addDrumTrack(chart)
+		track.noteEventGroups.push([note(0, noteTypes.kick)])
+		track.noteEventGroups.push([note(480, noteTypes.redDrum, noteFlags.accent)])
+		track.noteEventGroups.push([note(960, noteTypes.yellowDrum, noteFlags.cymbal)])
+		track.noteEventGroups.push([note(1440, noteTypes.blueDrum, noteFlags.ghost)])
+		track.noteEventGroups.push([note(1920, noteTypes.greenDrum, noteFlags.cymbal)])
+
+		const text = writeChartFile(chart)
+		const re = parseChartAndIni([
+			{ fileName: 'notes.chart', data: new TextEncoder().encode(text) },
+			{ fileName: 'song.ini', data: new TextEncoder().encode('[Song]\npro_drums = True\n') },
+		])
+		const reTrack = re.parsedChart!.trackData.find(t => t.instrument === 'drums' && t.difficulty === 'expert')!
+		const types = reTrack.noteEventGroups.flatMap(g => g.map(n => ({ tick: n.tick, type: n.type, flags: n.flags })))
+		expect(types).toEqual([
+			{ tick: 0, type: noteTypes.kick, flags: 0 },
+			{ tick: 480, type: noteTypes.redDrum, flags: expect.any(Number) },
+			{ tick: 960, type: noteTypes.yellowDrum, flags: expect.any(Number) },
+			{ tick: 1440, type: noteTypes.blueDrum, flags: expect.any(Number) },
+			{ tick: 1920, type: noteTypes.greenDrum, flags: expect.any(Number) },
+		])
+		// Flag checks: accent/cymbal/ghost round-trip
+		expect(types[1].flags & noteFlags.accent).toBeTruthy()
+		expect(types[2].flags & noteFlags.cymbal).toBeTruthy()
+		expect(types[3].flags & noteFlags.ghost).toBeTruthy()
+		expect(types[4].flags & noteFlags.cymbal).toBeTruthy()
+	})
+
+	it('round-trips star power + solo + flex lanes on a drum track', () => {
+		const chart = createEmptyChart({ resolution: 480 })
+		const track = addDrumTrack(chart)
+		track.noteEventGroups.push([note(0, noteTypes.kick)])
+		track.starPowerSections.push({ tick: 0, length: 960, msTime: 0, msLength: 0 })
+		track.soloSections.push({ tick: 480, length: 480, msTime: 0, msLength: 0 })
+		track.flexLanes.push({ tick: 960, length: 480, isDouble: true, msTime: 0, msLength: 0 })
+
+		const text = writeChartFile(chart)
+		const re = parseChartAndIni([{ fileName: 'notes.chart', data: new TextEncoder().encode(text) }])
+		const reTrack = re.parsedChart!.trackData.find(t => t.instrument === 'drums')!
+		expect(reTrack.starPowerSections.map(s => ({ t: s.tick, l: s.length }))).toEqual([{ t: 0, l: 960 }])
+		expect(reTrack.soloSections.map(s => ({ t: s.tick, l: s.length }))).toEqual([{ t: 480, l: 480 }])
+		expect(reTrack.flexLanes.map(f => ({ t: f.tick, l: f.length, d: f.isDouble }))).toEqual([
+			{ t: 960, l: 480, d: true },
+		])
+	})
+})
