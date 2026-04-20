@@ -1,4 +1,5 @@
 export * from './chart-scanner'
 export * from './chart-writer'
 export * from './create-chart'
+export * from './midi-writer'
 export * from './parse-chart-and-ini'
