@@ -5,7 +5,7 @@
  *   - `metadata.extraChartSongFields` — unknown `[Song]` keys (Moonscraper /
  *     GHTCP deprecated fields, audio-stream filenames, `Player2`, `HoPo`,
  *     `PreviewEnd`, `MediaType`, …)
- *   - `unknownSyncTrackEvents` — `[SyncTrack]` lines that aren't tempo (`B`)
+ *   - `unrecognizedSyncTrackEvents` — `[SyncTrack]` lines that aren't tempo (`B`)
  *     or time signature (`TS`); today this is primarily tempo anchors (`A`),
  *     but the bucket is type-agnostic so future SyncTrack event types survive.
  *
@@ -127,10 +127,10 @@ describe('.chart [Song] unknown-key preservation (metadata.extraChartSongFields)
 })
 
 // ---------------------------------------------------------------------------
-// unknownSyncTrackEvents
+// unrecognizedSyncTrackEvents
 // ---------------------------------------------------------------------------
 
-describe('.chart [SyncTrack] unknown-event preservation (unknownSyncTrackEvents)', () => {
+describe('.chart [SyncTrack] unknown-event preservation (unrecognizedSyncTrackEvents)', () => {
 	it('preserves tempo anchors (A) verbatim', () => {
 		const chart = buildChart({
 			Song: ['Resolution = 192', 'Name = "T"'],
@@ -144,7 +144,7 @@ describe('.chart [SyncTrack] unknown-event preservation (unknownSyncTrackEvents)
 			Events: [],
 		})
 		const r = parseNotesFromChart(chart)
-		expect(r.unknownSyncTrackEvents).toEqual([
+		expect(r.unrecognizedSyncTrackEvents).toEqual([
 			{ tick: 0, text: 'A 0' },
 			{ tick: 3840, text: 'A 8805460' },
 		])
@@ -166,7 +166,7 @@ describe('.chart [SyncTrack] unknown-event preservation (unknownSyncTrackEvents)
 			Events: [],
 		})
 		const r = parseNotesFromChart(chart)
-		expect(r.unknownSyncTrackEvents).toEqual([{ tick: 1920, text: 'FUTURE 12 34 56' }])
+		expect(r.unrecognizedSyncTrackEvents).toEqual([{ tick: 1920, text: 'FUTURE 12 34 56' }])
 	})
 
 	it('is empty when [SyncTrack] only has tempos and time signatures', () => {
@@ -176,12 +176,12 @@ describe('.chart [SyncTrack] unknown-event preservation (unknownSyncTrackEvents)
 			Events: [],
 		})
 		const r = parseNotesFromChart(chart)
-		expect(r.unknownSyncTrackEvents).toEqual([])
+		expect(r.unrecognizedSyncTrackEvents).toEqual([])
 	})
 
-	it('.mid does not populate unknownSyncTrackEvents (field is .chart-only)', () => {
+	it('.mid does not populate unrecognizedSyncTrackEvents (field is .chart-only)', () => {
 		const midi = buildMidi(480, [tempoTrack()])
 		const r = parseNotesFromMidi(midi, defaultIniChartModifiers)
-		expect(r.unknownSyncTrackEvents).toEqual([])
+		expect(r.unrecognizedSyncTrackEvents).toEqual([])
 	})
 })

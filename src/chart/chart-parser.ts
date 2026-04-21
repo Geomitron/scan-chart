@@ -160,7 +160,7 @@ export function parseNotesFromChart(data: Uint8Array): RawChartData {
 		},
 		tempos: parseChartTempos(fileSections['SyncTrack']),
 		timeSignatures: parseChartTimeSignatures(fileSections['SyncTrack']),
-		unknownSyncTrackEvents: parseChartUnknownSyncTrackEvents(fileSections['SyncTrack'] ?? []),
+		unrecognizedSyncTrackEvents: parseChartUnrecognizedSyncTrackEvents(fileSections['SyncTrack'] ?? []),
 		sections: eventsScan.sections,
 		endEvents: eventsScan.endEvents,
 		unrecognizedEventsTrackTextEvents: eventsScan.unrecognizedTextEvents,
@@ -401,7 +401,7 @@ function parseChartTimeSignatures(lines: string[]): { tick: number; numerator: n
  * intentionally type-agnostic so any future `[SyncTrack]` event type survives
  * a parse → write loop without parser updates.
  */
-function parseChartUnknownSyncTrackEvents(lines: string[]): { tick: number; text: string }[] {
+function parseChartUnrecognizedSyncTrackEvents(lines: string[]): { tick: number; text: string }[] {
 	const out: { tick: number; text: string }[] = []
 	for (const line of lines) {
 		if (chartSyncTempo.test(line)) continue

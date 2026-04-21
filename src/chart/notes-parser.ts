@@ -94,7 +94,7 @@ export function parseChartFile(data: Uint8Array, format: 'chart' | 'mid', partia
 		unrecognizedChartSections: rawChartData.unrecognizedChartSections,
 		tempos: timedTempos,
 		timeSignatures: setEventMsTimes(rawChartData.timeSignatures, timedTempos, rawChartData.chartTicksPerBeat),
-		unknownSyncTrackEvents: rawChartData.unknownSyncTrackEvents,
+		unrecognizedSyncTrackEvents: rawChartData.unrecognizedSyncTrackEvents,
 		sections: setEventMsTimes(rawChartData.sections, timedTempos, rawChartData.chartTicksPerBeat),
 		trackData: trackDataResult,
 	}
