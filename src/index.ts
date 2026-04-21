@@ -5,7 +5,7 @@ import { scanAudio } from './audio'
 import { parseChartAndIni, ParseChartAndIniResult, scanParsedChart } from './chart'
 import { scanImage } from './image'
 import { defaultMetadata } from './ini'
-import { Instrument, ScanChartFolderConfig, ScannedChart } from './interfaces'
+import { File, Instrument, ScanChartFolderConfig, ScannedChart } from './interfaces'
 import { RequireMatchingProps, Subset } from './utils'
 import { scanVideo } from './video'
 
@@ -21,7 +21,7 @@ export { calculateTrackHash } from './chart/track-hasher'
  * Validate, hash, and asset-scan a parsed chart folder. Pair with `parseChartAndIni()` to get the input.
  */
 export function scanChart(
-	files: { fileName: string; data: Uint8Array }[],
+	files: File[],
 	parseResult: ParseChartAndIniResult,
 	config?: ScanChartFolderConfig,
 ): ScannedChart {
@@ -141,11 +141,11 @@ export function scanChart(
  * @deprecated Call `parseChartAndIni()` + `scanChart()` directly. Preserved
  * as a back-compat shim for existing callers.
  */
-export function scanChartFolder(files: { fileName: string; data: Uint8Array }[], config?: ScanChartFolderConfig): ScannedChart {
+export function scanChartFolder(files: File[], config?: ScanChartFolderConfig): ScannedChart {
 	return scanChart(files, parseChartAndIni(files), config)
 }
 
-function getChartMD5(files: { fileName: string; data: Uint8Array }[]) {
+function getChartMD5(files: File[]) {
 	const hash = md5.create()
 	for (const file of _.orderBy(files, f => f.fileName)) {
 		hash.update(file.fileName)

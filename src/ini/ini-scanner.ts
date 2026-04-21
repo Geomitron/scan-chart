@@ -1,4 +1,4 @@
-import { FolderIssueType, MetadataIssueType } from '../interfaces'
+import { File, FolderIssueType, MetadataIssueType } from '../interfaces'
 import { hasIniExtension, hasIniName, removeStyleTags } from '../utils'
 import { parseIni } from './ini-parser'
 
@@ -87,7 +87,7 @@ const integerProperties: MetaNumberKey[] = [
 ]
 const requiredProperties: MetaStringKey[] = ['name', 'artist', 'album', 'genre', 'year', 'charter']
 
-export function scanIni(files: { fileName: string; data: Uint8Array }[]) {
+export function scanIni(files: File[]) {
 	const folderIssues: { folderIssue: FolderIssueType; description: string }[] = []
 
 	const findIniDataResult = findIniData(files)
@@ -112,7 +112,7 @@ export function scanIni(files: { fileName: string; data: Uint8Array }[]) {
 /**
  * @returns the .ini file data in this chart, or `null` if one wasn't found.
  */
-function findIniData(files: { fileName: string; data: Uint8Array }[]): {
+function findIniData(files: File[]): {
 	iniData: Uint8Array | null
 	folderIssues: { folderIssue: FolderIssueType; description: string }[]
 } {

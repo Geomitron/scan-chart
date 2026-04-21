@@ -1,7 +1,7 @@
-import { FolderIssueType } from '../interfaces'
+import { File, FolderIssueType } from '../interfaces'
 import { hasBadVideoName, hasVideoName } from '../utils'
 
-export function scanVideo(files: { fileName: string; data: Uint8Array }[]) {
+export function scanVideo(files: File[]) {
 	const folderIssues: { folderIssue: FolderIssueType; description: string }[] = []
 
 	const findVideoDataResult = findVideoData(files)
@@ -10,7 +10,7 @@ export function scanVideo(files: { fileName: string; data: Uint8Array }[]) {
 	return { hasVideoBackground: !!findVideoDataResult.videoData, folderIssues }
 }
 
-function findVideoData(files: { fileName: string; data: Uint8Array }[]) {
+function findVideoData(files: File[]) {
 	const folderIssues: { folderIssue: FolderIssueType; description: string }[] = []
 	let videoCount = 0
 	let bestVideoData: Uint8Array | null = null

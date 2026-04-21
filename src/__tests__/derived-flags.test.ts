@@ -17,8 +17,9 @@ import { parseChartFile } from '../chart/notes-parser'
 import { defaultIniChartModifiers } from '../chart/note-parsing-interfaces'
 import { scanChart } from '..'
 import { parseChartAndIni } from '../chart/parse-chart-and-ini'
+import { File } from '../interfaces'
 
-function buildChart(body: string): { fileName: string; data: Uint8Array }[] {
+function buildChart(body: string): File[] {
 	return [{ fileName: 'notes.chart', data: new TextEncoder().encode(body) }]
 }
 

@@ -1,11 +1,11 @@
 import * as _ from 'lodash'
 
-import { FolderIssueType } from '../interfaces'
+import { File, FolderIssueType } from '../interfaces'
 import { getBasename, hasAudioExtension, hasAudioName } from '../utils'
 
 // TODO: use _max_threads
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-export function scanAudio(files: { fileName: string; data: Uint8Array }[]) {
+export function scanAudio(files: File[]) {
 	const folderIssues: { folderIssue: FolderIssueType; description: string }[] = []
 
 	const findAudioDataResult = findAudioData(files)
@@ -31,7 +31,7 @@ export function scanAudio(files: { fileName: string; data: Uint8Array }[]) {
 /**
  * @returns the audio file(s) in this chart, or `[]` if none were found.
  */
-function findAudioData(files: { fileName: string; data: Uint8Array }[]) {
+function findAudioData(files: File[]) {
 	const folderIssues: { folderIssue: FolderIssueType; description: string }[] = []
 	const audioData: Uint8Array[] = []
 	const stemNames: string[] = []
