@@ -91,15 +91,28 @@ export interface RawChartData {
 		tick: number
 	}[]
 	/**
-	 * Remaining text-like events from the EVENTS track that weren't recognized
-	 * and routed to a typed field (sections, endEvents, vocalTracks). These
-	 * include crowd events, music_start/end, drums mix events, coda markers,
-	 * and any custom/unknown text events.
+	 * Text-like events on the EVENTS track that weren't recognized and routed
+	 * to a typed field (sections, endEvents, vocalTracks). These include crowd
+	 * events, music_start/end, drums mix events, coda markers, and any
+	 * custom/unknown text events. Populated from both `.mid` (FF 01 / FF 05 /
+	 * FF 06 / FF 07) and `.chart` (`E "text"` in `[Events]`).
 	 */
-	unrecognizedEvents: {
+	unrecognizedEventsTrackTextEvents: {
 		tick: number
 		text: string
 	}[]
+	/**
+	 * Non-text-like MIDI events on the EVENTS track — most notably Rock Band
+	 * practice-mode assist sample notes (note numbers 24/25/26), documented in
+	 * `Implementation-Specific/Rock-Band/MIDI-Tracks/Global-Events.md`. Also
+	 * catches stray channel/sysex/meta events an authoring tool left on the
+	 * EVENTS track. Stored verbatim (`deltaTime` is absolute ticks) so writers
+	 * can re-emit them. Structural events (`trackName`, `endOfTrack`) are
+	 * excluded — writers emit those independently.
+	 *
+	 * `.chart` always returns `[]` here.
+	 */
+	unrecognizedEventsTrackMidiEvents: MidiEvent[]
 	/**
 	 * Issues detected at parse time (before `findChartIssues` runs). `chart-scanner`
 	 * concatenates these into the final `chartIssues` array, attaching the standard
