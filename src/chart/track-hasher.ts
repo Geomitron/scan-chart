@@ -1,4 +1,4 @@
-import { blake3 } from '@noble/hashes/blake3'
+import { blake3 } from '@awasm/noble'
 
 import * as _ from 'lodash'
 import { base64url } from 'rfc4648'
