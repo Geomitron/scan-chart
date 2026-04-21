@@ -1,5 +1,15 @@
 import { ObjectValues } from './utils'
 
+/**
+ * A single file from a chart folder: the (case-preserved) file name and the
+ * raw bytes. Every scan-chart API that takes "a chart folder" takes a
+ * `File[]` of this shape.
+ */
+export interface File {
+	fileName: string
+	data: Uint8Array
+}
+
 export interface ScanChartFolderConfig {
 	/**
 	 * Set this to false to skip calculating `ScannedChart.md5`. It will be set to 'md5 calculation skipped' instead.

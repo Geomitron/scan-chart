@@ -3,9 +3,10 @@
  */
 
 import { describe, it, expect } from 'vitest'
+import { File } from '../interfaces'
 import { scanIni } from '../ini/ini-scanner'
 
-function buildIni(lines: string[]): { fileName: string; data: Uint8Array }[] {
+function buildIni(lines: string[]): File[] {
 	const text = lines.join('\r\n')
 	return [{ fileName: 'song.ini', data: new TextEncoder().encode(text) }]
 }

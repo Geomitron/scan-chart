@@ -1,7 +1,7 @@
 import * as _ from 'lodash'
 
 import { scanIni } from '../ini'
-import { FolderIssueType, MetadataIssueType } from '../interfaces'
+import { File, FolderIssueType, MetadataIssueType } from '../interfaces'
 import { getExtension, hasChartExtension, hasChartName } from '../utils'
 import { defaultIniChartModifiers, IniChartModifiers } from './note-parsing-interfaces'
 import { parseChartFile } from './notes-parser'
@@ -63,7 +63,7 @@ export interface ParseChartAndIniResult {
  * `ParsedChart`, with no hashing or audio/image scanning. Pair with
  * `scanChart` if you need hashes, chart issues, or asset scanning.
  */
-export function parseChartAndIni(files: { fileName: string; data: Uint8Array }[]): ParseChartAndIniResult {
+export function parseChartAndIni(files: File[]): ParseChartAndIniResult {
 	const iniData = scanIni(files)
 	const iniChartModifiers: IniChartModifiers = iniData.metadata
 		? { ...defaultIniChartModifiers, ...iniData.metadata }
@@ -112,7 +112,7 @@ export function parseChartAndIni(files: { fileName: string; data: Uint8Array }[]
 	}
 }
 
-function findChartData(files: { fileName: string; data: Uint8Array }[]) {
+function findChartData(files: File[]) {
 	const folderIssues: { folderIssue: FolderIssueType; description: string }[] = []
 
 	const chartFiles = _.chain(files)
