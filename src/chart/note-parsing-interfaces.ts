@@ -1,4 +1,4 @@
-import type { MidiEvent } from 'midi-file'
+import type { MidiEvent } from '@geomitron/midi-file'
 import { defaultMetadata } from 'src/ini'
 import { Difficulty, Instrument, NotesData } from 'src/interfaces'
 import { ObjectValues } from 'src/utils'

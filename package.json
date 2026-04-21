@@ -26,12 +26,12 @@
 	"homepage": "https://github.com/Geomitron/scan-chart#readme",
 	"dependencies": {
 		"@awasm/noble": "^0.1.1",
+		"@geomitron/midi-file": "^1.2.5",
 		"bottleneck": "^2.19.5",
 		"exifreader": "^4.23.2",
 		"fluent-ffmpeg": "^2.1.2",
 		"js-md5": "^0.8.3",
 		"lodash": "^4.17.21",
-		"midi-file": "^1.2.4",
 		"rfc4648": "^1.5.3",
 		"sanitize-filename": "^1.6.3",
 		"stream-audio-fingerprint": "git+https://github.com/Geomitron/stream-audio-fingerprint.git",

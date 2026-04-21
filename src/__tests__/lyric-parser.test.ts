@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parseMidi } from 'midi-file'
+import { parseMidi } from '@geomitron/midi-file'
 import {
 	parseChartLyricLine,
 	parseChartVocalPhraseLine,
