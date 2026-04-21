@@ -237,6 +237,16 @@ function buildEventsTrack(chart: ParsedChart): MidiEvent[] {
 		}
 	}
 
+	// Round-trip any non-text events that were on the EVENTS track in the
+	// source `.mid` — most notably RB practice-mode assist sample notes
+	// (note numbers 24/25/26), plus stray sysex / channel / meta events an
+	// authoring tool happened to leave here. Events arrive with `deltaTime`
+	// already expanded to absolute-tick (per scan-chart's post-process);
+	// `finalizeMidiTrack` converts back to per-event delta below.
+	for (const ev of chart.unrecognizedEventsTrackMidiEvents) {
+		events.push({ tick: ev.deltaTime, event: { ...ev, deltaTime: 0 } })
+	}
+
 	return finalizeMidiTrack(events)
 }
 

@@ -82,6 +82,18 @@ function serializeSongSection(chart: ParsedChart): string[] {
 	}
 	if (m.diff_guitar != null) lines.push(`  Difficulty = ${m.diff_guitar}`)
 
+	// Round-trip any `[Song]` keys the parser didn't claim (deprecated
+	// Moonscraper / GHTCP fields — `Player2`, `HoPo`, `PreviewEnd`, `MediaType`,
+	// audio-stream filenames, etc.). Values are preserved verbatim: if the
+	// source didn't quote the value, we don't quote it here either. Consumers
+	// should treat these as opaque and never synthesize them — editors should
+	// discover audio via folder scan rather than trust `*Stream` values here.
+	if (m.extraChartSongFields) {
+		for (const [key, value] of Object.entries(m.extraChartSongFields)) {
+			lines.push(`  ${key} = ${value}`)
+		}
+	}
+
 	lines.push('}')
 	return lines
 }
@@ -96,6 +108,7 @@ function serializeSyncTrack(chart: ParsedChart): string[] {
 	type SyncEvent =
 		| { tick: number; order: 0; kind: 'ts'; numerator: number; denominator: number }
 		| { tick: number; order: 1; kind: 'bpm'; beatsPerMinute: number }
+		| { tick: number; order: 2; kind: 'raw'; text: string }
 
 	const events: SyncEvent[] = [
 		...chart.timeSignatures.map(
@@ -110,9 +123,12 @@ function serializeSyncTrack(chart: ParsedChart): string[] {
 		...chart.tempos.map(
 			(t): SyncEvent => ({ tick: t.tick, order: 1, kind: 'bpm', beatsPerMinute: t.beatsPerMinute }),
 		),
+		...chart.unrecognizedSyncTrackEvents.map(
+			(e): SyncEvent => ({ tick: e.tick, order: 2, kind: 'raw', text: e.text }),
+		),
 	]
 
-	// Sort by tick, then TS before B at the same tick. Duplicates preserved.
+	// Sort by tick, then TS < B < raw at the same tick. Duplicates preserved.
 	events.sort((a, b) => {
 		if (a.tick !== b.tick) return a.tick - b.tick
 		return a.order - b.order
@@ -122,6 +138,8 @@ function serializeSyncTrack(chart: ParsedChart): string[] {
 		if (ev.kind === 'bpm') {
 			const millibeats = Math.round(ev.beatsPerMinute * 1000)
 			lines.push(`  ${ev.tick} = B ${millibeats}`)
+		} else if (ev.kind === 'raw') {
+			lines.push(`  ${ev.tick} = ${ev.text}`)
 		} else if (ev.denominator === 4) {
 			lines.push(`  ${ev.tick} = TS ${ev.numerator}`)
 		} else {
