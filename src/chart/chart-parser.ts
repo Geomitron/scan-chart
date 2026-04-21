@@ -61,6 +61,19 @@ const trackNameMap = {
 const discoFlipDifficultyMap = ['easy', 'medium', 'hard', 'expert'] as const
 
 /**
+ * `[Song]` keys that a typed metadata field claims. Anything outside this set
+ * is preserved on `metadata.extraChartSongFields` so it round-trips verbatim
+ * (deprecated Moonscraper / GHTCP fields, audio stream filenames, `Player2`,
+ * `HoPo`, `PreviewEnd`, etc.). `Resolution` is not a metadata field but is
+ * claimed here because it's emitted separately from the chart's tick-rate.
+ */
+const CLAIMED_SONG_KEYS = new Set<string>([
+	'Resolution',
+	'Name', 'Artist', 'Album', 'Genre', 'Year', 'Charter',
+	'Difficulty', 'Offset', 'PreviewStart',
+])
+
+/**
  * Parses `buffer` as a chart in the .chart format. Returns all the note data in `RawChartData`, but any
  * chart format rules that apply to both .chart and .mid have not been applied. This is a partial result
  * that can be produced by both the .chart and .mid formats so that the remaining chart rules can be parsed
@@ -99,6 +112,15 @@ export function parseNotesFromChart(data: Uint8Array): RawChartData {
 		throw 'Invalid .chart file: resolution not found.'
 	}
 
+	// Collect any [Song] keys not claimed by a typed metadata field into
+	// `extraChartSongFields` so they round-trip verbatim. Parallel to how
+	// `extraIniFields` preserves unknown song.ini keys.
+	const extraChartSongFields: { [key: string]: string } = {}
+	for (const [key, value] of Object.entries(metadata)) {
+		if (CLAIMED_SONG_KEYS.has(key)) continue
+		extraChartSongFields[key] = value
+	}
+
 	// Classify each line of the [Events] section into one of:
 	// sections, endEvents, codaEvents, or unrecognizedTextEvents (the remainder).
 	const eventsScan = scanEventsSection(fileSections['Events'] ?? [])
@@ -121,6 +143,7 @@ export function parseNotesFromChart(data: Uint8Array): RawChartData {
 			// it never collides with the ini-origin `delay` on merge.
 			chart_offset: Number(metadata['Offset']) ? Number(metadata['Offset']) * 1000 : undefined,
 			preview_start_time: Number(metadata['PreviewStart']) ? Number(metadata['PreviewStart']) * 1000 : undefined,
+			...(Object.keys(extraChartSongFields).length > 0 ? { extraChartSongFields } : {}),
 		},
 		vocalTracks: {
 			vocals: {
@@ -137,6 +160,7 @@ export function parseNotesFromChart(data: Uint8Array): RawChartData {
 		},
 		tempos: parseChartTempos(fileSections['SyncTrack']),
 		timeSignatures: parseChartTimeSignatures(fileSections['SyncTrack']),
+		unknownSyncTrackEvents: parseChartUnknownSyncTrackEvents(fileSections['SyncTrack'] ?? []),
 		sections: eventsScan.sections,
 		endEvents: eventsScan.endEvents,
 		unrecognizedEventsTrackTextEvents: eventsScan.unrecognizedTextEvents,
@@ -322,6 +346,7 @@ const chartLineNS = /^(\d+) = ([NS]) (\w+)( \d+)?$/
 const chartLineDiscoFlipE = /^\s*\[?mix[ _]([0-3])[ _]drums([0-5])(d|dnoflip|easy|easynokick|)\]?\s*$/
 const chartSyncTempo = /^(\d+) = B (\d+)$/
 const chartSyncTS = /^(\d+) = TS (\d+)(?: (\d+))?$/
+const chartSyncUnknown = /^(\d+) = (.+)$/
 const chartSongMetaRegex = /^(.+?) = "?(.*?)"?$/
 
 function parseChartTempos(lines: string[]): { tick: number; beatsPerMinute: number }[] {
@@ -367,6 +392,25 @@ function parseChartTimeSignatures(lines: string[]): { tick: number; numerator: n
 		result.unshift({ tick: 0, numerator: 4, denominator: 4 })
 	}
 	return result
+}
+
+/**
+ * Collect `[SyncTrack]` lines that aren't tempos (`B`) or time signatures
+ * (`TS`) into a raw-preserved bucket so they round-trip verbatim. Today this
+ * mostly catches tempo anchors (`A <microseconds>`); the bucket is
+ * intentionally type-agnostic so any future `[SyncTrack]` event type survives
+ * a parse → write loop without parser updates.
+ */
+function parseChartUnknownSyncTrackEvents(lines: string[]): { tick: number; text: string }[] {
+	const out: { tick: number; text: string }[] = []
+	for (const line of lines) {
+		if (chartSyncTempo.test(line)) continue
+		if (chartSyncTS.test(line)) continue
+		const m = chartSyncUnknown.exec(line)
+		if (!m) continue
+		out.push({ tick: Number(m[1]), text: m[2] })
+	}
+	return out
 }
 
 /**

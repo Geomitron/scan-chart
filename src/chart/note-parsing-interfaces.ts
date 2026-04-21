@@ -56,6 +56,20 @@ export interface RawChartData {
 		/** Unknown song.ini key/value pairs, preserved for round-trip writing. */
 		extraIniFields?: { [key: string]: string }
 		/**
+		 * Unknown `[Song]`-section key/value pairs from a `.chart` file,
+		 * preserved verbatim for round-trip writing. Counterpart to
+		 * `extraIniFields` for the chart file's metadata block. Covers
+		 * deprecated/legacy fields that games don't read but chart editors
+		 * like Moonscraper expect to see round-tripped — `Player2`, `HoPo`,
+		 * `PreviewEnd`, `MediaType`, `ArtistText`, audio-stream filenames
+		 * (`MusicStream`, `GuitarStream`, …), etc. Consumers should not
+		 * treat these as authoritative (e.g. audio filenames here should be
+		 * ignored in favor of folder scans), and writers should not
+		 * synthesize or update these values — only persist what the source
+		 * carried. `.mid` files do not populate this field.
+		 */
+		extraChartSongFields?: { [key: string]: string }
+		/**
 		 * `[Song].Offset` from the .chart file body, in milliseconds. Distinct
 		 * from the ini-origin `delay` field — games recognize `Offset` only in
 		 * [Song], and `delay` only in song.ini. Kept as a separate key so the
@@ -82,6 +96,20 @@ export interface RawChartData {
 		tick: number
 		numerator: number
 		denominator: number
+	}[]
+	/**
+	 * `[SyncTrack]` lines from a `.chart` file that are neither tempo (`B`)
+	 * nor time signature (`TS`). Preserved verbatim for round-trip so tempo
+	 * anchors (`A <microseconds>`) and any future SyncTrack event types
+	 * survive parse → write. `text` is the line content after `TICK = ` —
+	 * e.g. `"A 0"` for an anchor at time-position 0. Anchors are editor-time
+	 * audio-sync metadata and are not competitively relevant, but Moonscraper
+	 * and other editors make use of them. `.mid` files do not populate this
+	 * field.
+	 */
+	unknownSyncTrackEvents: {
+		tick: number
+		text: string
 	}[]
 	sections: {
 		tick: number
