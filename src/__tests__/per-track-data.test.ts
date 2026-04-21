@@ -741,14 +741,14 @@ describe('MIDI: global events', () => {
 
 		const midi = buildMidi(480, [tempoTrack(), events])
 		const result = parseNotesFromMidi(midi, defaultIniChartModifiers)
-		expect(result.unrecognizedEvents).toEqual([
+		expect(result.unrecognizedEventsTrackTextEvents).toEqual([
 			{ tick: 0, text: '[crowd_normal]' },
 			{ tick: 480, text: '[music_start]' },
 			{ tick: 1440, text: '[music_end]' },
 		])
 	})
 
-	it('excludes sections from unrecognizedEvents', () => {
+	it('excludes sections from unrecognizedEventsTrackTextEvents', () => {
 		const events: MidiData['tracks'][number] = [
 			{ deltaTime: 0, type: 'trackName', text: 'EVENTS' },
 			{ deltaTime: 0, type: 'text', text: '[section intro]' },
@@ -759,12 +759,12 @@ describe('MIDI: global events', () => {
 
 		const midi = buildMidi(480, [tempoTrack(), events])
 		const result = parseNotesFromMidi(midi, defaultIniChartModifiers)
-		expect(result.unrecognizedEvents).toEqual([
+		expect(result.unrecognizedEventsTrackTextEvents).toEqual([
 			{ tick: 480, text: '[crowd_intense]' },
 		])
 	})
 
-	it('excludes end events and coda from unrecognizedEvents', () => {
+	it('excludes end events and coda from unrecognizedEventsTrackTextEvents', () => {
 		const events: MidiData['tracks'][number] = [
 			{ deltaTime: 0, type: 'trackName', text: 'EVENTS' },
 			{ deltaTime: 480, type: 'text', text: '[end]' },
@@ -775,12 +775,12 @@ describe('MIDI: global events', () => {
 
 		const midi = buildMidi(480, [tempoTrack(), events])
 		const result = parseNotesFromMidi(midi, defaultIniChartModifiers)
-		expect(result.unrecognizedEvents).toEqual([
+		expect(result.unrecognizedEventsTrackTextEvents).toEqual([
 			{ tick: 960, text: '[crowd_clap]' },
 		])
 	})
 
-	it('includes misplaced lyric/phrase events in unrecognizedEvents (alongside parseIssues)', () => {
+	it('includes misplaced lyric/phrase events in unrecognizedEventsTrackTextEvents (alongside parseIssues)', () => {
 		// Lyrics and phrase markers belong on PART VOCALS, not EVENTS. Game engines
 		// drop them, but we round-trip them out so users can see and fix them.
 		const events: MidiData['tracks'][number] = [
@@ -794,7 +794,7 @@ describe('MIDI: global events', () => {
 
 		const midi = buildMidi(480, [tempoTrack(), events])
 		const result = parseNotesFromMidi(midi, defaultIniChartModifiers)
-		expect(result.unrecognizedEvents).toEqual([
+		expect(result.unrecognizedEventsTrackTextEvents).toEqual([
 			{ tick: 480, text: 'lyric Hello' },
 			{ tick: 960, text: 'phrase_start' },
 			{ tick: 1440, text: 'phrase_end' },
@@ -814,7 +814,7 @@ describe('MIDI: global events', () => {
 
 		const midi = buildMidi(480, [tempoTrack(), events])
 		const result = parseNotesFromMidi(midi, defaultIniChartModifiers)
-		expect(result.unrecognizedEvents).toEqual([
+		expect(result.unrecognizedEventsTrackTextEvents).toEqual([
 			{ tick: 0, text: '[crowd_normal]' },
 			{ tick: 480, text: '[music_start]' },
 			{ tick: 960, text: '[crowd_clap]' },
@@ -836,7 +836,7 @@ describe('MIDI: global events', () => {
 			{ tick: 0, name: 'intro' },
 			{ tick: 480, name: 'verse' },
 		])
-		expect(result.unrecognizedEvents).toEqual([])
+		expect(result.unrecognizedEventsTrackTextEvents).toEqual([])
 	})
 
 	it('reads end events from lyrics event type', () => {
@@ -849,13 +849,105 @@ describe('MIDI: global events', () => {
 		const midi = buildMidi(480, [tempoTrack(), events])
 		const result = parseNotesFromMidi(midi, defaultIniChartModifiers)
 		expect(result.endEvents).toEqual([{ tick: 960 }])
-		expect(result.unrecognizedEvents).toEqual([])
+		expect(result.unrecognizedEventsTrackTextEvents).toEqual([])
 	})
 
 	it('returns empty array when no EVENTS track', () => {
 		const midi = buildMidi(480, [tempoTrack()])
 		const result = parseNotesFromMidi(midi, defaultIniChartModifiers)
-		expect(result.unrecognizedEvents).toEqual([])
+		expect(result.unrecognizedEventsTrackTextEvents).toEqual([])
+	})
+
+	// -----------------------------------------------------------------------
+	// unrecognizedEventsTrackMidiEvents: non-text-like events on EVENTS track
+	// are preserved verbatim for round-trip. Key case: Rock Band practice-mode
+	// assist notes 24/25/26 (spec:
+	// Implementation-Specific/Rock-Band/MIDI-Tracks/Global-Events.md).
+	// -----------------------------------------------------------------------
+
+	it('captures RB practice assist notes (24/25/26) on EVENTS as unrecognized MIDI events', () => {
+		const events: MidiData['tracks'][number] = [
+			{ deltaTime: 0, type: 'trackName', text: 'EVENTS' },
+			{ deltaTime: 480, type: 'noteOn', channel: 0, noteNumber: 24, velocity: 100 },
+			{ deltaTime: 240, type: 'noteOff', channel: 0, noteNumber: 24, velocity: 0 },
+			{ deltaTime: 240, type: 'noteOn', channel: 0, noteNumber: 25, velocity: 100 },
+			{ deltaTime: 240, type: 'noteOff', channel: 0, noteNumber: 25, velocity: 0 },
+			{ deltaTime: 240, type: 'noteOn', channel: 0, noteNumber: 26, velocity: 100 },
+			{ deltaTime: 240, type: 'noteOff', channel: 0, noteNumber: 26, velocity: 0 },
+			{ deltaTime: 0, type: 'endOfTrack' },
+		]
+		const midi = buildMidi(480, [tempoTrack(), events])
+		const result = parseNotesFromMidi(midi, defaultIniChartModifiers)
+
+		const bucket = result.unrecognizedEventsTrackMidiEvents
+		expect(bucket).toHaveLength(6)
+		// deltaTime is absolute after parser conversion
+		expect(bucket.map(e => (e as { noteNumber: number }).noteNumber)).toEqual([24, 24, 25, 25, 26, 26])
+		expect(bucket.map(e => e.type)).toEqual(['noteOn', 'noteOff', 'noteOn', 'noteOff', 'noteOn', 'noteOff'])
+		expect(bucket.map(e => e.deltaTime)).toEqual([480, 720, 960, 1200, 1440, 1680])
+	})
+
+	it('captures stray sysEx on EVENTS as unrecognized MIDI events', () => {
+		const events: MidiData['tracks'][number] = [
+			{ deltaTime: 0, type: 'trackName', text: 'EVENTS' },
+			{ deltaTime: 480, type: 'sysEx', data: [0x50, 0x53, 0x00, 0x00, 0xff, 0x04, 0x01, 0xf7] },
+			{ deltaTime: 0, type: 'endOfTrack' },
+		]
+		const midi = buildMidi(480, [tempoTrack(), events])
+		const result = parseNotesFromMidi(midi, defaultIniChartModifiers)
+		const bucket = result.unrecognizedEventsTrackMidiEvents
+		expect(bucket).toHaveLength(1)
+		expect(bucket[0].type).toBe('sysEx')
+		expect(bucket[0].deltaTime).toBe(480)
+	})
+
+	it('does NOT include text-like events in unrecognizedEventsTrackMidiEvents', () => {
+		// text/lyrics/marker/cuePoint are routed into sections/endEvents/unrecognizedEventsTrackTextEvents
+		// (the {tick,text}[] bucket). They must not also leak into the MIDI-events bucket.
+		const events: MidiData['tracks'][number] = [
+			{ deltaTime: 0, type: 'trackName', text: 'EVENTS' },
+			{ deltaTime: 0, type: 'text', text: '[crowd_normal]' },
+			{ deltaTime: 480, type: 'lyrics', text: '[music_start]' },
+			{ deltaTime: 480, type: 'marker', text: '[section verse]' },
+			{ deltaTime: 480, type: 'cuePoint', text: '[music_end]' },
+			{ deltaTime: 0, type: 'endOfTrack' },
+		]
+		const midi = buildMidi(480, [tempoTrack(), events])
+		const result = parseNotesFromMidi(midi, defaultIniChartModifiers)
+		expect(result.unrecognizedEventsTrackMidiEvents).toEqual([])
+	})
+
+	it('excludes structural trackName/endOfTrack from unrecognizedEventsTrackMidiEvents', () => {
+		// Writers re-emit trackName/endOfTrack independently; they shouldn't
+		// show up in the bucket or they'd be emitted twice.
+		const events: MidiData['tracks'][number] = [
+			{ deltaTime: 0, type: 'trackName', text: 'EVENTS' },
+			{ deltaTime: 480, type: 'noteOn', channel: 0, noteNumber: 26, velocity: 100 },
+			{ deltaTime: 240, type: 'noteOff', channel: 0, noteNumber: 26, velocity: 0 },
+			{ deltaTime: 0, type: 'endOfTrack' },
+		]
+		const midi = buildMidi(480, [tempoTrack(), events])
+		const result = parseNotesFromMidi(midi, defaultIniChartModifiers)
+		const types = result.unrecognizedEventsTrackMidiEvents.map(e => e.type)
+		expect(types).not.toContain('trackName')
+		expect(types).not.toContain('endOfTrack')
+		expect(types).toEqual(['noteOn', 'noteOff'])
+	})
+
+	it('returns empty array when no EVENTS track (MIDI events bucket)', () => {
+		const midi = buildMidi(480, [tempoTrack()])
+		const result = parseNotesFromMidi(midi, defaultIniChartModifiers)
+		expect(result.unrecognizedEventsTrackMidiEvents).toEqual([])
+	})
+
+	it('.chart returns [] for unrecognizedEventsTrackMidiEvents (MIDI-only field)', () => {
+		const chart = buildChart({
+			Song: ['Resolution = 192'],
+			SyncTrack: ['0 = B 120000', '0 = TS 4'],
+			Events: ['192 = E "crowd_normal"'],
+		})
+		const result = parseNotesFromChart(chart)
+		expect(result.unrecognizedEventsTrackMidiEvents).toEqual([])
 	})
 })
 
@@ -877,7 +969,7 @@ describe('.chart: global events', () => {
 		})
 
 		const result = parseNotesFromChart(chart)
-		expect(result.unrecognizedEvents).toEqual([
+		expect(result.unrecognizedEventsTrackTextEvents).toEqual([
 			{ tick: 0, text: 'crowd_normal' },
 			{ tick: 192, text: 'music_start' },
 			{ tick: 768, text: 'music_end' },
@@ -899,7 +991,7 @@ describe('.chart: global events', () => {
 		})
 
 		const result = parseNotesFromChart(chart)
-		expect(result.unrecognizedEvents).toEqual([
+		expect(result.unrecognizedEventsTrackTextEvents).toEqual([
 			{ tick: 768, text: 'crowd_clap' },
 		])
 	})
@@ -912,7 +1004,7 @@ describe('.chart: global events', () => {
 		})
 
 		const result = parseNotesFromChart(chart)
-		expect(result.unrecognizedEvents).toEqual([])
+		expect(result.unrecognizedEventsTrackTextEvents).toEqual([])
 	})
 })
 
@@ -999,7 +1091,7 @@ describe('section name parsing', () => {
 // ---------------------------------------------------------------------------
 
 describe('MIDI: invalid lyric/phrase events on EVENTS track', () => {
-	it('emits invalidLyric for lyric text events on EVENTS and round-trips them via unrecognizedEvents', () => {
+	it('emits invalidLyric for lyric text events on EVENTS and round-trips them via unrecognizedEventsTrackTextEvents', () => {
 		const events: MidiData['tracks'][number] = [
 			{ deltaTime: 0, type: 'trackName', text: 'EVENTS' },
 			{ deltaTime: 480, type: 'text', text: 'lyric Hello' },
@@ -1009,10 +1101,10 @@ describe('MIDI: invalid lyric/phrase events on EVENTS track', () => {
 		const midi = buildMidi(480, [tempoTrack(), events])
 		const result = parseNotesFromMidi(midi, defaultIniChartModifiers)
 		expect(result.parseIssues.filter(i => i.noteIssue === 'invalidLyric')).toHaveLength(2)
-		expect(result.unrecognizedEvents.map(e => e.text).sort()).toEqual(['[lyric world]', 'lyric Hello'])
+		expect(result.unrecognizedEventsTrackTextEvents.map(e => e.text).sort()).toEqual(['[lyric world]', 'lyric Hello'])
 	})
 
-	it('emits invalidPhraseStart for phrase_start text events on EVENTS and round-trips them via unrecognizedEvents', () => {
+	it('emits invalidPhraseStart for phrase_start text events on EVENTS and round-trips them via unrecognizedEventsTrackTextEvents', () => {
 		const events: MidiData['tracks'][number] = [
 			{ deltaTime: 0, type: 'trackName', text: 'EVENTS' },
 			{ deltaTime: 480, type: 'text', text: 'phrase_start' },
@@ -1022,10 +1114,10 @@ describe('MIDI: invalid lyric/phrase events on EVENTS track', () => {
 		const midi = buildMidi(480, [tempoTrack(), events])
 		const result = parseNotesFromMidi(midi, defaultIniChartModifiers)
 		expect(result.parseIssues.filter(i => i.noteIssue === 'invalidPhraseStart')).toHaveLength(2)
-		expect(result.unrecognizedEvents.map(e => e.text).sort()).toEqual(['[phrase_start]', 'phrase_start'])
+		expect(result.unrecognizedEventsTrackTextEvents.map(e => e.text).sort()).toEqual(['[phrase_start]', 'phrase_start'])
 	})
 
-	it('emits invalidPhraseEnd for phrase_end text events on EVENTS and round-trips them via unrecognizedEvents', () => {
+	it('emits invalidPhraseEnd for phrase_end text events on EVENTS and round-trips them via unrecognizedEventsTrackTextEvents', () => {
 		const events: MidiData['tracks'][number] = [
 			{ deltaTime: 0, type: 'trackName', text: 'EVENTS' },
 			{ deltaTime: 480, type: 'text', text: 'phrase_end' },
@@ -1035,7 +1127,7 @@ describe('MIDI: invalid lyric/phrase events on EVENTS track', () => {
 		const midi = buildMidi(480, [tempoTrack(), events])
 		const result = parseNotesFromMidi(midi, defaultIniChartModifiers)
 		expect(result.parseIssues.filter(i => i.noteIssue === 'invalidPhraseEnd')).toHaveLength(2)
-		expect(result.unrecognizedEvents.map(e => e.text).sort()).toEqual(['[phrase_end]', 'phrase_end'])
+		expect(result.unrecognizedEventsTrackTextEvents.map(e => e.text).sort()).toEqual(['[phrase_end]', 'phrase_end'])
 	})
 
 	it('emits a mix of invalidLyric/PhraseStart/PhraseEnd when all coexist', () => {

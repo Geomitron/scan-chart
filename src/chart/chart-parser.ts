@@ -100,7 +100,7 @@ export function parseNotesFromChart(data: Uint8Array): RawChartData {
 	}
 
 	// Classify each line of the [Events] section into one of:
-	// sections, endEvents, codaEvents, or unrecognizedEvents.
+	// sections, endEvents, codaEvents, or unrecognizedTextEvents (the remainder).
 	const eventsScan = scanEventsSection(fileSections['Events'] ?? [])
 	const firstCodaTick = eventsScan.codaEvents[0]?.tick ?? null
 
@@ -139,9 +139,10 @@ export function parseNotesFromChart(data: Uint8Array): RawChartData {
 		timeSignatures: parseChartTimeSignatures(fileSections['SyncTrack']),
 		sections: eventsScan.sections,
 		endEvents: eventsScan.endEvents,
-		unrecognizedEvents: eventsScan.unrecognizedEvents,
+		unrecognizedEventsTrackTextEvents: eventsScan.unrecognizedTextEvents,
 		parseIssues: [],
 		unrecognizedMidiTracks: [], // MIDI-only
+		unrecognizedEventsTrackMidiEvents: [], // MIDI-only
 		unrecognizedChartSections: buildUnrecognizedChartSections(fileSections, fileSectionKeys),
 		trackData: buildChartTrackData(fileSections, firstCodaTick),
 	}
@@ -597,23 +598,24 @@ interface ChartEventsScanResult {
 	sections: { tick: number; name: string }[]
 	endEvents: { tick: number }[]
 	codaEvents: { tick: number }[]
-	/** All remaining E-events not recognized as sections/end/coda/lyrics/phrases.
-	 *  Lyrics and phrase_start/phrase_end are extracted separately by the vocal
-	 *  parsing path. */
-	unrecognizedEvents: { tick: number; text: string }[]
+	/** E-events not recognized as sections/end/coda/lyrics/phrases. Becomes
+	 *  `RawChartData.unrecognizedEventsTrackTextEvents`. Lyrics and
+	 *  phrase_start/phrase_end are extracted separately by the vocal parsing
+	 *  path. */
+	unrecognizedTextEvents: { tick: number; text: string }[]
 }
 
 /**
  * Parse each line of the .chart [Events] section once via the generic
  * `TICK = E "TEXT"` regex, then classify the text into one of
- * {section, end, coda, lyric, phrase, unrecognized}.
+ * {section, end, coda, lyric, phrase, unrecognized text event}.
  */
 function scanEventsSection(eventLines: string[]): ChartEventsScanResult {
 	const result: ChartEventsScanResult = {
 		sections: [],
 		endEvents: [],
 		codaEvents: [],
-		unrecognizedEvents: [],
+		unrecognizedTextEvents: [],
 	}
 	for (const line of eventLines) {
 		const match = /^(\d+) = E "([^\r\n]*?)"$/.exec(line)
@@ -645,7 +647,7 @@ function scanEventsSection(eventLines: string[]): ChartEventsScanResult {
 		if (/^\s*lyric[ \t]/.test(text)) continue
 		if (/^(?:phrase_start|phrase_end)$/.test(text)) continue
 
-		result.unrecognizedEvents.push({ tick, text })
+		result.unrecognizedTextEvents.push({ tick, text })
 	}
 	return result
 }

@@ -195,7 +195,9 @@ export function parseNotesFromMidi(data: Uint8Array, iniChartModifiers: IniChart
 	}
 
 	// Classify each text-like event on the EVENTS track into one of:
-	// sections, endEvents, codaEvents, or unrecognizedEvents (the remainder).
+	// sections, endEvents, codaEvents, or unrecognizedTextEvents (the remainder).
+	// Non-text events (noteOn/Off, sysEx, channel events, etc.) go to
+	// unrecognizedMidiEvents.
 	const eventsScan = scanEventsTrack(tracks)
 	const firstCodaTick = eventsScan.codaEvents[0]?.tick ?? null
 
@@ -207,7 +209,8 @@ export function parseNotesFromMidi(data: Uint8Array, iniChartModifiers: IniChart
 		timeSignatures: extractTimeSignatures(midiFile.tracks[0]),
 		sections: eventsScan.sections,
 		endEvents: eventsScan.endEvents,
-		unrecognizedEvents: eventsScan.unrecognizedEvents,
+		unrecognizedEventsTrackTextEvents: eventsScan.unrecognizedTextEvents,
+		unrecognizedEventsTrackMidiEvents: eventsScan.unrecognizedMidiEvents,
 		unrecognizedMidiTracks,
 		unrecognizedChartSections: [],
 		trackData: buildMidiTrackData(tracks, iniChartModifiers, firstCodaTick),
@@ -1036,9 +1039,14 @@ interface EventsScanResult {
 	sections: { tick: number; name: string }[]
 	endEvents: { tick: number }[]
 	codaEvents: { tick: number }[]
-	/** All remaining text-like events not recognized as sections/endEvents/coda/lyrics/phrases.
-	 *  Lyrics and phrase_start/phrase_end are extracted separately by the vocals path. */
-	unrecognizedEvents: { tick: number; text: string }[]
+	/** Text-like events on the EVENTS track not recognized as
+	 *  sections/endEvents/coda/lyrics/phrases. Becomes
+	 *  `RawChartData.unrecognizedEventsTrackTextEvents`. */
+	unrecognizedTextEvents: { tick: number; text: string }[]
+	/** Non-text-like MIDI events on the EVENTS track (e.g. RB practice-assist
+	 *  notes 24/25/26, or stray channel/sysex/meta events). Stored verbatim for
+	 *  round-trip. Becomes `RawChartData.unrecognizedEventsTrackMidiEvents`. */
+	unrecognizedMidiEvents: MidiEvent[]
 	/** Issues raised while classifying EVENTS track text events (e.g. stray lyric/phrase
 	 *  events that belong on PART VOCALS, not EVENTS). */
 	parseIssues: RawChartData['parseIssues']
@@ -1049,14 +1057,25 @@ function scanEventsTrack(tracks: { trackName: TrackName; trackEvents: MidiEvent[
 		sections: [],
 		endEvents: [],
 		codaEvents: [],
-		unrecognizedEvents: [],
+		unrecognizedTextEvents: [],
+		unrecognizedMidiEvents: [],
 		parseIssues: [],
 	}
 	const eventsTrack = tracks.find(t => t.trackName === 'EVENTS')
 	if (!eventsTrack) return result
 
 	for (const event of eventsTrack.trackEvents) {
-		if (!isTextLikeEvent(event)) continue
+		if (!isTextLikeEvent(event)) {
+			// Structural events (trackName / endOfTrack) are re-emitted by
+			// writers independently; everything else (noteOn/Off, sysEx,
+			// setTempo, channel events, etc.) is preserved verbatim so
+			// round-trip writers can re-emit it. Notes 24/25/26 here are the
+			// Rock Band practice-mode assist samples documented in the spec.
+			if (event.type !== 'trackName' && event.type !== 'endOfTrack') {
+				result.unrecognizedMidiEvents.push(event)
+			}
+			continue
+		}
 		const text = event.text
 		const tick = event.deltaTime
 
@@ -1083,8 +1102,8 @@ function scanEventsTrack(tracks: { trackName: TrackName; trackEvents: MidiEvent[
 		// Lyrics and phrase markers belong on PART VOCALS in .mid charts, not on
 		// the EVENTS track. Game engines silently drop them when they show up
 		// here. Record a parse issue so consumers can surface the misplacement,
-		// then fall through to unrecognizedEvents so the value round-trips back
-		// out — users can move it to PART VOCALS manually.
+		// then fall through to the text-events bucket so the value round-trips
+		// back out — users can move it to PART VOCALS manually.
 		if (eventsLyricRegex.test(text)) {
 			result.parseIssues.push({ instrument: null, difficulty: null, noteIssue: 'invalidLyric' })
 		} else if (eventsPhraseStartRegex.test(text)) {
@@ -1093,7 +1112,7 @@ function scanEventsTrack(tracks: { trackName: TrackName; trackEvents: MidiEvent[
 			result.parseIssues.push({ instrument: null, difficulty: null, noteIssue: 'invalidPhraseEnd' })
 		}
 
-		result.unrecognizedEvents.push({ tick, text })
+		result.unrecognizedTextEvents.push({ tick, text })
 	}
 	return result
 }
