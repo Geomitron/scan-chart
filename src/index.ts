@@ -103,10 +103,11 @@ export function scanChart(
 
 	if (parseResult.parsedChart) {
 		// Apply the merged metadata (ini overlays [Song], defaults fill gaps when ini is present).
-		// `chart_offset` is [Song]-only and `extraIniFields` is a round-trip
-		// preservation bag — neither belongs on the top-level ScannedChart
-		// surface, so strip them before assigning.
-		_.assign(chart, _.omit(parseResult.parsedChart.metadata, 'extraIniFields', 'chart_offset'))
+		// `chart_offset` is [Song]-only. `extraIniFields` and
+		// `extraChartSongFields` are round-trip preservation bags — none of the
+		// three belong on the top-level ScannedChart surface, so strip them
+		// before assigning.
+		_.assign(chart, _.omit(parseResult.parsedChart.metadata, 'extraIniFields', 'extraChartSongFields', 'chart_offset'))
 		chart.chart_offset = parseResult.parsedChart.metadata.chart_offset ?? 0
 	} else {
 		chart.playable = false
