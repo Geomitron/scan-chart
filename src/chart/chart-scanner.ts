@@ -1,4 +1,4 @@
-import { blake3 } from '@noble/hashes/blake3'
+import { blake3 } from '@awasm/noble'
 
 import { md5 } from 'js-md5'
 import * as _ from 'lodash'
