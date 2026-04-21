@@ -12,9 +12,10 @@ import { scanVideo } from './video'
 export * from './interfaces'
 export * from './chart/note-parsing-interfaces'
 export { parseChartFile } from './chart/notes-parser'
-export { parseChartAndIni } from './chart'
+export { parseChartAndIni, createEmptyChart } from './chart'
 export type { ParsedChart, ParseChartAndIniResult } from './chart'
 export { scanIni } from './ini'
+export type { IniMetadata } from './ini'
 export { calculateTrackHash } from './chart/track-hasher'
 
 /**
