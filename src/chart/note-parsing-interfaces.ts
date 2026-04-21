@@ -107,7 +107,7 @@ export interface RawChartData {
 	 * and other editors make use of them. `.mid` files do not populate this
 	 * field.
 	 */
-	unknownSyncTrackEvents: {
+	unrecognizedSyncTrackEvents: {
 		tick: number
 		text: string
 	}[]

@@ -207,7 +207,7 @@ export function parseNotesFromMidi(data: Uint8Array, iniChartModifiers: IniChart
 		vocalTracks,
 		tempos: extractTempos(midiFile.tracks[0]),
 		timeSignatures: extractTimeSignatures(midiFile.tracks[0]),
-		unknownSyncTrackEvents: [], // .chart-only
+		unrecognizedSyncTrackEvents: [], // .chart-only
 
 		sections: eventsScan.sections,
 		endEvents: eventsScan.endEvents,
