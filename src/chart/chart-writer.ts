@@ -158,13 +158,16 @@ function serializeSyncTrack(chart: ParsedChart): string[] {
 function serializeEventsSection(chart: ParsedChart): string[] {
 	const lines: string[] = ['[Events]', '{']
 
-	// Typed events: sections (wrapped as `[section name]`), endEvents.
-	// Wrapping: scan-chart's section regex `^\[?(?:section|prc)[ _](.*?)\]?$`
-	// is greedy for the trailing `\]?$` and lazy for `(.*?)`, so an unwrapped
-	// `section [name]` would have its trailing `]` eaten as the optional
-	// closing bracket. Wrapping in outer brackets preserves the name.
+	// Typed events: sections (UNWRAPPED as `section name`), endEvents.
+	// Moonscraper / Clone Hero's .chart parser requires the unwrapped form
+	// — it explicitly checks for `"section` (no leading bracket) at the
+	// start of the E-event payload. Bracketed `[section name]` text events
+	// fail that check and the section gets dropped on import. scan-chart's
+	// own parser accepts both forms via separate regexes that capture the
+	// full name (`.*` is greedy, so trailing `]` in a name like
+	// `section <b>...</b> [credits]` round-trips fine).
 	const events: { tick: number; text: string }[] = []
-	for (const s of chart.sections) events.push({ tick: s.tick, text: `[section ${s.name}]` })
+	for (const s of chart.sections) events.push({ tick: s.tick, text: `section ${s.name}` })
 	for (const e of chart.endEvents) events.push({ tick: e.tick, text: 'end' })
 
 	// Unrecognized global events (crowd events, music_start/end, coda, etc.).

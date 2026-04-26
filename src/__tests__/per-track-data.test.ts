@@ -1036,21 +1036,29 @@ describe('section name parsing', () => {
 		])
 	})
 
-	it('.chart: bracketed `[section NAME]` strips outer brackets but keeps inner `]`', () => {
+	it('.chart: bracketed `[section NAME]` is rejected (not the canonical .chart form)', () => {
+		// Per Format-Overview.md the .chart canonical form is plain
+		// `section <name>` — the bracketed form is the .mid convention.
+		// Some converters mis-emit it on the .chart side; we treat those
+		// as unrecognized text events rather than promoting them to
+		// sections, which matches how Moonscraper / Clone Hero load .chart.
 		const chart = buildChart({
 			Song: ['Resolution = 192'],
 			SyncTrack: ['0 = B 120000', '0 = TS 4'],
 			Events: [
 				'0 = E "[section Intro]"',
-				'480 = E "[section verse [with brackets]]"',
+				'480 = E "section Plain"',
 			],
 		})
 
 		const result = parseNotesFromChart(chart)
-		expect(result.sections).toEqual([
-			{ tick: 0, name: 'Intro' },
-			{ tick: 480, name: 'verse [with brackets]' },
-		])
+		expect(result.sections).toEqual([{ tick: 480, name: 'Plain' }])
+		// The bracketed event is preserved verbatim for round-trip rather
+		// than parsed as a section.
+		expect(result.unrecognizedEventsTrackTextEvents).toContainEqual({
+			tick: 0,
+			text: '[section Intro]',
+		})
 	})
 
 	it('MIDI: `[section NAME]` strips outer brackets but keeps inner `]` in the name', () => {
