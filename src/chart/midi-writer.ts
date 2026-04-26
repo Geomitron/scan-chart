@@ -177,16 +177,17 @@ function buildEventsTrack(chart: ParsedChart): MidiEvent[] {
 		event: { deltaTime: 0, meta: true, type: 'trackName', text: 'EVENTS' } as MidiEvent,
 	})
 
-	// Sections emit UNWRAPPED as `section name` (not `[section name]`). YARG's
-	// NormalizeTextEvent strips content between the first `[` and first `]`,
-	// which would lose data for names that contain `]`. Unwrapped form preserves
-	// names with `]` and names starting with `[`. The only case that's inherently
-	// lossy under YARG normalization is names containing both `[` and `]` —
-	// those can't round-trip regardless of wrapping.
+	// Sections emit WRAPPED as `[section name]` to match the .chart writer and
+	// the RBN/Rock Band MIDI convention. Moonscraper/Clone Hero require the
+	// bracketed form (their reader matches the literal prefix `[section `) and
+	// silently drop sections written as plain `section name`. YARG accepts both
+	// forms via NormalizeTextEvent + TryParseSectionEvent. Names containing `]`
+	// are still lossy under YARG normalization, but that's a rare edge case
+	// compared to losing every section in CH for ordinary charts.
 	for (const section of chart.sections) {
 		events.push({
 			tick: section.tick,
-			event: { deltaTime: 0, meta: true, type: 'text', text: `section ${section.name}` } as MidiEvent,
+			event: { deltaTime: 0, meta: true, type: 'text', text: `[section ${section.name}]` } as MidiEvent,
 		})
 	}
 
