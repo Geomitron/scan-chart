@@ -667,16 +667,17 @@ function scanEventsSection(eventLines: string[]): ChartEventsScanResult {
 		const tick = Number(match[1])
 		const text = match[2]
 
-		// Accept either `[section NAME]` (bracketed form — outer brackets are
-		// stripped) or `section NAME` (plain form — everything after the prefix
-		// is the name). Brackets must match as a pair: a trailing `]` is not
-		// stripped unless the text also started with `[`. This preserves section
-		// names that legitimately end in `]` (e.g. `section <b>…</b> [credits]`).
-		const bracketedSection = /^\[(?:section|prc)[ _](.*)\]$/.exec(text)
-		const plainSection = !bracketedSection && /^(?:section|prc)[ _](.*)$/.exec(text)
-		if (bracketedSection || plainSection) {
-			const name = (bracketedSection ?? plainSection as RegExpExecArray)[1]
-			result.sections.push({ tick, name })
+		// .chart spec: section markers are written as plain `section NAME`
+		// (or `prc_NAME`). Per the format spec
+		// (Chart-File-Formats/chart-format/Format-Overview.md, "Basic Global
+		// Events" table + example), and per Moonscraper / Clone Hero's
+		// reader which only accepts the unwrapped form. The bracketed form
+		// `[section NAME]` is the .mid convention — if it appears in a
+		// .chart file (some converters get this wrong) it falls through to
+		// `unrecognizedTextEvents` rather than being parsed as a section.
+		const plainSection = /^(?:section|prc)[ _](.*)$/.exec(text)
+		if (plainSection) {
+			result.sections.push({ tick, name: plainSection[1] })
 			continue
 		}
 		if (/^\[?end\]?$/.test(text)) {
