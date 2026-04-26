@@ -17,6 +17,11 @@ export type IniMetadata = Partial<typeof defaultMetadata> & {
  *   - Starts with a `[song]` header.
  *   - Known fields emit in the order defined by `defaultMetadata`.
  *   - Fields whose value is `undefined` are skipped.
+ *   - Fields whose value equals the documented default are skipped — the
+ *     re-parser fills them back in from `defaultMetadata`, so the
+ *     round-trip is lossless and we don't bloat charts with ~20 lines of
+ *     "diff_keys = -1" / "modchart = False" defaults that the source
+ *     never had.
  *   - Booleans format as `True`/`False` (matching Clone Hero convention).
  *   - `extraIniFields` are appended after the known fields, in insertion
  *     order.
@@ -28,6 +33,7 @@ export function writeIniFile(metadata: IniMetadata): string {
 	for (const key of keys) {
 		const value = metadata[key]
 		if (value === undefined) continue
+		if (value === defaultMetadata[key]) continue
 		lines.push(`${key} = ${formatValue(value)}`)
 	}
 
