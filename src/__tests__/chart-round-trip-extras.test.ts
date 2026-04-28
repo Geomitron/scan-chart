@@ -67,7 +67,8 @@ describe('.chart [Song] unknown-key preservation (metadata.extraChartSongFields)
 		// Known typed fields still populate.
 		expect(r.metadata.name).toBe('Test')
 		expect(r.metadata.artist).toBe('Me')
-		// Everything else lands in the preservation bag, values unchanged.
+		// Everything else lands in the preservation bag, with quotes stripped.
+		// The writer re-applies quoting per the spec's field-type table on emit.
 		expect(r.metadata.extraChartSongFields).toEqual({
 			Player2: 'bass',
 			PreviewEnd: '0',

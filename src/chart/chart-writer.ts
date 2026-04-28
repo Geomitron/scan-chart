@@ -84,18 +84,48 @@ function serializeSongSection(chart: ParsedChart): string[] {
 
 	// Round-trip any `[Song]` keys the parser didn't claim (deprecated
 	// Moonscraper / GHTCP fields — `Player2`, `HoPo`, `PreviewEnd`, `MediaType`,
-	// audio-stream filenames, etc.). Values are preserved verbatim: if the
-	// source didn't quote the value, we don't quote it here either. Consumers
-	// should treat these as opaque and never synthesize them — editors should
-	// discover audio via folder scan rather than trust `*Stream` values here.
+	// audio-stream filenames, etc.). The parser strips enclosing quotes on
+	// read, so values stored here are always bare; we re-quote per the .chart
+	// spec field-type table on write. Moonscraper rejects unquoted stream
+	// filenames (`MusicStream = song.ogg` fails to load audio), so getting the
+	// quoting right matters for game compatibility, not just round-tripping.
 	if (m.extraChartSongFields) {
 		for (const [key, value] of Object.entries(m.extraChartSongFields)) {
-			lines.push(`  ${key} = ${value}`)
+			lines.push(`  ${key} = ${formatExtraSongValue(key, value)}`)
 		}
 	}
 
 	lines.push('}')
 	return lines
+}
+
+// `[Song]` keys whose values must stay unquoted even though the value is a
+// non-primitive string. Per the .chart spec, `Player2` is the only `bare
+// string` field — every other string-typed field is quoted. Numeric and
+// boolean values are handled by `BARE_VALUE_RE` below, so they don't need an
+// entry here.
+const BARE_STRING_SONG_FIELDS = new Set<string>(['Player2'])
+
+// Primitive literals (`number`, `decimal`, `boolean`) that the spec emits
+// bare. The spec doesn't list any boolean-typed [Song] fields, but the corpus
+// shows `OriginalArtist = false` written bare in every chart that uses it, and
+// this leaves room for any future spec additions. Booleans are matched
+// case-sensitively per the spec — `True`/`TRUE` would be malformed values and
+// fall through to the quoting branch, which is defensible.
+const BARE_VALUE_RE = /^(?:-?\d+(?:\.\d+)?|true|false)$/
+
+/**
+ * Format a value for an `extraChartSongFields` key. The parser strips quotes
+ * on read, so values arrive bare; this re-applies them on write. The rule:
+ * primitive-literal values (numeric / boolean) stay bare, `Player2` stays
+ * bare per spec, and everything else gets quoted. Quoting strings by default
+ * matches the spec (every string / file-path field is quoted) and the
+ * 62K-chart corpus, and fixes the Moonscraper audio-load bug for unquoted
+ * stream filenames.
+ */
+function formatExtraSongValue(key: string, value: string): string {
+	if (BARE_STRING_SONG_FIELDS.has(key)) return value
+	return BARE_VALUE_RE.test(value) ? value : `"${value}"`
 }
 
 // ---------------------------------------------------------------------------

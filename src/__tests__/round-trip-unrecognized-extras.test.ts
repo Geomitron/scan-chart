@@ -63,20 +63,75 @@ describe('writeChartFile round-trip: metadata.extraChartSongFields', () => {
 		})
 	})
 
-	it('preserves quoted string values including inner spaces', () => {
+	it('round-trips bare values cleanly (writer re-quotes per spec)', () => {
+		// The parser strips enclosing quotes on read, so values stored in
+		// `extraChartSongFields` are always bare. The writer re-applies quoting
+		// from the spec's field-type table, so a bare-then-quoted-then-stripped
+		// trip is lossless for the value content.
 		const chart = createEmptyChart({ format: 'chart' })
 		chart.metadata.extraChartSongFields = {
-			ArtistText: '"by"',
-			MusicStream: '"Some Song.ogg"',
+			ArtistText: 'by',
+			MusicStream: 'Some Song.ogg',
 		}
 		const re = roundTripChart(chart)
 		expect(re.metadata.extraChartSongFields).toEqual({
-			// The parser strips one layer of enclosing quotes on read. What matters
-			// is that the key survives and the value round-trips: re-writing the
-			// stripped form re-adds no quotes, so the next parse sees it unquoted.
 			ArtistText: 'by',
 			MusicStream: 'Some Song.ogg',
 		})
+	})
+
+	it('emits MusicStream with the quotes Moonscraper expects', () => {
+		// Pin the on-disk shape directly: re-writing must produce
+		// `MusicStream = "song.ogg"` (quoted), not `MusicStream = song.ogg`.
+		// Bare value in → quoted value out.
+		const chart = createEmptyChart({ format: 'chart' })
+		chart.metadata.extraChartSongFields = { MusicStream: 'song.ogg' }
+		const text = writeChartFile(chart)
+		expect(text).toContain('MusicStream = "song.ogg"')
+		expect(text).not.toMatch(/MusicStream = song\.ogg[^"]/)
+	})
+
+	it('emits Player2 unquoted (bare-string field per spec)', () => {
+		// `Player2` is the lone `bare string` type in the [Song] section. The
+		// writer must NOT quote it, even though it's a string-y value.
+		const chart = createEmptyChart({ format: 'chart' })
+		chart.metadata.extraChartSongFields = { Player2: 'bass' }
+		const text = writeChartFile(chart)
+		expect(text).toContain('Player2 = bass')
+		expect(text).not.toContain('Player2 = "bass"')
+	})
+
+	it('emits numeric-typed legacy fields unquoted', () => {
+		const chart = createEmptyChart({ format: 'chart' })
+		chart.metadata.extraChartSongFields = { HoPo: '0', PreviewEnd: '180' }
+		const text = writeChartFile(chart)
+		expect(text).toContain('HoPo = 0')
+		expect(text).toContain('PreviewEnd = 180')
+		expect(text).not.toContain('HoPo = "0"')
+	})
+
+	it('quotes unknown string-shaped keys, leaves primitive-shaped keys bare', () => {
+		// Forward-compat heuristic for keys outside the spec table: if the
+		// value looks like a primitive literal (number / decimal / boolean),
+		// emit bare; otherwise quote. Erring on the side of quoting matches
+		// what readers (Moonscraper, scan-chart) accept and what authoring
+		// tools mostly emit. The boolean case mirrors `OriginalArtist = false`
+		// observed in the corpus.
+		const chart = createEmptyChart({ format: 'chart' })
+		chart.metadata.extraChartSongFields = {
+			MysteryString: 'hello',
+			MysteryNumber: '42',
+			MysteryDecimal: '-1.5',
+			MysteryBool: 'false',
+			OriginalArtist: 'false',
+		}
+		const text = writeChartFile(chart)
+		expect(text).toContain('MysteryString = "hello"')
+		expect(text).toContain('MysteryNumber = 42')
+		expect(text).toContain('MysteryDecimal = -1.5')
+		expect(text).toContain('MysteryBool = false')
+		expect(text).toContain('OriginalArtist = false')
+		expect(text).not.toContain('OriginalArtist = "false"')
 	})
 
 	it('preserves future / unknown keys the parser has never heard of', () => {
