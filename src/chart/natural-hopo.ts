@@ -69,13 +69,16 @@ function isSameFretNoteGeneric<T, E extends { type: T }>(
 	b: E[],
 	isFret: (t: T) => boolean,
 ): boolean {
-	const aT: T[] = []
-	for (const n of a) if (isFret(n.type)) aT.push(n.type)
-	const bT: T[] = []
-	for (const n of b) if (isFret(n.type)) bT.push(n.type)
-	if (aT.length !== bT.length) return false
-	const s = new Set(bT)
-	for (const t of aT) if (!s.has(t)) return false
+	// Compare as sets of fret types: a real chord like [green, blue] is distinct
+	// from a duplicate single like [green, green], but two duplicate-singles
+	// resolve to equal because the duplicates are the same gameplay note. Mirrors
+	// the set semantics already used by isFretChordGeneric / isInFretNoteGeneric.
+	const aSet = new Set<T>()
+	for (const n of a) if (isFret(n.type)) aSet.add(n.type)
+	const bSet = new Set<T>()
+	for (const n of b) if (isFret(n.type)) bSet.add(n.type)
+	if (aSet.size !== bSet.size) return false
+	for (const t of aSet) if (!bSet.has(t)) return false
 	return true
 }
 

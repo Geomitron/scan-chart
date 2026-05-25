@@ -108,10 +108,19 @@ export function scanChart(
 		// three belong on the top-level ScannedChart surface, so strip them
 		// before assigning.
 		_.assign(chart, _.omit(parseResult.parsedChart.metadata, 'extraIniFields', 'extraChartSongFields', 'chart_offset'))
-		chart.chart_offset = parseResult.parsedChart.metadata.chart_offset ?? 0
 	} else {
 		chart.playable = false
+		// Even when notes.{chart,mid} can't be parsed, surface song.ini
+		// metadata if it exists so catalog consumers keep displaying
+		// artist/title/year/etc. for broken-but-known charts. Without this,
+		// a single corrupt notes file strips every metadata field from the ScannedChart.
+		if (parseResult.iniMetadata) {
+			_.assign(chart, parseResult.iniMetadata)
+		}
 	}
+	// `chart_offset` is always emitted (defaulting to 0) so consumers can
+	// rely on its presence regardless of whether the chart file parsed.
+	chart.chart_offset = parseResult.parsedChart?.metadata.chart_offset ?? 0
 
 	const imageData = scanImage(files)
 	chart.folderIssues.push(...imageData.folderIssues)

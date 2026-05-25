@@ -580,7 +580,7 @@ function getChartHash(chartBytes: Uint8Array, iniChartModifiers: IniChartModifie
 		offset += modifier.value.length
 	}
 
-	return base64url.stringify(blake3(uint8Array))
+	return base64url.stringify(blake3(uint8Array), { pad: false })
 }
 
 function int32ToUint8Array(num: number) {
@@ -609,5 +609,5 @@ function legacyGetChartHash(chartBytes: Uint8Array, iniChartModifiers: IniChartM
 	view.setInt8(13, iniChartModifiers.five_lane_drums ? 1 : 0)
 	view.setInt8(14, iniChartModifiers.pro_drums ? 1 : 0)
 
-	return base64url.stringify(blake3(uint8Array))
+	return base64url.stringify(blake3(uint8Array), { pad: false })
 }

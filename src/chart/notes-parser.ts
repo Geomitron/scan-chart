@@ -46,8 +46,8 @@ export function parseChartFile(data: Uint8Array, format: 'chart' | 'mid', partia
 	const drumTracks = rawChartData.trackData.filter(track => track.instrument === 'drums')
 	const drumType =
 		drumTracks.length === 0 ? null
-		: iniChartModifiers.pro_drums ? drumTypes.fourLanePro
 		: iniChartModifiers.five_lane_drums ? drumTypes.fiveLane
+		: iniChartModifiers.pro_drums ? drumTypes.fourLanePro
 		: drumTracks.find(track => track.trackEvents.find(e => isCymbalOrTomMarker(e.type))) ? drumTypes.fourLanePro
 		: drumTracks.find(track => track.trackEvents.find(e => e.type === eventTypes.fiveGreenDrum)) ? drumTypes.fiveLane
 		: drumTypes.fourLane
@@ -832,7 +832,13 @@ function resolveFretModifiers(
 			!!lastNotes &&
 			effectiveNotes[0].tick - lastNotes[0].tick <= hopoThresholdTicks &&
 			!isFretChordRawEvents(effectiveNotes) &&
-			!isSameFretNoteRawEvents(events, lastNotes) &&
+			// Rule 4 of natural-HOPO: previous is a single note and current is the same single note → strum.
+			// `isSameFretNoteRawEvents` deduplicates by fret type, so duplicate same-fret events
+			// (e.g. `2304 = N 1 0` listed twice on either side) collapse to a single note before the
+			// comparison — meaning [g, g] vs [g] is still "same single note" → strum. The
+			// `!isFretChordRawEvents(lastNotes)` guard keeps rule 4 from firing when the previous
+			// group is a real chord (e.g. [g, b] vs duplicate-single [g, g]).
+			!(!isFretChordRawEvents(lastNotes) && isSameFretNoteRawEvents(events, lastNotes)) &&
 			// This .mid exception is due to compatibility concerns with older games that primarily use .mid
 			!(format === 'mid' && isFretChordRawEvents(lastNotes) && isInFretNoteRawEvents(effectiveNotes, lastNotes))
 		const forceResult =

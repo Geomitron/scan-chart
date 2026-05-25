@@ -1,6 +1,6 @@
 import * as _ from 'lodash'
 
-import { scanIni } from '../ini'
+import { defaultMetadata, scanIni } from '../ini'
 import { File, FolderIssueType, MetadataIssueType } from '../interfaces'
 import { getExtension, hasChartExtension, hasChartName } from '../utils'
 import { defaultIniChartModifiers, IniChartModifiers } from './note-parsing-interfaces'
@@ -44,6 +44,15 @@ export interface ParseChartAndIniResult {
 	 * ini file doesn't exist.
 	 */
 	hasIni: boolean
+	/**
+	 * The parsed `song.ini` metadata (with defaults filled in for missing
+	 * fields), or `null` if no readable `song.ini` was found. Exposed so
+	 * `scanChart` can surface ini-derived metadata (artist, name, year, …)
+	 * even when `notes.{chart,mid}` failed to parse — matching pre-9.0
+	 * scan-chart behavior that catalog consumers depend on for keeping
+	 * broken-but-known charts visible.
+	 */
+	iniMetadata: typeof defaultMetadata | null
 	/**
 	 * Folder-level issues from chart file discovery and parsing
 	 * (`noChart`, `invalidChart`, `multipleChart`, `badChart`).
@@ -106,6 +115,7 @@ export function parseChartAndIni(files: File[]): ParseChartAndIniResult {
 	return {
 		parsedChart,
 		hasIni: iniData.metadata !== null,
+		iniMetadata: iniData.metadata,
 		chartFolderIssues,
 		iniFolderIssues: iniData.folderIssues,
 		iniMetadataIssues: iniData.metadataIssues,
