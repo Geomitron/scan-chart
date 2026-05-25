@@ -1,16 +1,17 @@
 import * as _ from 'lodash'
 
-import { defaultMetadata, scanIni } from '../ini'
-import { File, FolderIssueType, MetadataIssueType } from '../interfaces'
-import { getExtension, hasChartExtension, hasChartName } from '../utils'
-import { defaultIniChartModifiers, IniChartModifiers } from './note-parsing-interfaces'
-import { parseChartFile } from './notes-parser'
+import { defaultMetadata } from '../ini/metadata'
+import { scanIni } from '../ini/scan-ini'
+import { File, FolderIssueType, MetadataIssueType } from '../types'
+import { getExtension, hasChartExtension, hasChartName } from '../shared/file-names'
+import { defaultIniChartModifiers, IniChartModifiers } from './types'
+import { parseChartFile, ParsedChartFile } from './parse-chart-file'
 
 /**
- * The full parsed chart, including the source bytes and ini modifiers needed
- * for downstream hashing.
+ * Folder-parse result: a parsed chart file plus source bytes and ini modifiers
+ * needed for downstream hashing.
  */
-export type ParsedChart = ReturnType<typeof parseChartFile> & {
+export type ParsedChart = ParsedChartFile & {
 	/**
 	 * The raw bytes of the source chart file. Needed by `scanChart` to compute
 	 * `chartHash`, which is `blake3(chartBytes ++ ini-modifier name/value

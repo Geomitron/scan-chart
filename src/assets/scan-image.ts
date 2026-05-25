@@ -1,7 +1,7 @@
 import { load } from 'exifreader'
 
-import { File, FolderIssueType } from '../interfaces'
-import { hasAlbumName } from '../utils'
+import { File, FolderIssueType } from '../types'
+import { hasAlbumName } from '../shared/file-names'
 
 export function scanImage(files: File[]) {
 	const folderIssues: { folderIssue: FolderIssueType; description: string }[] = []

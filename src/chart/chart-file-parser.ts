@@ -1,6 +1,6 @@
-import { Difficulty, Instrument } from 'src/interfaces'
-import { getEncoding } from 'src/utils'
-import { EventType, eventTypes, RawChartData } from './note-parsing-interfaces'
+import { Difficulty, Instrument } from '../types'
+import { getEncoding } from '../shared/text'
+import { EventType, eventTypes, RawChartData } from './raw-types'
 import { extractChartLyrics, extractChartVocalPhrases } from './lyric-parser'
 
 /* eslint-disable @typescript-eslint/naming-convention */

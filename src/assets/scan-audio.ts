@@ -1,7 +1,7 @@
 import * as _ from 'lodash'
 
-import { File, FolderIssueType } from '../interfaces'
-import { getBasename, hasAudioExtension, hasAudioName } from '../utils'
+import { File, FolderIssueType } from '../types'
+import { getBasename, hasAudioExtension, hasAudioName } from '../shared/file-names'
 
 // TODO: use _max_threads
 // eslint-disable-next-line @typescript-eslint/no-unused-vars

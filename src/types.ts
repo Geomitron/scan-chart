@@ -1,4 +1,4 @@
-import { ObjectValues } from './utils'
+import { ObjectValues } from './shared/type-utils'
 
 /**
  * A single file from a chart folder: the (case-preserved) file name and the

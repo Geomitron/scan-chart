@@ -14,9 +14,9 @@
 
 import { describe, it, expect } from 'vitest'
 import { writeMidi, MidiData } from '@geomitron/midi-file'
-import { parseNotesFromChart } from '../chart/chart-parser'
-import { parseNotesFromMidi } from '../chart/midi-parser'
-import { defaultIniChartModifiers } from '../chart/note-parsing-interfaces'
+import { parseNotesFromChart } from '../chart/chart-file-parser'
+import { parseNotesFromMidi } from '../chart/midi-file-parser'
+import { defaultIniChartModifiers } from '../chart/types'
 
 function buildChart(sections: Record<string, string[]>): Uint8Array {
 	const lines: string[] = []

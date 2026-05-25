@@ -1,7 +1,8 @@
 import { MidiData, MidiEvent, MidiSetTempoEvent, MidiTextEvent, MidiTimeSignatureEvent, parseMidi } from '@geomitron/midi-file'
 
-import { difficulties, Difficulty, getInstrumentType, Instrument, InstrumentType, instrumentTypes } from 'src/interfaces'
-import { EventType, eventTypes, IniChartModifiers, RawChartData, VocalTrackData } from './note-parsing-interfaces'
+import { difficulties, Difficulty, getInstrumentType, Instrument, InstrumentType, instrumentTypes } from '../types'
+import { EventType, eventTypes, RawChartData, VocalTrackData } from './raw-types'
+import { IniChartModifiers } from './types'
 import { scanVocalTrack } from './lyric-parser'
 
 // Union two phrase lists, dedup by tick (keep longest length), sort by tick.

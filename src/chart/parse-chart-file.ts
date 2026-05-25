@@ -1,11 +1,9 @@
 
-import { Difficulty, DrumType, drumTypes, getInstrumentType, Instrument, instrumentTypes } from 'src/interfaces'
-import { parseNotesFromChart } from './chart-parser'
-import { parseNotesFromMidi } from './midi-parser'
+import { Difficulty, DrumType, drumTypes, getInstrumentType, Instrument, instrumentTypes } from '../types'
+import { parseNotesFromChart } from './chart-file-parser'
+import { parseNotesFromMidi } from './midi-file-parser'
 import {
 	defaultIniChartModifiers,
-	EventType,
-	eventTypes,
 	IniChartModifiers,
 	NoteEvent,
 	NormalizedLyricEvent,
@@ -18,9 +16,8 @@ import {
 	NoteType,
 	noteTypes,
 	noteTypeCount,
-	RawChartData,
-	VocalTrackData,
-} from './note-parsing-interfaces'
+} from './types'
+import { EventType, eventTypes, RawChartData, VocalTrackData } from './raw-types'
 import { parseLyricFlags, stripLyricSymbols } from './lyric-parser'
 import {
 	isFretChordRawEvents,
@@ -32,7 +29,7 @@ import {
 type TrackEvent = RawChartData['trackData'][number]['trackEvents'][number]
 type UntimedNoteEvent = Omit<NoteEvent, 'msTime' | 'msLength'>
 
-export type ParsedChart = ReturnType<typeof parseChartFile>
+export type ParsedChartFile = ReturnType<typeof parseChartFile>
 
 /**
  * Parses `buffer` as a chart in the .chart or .mid format.

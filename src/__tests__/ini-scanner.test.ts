@@ -3,8 +3,8 @@
  */
 
 import { describe, it, expect } from 'vitest'
-import { File } from '../interfaces'
-import { scanIni } from '../ini/ini-scanner'
+import { File } from '../types'
+import { scanIni } from '../ini/scan-ini'
 
 function buildIni(lines: string[]): File[] {
 	const text = lines.join('\r\n')

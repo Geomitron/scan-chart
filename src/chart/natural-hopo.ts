@@ -20,8 +20,9 @@
  * note?" predicate, with thin wrappers exported for each concrete type.
  */
 
-import type { EventType, NoteEvent, RawChartData } from './note-parsing-interfaces'
-import { eventTypes, noteTypes, NoteType } from './note-parsing-interfaces'
+import type { EventType, RawChartData } from './raw-types'
+import { eventTypes } from './raw-types'
+import { noteTypes, NoteEvent, NoteType } from './types'
 
 type TrackEvent = RawChartData['trackData'][number]['trackEvents'][number]
 

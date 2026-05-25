@@ -1,5 +1,5 @@
-import { File, FolderIssueType } from '../interfaces'
-import { hasBadVideoName, hasVideoName } from '../utils'
+import { File, FolderIssueType } from '../types'
+import { hasBadVideoName, hasVideoName } from '../shared/file-names'
 
 export function scanVideo(files: File[]) {
 	const folderIssues: { folderIssue: FolderIssueType; description: string }[] = []

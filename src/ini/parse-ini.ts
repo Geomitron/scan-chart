@@ -1,6 +1,6 @@
 import * as _ from 'lodash'
 
-import { getEncoding } from '../utils'
+import { getEncoding } from '../shared/text'
 
 export const $NoSection: unique symbol = Symbol('Lines before any sections')
 export interface IniObject {

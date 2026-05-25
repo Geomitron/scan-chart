@@ -3,10 +3,10 @@ import { blake3 } from '@awasm/noble'
 import * as _ from 'lodash'
 import { base64url } from 'rfc4648'
 
-import { Difficulty, Instrument } from 'src/interfaces'
-import { ParsedChart } from './notes-parser'
+import { Difficulty, Instrument } from '../types'
+import { ParsedChartFile } from './parse-chart-file'
 
-export function calculateTrackHash(parsedChart: ParsedChart, instrument: Instrument, difficulty: Difficulty) {
+export function calculateTrackHash(parsedChart: ParsedChartFile, instrument: Instrument, difficulty: Difficulty) {
 	const trackData = parsedChart.trackData.find(t => t.instrument === instrument && t.difficulty === difficulty)
 	if (!trackData) {
 		throw 'Track with specified instrument or difficulty was not found.'
@@ -113,7 +113,7 @@ export function calculateTrackHash(parsedChart: ParsedChart, instrument: Instrum
 
 export function pruneEmptyPhrases<T extends { tick: number; length: number }>(
 	phrases: T[],
-	notes: ParsedChart['trackData'][number]['noteEventGroups'],
+	notes: ParsedChartFile['trackData'][number]['noteEventGroups'],
 ) {
 	const nonemptyPhrases: T[] = []
 

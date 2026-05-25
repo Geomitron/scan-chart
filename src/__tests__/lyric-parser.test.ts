@@ -14,7 +14,7 @@ import {
 	parseLyricFlags,
 	stripLyricSymbols,
 } from '../chart/lyric-parser'
-import { lyricFlags } from '../chart/note-parsing-interfaces'
+import { lyricFlags } from '../chart/types'
 
 // ---------------------------------------------------------------------------
 // parseChartLyricLine

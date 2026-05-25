@@ -406,7 +406,7 @@ export function scanVocalTrack<T extends MidiLyricEvent>(trackEvents: T[]): Voca
 // Lyric symbol parsing (for normalization)
 // ---------------------------------------------------------------------------
 
-import { lyricFlags } from './note-parsing-interfaces'
+import { lyricFlags } from './types'
 
 /** Symbols that set flags when found at the end of a lyric (scanned right-to-left). */
 const trailingSymbolFlags: Record<string, number> = {

@@ -13,11 +13,11 @@
 
 import { describe, expect, it } from 'vitest'
 
-import { parseChartFile } from '../chart/notes-parser'
-import { defaultIniChartModifiers } from '../chart/note-parsing-interfaces'
+import { parseChartFile } from '../chart/parse-chart-file'
+import { defaultIniChartModifiers } from '../chart/types'
 import { scanChart } from '..'
 import { parseChartAndIni } from '../chart/parse-chart-and-ini'
-import { File } from '../interfaces'
+import { File } from '../types'
 
 function buildChart(body: string): File[] {
 	return [{ fileName: 'notes.chart', data: new TextEncoder().encode(body) }]

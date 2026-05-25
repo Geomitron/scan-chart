@@ -5,10 +5,10 @@
 
 import { describe, it, expect } from 'vitest'
 import { writeMidi, MidiData } from '@geomitron/midi-file'
-import { parseNotesFromMidi } from '../chart/midi-parser'
-import { parseNotesFromChart } from '../chart/chart-parser'
-import { parseChartFile } from '../chart/notes-parser'
-import { defaultIniChartModifiers } from '../chart/note-parsing-interfaces'
+import { parseNotesFromMidi } from '../chart/midi-file-parser'
+import { parseNotesFromChart } from '../chart/chart-file-parser'
+import { parseChartFile } from '../chart/parse-chart-file'
+import { defaultIniChartModifiers } from '../chart/types'
 
 // ---------------------------------------------------------------------------
 // Helpers
