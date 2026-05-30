@@ -1,3 +1,9 @@
+
+export { scanChart, scanChartFolder } from './scan-chart'
+export { parseChartAndIni } from './chart/parse-chart-and-ini'
+export { parseChartFile } from './chart/parse-chart-file'
+export { calculateTrackHash } from './chart/track-hasher'
+export { scanIni } from './ini/scan-ini'
 export type { ParsedChart, ParseChartAndIniResult } from './chart/parse-chart-and-ini'
 export type { ParsedChartFile } from './chart/parse-chart-file'
 export type {
@@ -12,12 +18,6 @@ export type {
 } from './chart/types'
 export { noteTypes, noteFlags, lyricFlags } from './chart/types'
 export { defaultMetadata } from './ini/metadata'
-
-export { scanChart, scanChartFolder } from './scan-chart'
-export { parseChartAndIni } from './chart/parse-chart-and-ini'
-export { parseChartFile } from './chart/parse-chart-file'
-export { calculateTrackHash } from './chart/track-hasher'
-export { scanIni } from './ini/scan-ini'
 
 export type {
 	File,

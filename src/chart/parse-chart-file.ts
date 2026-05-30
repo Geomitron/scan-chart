@@ -83,15 +83,17 @@ export function parseChartFile(data: Uint8Array, format: 'chart' | 'mid', partia
 		parseIssues: rawChartData.parseIssues,
 		vocalTracks: normalizedVocalTracks,
 		endEvents: setEventMsTimes(rawChartData.endEvents, timedTempos, rawChartData.chartTicksPerBeat),
-		unrecognizedEventsTrackTextEvents: setEventMsTimes(rawChartData.unrecognizedEventsTrackTextEvents, timedTempos, rawChartData.chartTicksPerBeat),
-		unrecognizedEventsTrackMidiEvents: rawChartData.unrecognizedEventsTrackMidiEvents,
-		unrecognizedMidiTracks: rawChartData.unrecognizedMidiTracks,
-		unrecognizedChartSections: rawChartData.unrecognizedChartSections,
 		tempos: timedTempos,
 		timeSignatures: setEventMsTimes(rawChartData.timeSignatures, timedTempos, rawChartData.chartTicksPerBeat),
-		unrecognizedSyncTrackEvents: rawChartData.unrecognizedSyncTrackEvents,
 		sections: setEventMsTimes(rawChartData.sections, timedTempos, rawChartData.chartTicksPerBeat),
 		trackData: trackDataResult,
+		unrecognized: {
+			eventsTrackTextEvents: setEventMsTimes(rawChartData.unrecognizedEventsTrackTextEvents, timedTempos, rawChartData.chartTicksPerBeat),
+			eventsTrackMidiEvents: rawChartData.unrecognizedEventsTrackMidiEvents,
+			midiTracks: rawChartData.unrecognizedMidiTracks,
+			chartSections: rawChartData.unrecognizedChartSections,
+			syncTrackEvents: rawChartData.unrecognizedSyncTrackEvents,
+		},
 	}
 }
 

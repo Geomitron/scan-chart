@@ -16,6 +16,7 @@ import { describe, it, expect } from 'vitest'
 import { writeMidi, MidiData } from '@geomitron/midi-file'
 import { parseNotesFromChart } from '../chart/chart-file-parser'
 import { parseNotesFromMidi } from '../chart/midi-file-parser'
+import { parseChartFile } from '../chart/parse-chart-file'
 import { defaultMetadata } from '../ini/metadata'
 
 function buildChart(sections: Record<string, string[]>): Uint8Array {
@@ -183,5 +184,26 @@ describe('.chart [SyncTrack] unknown-event preservation (unrecognizedSyncTrackEv
 		const midi = buildMidi(480, [tempoTrack()])
 		const r = parseNotesFromMidi(midi, defaultMetadata)
 		expect(r.unrecognizedSyncTrackEvents).toEqual([])
+	})
+})
+
+describe('parseChartFile unrecognized preservation bucket', () => {
+	it('groups top-level unrecognized chart data under one object', () => {
+		const chart = buildChart({
+			Song: ['Resolution = 192', 'Name = "T"'],
+			SyncTrack: ['0 = B 120000', '0 = TS 4', '192 = FUTURE 12 34 56'],
+			Events: ['192 = E "crowd_normal"'],
+			CustomMetadata: ['FutureField = "future-value"'],
+		})
+		const r = parseChartFile(chart, 'chart')
+
+		expect(r.unrecognized).toEqual({
+			eventsTrackTextEvents: [{ tick: 192, text: 'crowd_normal', msTime: 500, msLength: 0 }],
+			eventsTrackMidiEvents: [],
+			midiTracks: [],
+			chartSections: [{ name: 'CustomMetadata', lines: ['FutureField = "future-value"'] }],
+			syncTrackEvents: [{ tick: 192, text: 'FUTURE 12 34 56' }],
+		})
+		expect((r as { unrecognizedSyncTrackEvents?: unknown }).unrecognizedSyncTrackEvents).toBeUndefined()
 	})
 })
