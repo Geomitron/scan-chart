@@ -96,8 +96,8 @@ function buildChart(sections: Record<string, string[]>): Uint8Array {
 	return new TextEncoder().encode(lines.join('\r\n'))
 }
 
-/** Helper to get trackData for a specific instrument+difficulty. */
-function getTrack(result: { trackData: { instrument: string; difficulty: string }[] }, instrument: string, difficulty = 'expert') {
+/** Helper to get typed trackData for a specific instrument+difficulty. */
+function getTrack<T extends { instrument: string; difficulty: string }>(result: { trackData: T[] }, instrument: string, difficulty = 'expert') {
 	return result.trackData.find(t => t.instrument === instrument && t.difficulty === difficulty)
 }
 

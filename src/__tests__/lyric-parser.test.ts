@@ -14,7 +14,13 @@ import {
 	parseLyricFlags,
 	stripLyricSymbols,
 } from '../chart/lyric-parser'
+import type { MidiTextLikeEvent } from '../chart/lyric-parser'
 import { lyricFlags } from '../chart/types'
+
+/** Builds the minimal text-like MIDI event shape expected by parser helpers. */
+function midiTextEvent(event: Omit<MidiTextLikeEvent, 'deltaTime'> & Partial<Pick<MidiTextLikeEvent, 'deltaTime'>>): MidiTextLikeEvent {
+	return { deltaTime: 0, ...event }
+}
 
 // ---------------------------------------------------------------------------
 // parseChartLyricLine
@@ -281,72 +287,72 @@ describe('extractChartVocalPhrases', () => {
 
 describe('isMidiVocalLyric', () => {
 	it('FF 05 lyrics event is a lyric', () => {
-		expect(isMidiVocalLyric({ type: 'lyrics', text: 'Hello' })).toBe(true)
+		expect(isMidiVocalLyric(midiTextEvent({ type: 'lyrics', text: 'Hello' }))).toBe(true)
 	})
 
 	it('FF 01 text event without brackets is a lyric', () => {
-		expect(isMidiVocalLyric({ type: 'text', text: 'Hello' })).toBe(true)
+		expect(isMidiVocalLyric(midiTextEvent({ type: 'text', text: 'Hello' }))).toBe(true)
 	})
 
 	it('bracketed lyrics event is NOT a lyric ([play])', () => {
-		expect(isMidiVocalLyric({ type: 'lyrics', text: '[play]' })).toBe(false)
+		expect(isMidiVocalLyric(midiTextEvent({ type: 'lyrics', text: '[play]' }))).toBe(false)
 	})
 
 	it('bracketed text event is NOT a lyric ([idle])', () => {
-		expect(isMidiVocalLyric({ type: 'text', text: '[idle]' })).toBe(false)
+		expect(isMidiVocalLyric(midiTextEvent({ type: 'text', text: '[idle]' }))).toBe(false)
 	})
 
 	it('bracketed with spaces is NOT a lyric', () => {
-		expect(isMidiVocalLyric({ type: 'lyrics', text: ' [idle_realtime] ' })).toBe(false)
+		expect(isMidiVocalLyric(midiTextEvent({ type: 'lyrics', text: ' [idle_realtime] ' }))).toBe(false)
 	})
 
 	it('noteOn is not a lyric', () => {
-		expect(isMidiVocalLyric({ type: 'noteOn' })).toBe(false)
+		expect(isMidiVocalLyric(midiTextEvent({ type: 'noteOn' }))).toBe(false)
 	})
 
 	it('empty lyrics IS a lyric (YARG stores as "lyric ")', () => {
-		expect(isMidiVocalLyric({ type: 'lyrics', text: '' })).toBe(true)
+		expect(isMidiVocalLyric(midiTextEvent({ type: 'lyrics', text: '' }))).toBe(true)
 	})
 
 	it('space-only lyrics IS a lyric (TrimAscii → empty → "lyric ")', () => {
-		expect(isMidiVocalLyric({ type: 'lyrics', text: '   ' })).toBe(true)
+		expect(isMidiVocalLyric(midiTextEvent({ type: 'lyrics', text: '   ' }))).toBe(true)
 	})
 
 	it('empty text event IS a lyric on PART VOCALS', () => {
-		expect(isMidiVocalLyric({ type: 'text', text: '' })).toBe(true)
+		expect(isMidiVocalLyric(midiTextEvent({ type: 'text', text: '' }))).toBe(true)
 	})
 
 	it('syllable with hash is a lyric', () => {
-		expect(isMidiVocalLyric({ type: 'lyrics', text: 'Cha#' })).toBe(true)
+		expect(isMidiVocalLyric(midiTextEvent({ type: 'lyrics', text: 'Cha#' }))).toBe(true)
 	})
 
 	it('syllable with plus is a lyric (pitch slide)', () => {
-		expect(isMidiVocalLyric({ type: 'lyrics', text: 'oh+' })).toBe(true)
+		expect(isMidiVocalLyric(midiTextEvent({ type: 'lyrics', text: 'oh+' }))).toBe(true)
 	})
 
 	it('marker type IS a lyric on PART VOCALS', () => {
-		expect(isMidiVocalLyric({ type: 'marker', text: 'verse' })).toBe(true)
+		expect(isMidiVocalLyric(midiTextEvent({ type: 'marker', text: 'verse' }))).toBe(true)
 	})
 
 	it('instrumentName type is NOT a lyric (contains track name, not lyrics)', () => {
-		expect(isMidiVocalLyric({ type: 'instrumentName', text: 'PART VOCALS' })).toBe(false)
+		expect(isMidiVocalLyric(midiTextEvent({ type: 'instrumentName', text: 'PART VOCALS' }))).toBe(false)
 	})
 
 	it('UTF-8 multibyte text is a lyric', () => {
-		expect(isMidiVocalLyric({ type: 'lyrics', text: 'café' })).toBe(true)
+		expect(isMidiVocalLyric(midiTextEvent({ type: 'lyrics', text: 'café' }))).toBe(true)
 	})
 
 	it('text with leading space (no bracket) is a lyric', () => {
-		expect(isMidiVocalLyric({ type: 'text', text: ' hey^' })).toBe(true)
+		expect(isMidiVocalLyric(midiTextEvent({ type: 'text', text: ' hey^' }))).toBe(true)
 	})
 
 	it('bracketed lyrics with unknown content ARE lyrics (not control events)', () => {
-		expect(isMidiVocalLyric({ type: 'lyrics', text: '[Everyone liked that]' })).toBe(true)
+		expect(isMidiVocalLyric(midiTextEvent({ type: 'lyrics', text: '[Everyone liked that]' }))).toBe(true)
 	})
 
 	it('text starting with HTML tags is still a lyric (HTML not stripped at parse time)', () => {
 		// HTML tags are stripped at rendering time, not parse time
-		expect(isMidiVocalLyric({ type: 'lyrics', text: '<sub><i>[REIMAGINED]</i>' })).toBe(true)
+		expect(isMidiVocalLyric(midiTextEvent({ type: 'lyrics', text: '<sub><i>[REIMAGINED]</i>' }))).toBe(true)
 	})
 })
 
@@ -652,27 +658,27 @@ describe('normalizeLyricText', () => {
 
 describe('isMidiVocalLyric bracket and space filtering', () => {
 	it('known control event with whitespace is not a lyric', () => {
-		expect(isMidiVocalLyric({ type: 'lyrics', text: ' [play] ' })).toBe(false)
+		expect(isMidiVocalLyric(midiTextEvent({ type: 'lyrics', text: ' [play] ' }))).toBe(false)
 	})
 
 	it('text with only control chars is a lyric (non-empty, not a control event)', () => {
-		expect(isMidiVocalLyric({ type: 'lyrics', text: '\x00\x01' })).toBe(true)
+		expect(isMidiVocalLyric(midiTextEvent({ type: 'lyrics', text: '\x00\x01' }))).toBe(true)
 	})
 
 	it('space-only text event IS a lyric (not a control event)', () => {
-		expect(isMidiVocalLyric({ type: 'text', text: '   ' })).toBe(true)
+		expect(isMidiVocalLyric(midiTextEvent({ type: 'text', text: '   ' }))).toBe(true)
 	})
 
 	it('MIDI lyric with emoticon bracket :=[ is a lyric', () => {
-		expect(isMidiVocalLyric({ type: 'lyrics', text: ':=[' })).toBe(true)
+		expect(isMidiVocalLyric(midiTextEvent({ type: 'lyrics', text: ':=[' }))).toBe(true)
 	})
 
 	it('MIDI lyric with featuring info in brackets is a lyric', () => {
-		expect(isMidiVocalLyric({ type: 'lyrics', text: 'Song [feat. Mark]' })).toBe(true)
+		expect(isMidiVocalLyric(midiTextEvent({ type: 'lyrics', text: 'Song [feat. Mark]' }))).toBe(true)
 	})
 
 	it('unknown bracketed text IS a lyric (not a known control event)', () => {
-		expect(isMidiVocalLyric({ type: 'lyrics', text: '[I Like It, Though]' })).toBe(true)
+		expect(isMidiVocalLyric(midiTextEvent({ type: 'lyrics', text: '[I Like It, Though]' }))).toBe(true)
 	})
 })
 
@@ -770,23 +776,24 @@ function int32be(n: number): number[] {
 	return [(n >> 24) & 0xFF, (n >> 16) & 0xFF, (n >> 8) & 0xFF, n & 0xFF]
 }
 
+/** Parses the generated MIDI and returns the first lyric event text. */
+function firstParsedLyricText(midi: Uint8Array): string {
+	const parsed = parseMidi(midi)
+	const lyricEvent = parsed.tracks[1]?.find((e): e is typeof e & { text: string } => e.type === 'lyrics' && 'text' in e)
+	expect(lyricEvent).toBeDefined()
+	return lyricEvent!.text
+}
+
 describe('MIDI text encoding: Latin-1 fallback', () => {
 	it('decodes valid UTF-8 multibyte text (ñ = C3 B1)', () => {
 		// UTF-8 encoded "ñ" = bytes C3 B1
 		const midi = buildRawMidiWithLyric([0xC3, 0xB1])
-		const parsed = parseMidi(midi)
-		const vocalsTrack = parsed.tracks[1]
-		const lyricEvent = vocalsTrack.find(e => e.type === 'lyrics')
-		expect(lyricEvent).toBeDefined()
-		expect((lyricEvent ).text).toBe('ñ')
+		expect(firstParsedLyricText(midi)).toBe('ñ')
 	})
 
 	it('decodes valid UTF-8 multibyte text (é = C3 A9)', () => {
 		const midi = buildRawMidiWithLyric([0x74, 0xC3, 0xA9]) // "té"
-		const parsed = parseMidi(midi)
-		const vocalsTrack = parsed.tracks[1]
-		const lyricEvent = vocalsTrack.find(e => e.type === 'lyrics')
-		expect((lyricEvent ).text).toBe('té')
+		expect(firstParsedLyricText(midi)).toBe('té')
 	})
 
 	it('falls back to Latin-1 for invalid UTF-8 (ó = F3 in Latin-1)', () => {
@@ -794,28 +801,19 @@ describe('MIDI text encoding: Latin-1 fallback', () => {
 		// Without proper continuation bytes, UTF-8 decoding produces U+FFFD.
 		// The patch should fall back to Latin-1.
 		const midi = buildRawMidiWithLyric([0x53, 0xF3]) // "Só" in Latin-1
-		const parsed = parseMidi(midi)
-		const vocalsTrack = parsed.tracks[1]
-		const lyricEvent = vocalsTrack.find(e => e.type === 'lyrics')
-		expect((lyricEvent ).text).toBe('Só')
+		expect(firstParsedLyricText(midi)).toBe('Só')
 	})
 
 	it('falls back to Latin-1 for invalid UTF-8 (é = E9 in Latin-1)', () => {
 		// Byte E9 is "é" in Latin-1 but starts a 3-byte UTF-8 sequence.
 		const midi = buildRawMidiWithLyric([0x71, 0x75, 0xE9]) // "qué" in Latin-1
-		const parsed = parseMidi(midi)
-		const vocalsTrack = parsed.tracks[1]
-		const lyricEvent = vocalsTrack.find(e => e.type === 'lyrics')
-		expect((lyricEvent ).text).toBe('qué')
+		expect(firstParsedLyricText(midi)).toBe('qué')
 	})
 
 	it('falls back to Latin-1 for invalid UTF-8 (ë = EB in Latin-1)', () => {
 		// Byte EB is "ë" in Latin-1 but starts a 3-byte UTF-8 sequence.
 		const midi = buildRawMidiWithLyric([0x6E, 0x6A, 0xEB]) // "një" in Latin-1
-		const parsed = parseMidi(midi)
-		const vocalsTrack = parsed.tracks[1]
-		const lyricEvent = vocalsTrack.find(e => e.type === 'lyrics')
-		expect((lyricEvent ).text).toBe('një')
+		expect(firstParsedLyricText(midi)).toBe('një')
 	})
 
 	it('Latin-1 lyrics pass through scanVocalTrack correctly', () => {
@@ -831,10 +829,7 @@ describe('MIDI text encoding: Latin-1 fallback', () => {
 
 	it('preserves ASCII-only text unchanged', () => {
 		const midi = buildRawMidiWithLyric([0x48, 0x65, 0x6C, 0x6C, 0x6F]) // "Hello"
-		const parsed = parseMidi(midi)
-		const vocalsTrack = parsed.tracks[1]
-		const lyricEvent = vocalsTrack.find(e => e.type === 'lyrics')
-		expect((lyricEvent ).text).toBe('Hello')
+		expect(firstParsedLyricText(midi)).toBe('Hello')
 	})
 })
 

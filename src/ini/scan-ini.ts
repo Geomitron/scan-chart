@@ -24,6 +24,13 @@ type InputMetadata = Metadata & {
 	star_power_note: number
 }
 
+type ScanIniResult = {
+	metadata: Metadata | null
+	folderIssues: { folderIssue: FolderIssueType; description: string }[]
+	metadataIssues: { metadataIssue: MetadataIssueType; description: string }[]
+	unknownIniValues: { [key: string]: string }
+}
+
 const integerProperties: MetaNumberKey[] = [
 	'song_length',
 	'diff_band',
@@ -51,7 +58,7 @@ const integerProperties: MetaNumberKey[] = [
 ]
 const requiredProperties: MetaStringKey[] = ['name', 'artist', 'album', 'genre', 'year', 'charter']
 
-export function scanIni(files: File[]) {
+export function scanIni(files: File[]): ScanIniResult {
 	const folderIssues: { folderIssue: FolderIssueType; description: string }[] = []
 
 	const findIniDataResult = findIniData(files)
