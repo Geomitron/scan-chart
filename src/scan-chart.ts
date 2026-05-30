@@ -18,9 +18,10 @@ export function scanChart(
 	parseResult: ParseChartAndIniResult,
 	config?: ScanChartFolderConfig,
 ): ScannedChart {
-	config = {
+	const resolvedConfig: Required<ScanChartFolderConfig> = {
 		includeMd5: true,
 		includeBTrack: false,
+		includeAlbumArt: true,
 		...config,
 	}
 
@@ -30,14 +31,14 @@ export function scanChart(
 		playable: true,
 	}
 
-	chart.md5 = config.includeMd5 ? getChartMD5(files) : 'md5 calculation skipped'
+	chart.md5 = resolvedConfig.includeMd5 ? getChartMD5(files) : 'md5 calculation skipped'
 
 	chart.folderIssues.push(...parseResult.iniFolderIssues)
 	chart.metadataIssues.push(...parseResult.iniMetadataIssues)
 	chart.folderIssues.push(...parseResult.chartFolderIssues)
 
 	if (parseResult.parsedChart) {
-		const chartData = scanParsedChart(parseResult.parsedChart, config.includeBTrack)
+		const chartData = scanParsedChart(parseResult.parsedChart, resolvedConfig.includeBTrack)
 		chart.chartHash = chartData.chartHash
 		chart.notesData = chartData.notesData
 		const instruments = chartData.notesData.instruments
@@ -108,13 +109,19 @@ export function scanChart(
 		}
 	}
 
-	const imageData = scanImage(files)
-	chart.folderIssues.push(...imageData.folderIssues)
-	if (imageData.albumBuffer) {
-		chart.albumArt = {
-			md5: md5.create().update(imageData.albumBuffer).hex(),
-			data: imageData.albumBuffer,
+	if (resolvedConfig.includeAlbumArt) {
+		const imageData = scanImage(files)
+		chart.folderIssues.push(...imageData.folderIssues)
+		if (imageData.albumBuffer) {
+			chart.albumArt = {
+				md5: md5.create().update(imageData.albumBuffer).hex(),
+				data: imageData.albumBuffer,
+			}
+		} else {
+			chart.albumArt = null
 		}
+	} else {
+		chart.albumArt = null
 	}
 
 	const audioData = scanAudio(files)

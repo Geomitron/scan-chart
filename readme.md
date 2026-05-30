@@ -50,14 +50,21 @@ interface ScanChartFolderConfig {
 	 *
 	 * Default: `true`.
 	 */
-	includeMd5: boolean
+	includeMd5?: boolean
 
 	/**
-   * Set this to true to calculate `ScannedChart.notesData.trackHashes[].btrack`. Otherwise, it will have the value `null`.
-   *
-   * Default: `false`.
-   */
-  includeBTrack: boolean
+	 * Set this to true to calculate `ScannedChart.notesData.trackHashes[].btrack`. Otherwise, it will have the value `null`.
+	 *
+	 * Default: `false`.
+	 */
+	includeBTrack?: boolean
+
+	/**
+	 * Set this to false to skip parsing `ScannedChart.albumArt`. It will be set to `null` instead.
+	 *
+	 * Default: `true`.
+	 */
+	includeAlbumArt?: boolean
 }
 
 interface ParseChartAndIniResult {

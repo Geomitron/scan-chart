@@ -16,14 +16,21 @@ export interface ScanChartFolderConfig {
 	 *
 	 * Default: `true`.
 	 */
-	includeMd5: boolean
+	includeMd5?: boolean
 
 	/**
 	 * Set this to true to calculate `ScannedChart.notesData.trackHashes[].btrack`. Otherwise, it will have the value `null`.
 	 *
 	 * Default: `false`.
 	 */
-	includeBTrack: boolean
+	includeBTrack?: boolean
+
+	/**
+	 * Set this to false to skip parsing `ScannedChart.albumArt`. It will be set to `null` instead.
+	 *
+	 * Default: `true`.
+	 */
+	includeAlbumArt?: boolean
 }
 
 export interface ScannedChart {
@@ -31,7 +38,7 @@ export interface ScannedChart {
 	md5: string
 	/** A blake3 hash of just the chart file and the .ini modifiers that impact chart parsing. If this changes, the in-game score is reset. */
 	chartHash: string
-	/** If the chart is able to be played in-game. This is `false` if `notesData` is `undefined`. */
+	/** If the chart is able to be played in-game. This is `false` if `notesData` is `null`. */
 	playable: boolean
 
 	/** Metadata read from the chart's song.ini or .chart [Song] section. */
