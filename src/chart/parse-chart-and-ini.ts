@@ -4,7 +4,7 @@ import { defaultMetadata } from '../ini/metadata'
 import { scanIni } from '../ini/scan-ini'
 import { File, FolderIssueType, MetadataIssueType } from '../types'
 import { getExtension, hasChartExtension, hasChartName } from '../shared/file-names'
-import { defaultIniChartModifiers, IniChartModifiers } from './types'
+import { IniChartModifiers } from './types'
 import { parseChartFile, ParsedChartFile } from './parse-chart-file'
 
 /**
@@ -76,8 +76,8 @@ export interface ParseChartAndIniResult {
 export function parseChartAndIni(files: File[]): ParseChartAndIniResult {
 	const iniData = scanIni(files)
 	const iniChartModifiers: IniChartModifiers = iniData.metadata
-		? { ...defaultIniChartModifiers, ...iniData.metadata }
-		: defaultIniChartModifiers
+		? { ...defaultMetadata, ...iniData.metadata }
+		: defaultMetadata
 
 	const { chartData, format, folderIssues: chartFolderIssues } = findChartData(files)
 

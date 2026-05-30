@@ -22,7 +22,8 @@
 import { describe, expect, it } from 'vitest'
 
 import { parseChartFile } from '../chart/parse-chart-file'
-import { defaultIniChartModifiers, noteFlags, noteTypes } from '../chart/types'
+import { defaultMetadata } from '../ini/metadata'
+import { noteFlags, noteTypes } from '../chart/types'
 
 /**
  * Parse a `[ExpertGHLGuitar]` track body and return the resolved note groups
@@ -40,7 +41,7 @@ function parseGhlTrack(trackBody: string) {
 		trackBody,
 		'}',
 	].join('\r\n')
-	const result = parseChartFile(new TextEncoder().encode(body), 'chart', defaultIniChartModifiers)
+	const result = parseChartFile(new TextEncoder().encode(body), 'chart', defaultMetadata)
 	expect(result.trackData.length).toBe(1)
 	return result.trackData[0].noteEventGroups
 }

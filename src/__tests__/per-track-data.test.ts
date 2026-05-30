@@ -8,7 +8,7 @@ import { writeMidi, MidiData } from '@geomitron/midi-file'
 import { parseNotesFromMidi } from '../chart/midi-file-parser'
 import { parseNotesFromChart } from '../chart/chart-file-parser'
 import { parseChartFile } from '../chart/parse-chart-file'
-import { defaultIniChartModifiers } from '../chart/types'
+import { defaultMetadata } from '../ini/metadata'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -120,7 +120,7 @@ describe('MIDI: per-track text events', () => {
 			}),
 		])
 
-		const result = parseNotesFromMidi(midi, defaultIniChartModifiers)
+		const result = parseNotesFromMidi(midi, defaultMetadata)
 		const track = getTrack(result, 'guitar')!
 		expect(track).toBeDefined()
 		expect(track.textEvents).toEqual([
@@ -146,7 +146,7 @@ describe('MIDI: per-track text events', () => {
 			}),
 		])
 
-		const result = parseNotesFromMidi(midi, defaultIniChartModifiers)
+		const result = parseNotesFromMidi(midi, defaultMetadata)
 		const track = getTrack(result, 'guitar')!
 		expect(track.textEvents).toEqual([
 			{ tick: 480, text: '[play]' },
@@ -167,7 +167,7 @@ describe('MIDI: per-track text events', () => {
 			}),
 		])
 
-		const result = parseNotesFromMidi(midi, defaultIniChartModifiers)
+		const result = parseNotesFromMidi(midi, defaultMetadata)
 		const track = getTrack(result, 'drums')!
 		expect(track.textEvents).toEqual([
 			{ tick: 960, text: '[idle]' },
@@ -187,7 +187,7 @@ describe('MIDI: per-track text events', () => {
 			}),
 		])
 
-		const result = parseNotesFromMidi(midi, defaultIniChartModifiers)
+		const result = parseNotesFromMidi(midi, defaultMetadata)
 		const expert = getTrack(result, 'guitar', 'expert')!
 		const hard = getTrack(result, 'guitar', 'hard')!
 		expect(expert.textEvents).toEqual([{ tick: 0, text: '[play]' }])
@@ -213,7 +213,7 @@ describe('MIDI: versus phrases', () => {
 			}),
 		])
 
-		const result = parseNotesFromMidi(midi, defaultIniChartModifiers)
+		const result = parseNotesFromMidi(midi, defaultMetadata)
 		const track = getTrack(result, 'guitar')!
 		expect(track.versusPhrases).toEqual([
 			{ tick: 480, length: 960, isPlayer2: false },
@@ -234,7 +234,7 @@ describe('MIDI: versus phrases', () => {
 			}),
 		])
 
-		const result = parseNotesFromMidi(midi, defaultIniChartModifiers)
+		const result = parseNotesFromMidi(midi, defaultMetadata)
 		const track = getTrack(result, 'guitar')!
 		expect(track.versusPhrases).toHaveLength(2)
 		expect(track.versusPhrases[0]).toEqual({ tick: 480, length: 960, isPlayer2: false })
@@ -254,7 +254,7 @@ describe('MIDI: versus phrases', () => {
 			}),
 		])
 
-		const result = parseNotesFromMidi(midi, defaultIniChartModifiers)
+		const result = parseNotesFromMidi(midi, defaultMetadata)
 		const expert = getTrack(result, 'guitar', 'expert')!
 		const hard = getTrack(result, 'guitar', 'hard')!
 		expect(expert.versusPhrases).toEqual([{ tick: 480, length: 960, isPlayer2: false }])
@@ -281,7 +281,7 @@ describe('MIDI: animation notes', () => {
 			}),
 		])
 
-		const result = parseNotesFromMidi(midi, defaultIniChartModifiers)
+		const result = parseNotesFromMidi(midi, defaultMetadata)
 		const track = getTrack(result, 'guitar')!
 		expect(track.animations).toEqual([
 			{ tick: 480, length: 240, noteNumber: 40 },
@@ -304,7 +304,7 @@ describe('MIDI: animation notes', () => {
 			}),
 		])
 
-		const result = parseNotesFromMidi(midi, defaultIniChartModifiers)
+		const result = parseNotesFromMidi(midi, defaultMetadata)
 		const track = getTrack(result, 'drums')!
 		expect(track.animations).toEqual([
 			{ tick: 480, length: 120, noteNumber: 24 },
@@ -327,7 +327,7 @@ describe('MIDI: animation notes', () => {
 			}),
 		])
 
-		const result = parseNotesFromMidi(midi, defaultIniChartModifiers)
+		const result = parseNotesFromMidi(midi, defaultMetadata)
 		const track = getTrack(result, 'guitar')!
 		expect(track.animations).toEqual([
 			{ tick: 480, length: 120, noteNumber: 45 },
@@ -348,7 +348,7 @@ describe('MIDI: animation notes', () => {
 			}),
 		])
 
-		const result = parseNotesFromMidi(midi, defaultIniChartModifiers)
+		const result = parseNotesFromMidi(midi, defaultMetadata)
 		const track = getTrack(result, 'drums')!
 		expect(track.animations).toEqual([
 			{ tick: 480, length: 120, noteNumber: 45 },
@@ -367,7 +367,7 @@ describe('MIDI: animation notes', () => {
 			}),
 		])
 
-		const result = parseNotesFromMidi(midi, defaultIniChartModifiers)
+		const result = parseNotesFromMidi(midi, defaultMetadata)
 		const track = getTrack(result, 'bass')!
 		expect(track.animations).toEqual([
 			{ tick: 480, length: 240, noteNumber: 42 },
@@ -528,7 +528,7 @@ describe('MIDI: text event edge cases', () => {
 			}),
 		])
 
-		const result = parseNotesFromMidi(midi, defaultIniChartModifiers)
+		const result = parseNotesFromMidi(midi, defaultMetadata)
 		const track = getTrack(result, 'guitar')!
 		expect(track.textEvents).toEqual([
 			{ tick: 480, text: '[play]' },
@@ -547,7 +547,7 @@ describe('MIDI: text event edge cases', () => {
 			}),
 		])
 
-		const result = parseNotesFromMidi(midi, defaultIniChartModifiers)
+		const result = parseNotesFromMidi(midi, defaultMetadata)
 		const track = getTrack(result, 'drums')!
 		expect(track.textEvents).toEqual([
 			{ tick: 480, text: 'PART DRUMS' },
@@ -566,7 +566,7 @@ describe('MIDI: text event edge cases', () => {
 			}),
 		])
 
-		const result = parseNotesFromMidi(midi, defaultIniChartModifiers)
+		const result = parseNotesFromMidi(midi, defaultMetadata)
 		const track = getTrack(result, 'guitar')!
 		expect(track.textEvents).toEqual([
 			{ tick: 0, text: '[mix 0 drums0]' },
@@ -649,7 +649,7 @@ describe('MIDI: note pair extraction edge cases', () => {
 		]
 
 		const midi = buildMidi(480, [tempoTrack(), eventsTrack(), track])
-		const result = parseNotesFromMidi(midi, defaultIniChartModifiers)
+		const result = parseNotesFromMidi(midi, defaultMetadata)
 		const gtr = getTrack(result, 'guitar')!
 		expect(gtr.versusPhrases).toEqual([
 			{ tick: 0, length: 480, isPlayer2: false },
@@ -669,7 +669,7 @@ describe('MIDI: note pair extraction edge cases', () => {
 		]
 
 		const midi = buildMidi(480, [tempoTrack(), eventsTrack(), track])
-		const result = parseNotesFromMidi(midi, defaultIniChartModifiers)
+		const result = parseNotesFromMidi(midi, defaultMetadata)
 		const gtr = getTrack(result, 'guitar')!
 		// Should produce exactly one animation from tick 0 to tick 480 (length 480)
 		expect(gtr.animations).toEqual([
@@ -695,7 +695,7 @@ describe('MIDI: keys animations', () => {
 			}),
 		])
 
-		const result = parseNotesFromMidi(midi, defaultIniChartModifiers)
+		const result = parseNotesFromMidi(midi, defaultMetadata)
 		const track = getTrack(result, 'keys')!
 		expect(track.animations).toEqual([
 			{ tick: 480, length: 240, noteNumber: 48 },
@@ -717,7 +717,7 @@ describe('per-track data edge cases', () => {
 			}),
 		])
 
-		const result = parseNotesFromMidi(midi, defaultIniChartModifiers)
+		const result = parseNotesFromMidi(midi, defaultMetadata)
 		const track = getTrack(result, 'guitar')!
 		expect(track.textEvents).toEqual([])
 		expect(track.versusPhrases).toEqual([])
@@ -740,7 +740,7 @@ describe('MIDI: global events', () => {
 		]
 
 		const midi = buildMidi(480, [tempoTrack(), events])
-		const result = parseNotesFromMidi(midi, defaultIniChartModifiers)
+		const result = parseNotesFromMidi(midi, defaultMetadata)
 		expect(result.unrecognizedEventsTrackTextEvents).toEqual([
 			{ tick: 0, text: '[crowd_normal]' },
 			{ tick: 480, text: '[music_start]' },
@@ -758,7 +758,7 @@ describe('MIDI: global events', () => {
 		]
 
 		const midi = buildMidi(480, [tempoTrack(), events])
-		const result = parseNotesFromMidi(midi, defaultIniChartModifiers)
+		const result = parseNotesFromMidi(midi, defaultMetadata)
 		expect(result.unrecognizedEventsTrackTextEvents).toEqual([
 			{ tick: 480, text: '[crowd_intense]' },
 		])
@@ -774,7 +774,7 @@ describe('MIDI: global events', () => {
 		]
 
 		const midi = buildMidi(480, [tempoTrack(), events])
-		const result = parseNotesFromMidi(midi, defaultIniChartModifiers)
+		const result = parseNotesFromMidi(midi, defaultMetadata)
 		expect(result.unrecognizedEventsTrackTextEvents).toEqual([
 			{ tick: 960, text: '[crowd_clap]' },
 		])
@@ -793,7 +793,7 @@ describe('MIDI: global events', () => {
 		]
 
 		const midi = buildMidi(480, [tempoTrack(), events])
-		const result = parseNotesFromMidi(midi, defaultIniChartModifiers)
+		const result = parseNotesFromMidi(midi, defaultMetadata)
 		expect(result.unrecognizedEventsTrackTextEvents).toEqual([
 			{ tick: 480, text: 'lyric Hello' },
 			{ tick: 960, text: 'phrase_start' },
@@ -813,7 +813,7 @@ describe('MIDI: global events', () => {
 		]
 
 		const midi = buildMidi(480, [tempoTrack(), events])
-		const result = parseNotesFromMidi(midi, defaultIniChartModifiers)
+		const result = parseNotesFromMidi(midi, defaultMetadata)
 		expect(result.unrecognizedEventsTrackTextEvents).toEqual([
 			{ tick: 0, text: '[crowd_normal]' },
 			{ tick: 480, text: '[music_start]' },
@@ -831,7 +831,7 @@ describe('MIDI: global events', () => {
 		]
 
 		const midi = buildMidi(480, [tempoTrack(), events])
-		const result = parseNotesFromMidi(midi, defaultIniChartModifiers)
+		const result = parseNotesFromMidi(midi, defaultMetadata)
 		expect(result.sections).toEqual([
 			{ tick: 0, name: 'intro' },
 			{ tick: 480, name: 'verse' },
@@ -847,14 +847,14 @@ describe('MIDI: global events', () => {
 		]
 
 		const midi = buildMidi(480, [tempoTrack(), events])
-		const result = parseNotesFromMidi(midi, defaultIniChartModifiers)
+		const result = parseNotesFromMidi(midi, defaultMetadata)
 		expect(result.endEvents).toEqual([{ tick: 960 }])
 		expect(result.unrecognizedEventsTrackTextEvents).toEqual([])
 	})
 
 	it('returns empty array when no EVENTS track', () => {
 		const midi = buildMidi(480, [tempoTrack()])
-		const result = parseNotesFromMidi(midi, defaultIniChartModifiers)
+		const result = parseNotesFromMidi(midi, defaultMetadata)
 		expect(result.unrecognizedEventsTrackTextEvents).toEqual([])
 	})
 
@@ -877,7 +877,7 @@ describe('MIDI: global events', () => {
 			{ deltaTime: 0, type: 'endOfTrack' },
 		]
 		const midi = buildMidi(480, [tempoTrack(), events])
-		const result = parseNotesFromMidi(midi, defaultIniChartModifiers)
+		const result = parseNotesFromMidi(midi, defaultMetadata)
 
 		const bucket = result.unrecognizedEventsTrackMidiEvents
 		expect(bucket).toHaveLength(6)
@@ -894,7 +894,7 @@ describe('MIDI: global events', () => {
 			{ deltaTime: 0, type: 'endOfTrack' },
 		]
 		const midi = buildMidi(480, [tempoTrack(), events])
-		const result = parseNotesFromMidi(midi, defaultIniChartModifiers)
+		const result = parseNotesFromMidi(midi, defaultMetadata)
 		const bucket = result.unrecognizedEventsTrackMidiEvents
 		expect(bucket).toHaveLength(1)
 		expect(bucket[0].type).toBe('sysEx')
@@ -913,7 +913,7 @@ describe('MIDI: global events', () => {
 			{ deltaTime: 0, type: 'endOfTrack' },
 		]
 		const midi = buildMidi(480, [tempoTrack(), events])
-		const result = parseNotesFromMidi(midi, defaultIniChartModifiers)
+		const result = parseNotesFromMidi(midi, defaultMetadata)
 		expect(result.unrecognizedEventsTrackMidiEvents).toEqual([])
 	})
 
@@ -927,7 +927,7 @@ describe('MIDI: global events', () => {
 			{ deltaTime: 0, type: 'endOfTrack' },
 		]
 		const midi = buildMidi(480, [tempoTrack(), events])
-		const result = parseNotesFromMidi(midi, defaultIniChartModifiers)
+		const result = parseNotesFromMidi(midi, defaultMetadata)
 		const types = result.unrecognizedEventsTrackMidiEvents.map(e => e.type)
 		expect(types).not.toContain('trackName')
 		expect(types).not.toContain('endOfTrack')
@@ -936,7 +936,7 @@ describe('MIDI: global events', () => {
 
 	it('returns empty array when no EVENTS track (MIDI events bucket)', () => {
 		const midi = buildMidi(480, [tempoTrack()])
-		const result = parseNotesFromMidi(midi, defaultIniChartModifiers)
+		const result = parseNotesFromMidi(midi, defaultMetadata)
 		expect(result.unrecognizedEventsTrackMidiEvents).toEqual([])
 	})
 
@@ -1062,7 +1062,7 @@ describe('section name parsing', () => {
 		]
 
 		const midi = buildMidi(480, [tempoTrack(), events])
-		const result = parseNotesFromMidi(midi, defaultIniChartModifiers)
+		const result = parseNotesFromMidi(midi, defaultMetadata)
 		expect(result.sections).toEqual([
 			{ tick: 0, name: '<b>Hot Mulligan - And a Big Load</b> [jdurandTV & Pix_]' },
 			{ tick: 480, name: 'Intro' },
@@ -1078,7 +1078,7 @@ describe('section name parsing', () => {
 		]
 
 		const midi = buildMidi(480, [tempoTrack(), events])
-		const result = parseNotesFromMidi(midi, defaultIniChartModifiers)
+		const result = parseNotesFromMidi(midi, defaultMetadata)
 		expect(result.sections).toEqual([
 			{ tick: 0, name: 'credits [part 1]' },
 			{ tick: 480, name: 'Intro' },
@@ -1099,7 +1099,7 @@ describe('MIDI: invalid lyric/phrase events on EVENTS track', () => {
 			{ deltaTime: 0, type: 'endOfTrack' },
 		]
 		const midi = buildMidi(480, [tempoTrack(), events])
-		const result = parseNotesFromMidi(midi, defaultIniChartModifiers)
+		const result = parseNotesFromMidi(midi, defaultMetadata)
 		expect(result.parseIssues.filter(i => i.noteIssue === 'invalidLyric')).toHaveLength(2)
 		expect(result.unrecognizedEventsTrackTextEvents.map(e => e.text).sort()).toEqual(['[lyric world]', 'lyric Hello'])
 	})
@@ -1112,7 +1112,7 @@ describe('MIDI: invalid lyric/phrase events on EVENTS track', () => {
 			{ deltaTime: 0, type: 'endOfTrack' },
 		]
 		const midi = buildMidi(480, [tempoTrack(), events])
-		const result = parseNotesFromMidi(midi, defaultIniChartModifiers)
+		const result = parseNotesFromMidi(midi, defaultMetadata)
 		expect(result.parseIssues.filter(i => i.noteIssue === 'invalidPhraseStart')).toHaveLength(2)
 		expect(result.unrecognizedEventsTrackTextEvents.map(e => e.text).sort()).toEqual(['[phrase_start]', 'phrase_start'])
 	})
@@ -1125,7 +1125,7 @@ describe('MIDI: invalid lyric/phrase events on EVENTS track', () => {
 			{ deltaTime: 0, type: 'endOfTrack' },
 		]
 		const midi = buildMidi(480, [tempoTrack(), events])
-		const result = parseNotesFromMidi(midi, defaultIniChartModifiers)
+		const result = parseNotesFromMidi(midi, defaultMetadata)
 		expect(result.parseIssues.filter(i => i.noteIssue === 'invalidPhraseEnd')).toHaveLength(2)
 		expect(result.unrecognizedEventsTrackTextEvents.map(e => e.text).sort()).toEqual(['[phrase_end]', 'phrase_end'])
 	})
@@ -1140,7 +1140,7 @@ describe('MIDI: invalid lyric/phrase events on EVENTS track', () => {
 			{ deltaTime: 0, type: 'endOfTrack' },
 		]
 		const midi = buildMidi(480, [tempoTrack(), events])
-		const result = parseNotesFromMidi(midi, defaultIniChartModifiers)
+		const result = parseNotesFromMidi(midi, defaultMetadata)
 		const types = result.parseIssues.map(i => i.noteIssue).sort()
 		expect(types).toEqual(['invalidLyric', 'invalidLyric', 'invalidPhraseEnd', 'invalidPhraseStart'])
 	})
@@ -1154,7 +1154,7 @@ describe('MIDI: invalid lyric/phrase events on EVENTS track', () => {
 			{ deltaTime: 0, type: 'endOfTrack' },
 		]
 		const midi = buildMidi(480, [tempoTrack(), events])
-		const result = parseNotesFromMidi(midi, defaultIniChartModifiers)
+		const result = parseNotesFromMidi(midi, defaultMetadata)
 		expect(result.parseIssues).toEqual([])
 	})
 
@@ -1167,7 +1167,7 @@ describe('MIDI: invalid lyric/phrase events on EVENTS track', () => {
 			{ deltaTime: 0, type: 'endOfTrack' },
 		]
 		const midi = buildMidi(480, [tempoTrack(), events])
-		const result = parseNotesFromMidi(midi, defaultIniChartModifiers)
+		const result = parseNotesFromMidi(midi, defaultMetadata)
 		const types = result.parseIssues.map(i => i.noteIssue).sort()
 		expect(types).toEqual(['invalidLyric', 'invalidPhraseEnd', 'invalidPhraseStart'])
 	})

@@ -1,4 +1,3 @@
-import { defaultMetadata } from '../ini/metadata'
 import { ObjectValues } from '../shared/type-utils'
 
 export interface IniChartModifiers {
@@ -10,21 +9,6 @@ export interface IniChartModifiers {
 	chord_snap_threshold: number
 	five_lane_drums: boolean
 	pro_drums: boolean
-}
-
-/**
- * Projection of the 8 `song.ini` fields that influence chart parsing, with
- * defaults derived from {@link defaultMetadata}.
- */
-export const defaultIniChartModifiers: IniChartModifiers = {
-	song_length: defaultMetadata.song_length,
-	hopo_frequency: defaultMetadata.hopo_frequency,
-	eighthnote_hopo: defaultMetadata.eighthnote_hopo,
-	multiplier_note: defaultMetadata.multiplier_note,
-	sustain_cutoff_threshold: defaultMetadata.sustain_cutoff_threshold,
-	chord_snap_threshold: defaultMetadata.chord_snap_threshold,
-	five_lane_drums: defaultMetadata.five_lane_drums,
-	pro_drums: defaultMetadata.pro_drums,
 }
 
 /** A single event in a chart's track. Note that more than one event can occur at the same time. */

@@ -14,7 +14,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { parseChartFile } from '../chart/parse-chart-file'
-import { defaultIniChartModifiers } from '../chart/types'
+import { defaultMetadata } from '../ini/metadata'
 import { scanChart } from '..'
 import { parseChartAndIni } from '../chart/parse-chart-and-ini'
 import { File } from '../types'
@@ -31,7 +31,7 @@ describe('ParsedChart shape: derived flags no longer at top level', () => {
 			'[Events]', '{', '}',
 		].join('\r\n')
 		const data = new TextEncoder().encode(body)
-		const result = parseChartFile(data, 'chart', defaultIniChartModifiers)
+		const result = parseChartFile(data, 'chart', defaultMetadata)
 
 		const r = result as unknown as Record<string, unknown>
 		expect(r.hasLyrics).toBeUndefined()

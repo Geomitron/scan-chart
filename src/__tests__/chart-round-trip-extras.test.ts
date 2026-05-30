@@ -16,7 +16,7 @@ import { describe, it, expect } from 'vitest'
 import { writeMidi, MidiData } from '@geomitron/midi-file'
 import { parseNotesFromChart } from '../chart/chart-file-parser'
 import { parseNotesFromMidi } from '../chart/midi-file-parser'
-import { defaultIniChartModifiers } from '../chart/types'
+import { defaultMetadata } from '../ini/metadata'
 
 function buildChart(sections: Record<string, string[]>): Uint8Array {
 	const lines: string[] = []
@@ -121,7 +121,7 @@ describe('.chart [Song] unknown-key preservation (metadata.extraChartSongFields)
 
 	it('.mid does not populate extraChartSongFields (field is .chart-only)', () => {
 		const midi = buildMidi(480, [tempoTrack()])
-		const r = parseNotesFromMidi(midi, defaultIniChartModifiers)
+		const r = parseNotesFromMidi(midi, defaultMetadata)
 		expect(r.metadata.extraChartSongFields).toBeUndefined()
 	})
 })
@@ -181,7 +181,7 @@ describe('.chart [SyncTrack] unknown-event preservation (unrecognizedSyncTrackEv
 
 	it('.mid does not populate unrecognizedSyncTrackEvents (field is .chart-only)', () => {
 		const midi = buildMidi(480, [tempoTrack()])
-		const r = parseNotesFromMidi(midi, defaultIniChartModifiers)
+		const r = parseNotesFromMidi(midi, defaultMetadata)
 		expect(r.unrecognizedSyncTrackEvents).toEqual([])
 	})
 })

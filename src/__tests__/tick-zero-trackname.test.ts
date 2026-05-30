@@ -17,7 +17,7 @@
 import { describe, it, expect } from 'vitest'
 import { writeMidi, MidiData } from '@geomitron/midi-file'
 import { parseNotesFromMidi } from '../chart/midi-file-parser'
-import { defaultIniChartModifiers } from '../chart/types'
+import { defaultMetadata } from '../ini/metadata'
 
 function buildMidi(ticksPerBeat: number, tracks: MidiData['tracks']): Uint8Array {
 	const data: MidiData = {
@@ -58,7 +58,7 @@ describe('MIDI: tick-0 trackName resolution', () => {
 		// PART BASS expert kick is MIDI note 95. (Same difficulty layout as guitar.)
 		const bass = trackWithLeadingNames(['[ENHANCED_OPENS]', 'PART BASS'], 96)
 		const midi = buildMidi(480, [tempoTrack(), bass])
-		const result = parseNotesFromMidi(midi, defaultIniChartModifiers)
+		const result = parseNotesFromMidi(midi, defaultMetadata)
 
 		const bassTracks = result.trackData.filter(t => t.instrument === 'bass')
 		expect(bassTracks.length).toBeGreaterThan(0)
@@ -69,7 +69,7 @@ describe('MIDI: tick-0 trackName resolution', () => {
 		// PART DRUMS expert red drum is MIDI note 97.
 		const drums = trackWithLeadingNames(['school food punishment - close, down, back to', 'PART DRUMS'], 97)
 		const midi = buildMidi(480, [tempoTrack(), drums])
-		const result = parseNotesFromMidi(midi, defaultIniChartModifiers)
+		const result = parseNotesFromMidi(midi, defaultMetadata)
 
 		const drumTracks = result.trackData.filter(t => t.instrument === 'drums')
 		expect(drumTracks.length).toBeGreaterThan(0)
@@ -81,7 +81,7 @@ describe('MIDI: tick-0 trackName resolution', () => {
 		// track, the first one wins. (Pathological but well-defined.)
 		const ambiguous = trackWithLeadingNames(['PART BASS', 'PART GUITAR'], 96)
 		const midi = buildMidi(480, [tempoTrack(), ambiguous])
-		const result = parseNotesFromMidi(midi, defaultIniChartModifiers)
+		const result = parseNotesFromMidi(midi, defaultMetadata)
 
 		expect(result.trackData.some(t => t.instrument === 'bass')).toBe(true)
 		expect(result.trackData.some(t => t.instrument === 'guitar')).toBe(false)
@@ -99,7 +99,7 @@ describe('MIDI: tick-0 trackName resolution', () => {
 			{ deltaTime: 0, type: 'endOfTrack' },
 		]
 		const midi = buildMidi(480, [tempoTrack(), venue])
-		const result = parseNotesFromMidi(midi, defaultIniChartModifiers)
+		const result = parseNotesFromMidi(midi, defaultMetadata)
 
 		expect(result.trackData).toHaveLength(0)
 		expect(result.unrecognizedMidiTracks).toHaveLength(1)
@@ -115,7 +115,7 @@ describe('MIDI: tick-0 trackName resolution', () => {
 			{ deltaTime: 480, type: 'endOfTrack' },
 		]
 		const midi = buildMidi(480, [tempoTrack(), malformed])
-		const result = parseNotesFromMidi(midi, defaultIniChartModifiers)
+		const result = parseNotesFromMidi(midi, defaultMetadata)
 
 		expect(result.trackData.some(t => t.instrument === 'bass')).toBe(false)
 		expect(result.unrecognizedMidiTracks).toHaveLength(1)

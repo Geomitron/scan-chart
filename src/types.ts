@@ -184,7 +184,7 @@ export interface NotesData {
 		noteIssue: ChartIssueType
 		description: string
 	}[]
-	/** The number of individual notes in the chart. Does not include star power, solo markers, or ativation lanes. */
+	/** The number of individual notes in the chart. Does not include star power, solo markers, or activation lanes. */
 	noteCounts: {
 		instrument: Instrument
 		difficulty: Difficulty

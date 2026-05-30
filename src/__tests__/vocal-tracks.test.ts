@@ -8,7 +8,8 @@ import { writeMidi, MidiData } from '@geomitron/midi-file'
 import { parseNotesFromMidi } from '../chart/midi-file-parser'
 import { parseNotesFromChart } from '../chart/chart-file-parser'
 import { parseChartFile } from '../chart/parse-chart-file'
-import { defaultIniChartModifiers, lyricFlags } from '../chart/types'
+import { defaultMetadata } from '../ini/metadata'
+import { lyricFlags } from '../chart/types'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -139,7 +140,7 @@ describe('vocalTracks: PART VOCALS', () => {
 			}),
 		])
 
-		const result = parseNotesFromMidi(midi, defaultIniChartModifiers)
+		const result = parseNotesFromMidi(midi, defaultMetadata)
 		expect(result.vocalTracks.vocals).toBeDefined()
 		expect(result.vocalTracks.vocals.lyrics).toHaveLength(2)
 		expect(result.vocalTracks.vocals.lyrics[0]).toMatchObject({ tick: 480, text: 'Hel+' })
@@ -153,7 +154,7 @@ describe('vocalTracks: PART VOCALS', () => {
 			eventsTrack(),
 		])
 
-		const result = parseNotesFromMidi(midi, defaultIniChartModifiers)
+		const result = parseNotesFromMidi(midi, defaultMetadata)
 		expect(result.vocalTracks.vocals).toBeUndefined()
 	})
 })
@@ -189,7 +190,7 @@ describe('vocalTracks: harmonies', () => {
 			}),
 		])
 
-		const result = parseNotesFromMidi(midi, defaultIniChartModifiers)
+		const result = parseNotesFromMidi(midi, defaultMetadata)
 
 		// All four parts present
 		expect(result.vocalTracks.vocals).toBeDefined()
@@ -229,7 +230,7 @@ describe('vocalTracks: harmonies', () => {
 			}),
 		])
 
-		const result = parseNotesFromMidi(midi, defaultIniChartModifiers)
+		const result = parseNotesFromMidi(midi, defaultMetadata)
 		expect(result.vocalTracks.harmony1).toBeDefined()
 		expect(result.vocalTracks.harmony2).toBeDefined()
 		expect(result.vocalTracks.harmony3).toBeDefined()
@@ -247,7 +248,7 @@ describe('vocalTracks: harmonies', () => {
 			}),
 		])
 
-		const result = parseNotesFromMidi(midi, defaultIniChartModifiers)
+		const result = parseNotesFromMidi(midi, defaultMetadata)
 		expect(result.vocalTracks.vocals).toBeUndefined()
 		expect(result.vocalTracks.harmony1).toBeDefined()
 		expect(result.vocalTracks.harmony1.lyrics[0].text).toBe('solo harmony')
@@ -277,7 +278,7 @@ describe('vocalTracks: CopyDownPhrases', () => {
 			}),
 		])
 
-		const result = parseNotesFromMidi(midi, defaultIniChartModifiers)
+		const result = parseNotesFromMidi(midi, defaultMetadata)
 		// HARM2 should have HARM1's phrases, not its own
 		expect(result.vocalTracks.harmony2.vocalPhrases).toHaveLength(2)
 		expect(result.vocalTracks.harmony2.vocalPhrases[0]).toMatchObject({ tick: 480, length: 480 })
@@ -300,7 +301,7 @@ describe('vocalTracks: CopyDownPhrases', () => {
 			}),
 		])
 
-		const result = parseNotesFromMidi(midi, defaultIniChartModifiers)
+		const result = parseNotesFromMidi(midi, defaultMetadata)
 		expect(result.vocalTracks.harmony3.vocalPhrases).toHaveLength(2)
 		expect(result.vocalTracks.harmony3.vocalPhrases[0]).toMatchObject({ tick: 480, length: 480 })
 		expect(result.vocalTracks.harmony3.vocalPhrases[1]).toMatchObject({ tick: 1920, length: 960 })
@@ -324,7 +325,7 @@ describe('vocalTracks: CopyDownPhrases', () => {
 			}),
 		])
 
-		const result = parseNotesFromMidi(midi, defaultIniChartModifiers)
+		const result = parseNotesFromMidi(midi, defaultMetadata)
 		// HARM1 should still have its own single phrase
 		expect(result.vocalTracks.harmony1.vocalPhrases).toHaveLength(1)
 		expect(result.vocalTracks.harmony1.vocalPhrases[0]).toMatchObject({ tick: 480, length: 480 })
@@ -340,7 +341,7 @@ describe('vocalTracks: CopyDownPhrases', () => {
 			}),
 		])
 
-		const result = parseNotesFromMidi(midi, defaultIniChartModifiers)
+		const result = parseNotesFromMidi(midi, defaultMetadata)
 		// No HARM1 to copy from, so HARM2 keeps its own
 		expect(result.vocalTracks.harmony2.vocalPhrases).toHaveLength(1)
 		expect(result.vocalTracks.harmony2.vocalPhrases[0]).toMatchObject({ tick: 480, length: 240 })
@@ -364,7 +365,7 @@ describe('vocalTracks: CopyDownPhrases', () => {
 			}),
 		])
 
-		const result = parseNotesFromMidi(midi, defaultIniChartModifiers)
+		const result = parseNotesFromMidi(midi, defaultMetadata)
 		// HARM2's own phrase (tick 960) becomes staticLyricPhrases
 		expect(result.vocalTracks.harmony2.staticLyricPhrases).toHaveLength(1)
 		expect(result.vocalTracks.harmony2.staticLyricPhrases[0]).toMatchObject({ tick: 960, length: 240 })
@@ -389,7 +390,7 @@ describe('vocalTracks: CopyDownPhrases', () => {
 			}),
 		])
 
-		const result = parseNotesFromMidi(midi, defaultIniChartModifiers)
+		const result = parseNotesFromMidi(midi, defaultMetadata)
 		// HARM3 gets HARM2's staticLyricPhrases
 		expect(result.vocalTracks.harmony3.staticLyricPhrases).toHaveLength(1)
 		expect(result.vocalTracks.harmony3.staticLyricPhrases[0]).toMatchObject({ tick: 960, length: 240 })
@@ -410,7 +411,7 @@ describe('vocalTracks: CopyDownPhrases', () => {
 			}),
 		])
 
-		const result = parseNotesFromMidi(midi, defaultIniChartModifiers)
+		const result = parseNotesFromMidi(midi, defaultMetadata)
 		// Verify they're independent objects
 		expect(result.vocalTracks.harmony1.vocalPhrases[0]).not.toBe(result.vocalTracks.harmony2.vocalPhrases[0])
 		expect(result.vocalTracks.harmony2.vocalPhrases[0]).toEqual(result.vocalTracks.harmony1.vocalPhrases[0])
@@ -440,7 +441,7 @@ describe('vocalTracks: notes and markers', () => {
 			}),
 		])
 
-		const result = parseNotesFromMidi(midi, defaultIniChartModifiers)
+		const result = parseNotesFromMidi(midi, defaultMetadata)
 		const notes = result.vocalTracks.vocals.notes
 		expect(notes).toHaveLength(3)
 		expect(notes[0]).toMatchObject({ tick: 480, length: 240, pitch: 60, type: 'pitched' })
@@ -461,7 +462,7 @@ describe('vocalTracks: notes and markers', () => {
 		// Manually add note 116 for star power — vocalTrack helper doesn't support it
 		// So test via the unit-level extractMidiVocalStarPower instead
 		// Integration is covered by the fact that midi-parser calls the function
-		const result = parseNotesFromMidi(midi, defaultIniChartModifiers)
+		const result = parseNotesFromMidi(midi, defaultMetadata)
 		expect(result.vocalTracks.vocals.starPowerSections).toBeDefined()
 		expect(result.vocalTracks.vocals.rangeShifts).toBeDefined()
 		expect(result.vocalTracks.vocals.lyricShifts).toBeDefined()
