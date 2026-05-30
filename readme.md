@@ -83,6 +83,22 @@ interface ScannedChart {
 	/** If the chart is able to be played in-game. This is `false` if `notesData` is `undefined`. */
 	playable: boolean
 
+	/** Metadata read from the chart's song.ini or .chart [Song] section. */
+	metadata: ScannedChartMetadata
+
+	/** The chart's album art, or `null` if there is no album art. */
+	albumArt: AlbumArt | null
+	/** Data describing properties of the .chart or .mid file, or `null` if the .chart or .mid file doesn't exist or couldn't be parsed. */
+	notesData: NotesData | null
+	/** Issues with the chart files. */
+	folderIssues: { folderIssue: FolderIssueType; description: string }[]
+	/** Issues with the chart's metadata. */
+	metadataIssues: { metadataIssue: MetadataIssueType; description: string }[]
+	/** `true` if the chart has a video background. */
+	hasVideoBackground: boolean
+}
+
+interface ScannedChartMetadata {
 	/** The song name. */
 	name?: string
 	/** The song artist. */
@@ -170,17 +186,6 @@ interface ScannedChart {
 	 * and instead use end events if and only if they are between the last note and the end of the audio.
 	 */
 	end_events?: boolean
-
-	/** The chart's album art, or `null` if there is no album art. */
-	albumArt: AlbumArt | null
-	/** Data describing properties of the .chart or .mid file, or `null` if the .chart or .mid file doesn't exist or couldn't be parsed. */
-	notesData: NotesData | null
-	/** Issues with the chart files. */
-	folderIssues: { folderIssue: FolderIssueType; description: string }[]
-	/** Issues with the chart's metadata. */
-	metadataIssues: { metadataIssue: MetadataIssueType; description: string }[]
-	/** `true` if the chart has a video background. */
-	hasVideoBackground: boolean
 }
 
 interface AlbumArt {

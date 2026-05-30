@@ -90,14 +90,23 @@ export function scanChart(
 	}
 
 	if (parseResult.parsedChart) {
-		_.assign(chart, _.omit(parseResult.parsedChart.metadata, 'extraIniFields', 'extraChartSongFields', 'chart_offset'))
+		chart.metadata = {
+			..._.omit(parseResult.parsedChart.metadata, 'extraIniFields', 'extraChartSongFields', 'chart_offset'),
+			chart_offset: parseResult.parsedChart.metadata.chart_offset ?? 0,
+		}
 	} else {
 		chart.playable = false
 		if (parseResult.iniMetadata) {
-			_.assign(chart, parseResult.iniMetadata)
+			chart.metadata = {
+				...parseResult.iniMetadata,
+				chart_offset: 0,
+			}
+		} else {
+			chart.metadata = {
+				chart_offset: 0,
+			}
 		}
 	}
-	chart.chart_offset = parseResult.parsedChart?.metadata.chart_offset ?? 0
 
 	const imageData = scanImage(files)
 	chart.folderIssues.push(...imageData.folderIssues)
