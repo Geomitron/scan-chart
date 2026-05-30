@@ -79,7 +79,7 @@ export const lyricFlags = {
 	hyphenateWithNext: 256,
 } as const
 
-export interface NormalizedLyricEvent {
+export interface LyricEvent {
 	/** Tick position of the lyric event. */
 	tick: number
 	/** Time of the lyric event, in ms. */
@@ -91,7 +91,7 @@ export interface NormalizedLyricEvent {
 }
 
 /** A single timed vocal event inside a vocal phrase, either a sung pitch target or vocals percussion cue. */
-export interface NormalizedVocalNote {
+export interface VocalNote {
 	/** Tick position where the vocal note begins. */
 	tick: number
 	/** Time where the vocal note begins, in ms. */
@@ -112,7 +112,7 @@ export interface NormalizedVocalNote {
  * The game scores and displays vocals phrase-by-phrase as playback crosses
  * these ranges instead of treating every note as an unrelated standalone event.
  */
-export interface NormalizedVocalPhrase {
+export interface VocalPhrase {
 	/** Tick position where the vocal phrase begins. */
 	tick: number
 	/** Time where the vocal phrase begins, in ms. */
@@ -126,17 +126,17 @@ export interface NormalizedVocalPhrase {
 	/** Lead-vocals singer assigned to this phrase in two-player modes; omitted for harmony phrases. */
 	player?: 1 | 2
 	/** All vocal note events contained inside this phrase range. */
-	notes: NormalizedVocalNote[]
+	notes: VocalNote[]
 	/** All lyric events contained inside this phrase range. */
-	lyrics: NormalizedLyricEvent[]
+	lyrics: LyricEvent[]
 }
 
-/** Normalized data for one singer lane, such as lead vocals or a single harmony part. */
-export interface NormalizedVocalPart {
+/** Data for one singer lane, such as lead vocals or a single harmony part. */
+export interface VocalPart {
 	/** Vocal phrases that group the notes and lyrics sung and scored together. */
-	notePhrases: NormalizedVocalPhrase[]
+	notePhrases: VocalPhrase[]
 	/** Vocal phrases that group lyrics for fixed-position static lyric display. */
-	staticLyricPhrases: NormalizedVocalPhrase[]
+	staticLyricPhrases: VocalPhrase[]
 	/** Star Power phrase ranges available to this vocal part. */
 	starPowerSections: { tick: number; msTime: number; length: number; msLength: number }[]
 	/** Range shift markers for this part's vocals note display. */
@@ -147,10 +147,10 @@ export interface NormalizedVocalPart {
 	textEvents: { tick: number; msTime: number; text: string }[]
 }
 
-/** Top-level normalized vocals data containing every singer lane and shared track-level shift markers. */
-export interface NormalizedVocalTrack {
-	/** Normalized vocal parts keyed by canonical part name, such as `vocals` or `harmony1`. */
-	parts: { [partName: string]: NormalizedVocalPart }
+/** Top-level vocals data containing every singer lane and shared track-level shift markers. */
+export interface VocalTrack {
+	/** Vocal parts keyed by canonical part name, such as `vocals` or `harmony1`. */
+	parts: { [partName: string]: VocalPart }
 	/** Shared range shift markers sourced from the lead vocals or first harmony part. */
 	rangeShifts: { tick: number; msTime: number; length: number; msLength: number }[]
 	/** Shared lyric shift markers sourced from the lead vocals or first harmony part. */

@@ -6,16 +6,15 @@ import { parseNotesFromMidi } from './midi-file-parser'
 import {
 	IniChartModifiers,
 	NoteEvent,
-	NormalizedLyricEvent,
-	NormalizedVocalNote,
-	NormalizedVocalPhrase,
-	NormalizedVocalPart,
-	NormalizedVocalTrack,
 	lyricFlags,
 	noteFlags,
 	NoteType,
 	noteTypes,
 	noteTypeCount,
+	VocalNote,
+	VocalPhrase,
+	VocalPart,
+	VocalTrack,
 } from './types'
 import { EventType, eventTypes, RawChartData, VocalTrackData } from './raw-types'
 import { parseLyricFlags, stripLyricSymbols } from './lyric-parser'
@@ -107,9 +106,9 @@ function normalizeVocalTracks(
 	vocalTracks: { [part: string]: VocalTrackData },
 	timedTempos: TimedTempos,
 	resolution: number,
-): NormalizedVocalTrack {
+): VocalTrack {
 	const entries = Object.entries(vocalTracks)
-	const parts: { [partName: string]: NormalizedVocalPart } = {}
+	const parts: { [partName: string]: VocalPart } = {}
 
 	// Find the source part for track-level data (vocals or harmony1)
 	const sourcePart = vocalTracks['vocals'] ?? vocalTracks['harmony1']
@@ -134,7 +133,7 @@ function normalizeVocalPart(
 	timedTempos: TimedTempos,
 	resolution: number,
 	partName: string,
-): NormalizedVocalPart {
+): VocalPart {
 	const isPartVocals = partName === 'vocals'
 	const isHarm2or3 = partName === 'harmony2' || partName === 'harmony3'
 
@@ -143,8 +142,8 @@ function normalizeVocalPart(
 	// Harmonies: keep 105 (scoring) and 106 (static lyric) separate for
 	// lossless round-trip — the writer needs to emit them on their original
 	// MIDI note numbers, and CopyDown relies on HARM1's vocalPhrases (105 only).
-	let notePhrases: NormalizedVocalPhrase[]
-	let staticLyricPhrases: NormalizedVocalPhrase[]
+	let notePhrases: VocalPhrase[]
+	let staticLyricPhrases: VocalPhrase[]
 
 	if (isPartVocals) {
 		// Merge 105 + 106 for PART VOCALS
@@ -214,7 +213,7 @@ function groupIntoPhrases(
 	data: VocalTrackData,
 	timedTempos: TimedTempos,
 	resolution: number,
-): NormalizedVocalPhrase[] {
+): VocalPhrase[] {
 	// Dedup phrases by tick (both note 105 and 106 can create phrases at the same tick)
 	const dedupedPhrases: typeof phrases = []
 	const seenTicks = new Set<number>()
@@ -244,7 +243,7 @@ function groupIntoPhrases(
 	 *  Pitch slides can attach to the previous lyric note even across phrase boundaries. */
 	let hasPreviousLyricNote = false
 
-	const result: NormalizedVocalPhrase[] = []
+	const result: VocalPhrase[] = []
 	for (const phrase of timedPhrases) {
 		const phraseEnd = phrase.tick + phrase.length
 
@@ -260,7 +259,7 @@ function groupIntoPhrases(
 		// Check if a pitch slide from a previous phrase carries into this one
 		const hasCarriedNote = carriedNoteEndTick >= phrase.tick
 
-		const notes: NormalizedVocalNote[] = []
+		const notes: VocalNote[] = []
 		const untimedLyrics: { tick: number; text: string; flags: number }[] = []
 
 		// Pre-collect all lyrics within this phrase's tick range. This advances

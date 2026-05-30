@@ -2,13 +2,13 @@ export type { ParsedChart, ParseChartAndIniResult } from './chart/parse-chart-an
 export type { ParsedChartFile } from './chart/parse-chart-file'
 export type {
 	IniChartModifiers,
+	LyricEvent,
 	NoteEvent,
 	NoteType,
-	NormalizedLyricEvent,
-	NormalizedVocalNote,
-	NormalizedVocalPhrase,
-	NormalizedVocalPart,
-	NormalizedVocalTrack,
+	VocalNote,
+	VocalPhrase,
+	VocalPart,
+	VocalTrack,
 } from './chart/types'
 export { noteTypes, noteFlags, noteTypeCount, lyricFlags } from './chart/types'
 export { defaultMetadata } from './ini/metadata'
