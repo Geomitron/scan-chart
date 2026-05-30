@@ -10,7 +10,7 @@ export type {
 	VocalPart,
 	VocalTrack,
 } from './chart/types'
-export { noteTypes, noteFlags, noteTypeCount, lyricFlags } from './chart/types'
+export { noteTypes, noteFlags, lyricFlags } from './chart/types'
 export { defaultMetadata } from './ini/metadata'
 
 export { scanChart, scanChartFolder } from './scan-chart'

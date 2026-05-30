@@ -10,7 +10,6 @@ import {
 	noteFlags,
 	NoteType,
 	noteTypes,
-	noteTypeCount,
 	VocalNote,
 	VocalPhrase,
 	VocalPart,
@@ -1016,7 +1015,7 @@ function sortAndFixInvalidNoteOverlaps(noteGroups: UntimedNoteEvent[][]) {
 	}
 
 	// noteTypes are dense small integers; array index is faster than Map lookup.
-	const previousNotesOfType: (UntimedNoteEvent | undefined)[] = new Array(noteTypeCount)
+	const previousNotesOfType: (UntimedNoteEvent | undefined)[] = new Array(Math.max(...Object.values(noteTypes)) + 1)
 	for (const noteGroup of noteGroups) {
 		for (const note of noteGroup) {
 			const previousNoteOfType = previousNotesOfType[note.type]

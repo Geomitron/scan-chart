@@ -50,8 +50,6 @@ export const noteTypes = {
 	greenDrum: 17,
 } as const
 
-export const noteTypeCount = Math.max(...Object.values(noteTypes)) + 1
-
 export const noteFlags = {
 	none: 0,
 	strum: 1,
