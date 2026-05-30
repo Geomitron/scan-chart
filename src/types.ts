@@ -194,7 +194,7 @@ export interface NotesData {
 	maxNps: {
 		instrument: Instrument
 		difficulty: Difficulty
-		/** Time of the end of the high NPS region in milliseconds. Rounded to 3 decimal places. */
+		/** Time of the first note in the high NPS region, in milliseconds. Rounded to 3 decimal places. */
 		time: number
 		/** The notes-per-second in this region. */
 		nps: number
@@ -217,9 +217,9 @@ export interface NotesData {
 	/** The number of BPM markers in the chart. */
 	tempoMarkerCount: number
 	/**
-	 * The amount of time between the chart's first and last notes in milliseconds. Rounded to 3 decimal places.
-	 * If there are multiple tracks, the first note is the earliest first note across all the tracks,
-	 * and the last note is the latest last note across all the tracks.
+	 * The amount of time between the chart's first and last note starts in milliseconds. Rounded to 3 decimal places.
+	 * If there are multiple tracks, the first note start is the earliest first note across all the tracks,
+	 * and the last note start is the latest last note across all the tracks.
 	 */
 	effectiveLength: number
 }

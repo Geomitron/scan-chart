@@ -1,5 +1,6 @@
 import { ObjectValues } from '../shared/type-utils'
 
+/** The subset of `defaultMetadata` that influences chart parsing. */
 export interface IniChartModifiers {
 	song_length: number
 	hopo_frequency: number
@@ -11,14 +12,19 @@ export interface IniChartModifiers {
 	pro_drums: boolean
 }
 
-/** A single event in a chart's track. Note that more than one event can occur at the same time. */
+/** A single note event in a chart's track. Note that more than one note event can occur at the same time. */
 export interface NoteEvent {
+	/** Tick position where the note event begins. */
 	tick: number
+	/** Time where the note event begins, in ms. */
 	msTime: number
+	/** Length of the note event, in ticks. */
 	length: number
+	/** Length of the note event, in ms. */
 	msLength: number
+	/** The type of the note. (green, open, redDrum, kick, etc...) */
 	type: NoteType
-	/** bitmask of `noteFlags`. */
+	/** bitmask of `noteFlags`, which define the modifiers that apply to this note event. (strum, tap, cymbal, accent, etc...) */
 	flags: number
 }
 
@@ -74,43 +80,79 @@ export const lyricFlags = {
 } as const
 
 export interface NormalizedLyricEvent {
+	/** Tick position of the lyric event. */
 	tick: number
+	/** Time of the lyric event, in ms. */
 	msTime: number
+	/** The text content of the lyric event. Often will be a single lyric syllable. */
 	text: string
+	/** bitmask of `lyricFlags`, which define the modifiers that apply to this lyric event. (nonPitched, lenientScoring, hyphenateWithNext, etc...) */
 	flags: number
 }
 
+/** A single timed vocal event inside a vocal phrase, either a sung pitch target or vocals percussion cue. */
 export interface NormalizedVocalNote {
+	/** Tick position where the vocal note begins. */
 	tick: number
+	/** Time where the vocal note begins, in ms. */
 	msTime: number
+	/** Length of the vocal note, in ticks. */
 	length: number
+	/** Length of the vocal note, in ms. */
 	msLength: number
+	/** The MIDI note number for the vocal pitch of this note. */
 	pitch: number
+	/** Whether this note is a sung pitch note (MIDI 36-84) or vocals percussion cue (MIDI 96/97). */
 	type: 'pitched' | 'percussion'
 }
 
+/**
+ * A range created by a vocals phrase marker, used during gameplay to decide
+ * which pitch/percussion notes and lyric syllables belong to the same sung line.
+ * The game scores and displays vocals phrase-by-phrase as playback crosses
+ * these ranges instead of treating every note as an unrelated standalone event.
+ */
 export interface NormalizedVocalPhrase {
+	/** Tick position where the vocal phrase begins. */
 	tick: number
+	/** Time where the vocal phrase begins, in ms. */
 	msTime: number
+	/** Length of the vocal phrase, in ticks. */
 	length: number
+	/** Length of the vocal phrase, in ms. */
 	msLength: number
+	/** Whether every note in this phrase is a vocals percussion cue. */
 	isPercussion: boolean
+	/** Lead-vocals singer assigned to this phrase in two-player modes; omitted for harmony phrases. */
 	player?: 1 | 2
+	/** All vocal note events contained inside this phrase range. */
 	notes: NormalizedVocalNote[]
+	/** All lyric events contained inside this phrase range. */
 	lyrics: NormalizedLyricEvent[]
 }
 
+/** Normalized data for one singer lane, such as lead vocals or a single harmony part. */
 export interface NormalizedVocalPart {
+	/** Vocal phrases that group the notes and lyrics sung and scored together. */
 	notePhrases: NormalizedVocalPhrase[]
+	/** Vocal phrases that group lyrics for fixed-position static lyric display. */
 	staticLyricPhrases: NormalizedVocalPhrase[]
+	/** Star Power phrase ranges available to this vocal part. */
 	starPowerSections: { tick: number; msTime: number; length: number; msLength: number }[]
+	/** Range shift markers for this part's vocals note display. */
 	rangeShifts: { tick: number; msTime: number; length: number; msLength: number }[]
+	/** Lyric shift markers for this part's static lyric display. */
 	lyricShifts: { tick: number; msTime: number; length: number; msLength: number }[]
+	/** Raw vocal text events for this part, excluding parsed lyric syllables. */
 	textEvents: { tick: number; msTime: number; text: string }[]
 }
 
+/** Top-level normalized vocals data containing every singer lane and shared track-level shift markers. */
 export interface NormalizedVocalTrack {
+	/** Normalized vocal parts keyed by canonical part name, such as `vocals` or `harmony1`. */
 	parts: { [partName: string]: NormalizedVocalPart }
+	/** Shared range shift markers sourced from the lead vocals or first harmony part. */
 	rangeShifts: { tick: number; msTime: number; length: number; msLength: number }[]
+	/** Shared lyric shift markers sourced from the lead vocals or first harmony part. */
 	lyricShifts: { tick: number; msTime: number; length: number; msLength: number }[]
 }

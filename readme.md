@@ -70,6 +70,8 @@ interface ScanChartFolderConfig {
 interface ParseChartAndIniResult {
 	/** The parsed chart, or `null` if a chart file could not be found or could not be parsed. Inspect `chartFolderIssues` for the reason. */
 	parsedChart: ParsedChart | null
+	/** `true` if the folder contains a parseable `song.ini`. */
+	hasIni: boolean
 	/** Folder-level issues from chart file discovery and parsing (`noChart`, `invalidChart`, `multipleChart`, `badChart`). */
 	chartFolderIssues: { folderIssue: FolderIssueType; description: string }[]
 	/** The metadata parsed from `song.ini`, or `null` if no ini was present. */
@@ -78,8 +80,6 @@ interface ParseChartAndIniResult {
 	iniFolderIssues: { folderIssue: FolderIssueType; description: string }[]
 	/** Validation issues with ini values. */
 	iniMetadataIssues: { metadataIssue: MetadataIssueType; description: string }[]
-	/** ini key/value pairs not in scan-chart's known list. */
-	iniUnknownValues: { [key: string]: string }
 }
 
 interface ScannedChart {
@@ -87,7 +87,7 @@ interface ScannedChart {
 	md5: string
 	/** A blake3 hash of just the chart file and the .ini modifiers that impact chart parsing. If this changes, the in-game score is reset. */
 	chartHash: string
-	/** If the chart is able to be played in-game. This is `false` if `notesData` is `undefined`. */
+	/** If the chart is able to be played in-game. This is `false` if `notesData` is `null`. */
 	playable: boolean
 
 	/** Metadata read from the chart's song.ini or .chart [Song] section. */
@@ -169,7 +169,7 @@ interface ScannedChartMetadata {
 	/** Overrides the .mid note number for Star Power on 5-Fret Guitar. Valid values are 103 and 116. Only applies to .mid charts. */
 	multiplier_note?: number
 	/**
-	 * For .mid charts, setting this causes any sustains not larger than the threshold (in number of ticks) to be reduced to length 0.
+	 * For .mid charts, setting this causes any sustains shorter than the threshold (in number of ticks) to be reduced to length 0.
 	 * By default, this happens to .mid sustains shorter than 1/12 step.
 	 */
 	sustain_cutoff_threshold?: number
@@ -202,7 +202,7 @@ interface AlbumArt {
 	md5: string
 }
 
-interface interface NotesData {
+interface NotesData {
 	/** The list of instruments that contain more than zero notes. */
 	instruments: Instrument[]
 	/** The type of drums that are charted. `null` if drums are not charted. */
@@ -242,7 +242,7 @@ interface interface NotesData {
 	maxNps: {
 		instrument: Instrument
 		difficulty: Difficulty
-		/** Time of the end of the high NPS region in milliseconds. Rounded to 3 decimal places. */
+		/** Time of the first note in the high NPS region, in milliseconds. Rounded to 3 decimal places. */
 		time: number
 		/** The notes-per-second in this region. */
 		nps: number
@@ -265,9 +265,9 @@ interface interface NotesData {
 	/** The number of BPM markers in the chart. */
 	tempoMarkerCount: number
 	/**
-	 * The amount of time between the chart's first and last notes in milliseconds. Rounded to 3 decimal places.
-	 * If there are multiple tracks, the first note is the earliest first note across all the tracks,
-	 * and the last note is the latest last note across all the tracks.
+	 * The amount of time between the chart's first and last note starts in milliseconds. Rounded to 3 decimal places.
+	 * If there are multiple tracks, the first note start is the earliest first note across all the tracks,
+	 * and the last note start is the latest last note across all the tracks.
 	 */
 	effectiveLength: number
 }
@@ -328,6 +328,9 @@ type ChartIssueType =
 	| 'brokenNote'              // This note is so close to the previous note that this was likely a charting mistake
 	| 'badSustainGap'           // This note is not far enough ahead of the previous sustain
 	| 'babySustain'             // The sustain on this note is too short
+	| 'invalidLyric'            // A lyric event was found on the EVENTS track in a .mid chart and will not be displayed
+	| 'invalidPhraseStart'      // A phrase_start text event was found on the EVENTS track in a .mid chart
+	| 'invalidPhraseEnd'        // A phrase_end text event was found on the EVENTS track in a .mid chart
 
 type FolderIssueType =
 	| 'noMetadata'              // This chart doesn't have "song.ini"
@@ -355,46 +358,10 @@ type MetadataIssueType =
 	| 'invalidValue'            // Metadata property was set to an unsupported value
 	| 'extraValue'              // Metadata contains a property that should not be included
 
-interface NoteEvent {
-	/** Time of the event in milliseconds. Rounded to 3 decimal places. */
-	time: number
-	/** Length of the event in milliseconds. Rounded to 3 decimal places. Some events have a length of zero. */
-	length: number
-	type: NoteType
-}
-
-type NoteType =
-	// 5 fret
-	| 'starPower'
-	| 'tap'
-	| 'force'
-	| 'orange'
-	| 'blue'
-	| 'yellow'
-	| 'red'
-	| 'green'
-	| 'open'
-	| 'soloMarker'
-
-	// 6 fret
-	| 'black3'
-	| 'black2'
-	| 'black1'
-	| 'white3'
-	| 'white2'
-	| 'white1'
-
-	// Drums
-	| 'activationLane'
-	| 'kick'
-	| 'yellowTomOrCymbalMarker'
-	| 'blueTomOrCymbalMarker'
-	| 'greenTomOrCymbalMarker'
-
 interface ParsedChart {
 	/**
-	 * The raw bytes of the source chart file. Needed by `scanParsedChart` to
-	 * compute `chartHash` (which is `blake3(chartBytes ++ ini-modifier name/value pairs)`).
+	 * The raw bytes of the source chart file. Needed by `scanChart` to compute
+	 * `chartHash`, which is `blake3(chartBytes ++ ini-modifier name/value pairs)`.
 	 */
 	chartBytes: Uint8Array
 	/** The format the chart was parsed from. */
@@ -414,9 +381,8 @@ interface ParsedChart {
 			delay: number | undefined
 			preview_start_time: number | undefined
 	}
-	hasLyrics: boolean
-	hasVocals: boolean
-	hasForcedNotes: boolean
+	parseIssues: { instrument: Instrument | null; difficulty: Difficulty | null; noteIssue: ChartIssueType }[]
+	vocalTracks: NormalizedVocalTrack
 	endEvents: {
 			tick: number
 			msTime: number
@@ -479,16 +445,19 @@ interface ParsedChart {
 	}
 }
 
-/** A single event in a chart's track. Note that more than one event can occur at the same time. */
+/** A single note event in a chart's track. Note that more than one note event can occur at the same time. */
 interface NoteEvent {
-	/** The chart tick of this event. */
+	/** Tick position where the note event begins. */
 	tick: number
+	/** Time where the note event begins, in ms. */
 	msTime: number
-	/** Length of the event in ticks. Some events have a length of zero. */
+	/** Length of the note event, in ticks. */
 	length: number
+	/** Length of the note event, in ms. */
 	msLength: number
+	/** The type of the note. (green, open, redDrum, kick, etc...) */
 	type: NoteType
-	/** bitmask of `NoteFlag` */
+	/** bitmask of `noteFlags`, which define the modifiers that apply to this note event. (strum, tap, cymbal, accent, etc...) */
 	flags: number
 }
 
@@ -534,6 +503,96 @@ const noteFlags = {
 	ghost: 512,
 	accent: 1024,
 } as const
+
+const lyricFlags = {
+	none: 0,
+	joinWithNext: 1,
+	nonPitched: 2,
+	lenientScoring: 4,
+	pitchSlide: 16,
+	harmonyHidden: 32,
+	staticShift: 64,
+	rangeShift: 128,
+	hyphenateWithNext: 256,
+} as const
+
+interface NormalizedLyricEvent {
+	/** Tick position of the lyric event. */
+	tick: number
+	/** Time of the lyric event, in ms. */
+	msTime: number
+	/** The text content of the lyric event. Often will be a single lyric syllable. */
+	text: string
+	/** bitmask of `lyricFlags`, which define the modifiers that apply to this lyric event. (nonPitched, lenientScoring, hyphenateWithNext, etc...) */
+	flags: number
+}
+
+/** A single timed vocal event inside a vocal phrase, either a sung pitch target or vocals percussion cue. */
+interface NormalizedVocalNote {
+	/** Tick position where the vocal note begins. */
+	tick: number
+	/** Time where the vocal note begins, in ms. */
+	msTime: number
+	/** Length of the vocal note, in ticks. */
+	length: number
+	/** Length of the vocal note, in ms. */
+	msLength: number
+	/** The MIDI note number for the vocal pitch of this note. */
+	pitch: number
+	/** Whether this note is a sung pitch note (MIDI 36-84) or vocals percussion cue (MIDI 96/97). */
+	type: 'pitched' | 'percussion'
+}
+
+/**
+ * A range created by a vocals phrase marker, used during gameplay to decide
+ * which pitch/percussion notes and lyric syllables belong to the same sung line.
+ * The game scores and displays vocals phrase-by-phrase as playback crosses
+ * these ranges instead of treating every note as an unrelated standalone event.
+ */
+interface NormalizedVocalPhrase {
+	/** Tick position where the vocal phrase begins. */
+	tick: number
+	/** Time where the vocal phrase begins, in ms. */
+	msTime: number
+	/** Length of the vocal phrase, in ticks. */
+	length: number
+	/** Length of the vocal phrase, in ms. */
+	msLength: number
+	/** Whether every note in this phrase is a vocals percussion cue. */
+	isPercussion: boolean
+	/** Lead-vocals singer assigned to this phrase in two-player modes; omitted for harmony phrases. */
+	player?: 1 | 2
+	/** All vocal note events contained inside this phrase range. */
+	notes: NormalizedVocalNote[]
+	/** All lyric events contained inside this phrase range. */
+	lyrics: NormalizedLyricEvent[]
+}
+
+/** Normalized data for one singer lane, such as lead vocals or a single harmony part. */
+interface NormalizedVocalPart {
+	/** Vocal phrases that group the notes and lyrics sung and scored together. */
+	notePhrases: NormalizedVocalPhrase[]
+	/** Vocal phrases that group lyrics for fixed-position static lyric display. */
+	staticLyricPhrases: NormalizedVocalPhrase[]
+	/** Star Power phrase ranges available to this vocal part. */
+	starPowerSections: { tick: number; msTime: number; length: number; msLength: number }[]
+	/** Range shift markers for this part's vocals note display. */
+	rangeShifts: { tick: number; msTime: number; length: number; msLength: number }[]
+	/** Lyric shift markers for this part's static lyric display. */
+	lyricShifts: { tick: number; msTime: number; length: number; msLength: number }[]
+	/** Raw vocal text events for this part, excluding parsed lyric syllables. */
+	textEvents: { tick: number; msTime: number; text: string }[]
+}
+
+/** Top-level normalized vocals data containing every singer lane and shared track-level shift markers. */
+interface NormalizedVocalTrack {
+	/** Normalized vocal parts keyed by canonical part name, such as `vocals` or `harmony1`. */
+	parts: { [partName: string]: NormalizedVocalPart }
+	/** Shared range shift markers sourced from the lead vocals or first harmony part. */
+	rangeShifts: { tick: number; msTime: number; length: number; msLength: number }[]
+	/** Shared lyric shift markers sourced from the lead vocals or first harmony part. */
+	lyricShifts: { tick: number; msTime: number; length: number; msLength: number }[]
+}
 
 interface IniChartModifiers {
 	song_length: number               // Default: 0
