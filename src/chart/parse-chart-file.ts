@@ -50,7 +50,7 @@ export function parseChartFile(data: Uint8Array, format: 'chart' | 'mid', partia
 	const normalizedVocalTracks = normalizeVocalTracks(rawChartData.vocalTracks, timedTempos, rawChartData.chartTicksPerBeat)
 	// Evaluate trackData first — normalizedVocalTracks is used below for phrase-level hasLyrics check.
 	const tpb = rawChartData.chartTicksPerBeat
-	const trackDataResult = rawChartData.trackData.map(track => {
+	const noteEventGroupsByTrack = rawChartData.trackData.map(track => {
 		const trimmed = trimSustains(track.trackEvents, iniChartModifiers.sustain_cutoff_threshold, tpb, format)
 		const grouped = groupByTick(trimmed)
 		const resolved = track.instrument === 'drums'
@@ -58,22 +58,7 @@ export function parseChartFile(data: Uint8Array, format: 'chart' | 'mid', partia
 			: resolveFretModifiers(grouped, iniChartModifiers, tpb, format)
 		const snapped = snapChords(resolved, iniChartModifiers.chord_snap_threshold, track.instrument)
 		sortAndFixInvalidNoteOverlaps(snapped)
-		const noteEventGroups = setEventGroupMsTimes(snapped, timedTempos, tpb)
-
-		return {
-			instrument: track.instrument,
-			difficulty: track.difficulty,
-			starPowerSections: sortAndFixInvalidEventOverlaps(setEventMsTimes(track.starPowerSections, timedTempos, tpb)),
-			rejectedStarPowerSections: setEventMsTimes(track.rejectedStarPowerSections, timedTempos, tpb),
-			soloSections: sortAndFixInvalidEventOverlaps(setEventMsTimes(track.soloSections, timedTempos, tpb)),
-			flexLanes: sortAndFixInvalidFlexLaneOverlaps(setEventMsTimes(track.flexLanes, timedTempos, tpb)),
-			drumFreestyleSections: setEventMsTimes(track.drumFreestyleSections, timedTempos, tpb),
-			textEvents: setEventMsTimes(track.textEvents, timedTempos, tpb),
-			versusPhrases: setEventMsTimes(track.versusPhrases, timedTempos, tpb),
-			animations: setEventMsTimes(track.animations, timedTempos, tpb),
-			unrecognizedMidiEvents: track.unrecognizedMidiEvents,
-			noteEventGroups,
-		}
+		return setEventGroupMsTimes(snapped, timedTempos, tpb)
 	})
 
 	return {
@@ -86,7 +71,20 @@ export function parseChartFile(data: Uint8Array, format: 'chart' | 'mid', partia
 		tempos: timedTempos,
 		timeSignatures: setEventMsTimes(rawChartData.timeSignatures, timedTempos, rawChartData.chartTicksPerBeat),
 		sections: setEventMsTimes(rawChartData.sections, timedTempos, rawChartData.chartTicksPerBeat),
-		trackData: trackDataResult,
+		trackData: rawChartData.trackData.map((track, index) => ({
+			instrument: track.instrument,
+			difficulty: track.difficulty,
+			starPowerSections: sortAndFixInvalidEventOverlaps(setEventMsTimes(track.starPowerSections, timedTempos, tpb)),
+			rejectedStarPowerSections: setEventMsTimes(track.rejectedStarPowerSections, timedTempos, tpb),
+			soloSections: sortAndFixInvalidEventOverlaps(setEventMsTimes(track.soloSections, timedTempos, tpb)),
+			flexLanes: sortAndFixInvalidFlexLaneOverlaps(setEventMsTimes(track.flexLanes, timedTempos, tpb)),
+			drumFreestyleSections: setEventMsTimes(track.drumFreestyleSections, timedTempos, tpb),
+			textEvents: setEventMsTimes(track.textEvents, timedTempos, tpb),
+			versusPhrases: setEventMsTimes(track.versusPhrases, timedTempos, tpb),
+			animations: setEventMsTimes(track.animations, timedTempos, tpb),
+			unrecognizedMidiEvents: track.unrecognizedMidiEvents,
+			noteEventGroups: noteEventGroupsByTrack[index],
+		})),
 		unrecognized: {
 			eventsTrackTextEvents: setEventMsTimes(rawChartData.unrecognizedEventsTrackTextEvents, timedTempos, rawChartData.chartTicksPerBeat),
 			eventsTrackMidiEvents: rawChartData.unrecognizedEventsTrackMidiEvents,
