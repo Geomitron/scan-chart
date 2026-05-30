@@ -10,7 +10,7 @@ export interface File {
 	data: Uint8Array
 }
 
-export interface ScanChartFolderConfig {
+export interface ScanChartConfig {
 	/**
 	 * Set this to false to skip calculating `ScannedChart.md5`. It will be set to 'md5 calculation skipped' instead.
 	 *
@@ -209,7 +209,7 @@ export interface NotesData {
 		instrument: Instrument
 		difficulty: Difficulty
 		hash: string
-		/** The full btrack data for this track. `hash` is derived from this. `null` if `ScanChartFolderConfig.includeBTrack` is `false`. */
+		/** The full btrack data for this track. `hash` is derived from this. `null` if `ScanChartConfig.includeBTrack` is `false`. */
 		btrack: Uint8Array<ArrayBuffer> | null
 	}[]
 	/** MD5 hash of the chart's tempo map, including BPM markers and time signature markers. */

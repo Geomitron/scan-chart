@@ -1,5 +1,5 @@
 
-export { scanChart, scanChartFolder } from './scan-chart'
+export { scanChart } from './scan-chart'
 export { parseChartAndIni } from './chart/parse-chart-and-ini'
 export { parseChartFile } from './chart/parse-chart-file'
 export { calculateTrackHash } from './chart/track-hasher'
@@ -21,7 +21,7 @@ export { defaultMetadata } from './ini/metadata'
 
 export type {
 	File,
-	ScanChartFolderConfig,
+	ScanChartConfig,
 	ScannedChart,
 	AlbumArt,
 	NotesData,

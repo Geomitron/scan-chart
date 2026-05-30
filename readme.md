@@ -30,21 +30,14 @@ function parseChartAndIni(files: { fileName: string; data: Uint8Array }[]): Pars
 
 /**
  * Validates, hashes, and asset-scans the parsed chart folder. Pair with
- * `parseChartAndIni()` to get the input. Returns the same `ScannedChart`
- * shape as the previous `scanChartFolder()` did.
+ * `parseChartAndIni()` to get the input.
  */
-function scanChart(files: { fileName: string; data: Uint8Array }[], parseResult: ParseChartAndIniResult, config?: ScanChartFolderConfig): ScannedChart
-
-/**
- * @deprecated Back-compat shim equivalent to
- * `scanChart(files, parseChartAndIni(files), config)`. Prefer the two-step form.
- */
-function scanChartFolder(files: { fileName: string; data: Uint8Array }[], config?: ScanChartFolderConfig): ScannedChart
+function scanChart(files: { fileName: string; data: Uint8Array }[], parseResult: ParseChartAndIniResult, config?: ScanChartConfig): ScannedChart
 
 function parseChartFile(data: Uint8Array, format: 'chart' | 'mid', iniChartModifiers: IniChartModifiers): ParsedChart
 function calculateTrackHash(parsedChart: ParsedChart, instrument: Instrument, difficulty: Difficulty): { hash: string, btrack: Uint8Array }
 
-interface ScanChartFolderConfig {
+interface ScanChartConfig {
 	/**
 	 * Set this to false to skip calculating `ScannedChart.md5`. It will be set to 'md5 calculation skipped' instead.
 	 *
@@ -257,7 +250,7 @@ interface NotesData {
 		instrument: Instrument
 		difficulty: Difficulty
 		hash: string
-		/** The full btrack data for this track. `hash` is derived from this. `null` if `ScanChartFolderConfig.includeBTrack` is `false`. */
+		/** The full btrack data for this track. `hash` is derived from this. `null` if `ScanChartConfig.includeBTrack` is `false`. */
 		btrack: Uint8Array<ArrayBuffer> | null
 	}[]
 	/** MD5 hash of the chart's tempo map, including BPM markers and time signature markers. */

@@ -4,10 +4,10 @@ import * as _ from 'lodash'
 import { scanAudio } from './assets/scan-audio'
 import { scanImage } from './assets/scan-image'
 import { scanVideo } from './assets/scan-video'
-import { parseChartAndIni, ParseChartAndIniResult } from './chart/parse-chart-and-ini'
+import { ParseChartAndIniResult } from './chart/parse-chart-and-ini'
 import { scanParsedChart } from './chart/scan-parsed-chart'
 import { defaultMetadata } from './ini/metadata'
-import { File, Instrument, ScanChartFolderConfig, ScannedChart } from './types'
+import { File, Instrument, ScanChartConfig, ScannedChart } from './types'
 import { RequireMatchingProps, Subset } from './shared/type-utils'
 
 /**
@@ -16,9 +16,9 @@ import { RequireMatchingProps, Subset } from './shared/type-utils'
 export function scanChart(
 	files: File[],
 	parseResult: ParseChartAndIniResult,
-	config?: ScanChartFolderConfig,
+	config?: ScanChartConfig,
 ): ScannedChart {
-	const resolvedConfig: Required<ScanChartFolderConfig> = {
+	const resolvedConfig: Required<ScanChartConfig> = {
 		includeMd5: true,
 		includeBTrack: false,
 		includeAlbumArt: true,
@@ -136,16 +136,6 @@ export function scanChart(
 	chart.hasVideoBackground = videoData.hasVideoBackground
 
 	return chart as ScannedChart
-}
-
-/**
- * Scans `files` as a chart folder, and returns a `ScannedChart` object.
- *
- * @deprecated Call `parseChartAndIni()` + `scanChart()` directly. Preserved
- * as a back-compat shim for existing callers.
- */
-export function scanChartFolder(files: File[], config?: ScanChartFolderConfig): ScannedChart {
-	return scanChart(files, parseChartAndIni(files), config)
 }
 
 function getChartMD5(files: File[]) {
