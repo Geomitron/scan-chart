@@ -1,9 +1,16 @@
 
-export { scanChart } from './scan-chart'
+/**
+ * Main scan-chart API functions
+ */
 export { parseChartAndIni } from './chart/parse-chart-and-ini'
+export { scanChart } from './scan-chart'
 export { parseChartFile } from './chart/parse-chart-file'
 export { calculateTrackHash } from './chart/track-hasher'
 export { scanIni } from './ini/scan-ini'
+
+/**
+ * Result types, enums, and helper functions
+ */
 export type { ParsedChart, ParseChartAndIniResult } from './chart/parse-chart-and-ini'
 export type { ParsedChartFile } from './chart/parse-chart-file'
 export type {
