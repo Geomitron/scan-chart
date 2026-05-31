@@ -21,9 +21,9 @@
 
 import { describe, expect, it } from 'vitest'
 
-import { parseChartFile } from '../chart/parse-chart-file'
-import { defaultMetadata } from '../ini/metadata'
-import { noteFlags, noteTypes } from '../chart/types'
+import { parseChartFile } from 'src/chart/parse-chart-file'
+import { defaultMetadata } from 'src/ini/metadata'
+import { noteFlags, noteTypes } from 'src/chart/types'
 
 /**
  * Parse a `[ExpertGHLGuitar]` track body and return the resolved note groups

@@ -1,3 +1,6 @@
 node_modules/
 dist/
 .vscode/launch.json
+test/corpus/snapshots/
+test/corpus/**/ch-bin/
+output.log

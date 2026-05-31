@@ -13,9 +13,9 @@ import {
 	scanVocalTrack,
 	parseLyricFlags,
 	stripLyricSymbols,
-} from '../chart/lyric-parser'
-import type { MidiTextLikeEvent } from '../chart/lyric-parser'
-import { lyricFlags } from '../chart/types'
+} from 'src/chart/lyric-parser'
+import type { MidiTextLikeEvent } from 'src/chart/lyric-parser'
+import { lyricFlags } from 'src/chart/types'
 
 /** Builds the minimal text-like MIDI event shape expected by parser helpers. */
 function midiTextEvent(event: Omit<MidiTextLikeEvent, 'deltaTime'> & Partial<Pick<MidiTextLikeEvent, 'deltaTime'>>): MidiTextLikeEvent {

@@ -7,8 +7,10 @@ import { parseChartAndIni, scanChart } from 'src'
 import yargs from 'yargs'
 import { hideBin } from 'yargs/helpers'
 
-import { Difficulty, Instrument } from './types'
-import { appearsToBeChartFolder, getExtension } from './shared/file-names'
+import { Difficulty, Instrument } from 'src/types'
+
+import { getExtension } from '../shared/files'
+import { appearsToBeChartFolder } from '../shared/manifest'
 
 const config = yargs(hideBin(process.argv))
 	.options({

@@ -14,10 +14,10 @@
 
 import { describe, it, expect } from 'vitest'
 import { writeMidi, MidiData } from '@geomitron/midi-file'
-import { parseNotesFromChart } from '../chart/chart-file-parser'
-import { parseNotesFromMidi } from '../chart/midi-file-parser'
-import { parseChartFile } from '../chart/parse-chart-file'
-import { defaultMetadata } from '../ini/metadata'
+import { parseNotesFromChart } from 'src/chart/chart-file-parser'
+import { parseNotesFromMidi } from 'src/chart/midi-file-parser'
+import { parseChartFile } from 'src/chart/parse-chart-file'
+import { defaultMetadata } from 'src/ini/metadata'
 
 function buildChart(sections: Record<string, string[]>): Uint8Array {
 	const lines: string[] = []

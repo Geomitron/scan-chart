@@ -6,9 +6,9 @@
 
 import { describe, it, expect } from 'vitest'
 import { writeMidi, MidiData } from '@geomitron/midi-file'
-import { parseNotesFromMidi } from '../chart/midi-file-parser'
-import { parseNotesFromChart } from '../chart/chart-file-parser'
-import { defaultMetadata } from '../ini/metadata'
+import { parseNotesFromMidi } from 'src/chart/midi-file-parser'
+import { parseNotesFromChart } from 'src/chart/chart-file-parser'
+import { defaultMetadata } from 'src/ini/metadata'
 
 function buildMidi(ticksPerBeat: number, tracks: MidiData['tracks']): Uint8Array {
 	const data: MidiData = {

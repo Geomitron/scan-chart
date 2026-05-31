@@ -11,13 +11,25 @@ Before running tests, you need the following:
 - Install NodeJS >= v24.6.0
 - Run `npm i`
 
-To run tests, use:
+To run unit tests, use:
 
 ```bash
-$ npx tsx src/test.ts
+$ npm test
 ```
 
-Note: running this will print usage information. Add command line arguments to this to specify testing parameters.
+Corpus tests use a local chart library that is not committed. Run a differential scan against the published baseline with:
+
+```bash
+$ npm run corpus:diff -- --input <corpus>
+```
+
+Run reference parity against HashScanTool with:
+
+```bash
+$ npm run corpus:parity -- --input <corpus> --ch-bin <HashScanTool.exe>
+```
+
+The legacy hash JSON helper is still available with `npm run test:cli -- --inputFolder <corpus> --outputFolder <output>`.
 
 # API
 

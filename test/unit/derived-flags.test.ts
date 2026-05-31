@@ -13,11 +13,11 @@
 
 import { describe, expect, it } from 'vitest'
 
-import { parseChartFile } from '../chart/parse-chart-file'
-import { defaultMetadata } from '../ini/metadata'
-import { scanChart } from '..'
-import { parseChartAndIni } from '../chart/parse-chart-and-ini'
-import { File } from '../types'
+import { parseChartFile } from 'src/chart/parse-chart-file'
+import { defaultMetadata } from 'src/ini/metadata'
+import { scanChart } from 'src'
+import { parseChartAndIni } from 'src/chart/parse-chart-and-ini'
+import { File } from 'src/types'
 
 function buildChart(body: string): File[] {
 	return [{ fileName: 'notes.chart', data: new TextEncoder().encode(body) }]

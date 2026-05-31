@@ -23,8 +23,9 @@ export default [
 			'node_modules/**',
 			'dist/**',
 			'coverage/**',
-			'regression-tests/**',
+			'test/corpus/snapshots/**',
 			'*.config',
+			'*.config.*',
 		],
 	},
 	js.configs.recommended,
@@ -103,6 +104,26 @@ export default [
 			'arrow-parens': ['error', 'as-needed'],
 			'comma-dangle': ['error', 'always-multiline'],
 			'prefer-arrow/prefer-arrow-functions': ['error', { allowStandaloneDeclarations: true }],
+		},
+	},
+	{
+		files: ['test/**/*.ts'],
+		languageOptions: {
+			parser: tsParser,
+			parserOptions: {
+				project: ['./tsconfig.test.json'],
+				tsconfigRootDir,
+			},
+		},
+		rules: {
+			'max-len': [
+				'error',
+				{
+					ignorePattern: '^import |^export \\{(.*?)\\}|^\\s*@inject\\(',
+					code: 150,
+				},
+			],
+			'@typescript-eslint/no-non-null-assertion': 'off',
 		},
 	},
 	{

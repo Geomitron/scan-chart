@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 
-import { parseChartAndIni } from '../chart/parse-chart-and-ini'
-import { scanChart } from '../scan-chart'
-import { File } from '../types'
+import { parseChartAndIni } from 'src/chart/parse-chart-and-ini'
+import { scanChart } from 'src/scan-chart'
+import { File } from 'src/types'
 
 function buildChart(body: string): File[] {
 	return [{ fileName: 'notes.chart', data: new TextEncoder().encode(body) }]
