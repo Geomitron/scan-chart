@@ -2,6 +2,12 @@
 
 `test/unit` contains in-memory vitest unit tests.
 
+Run the library against a local chart folder or corpus and print the JSON output with:
+
+```bash
+$ npm run scan -- --input <chart-or-corpus>
+```
+
 `test/corpus` contains bring-your-own corpus tests:
 
 - Differential scan: `npm run corpus:diff -- --input <corpus>`

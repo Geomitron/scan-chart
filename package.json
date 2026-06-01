@@ -19,6 +19,7 @@
 		"release": "npm run build && changeset publish",
 		"test": "npx vitest run",
 		"test:watch": "npx vitest",
+		"scan": "npx tsx test/scan.ts",
 		"test:cli": "npx tsx test/corpus/reference-parity/hashes-cli.ts",
 		"lint": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.test.json --noEmit",
 		"corpus:diff": "npx tsx test/corpus/differential/run.ts",
