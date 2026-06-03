@@ -6,7 +6,9 @@
  * that the parser preserved verbatim.
  */
 
-import type { Instrument } from '../types'
+import type { DrumType, Instrument } from '../types'
+import { drumTypes } from '../types'
+import { codaTicksFromFreestyle, unwrapEventBrackets } from './writer-shared'
 import { computeHopoThresholdTicks, isNaturalHopo } from './natural-hopo'
 import type { NoteEvent, NoteType } from './types'
 import { noteFlags, noteTypes } from './types'
@@ -208,13 +210,9 @@ function serializeEventsSection(chart: ParsedChart): string[] {
 	const sourceIsMidi = chart.format === 'mid'
 	let hasCodaInGlobalEvents = false
 	for (const ge of chart.unrecognized.eventsTrackTextEvents) {
-		let text = ge.text
-		if (sourceIsMidi) {
-			const trimmed = text.trimEnd()
-			if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
-				text = trimmed.slice(1, -1)
-			}
-		}
+		// `.mid`-sourced events arrive bracket-wrapped; `.chart` E-events are
+		// written unwrapped.
+		const text = sourceIsMidi ? unwrapEventBrackets(ge.text) : ge.text
 		// endEvents are already emitted above; skip duplicates here.
 		if (text.trim() === 'end') continue
 		events.push({ tick: ge.tick, text })
@@ -224,13 +222,7 @@ function serializeEventsSection(chart: ParsedChart): string[] {
 	// Coda events from drumFreestyleSections — only when not already present
 	// in the unrecognizedEvents stream above.
 	if (!hasCodaInGlobalEvents) {
-		const codaTicks = new Set<number>()
-		for (const track of chart.trackData) {
-			for (const fs of track.drumFreestyleSections) {
-				if (fs.isCoda) codaTicks.add(fs.tick)
-			}
-		}
-		for (const tick of codaTicks) events.push({ tick, text: 'coda' })
+		for (const tick of codaTicksFromFreestyle(chart.trackData)) events.push({ tick, text: 'coda' })
 	}
 
 	// Vocal phrases + lyrics from the normalized `vocals` part. .chart supports
@@ -358,10 +350,10 @@ const ghlInstrumentSet = new Set<string>([
 
 function getNoteNumberMap(
 	instrument: Instrument,
-	drumType: number | null | undefined,
+	drumType: DrumType | null | undefined,
 ): Partial<Record<NoteType, number>> {
 	if (instrument === 'drums') {
-		return drumType === 2 ? drumNoteTypeToNoteNumberFiveLane : drumNoteTypeToNoteNumber
+		return drumType === drumTypes.fiveLane ? drumNoteTypeToNoteNumberFiveLane : drumNoteTypeToNoteNumber
 	}
 	if (ghlInstrumentSet.has(instrument)) return ghlNoteTypeToNoteNumber
 	return fiveFretNoteTypeToNoteNumber
@@ -454,7 +446,7 @@ function serializeTrackSection(track: ParsedTrack, chart: ParsedChart): string[]
 			// 5-lane cymbal-on-green: parser normalizes the 5-lane orange pad into
 			// greenDrum, so cymbal-flagged greens go back to N 4 to restore the
 			// original orange placement. Plain green (tom) stays at N 5.
-			if (isDrums && drumType === 2 && note.type === noteTypes.greenDrum && (note.flags & noteFlags.cymbal)) {
+			if (isDrums && drumType === drumTypes.fiveLane && note.type === noteTypes.greenDrum && (note.flags & noteFlags.cymbal)) {
 				noteNumber = 4
 			}
 
@@ -465,7 +457,7 @@ function serializeTrackSection(track: ParsedTrack, chart: ParsedChart): string[]
 			// hasOrangeAndGreen=true case). Emit as N 5 to preserve the layout.
 			if (
 				isDrums &&
-				drumType === 2 &&
+				drumType === drumTypes.fiveLane &&
 				note.type === noteTypes.blueDrum &&
 				group.some(n => n.type === noteTypes.greenDrum && (n.flags & noteFlags.cymbal))
 			) {
@@ -483,7 +475,7 @@ function serializeTrackSection(track: ParsedTrack, chart: ParsedChart): string[]
 				// Cymbal markers only emit in fourLanePro. fourLane/fiveLane omit
 				// markers (cymbal/tom state is implicit); emitting them would cause
 				// the parser to re-detect the chart as fourLanePro.
-				if ((note.flags & noteFlags.cymbal) && drumType === 1) {
+				if ((note.flags & noteFlags.cymbal) && drumType === drumTypes.fourLanePro) {
 					const cymbalNote = drumCymbalNoteNumber[note.type]
 					if (cymbalNote != null) {
 						events.push({ tick: note.tick, sortKey: 0, kind: 'N', value: cymbalNote, length: 0 })
