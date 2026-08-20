@@ -1,0 +1,1585 @@
+{
+  "compatibility": {
+    "canonicalHashEncoding": "base64url-unpadded",
+    "generatorMayOverwriteApprovedFixtures": false,
+    "vectorIdsAreImmutable": true
+  },
+  "contract": {
+    "legacy": "clone-hero-1.1.0.6142",
+    "parser": "ticket-05-20260801",
+    "physical": "CHNF/20260801",
+    "projection": "ticket-03-map-first"
+  },
+  "schemaVersion": 1,
+  "vectors": [
+    {
+      "expected": {
+        "canonical20260801": {
+          "diagnostics": {
+            "byteLength": 3,
+            "path": "artifacts/source-chart-minimal-unaffected/canonical20260801/diagnostics.json",
+            "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570"
+          },
+          "parsedSemantics": {
+            "byteLength": 406,
+            "path": "artifacts/source-chart-minimal-unaffected/canonical20260801/semantics.json",
+            "sha256": "f9a9fdd0454e8135a1803264bbb1f323327ec84b94b95d197190bdbfe872381e"
+          },
+          "physicalBTrack": {
+            "byteLength": 164,
+            "path": "artifacts/source-chart-minimal-unaffected/canonical20260801/physical.btrack",
+            "sha256": "4c50021cf36cf4f30c603cc06247e206eb8a1e02070787072466c4ed89e2faa6"
+          },
+          "projection": {
+            "byteLength": 108,
+            "path": "artifacts/source-chart-minimal-unaffected/canonical20260801/projection.bin",
+            "sha256": "3f3d1c5f379744b89b2180030753d7e26833089755665b602a3e4ac306938fe7"
+          },
+          "rawDigest": {
+            "byteLength": 32,
+            "path": "artifacts/source-chart-minimal-unaffected/canonical20260801/digest.bin",
+            "sha256": "1b81c249fefd185dfc3fd4ef14ee0a024b73afa736965fe94e0293df322e40f1"
+          },
+          "trackHash": "X1L_RJR9JYVoiTEMFF37ZlHO96K-sdhe_7-jsTAzXnM"
+        },
+        "legacy6142": {
+          "diagnostics": {
+            "byteLength": 3,
+            "path": "artifacts/source-chart-minimal-unaffected/legacy6142/diagnostics.json",
+            "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570"
+          },
+          "parsedSemantics": {
+            "byteLength": 377,
+            "path": "artifacts/source-chart-minimal-unaffected/legacy6142/semantics.json",
+            "sha256": "ff26deabd52097675187662c2f3113bd2ea7903c0eb1b246123e2527e5379ff4"
+          },
+          "physicalBTrack": {
+            "byteLength": 96,
+            "path": "artifacts/source-chart-minimal-unaffected/legacy6142/physical.btrack",
+            "sha256": "f78d57faee248332a40d638f661b4563c0d9a3fdd9149e1d6cf45f556a5ea5ad"
+          },
+          "projection": {
+            "byteLength": 96,
+            "path": "artifacts/source-chart-minimal-unaffected/legacy6142/projection.bin",
+            "sha256": "f78d57faee248332a40d638f661b4563c0d9a3fdd9149e1d6cf45f556a5ea5ad"
+          },
+          "publishedPaddedTrackHash": "CPqtpU2VXKc_YZlfWTgS1AXyufqnxRXFAXm3tJoiq6g=",
+          "rawDigest": {
+            "byteLength": 32,
+            "path": "artifacts/source-chart-minimal-unaffected/legacy6142/digest.bin",
+            "sha256": "0657d906525077d47b1280b705b12893ed81284ef71bcbf14f8efca84e7764c4"
+          },
+          "trackHash": "CPqtpU2VXKc_YZlfWTgS1AXyufqnxRXFAXm3tJoiq6g"
+        }
+      },
+      "id": "source-chart-minimal-unaffected",
+      "kind": "source-accepted",
+      "modifiers": {
+        "chord_snap_threshold": 0,
+        "eighthnote_hopo": false,
+        "five_lane_drums": false,
+        "hopo_frequency": 0,
+        "multiplier_note": 0,
+        "pro_drums": false,
+        "song_length": 0,
+        "sustain_cutoff_threshold": -1
+      },
+      "provenance": {
+        "author": "scan-chart migration maintainers",
+        "kind": "authored-minimal",
+        "license": "MIT",
+        "purpose": "Minimal source with no range shifts or modifier-boundary differences."
+      },
+      "source": {
+        "byteLength": 132,
+        "path": "artifacts/source-chart-minimal-unaffected/source.chart",
+        "sha256": "82e42267f6aaef703b2c9468375c701b2c7f9720dea80dcb2bc24ac4bea5f95f"
+      },
+      "sourceFormat": "chart",
+      "target": {
+        "difficulty": "expert",
+        "instrument": "guitar"
+      }
+    },
+    {
+      "expected": {
+        "canonical20260801": {
+          "diagnostics": {
+            "byteLength": 1322,
+            "path": "artifacts/source-chart-range-shifts-tempo/canonical20260801/diagnostics.json",
+            "sha256": "545e2c47c78094f2a45d4b63d494880cd34d1df82beb7e8a721a7a4e5940de64"
+          },
+          "parsedSemantics": {
+            "byteLength": 554,
+            "path": "artifacts/source-chart-range-shifts-tempo/canonical20260801/semantics.json",
+            "sha256": "5c37b72baef2f5b0e4b3d35160f31381fc7140448c24106948e75c42fe0dca9a"
+          },
+          "physicalBTrack": {
+            "byteLength": 236,
+            "path": "artifacts/source-chart-range-shifts-tempo/canonical20260801/physical.btrack",
+            "sha256": "7be6fcfe9bea4662d26054da089ae756327e1e409fee08cb07c1b26035562e46"
+          },
+          "projection": {
+            "byteLength": 168,
+            "path": "artifacts/source-chart-range-shifts-tempo/canonical20260801/projection.bin",
+            "sha256": "06519f617cbfeb49707a690326c181617b73db0dbccb198dc1df3d473103d553"
+          },
+          "rawDigest": {
+            "byteLength": 32,
+            "path": "artifacts/source-chart-range-shifts-tempo/canonical20260801/digest.bin",
+            "sha256": "74095284e34ff2de3fc936f779875b457fd195f22cd8355c0d31f887b8e85aa0"
+          },
+          "trackHash": "_4Wg6fJE8RF1STHSwuUgA5Mo--X3BJ-NlQQUcP3PKhU"
+        },
+        "legacy6142": {
+          "diagnostics": {
+            "byteLength": 3,
+            "path": "artifacts/source-chart-range-shifts-tempo/legacy6142/diagnostics.json",
+            "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570"
+          },
+          "parsedSemantics": {
+            "byteLength": 576,
+            "path": "artifacts/source-chart-range-shifts-tempo/legacy6142/semantics.json",
+            "sha256": "f353478312095bf12542a5e1adeb0afa15c36e6c9ccad6ca5d4a7e4fefc7a276"
+          },
+          "physicalBTrack": {
+            "byteLength": 96,
+            "path": "artifacts/source-chart-range-shifts-tempo/legacy6142/physical.btrack",
+            "sha256": "b003c4356c53380b46bdb8b413ce0916686116087a597cae6ff14432f26291cc"
+          },
+          "projection": {
+            "byteLength": 96,
+            "path": "artifacts/source-chart-range-shifts-tempo/legacy6142/projection.bin",
+            "sha256": "b003c4356c53380b46bdb8b413ce0916686116087a597cae6ff14432f26291cc"
+          },
+          "publishedPaddedTrackHash": "8xKtZjlIAXr9Cnd8cCTt6ka4Uo5CRBIY9bM73Qj7LWQ=",
+          "rawDigest": {
+            "byteLength": 32,
+            "path": "artifacts/source-chart-range-shifts-tempo/legacy6142/digest.bin",
+            "sha256": "b4d061e7237ad8109ef3e81fbc1a999461f2a3f3188d59f3c36bca72cd6350b2"
+          },
+          "trackHash": "8xKtZjlIAXr9Cnd8cCTt6ka4Uo5CRBIY9bM73Qj7LWQ"
+        }
+      },
+      "id": "source-chart-range-shifts-tempo",
+      "kind": "source-accepted",
+      "modifiers": {
+        "chord_snap_threshold": 0,
+        "eighthnote_hopo": false,
+        "five_lane_drums": false,
+        "hopo_frequency": 0,
+        "multiplier_note": 0,
+        "pro_drums": false,
+        "song_length": 0,
+        "sustain_cutoff_threshold": -1
+      },
+      "provenance": {
+        "author": "scan-chart migration maintainers",
+        "kind": "authored-minimal",
+        "license": "MIT",
+        "purpose": "Chart-form range shifts, defaults, same-tick precedence, redundant markers, diagnostics, and exact milli-BPM conversion."
+      },
+      "source": {
+        "byteLength": 757,
+        "path": "artifacts/source-chart-range-shifts-tempo/source.chart",
+        "sha256": "893abacfb0bf61ae67ef770b9ae2445ed5a950632d2332d0a450f7993b7894e5"
+      },
+      "sourceFormat": "chart",
+      "target": {
+        "difficulty": "expert",
+        "instrument": "keys"
+      }
+    },
+    {
+      "expected": {
+        "canonical20260801": {
+          "diagnostics": {
+            "byteLength": 1322,
+            "path": "artifacts/source-chart-range-shifts-guitar/canonical20260801/diagnostics.json",
+            "sha256": "545e2c47c78094f2a45d4b63d494880cd34d1df82beb7e8a721a7a4e5940de64"
+          },
+          "parsedSemantics": {
+            "byteLength": 483,
+            "path": "artifacts/source-chart-range-shifts-guitar/canonical20260801/semantics.json",
+            "sha256": "39eb01f4457124d3f932a97b0bce15f39728575123359a552c691acf5096262f"
+          },
+          "physicalBTrack": {
+            "byteLength": 212,
+            "path": "artifacts/source-chart-range-shifts-guitar/canonical20260801/physical.btrack",
+            "sha256": "e0cc60f4c9476aa10b86579d0ba0f300a67adc0fda2f0b27b8d2a671e65edd9f"
+          },
+          "projection": {
+            "byteLength": 144,
+            "path": "artifacts/source-chart-range-shifts-guitar/canonical20260801/projection.bin",
+            "sha256": "8044d89bf520d4d2e21950b5fa1dcaa37d08bdacfdde1fef973da4e2e5b0e74c"
+          },
+          "rawDigest": {
+            "byteLength": 32,
+            "path": "artifacts/source-chart-range-shifts-guitar/canonical20260801/digest.bin",
+            "sha256": "26459ac6672c22c7ec568f5f32c234d1b4820190a1df6bb570baa0fe284d3a26"
+          },
+          "trackHash": "jyBfrkMgALKXX2RPg-7UzSh30hOHiSNvdW3GofoEPJg"
+        },
+        "legacy6142": {
+          "diagnostics": {
+            "byteLength": 3,
+            "path": "artifacts/source-chart-range-shifts-guitar/legacy6142/diagnostics.json",
+            "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570"
+          },
+          "parsedSemantics": {
+            "byteLength": 576,
+            "path": "artifacts/source-chart-range-shifts-guitar/legacy6142/semantics.json",
+            "sha256": "f353478312095bf12542a5e1adeb0afa15c36e6c9ccad6ca5d4a7e4fefc7a276"
+          },
+          "physicalBTrack": {
+            "byteLength": 96,
+            "path": "artifacts/source-chart-range-shifts-guitar/legacy6142/physical.btrack",
+            "sha256": "b003c4356c53380b46bdb8b413ce0916686116087a597cae6ff14432f26291cc"
+          },
+          "projection": {
+            "byteLength": 96,
+            "path": "artifacts/source-chart-range-shifts-guitar/legacy6142/projection.bin",
+            "sha256": "b003c4356c53380b46bdb8b413ce0916686116087a597cae6ff14432f26291cc"
+          },
+          "publishedPaddedTrackHash": "8xKtZjlIAXr9Cnd8cCTt6ka4Uo5CRBIY9bM73Qj7LWQ=",
+          "rawDigest": {
+            "byteLength": 32,
+            "path": "artifacts/source-chart-range-shifts-guitar/legacy6142/digest.bin",
+            "sha256": "b4d061e7237ad8109ef3e81fbc1a999461f2a3f3188d59f3c36bca72cd6350b2"
+          },
+          "trackHash": "8xKtZjlIAXr9Cnd8cCTt6ka4Uo5CRBIY9bM73Qj7LWQ"
+        }
+      },
+      "id": "source-chart-range-shifts-guitar",
+      "kind": "source-accepted",
+      "modifiers": {
+        "chord_snap_threshold": 0,
+        "eighthnote_hopo": false,
+        "five_lane_drums": false,
+        "hopo_frequency": 0,
+        "multiplier_note": 0,
+        "pro_drums": false,
+        "song_length": 0,
+        "sustain_cutoff_threshold": -1
+      },
+      "provenance": {
+        "author": "scan-chart migration maintainers",
+        "kind": "authored-minimal",
+        "license": "MIT",
+        "purpose": "Chart-form range shifts on the applicable five-fret Guitar track."
+      },
+      "source": {
+        "byteLength": 757,
+        "path": "artifacts/source-chart-range-shifts-guitar/source.chart",
+        "sha256": "893abacfb0bf61ae67ef770b9ae2445ed5a950632d2332d0a450f7993b7894e5"
+      },
+      "sourceFormat": "chart",
+      "target": {
+        "difficulty": "easy",
+        "instrument": "guitar"
+      }
+    },
+    {
+      "expected": {
+        "canonical20260801": {
+          "diagnostics": {
+            "byteLength": 1322,
+            "path": "artifacts/source-chart-range-shifts-bass/canonical20260801/diagnostics.json",
+            "sha256": "545e2c47c78094f2a45d4b63d494880cd34d1df82beb7e8a721a7a4e5940de64"
+          },
+          "parsedSemantics": {
+            "byteLength": 483,
+            "path": "artifacts/source-chart-range-shifts-bass/canonical20260801/semantics.json",
+            "sha256": "46436e3cdb67b46a6912fe47d8aff2373ec911c337e323cdc8c61e9376285f79"
+          },
+          "physicalBTrack": {
+            "byteLength": 212,
+            "path": "artifacts/source-chart-range-shifts-bass/canonical20260801/physical.btrack",
+            "sha256": "84c7b69b493b6bfd035003d650baeee40c6783e7d7243a0348c0186414eb5cca"
+          },
+          "projection": {
+            "byteLength": 144,
+            "path": "artifacts/source-chart-range-shifts-bass/canonical20260801/projection.bin",
+            "sha256": "c16843b55bd1fd41d03c115d99a71d29a20eba15881bffde66dae645434870c0"
+          },
+          "rawDigest": {
+            "byteLength": 32,
+            "path": "artifacts/source-chart-range-shifts-bass/canonical20260801/digest.bin",
+            "sha256": "4b2e3f5e543ef65e826effc7b37122d25df27291914118c7131cf03c60937408"
+          },
+          "trackHash": "JbDBk87DDh5osJ6yW3oUfXpu4nEFA1nkFGhjAnwupjg"
+        },
+        "legacy6142": {
+          "diagnostics": {
+            "byteLength": 3,
+            "path": "artifacts/source-chart-range-shifts-bass/legacy6142/diagnostics.json",
+            "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570"
+          },
+          "parsedSemantics": {
+            "byteLength": 576,
+            "path": "artifacts/source-chart-range-shifts-bass/legacy6142/semantics.json",
+            "sha256": "f353478312095bf12542a5e1adeb0afa15c36e6c9ccad6ca5d4a7e4fefc7a276"
+          },
+          "physicalBTrack": {
+            "byteLength": 96,
+            "path": "artifacts/source-chart-range-shifts-bass/legacy6142/physical.btrack",
+            "sha256": "b003c4356c53380b46bdb8b413ce0916686116087a597cae6ff14432f26291cc"
+          },
+          "projection": {
+            "byteLength": 96,
+            "path": "artifacts/source-chart-range-shifts-bass/legacy6142/projection.bin",
+            "sha256": "b003c4356c53380b46bdb8b413ce0916686116087a597cae6ff14432f26291cc"
+          },
+          "publishedPaddedTrackHash": "8xKtZjlIAXr9Cnd8cCTt6ka4Uo5CRBIY9bM73Qj7LWQ=",
+          "rawDigest": {
+            "byteLength": 32,
+            "path": "artifacts/source-chart-range-shifts-bass/legacy6142/digest.bin",
+            "sha256": "b4d061e7237ad8109ef3e81fbc1a999461f2a3f3188d59f3c36bca72cd6350b2"
+          },
+          "trackHash": "8xKtZjlIAXr9Cnd8cCTt6ka4Uo5CRBIY9bM73Qj7LWQ"
+        }
+      },
+      "id": "source-chart-range-shifts-bass",
+      "kind": "source-accepted",
+      "modifiers": {
+        "chord_snap_threshold": 0,
+        "eighthnote_hopo": false,
+        "five_lane_drums": false,
+        "hopo_frequency": 0,
+        "multiplier_note": 0,
+        "pro_drums": false,
+        "song_length": 0,
+        "sustain_cutoff_threshold": -1
+      },
+      "provenance": {
+        "author": "scan-chart migration maintainers",
+        "kind": "authored-minimal",
+        "license": "MIT",
+        "purpose": "Chart-form range shifts on the applicable five-fret Bass track."
+      },
+      "source": {
+        "byteLength": 757,
+        "path": "artifacts/source-chart-range-shifts-bass/source.chart",
+        "sha256": "893abacfb0bf61ae67ef770b9ae2445ed5a950632d2332d0a450f7993b7894e5"
+      },
+      "sourceFormat": "chart",
+      "target": {
+        "difficulty": "medium",
+        "instrument": "bass"
+      }
+    },
+    {
+      "expected": {
+        "canonical20260801": {
+          "diagnostics": {
+            "byteLength": 1322,
+            "path": "artifacts/source-chart-range-shifts-rhythm/canonical20260801/diagnostics.json",
+            "sha256": "545e2c47c78094f2a45d4b63d494880cd34d1df82beb7e8a721a7a4e5940de64"
+          },
+          "parsedSemantics": {
+            "byteLength": 483,
+            "path": "artifacts/source-chart-range-shifts-rhythm/canonical20260801/semantics.json",
+            "sha256": "2a7a393ee7dda3a21382f8b22a8bb68ed1b8d31179607454bf2b183ac34a11cf"
+          },
+          "physicalBTrack": {
+            "byteLength": 212,
+            "path": "artifacts/source-chart-range-shifts-rhythm/canonical20260801/physical.btrack",
+            "sha256": "0c9d6bf717dd5947cbe19cbddfa601662b1a42090fa3a1984840533470ddaa40"
+          },
+          "projection": {
+            "byteLength": 144,
+            "path": "artifacts/source-chart-range-shifts-rhythm/canonical20260801/projection.bin",
+            "sha256": "f4c8bb7d7819f94457f1938908623cfa38afa74ecca76bdc19767b13039639b0"
+          },
+          "rawDigest": {
+            "byteLength": 32,
+            "path": "artifacts/source-chart-range-shifts-rhythm/canonical20260801/digest.bin",
+            "sha256": "39ff8e303fbf8eecf701b2bdb1b3651bebc927fb8bd81bde4ec756c155690fa0"
+          },
+          "trackHash": "PMKfSZ4xjrtcGM8dRR9yvSGkgciPGu607tNSsptr4wE"
+        },
+        "legacy6142": {
+          "diagnostics": {
+            "byteLength": 3,
+            "path": "artifacts/source-chart-range-shifts-rhythm/legacy6142/diagnostics.json",
+            "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570"
+          },
+          "parsedSemantics": {
+            "byteLength": 576,
+            "path": "artifacts/source-chart-range-shifts-rhythm/legacy6142/semantics.json",
+            "sha256": "f353478312095bf12542a5e1adeb0afa15c36e6c9ccad6ca5d4a7e4fefc7a276"
+          },
+          "physicalBTrack": {
+            "byteLength": 96,
+            "path": "artifacts/source-chart-range-shifts-rhythm/legacy6142/physical.btrack",
+            "sha256": "b003c4356c53380b46bdb8b413ce0916686116087a597cae6ff14432f26291cc"
+          },
+          "projection": {
+            "byteLength": 96,
+            "path": "artifacts/source-chart-range-shifts-rhythm/legacy6142/projection.bin",
+            "sha256": "b003c4356c53380b46bdb8b413ce0916686116087a597cae6ff14432f26291cc"
+          },
+          "publishedPaddedTrackHash": "8xKtZjlIAXr9Cnd8cCTt6ka4Uo5CRBIY9bM73Qj7LWQ=",
+          "rawDigest": {
+            "byteLength": 32,
+            "path": "artifacts/source-chart-range-shifts-rhythm/legacy6142/digest.bin",
+            "sha256": "b4d061e7237ad8109ef3e81fbc1a999461f2a3f3188d59f3c36bca72cd6350b2"
+          },
+          "trackHash": "8xKtZjlIAXr9Cnd8cCTt6ka4Uo5CRBIY9bM73Qj7LWQ"
+        }
+      },
+      "id": "source-chart-range-shifts-rhythm",
+      "kind": "source-accepted",
+      "modifiers": {
+        "chord_snap_threshold": 0,
+        "eighthnote_hopo": false,
+        "five_lane_drums": false,
+        "hopo_frequency": 0,
+        "multiplier_note": 0,
+        "pro_drums": false,
+        "song_length": 0,
+        "sustain_cutoff_threshold": -1
+      },
+      "provenance": {
+        "author": "scan-chart migration maintainers",
+        "kind": "authored-minimal",
+        "license": "MIT",
+        "purpose": "Chart-form range shifts on the applicable five-fret Rhythm track."
+      },
+      "source": {
+        "byteLength": 757,
+        "path": "artifacts/source-chart-range-shifts-rhythm/source.chart",
+        "sha256": "893abacfb0bf61ae67ef770b9ae2445ed5a950632d2332d0a450f7993b7894e5"
+      },
+      "sourceFormat": "chart",
+      "target": {
+        "difficulty": "hard",
+        "instrument": "rhythm"
+      }
+    },
+    {
+      "expected": {
+        "canonical20260801": {
+          "diagnostics": {
+            "byteLength": 1322,
+            "path": "artifacts/source-chart-range-shifts-guitar-coop/canonical20260801/diagnostics.json",
+            "sha256": "545e2c47c78094f2a45d4b63d494880cd34d1df82beb7e8a721a7a4e5940de64"
+          },
+          "parsedSemantics": {
+            "byteLength": 483,
+            "path": "artifacts/source-chart-range-shifts-guitar-coop/canonical20260801/semantics.json",
+            "sha256": "2a7a393ee7dda3a21382f8b22a8bb68ed1b8d31179607454bf2b183ac34a11cf"
+          },
+          "physicalBTrack": {
+            "byteLength": 212,
+            "path": "artifacts/source-chart-range-shifts-guitar-coop/canonical20260801/physical.btrack",
+            "sha256": "0c9d6bf717dd5947cbe19cbddfa601662b1a42090fa3a1984840533470ddaa40"
+          },
+          "projection": {
+            "byteLength": 144,
+            "path": "artifacts/source-chart-range-shifts-guitar-coop/canonical20260801/projection.bin",
+            "sha256": "f4c8bb7d7819f94457f1938908623cfa38afa74ecca76bdc19767b13039639b0"
+          },
+          "rawDigest": {
+            "byteLength": 32,
+            "path": "artifacts/source-chart-range-shifts-guitar-coop/canonical20260801/digest.bin",
+            "sha256": "39ff8e303fbf8eecf701b2bdb1b3651bebc927fb8bd81bde4ec756c155690fa0"
+          },
+          "trackHash": "PMKfSZ4xjrtcGM8dRR9yvSGkgciPGu607tNSsptr4wE"
+        },
+        "legacy6142": {
+          "diagnostics": {
+            "byteLength": 3,
+            "path": "artifacts/source-chart-range-shifts-guitar-coop/legacy6142/diagnostics.json",
+            "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570"
+          },
+          "parsedSemantics": {
+            "byteLength": 576,
+            "path": "artifacts/source-chart-range-shifts-guitar-coop/legacy6142/semantics.json",
+            "sha256": "f353478312095bf12542a5e1adeb0afa15c36e6c9ccad6ca5d4a7e4fefc7a276"
+          },
+          "physicalBTrack": {
+            "byteLength": 96,
+            "path": "artifacts/source-chart-range-shifts-guitar-coop/legacy6142/physical.btrack",
+            "sha256": "b003c4356c53380b46bdb8b413ce0916686116087a597cae6ff14432f26291cc"
+          },
+          "projection": {
+            "byteLength": 96,
+            "path": "artifacts/source-chart-range-shifts-guitar-coop/legacy6142/projection.bin",
+            "sha256": "b003c4356c53380b46bdb8b413ce0916686116087a597cae6ff14432f26291cc"
+          },
+          "publishedPaddedTrackHash": "8xKtZjlIAXr9Cnd8cCTt6ka4Uo5CRBIY9bM73Qj7LWQ=",
+          "rawDigest": {
+            "byteLength": 32,
+            "path": "artifacts/source-chart-range-shifts-guitar-coop/legacy6142/digest.bin",
+            "sha256": "b4d061e7237ad8109ef3e81fbc1a999461f2a3f3188d59f3c36bca72cd6350b2"
+          },
+          "trackHash": "8xKtZjlIAXr9Cnd8cCTt6ka4Uo5CRBIY9bM73Qj7LWQ"
+        }
+      },
+      "id": "source-chart-range-shifts-guitar-coop",
+      "kind": "source-accepted",
+      "modifiers": {
+        "chord_snap_threshold": 0,
+        "eighthnote_hopo": false,
+        "five_lane_drums": false,
+        "hopo_frequency": 0,
+        "multiplier_note": 0,
+        "pro_drums": false,
+        "song_length": 0,
+        "sustain_cutoff_threshold": -1
+      },
+      "provenance": {
+        "author": "scan-chart migration maintainers",
+        "kind": "authored-minimal",
+        "license": "MIT",
+        "purpose": "Chart-form range shifts on the applicable five-fret Guitar Co-op track."
+      },
+      "source": {
+        "byteLength": 757,
+        "path": "artifacts/source-chart-range-shifts-guitar-coop/source.chart",
+        "sha256": "893abacfb0bf61ae67ef770b9ae2445ed5a950632d2332d0a450f7993b7894e5"
+      },
+      "sourceFormat": "chart",
+      "target": {
+        "difficulty": "expert",
+        "instrument": "guitarcoop"
+      }
+    },
+    {
+      "expected": {
+        "canonical20260801": {
+          "diagnostics": {
+            "byteLength": 275,
+            "path": "artifacts/source-midi-modifier-boundaries/canonical20260801/diagnostics.json",
+            "sha256": "8b07928bfff91aa16f38f871e160341c8c17f154bc162c0503d99b28047f02f8"
+          },
+          "parsedSemantics": {
+            "byteLength": 1903,
+            "path": "artifacts/source-midi-modifier-boundaries/canonical20260801/semantics.json",
+            "sha256": "3dfe209c82a371862b6786bc2ba8487b75f442a3cb31fcba44be5222533e4746"
+          },
+          "physicalBTrack": {
+            "byteLength": 596,
+            "path": "artifacts/source-midi-modifier-boundaries/canonical20260801/physical.btrack",
+            "sha256": "cb140b3a9e909e91a2e4c4bcc9e05530dfc21bf0e3bab14845e3a9b3f45bbd68"
+          },
+          "projection": {
+            "byteLength": 528,
+            "path": "artifacts/source-midi-modifier-boundaries/canonical20260801/projection.bin",
+            "sha256": "2e3b32a81839482e6659c0deebfe7de6abf21aea9af48ccfbedb12035de40bb2"
+          },
+          "rawDigest": {
+            "byteLength": 32,
+            "path": "artifacts/source-midi-modifier-boundaries/canonical20260801/digest.bin",
+            "sha256": "363808e54f1e9a098cb2968dc03511eb83412ffb374d1a7af50992598aa82345"
+          },
+          "trackHash": "_qa2qw126ny_uY09FaLPchMUj8VQOOYxoZ68vIBy2gY"
+        },
+        "legacy6142": {
+          "diagnostics": {
+            "byteLength": 3,
+            "path": "artifacts/source-midi-modifier-boundaries/legacy6142/diagnostics.json",
+            "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570"
+          },
+          "parsedSemantics": {
+            "byteLength": 1670,
+            "path": "artifacts/source-midi-modifier-boundaries/legacy6142/semantics.json",
+            "sha256": "0534f9de63b14655a6d9215faae0cdd36b7eea06e44f7a34e00483502e9b7fac"
+          },
+          "physicalBTrack": {
+            "byteLength": 456,
+            "path": "artifacts/source-midi-modifier-boundaries/legacy6142/physical.btrack",
+            "sha256": "609eef1cefc18942aec65a42e1958f653f3fbd8503f57c966253590c6e0a71f7"
+          },
+          "projection": {
+            "byteLength": 456,
+            "path": "artifacts/source-midi-modifier-boundaries/legacy6142/projection.bin",
+            "sha256": "609eef1cefc18942aec65a42e1958f653f3fbd8503f57c966253590c6e0a71f7"
+          },
+          "publishedPaddedTrackHash": "JNah-Sg_0rqXXT8bysJf8vEgelHmgCnfeuyyKh4v-rE=",
+          "rawDigest": {
+            "byteLength": 32,
+            "path": "artifacts/source-midi-modifier-boundaries/legacy6142/digest.bin",
+            "sha256": "fa3bbd387870350186049d1604f5bda0c5142ebdff6bdb6cc19a1432d6345616"
+          },
+          "trackHash": "JNah-Sg_0rqXXT8bysJf8vEgelHmgCnfeuyyKh4v-rE"
+        }
+      },
+      "id": "source-midi-modifier-boundaries",
+      "kind": "source-accepted",
+      "modifiers": {
+        "chord_snap_threshold": 0,
+        "eighthnote_hopo": false,
+        "five_lane_drums": false,
+        "hopo_frequency": 0,
+        "multiplier_note": 0,
+        "pro_drums": false,
+        "song_length": 0,
+        "sustain_cutoff_threshold": -1
+      },
+      "provenance": {
+        "author": "scan-chart migration maintainers",
+        "kind": "authored-minimal",
+        "license": "MIT",
+        "purpose": "Per-difficulty open, all-difficulty tap, forced-HOPO, and forced-strum boundaries plus range shifts and exact tempo conversion."
+      },
+      "source": {
+        "byteLength": 420,
+        "path": "artifacts/source-midi-modifier-boundaries/source.mid",
+        "sha256": "b712375d253b073c78f1efd29db0c852ac4c87a17832acb34d077186bbdb0f22"
+      },
+      "sourceFormat": "mid",
+      "target": {
+        "difficulty": "expert",
+        "instrument": "guitar"
+      }
+    },
+    {
+      "expected": {
+        "canonical20260801": {
+          "diagnostics": {
+            "byteLength": 275,
+            "path": "artifacts/source-midi-all-difficulty-tap-boundary/canonical20260801/diagnostics.json",
+            "sha256": "8b07928bfff91aa16f38f871e160341c8c17f154bc162c0503d99b28047f02f8"
+          },
+          "parsedSemantics": {
+            "byteLength": 687,
+            "path": "artifacts/source-midi-all-difficulty-tap-boundary/canonical20260801/semantics.json",
+            "sha256": "b8158ee20d88f97b60b5780c252dd32fb4a6dac1d0fc012f1f4669c9bc9215ac"
+          },
+          "physicalBTrack": {
+            "byteLength": 236,
+            "path": "artifacts/source-midi-all-difficulty-tap-boundary/canonical20260801/physical.btrack",
+            "sha256": "337de67a3ca5286699793c06a66677fe30ae395e8050e1a9f7ce52833d47753c"
+          },
+          "projection": {
+            "byteLength": 180,
+            "path": "artifacts/source-midi-all-difficulty-tap-boundary/canonical20260801/projection.bin",
+            "sha256": "520703158cc31781e61a25c69ae9011f22a86fc39257411ecefe73e4644ae49b"
+          },
+          "rawDigest": {
+            "byteLength": 32,
+            "path": "artifacts/source-midi-all-difficulty-tap-boundary/canonical20260801/digest.bin",
+            "sha256": "cee0245d202c7dc569315f0859d15d5aaa8b507064708775afff479ac1159abc"
+          },
+          "trackHash": "jFPUBogb-wrzR3oTVCkS6ntPVYfAi36VRcWlQ9GfuSk"
+        },
+        "legacy6142": {
+          "diagnostics": {
+            "byteLength": 3,
+            "path": "artifacts/source-midi-all-difficulty-tap-boundary/legacy6142/diagnostics.json",
+            "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570"
+          },
+          "parsedSemantics": {
+            "byteLength": 646,
+            "path": "artifacts/source-midi-all-difficulty-tap-boundary/legacy6142/semantics.json",
+            "sha256": "b9e11a03600d5d0c9e939f2da5e5c64778b208304efd19c357e7592c973ab2bb"
+          },
+          "physicalBTrack": {
+            "byteLength": 168,
+            "path": "artifacts/source-midi-all-difficulty-tap-boundary/legacy6142/physical.btrack",
+            "sha256": "095cd2daa1a0c941effb34007fb53e0785472d41d588458a9ae8ef71d9bd564c"
+          },
+          "projection": {
+            "byteLength": 168,
+            "path": "artifacts/source-midi-all-difficulty-tap-boundary/legacy6142/projection.bin",
+            "sha256": "095cd2daa1a0c941effb34007fb53e0785472d41d588458a9ae8ef71d9bd564c"
+          },
+          "publishedPaddedTrackHash": "hUvWH5YWla5Hw7D0TmPzO_uf3S-1vJEAepRH7Ro36mA=",
+          "rawDigest": {
+            "byteLength": 32,
+            "path": "artifacts/source-midi-all-difficulty-tap-boundary/legacy6142/digest.bin",
+            "sha256": "31b19de17a726763c0f11e8bc2487c3cf8800a9de6bd29f5591c209e9e2fc02f"
+          },
+          "trackHash": "hUvWH5YWla5Hw7D0TmPzO_uf3S-1vJEAepRH7Ro36mA"
+        }
+      },
+      "id": "source-midi-all-difficulty-tap-boundary",
+      "kind": "source-accepted",
+      "modifiers": {
+        "chord_snap_threshold": 0,
+        "eighthnote_hopo": false,
+        "five_lane_drums": false,
+        "hopo_frequency": 0,
+        "multiplier_note": 0,
+        "pro_drums": false,
+        "song_length": 0,
+        "sustain_cutoff_threshold": -1
+      },
+      "provenance": {
+        "author": "scan-chart migration maintainers",
+        "kind": "authored-minimal",
+        "license": "MIT",
+        "purpose": "All-difficulty tap applies to a second charted difficulty and remains active at its end tick."
+      },
+      "source": {
+        "byteLength": 420,
+        "path": "artifacts/source-midi-all-difficulty-tap-boundary/source.mid",
+        "sha256": "b712375d253b073c78f1efd29db0c852ac4c87a17832acb34d077186bbdb0f22"
+      },
+      "sourceFormat": "mid",
+      "target": {
+        "difficulty": "easy",
+        "instrument": "guitar"
+      }
+    },
+    {
+      "expected": {
+        "canonical20260801": {
+          "diagnostics": {
+            "byteLength": 3,
+            "path": "artifacts/source-chart-duplicate-overlap/canonical20260801/diagnostics.json",
+            "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570"
+          },
+          "parsedSemantics": {
+            "byteLength": 611,
+            "path": "artifacts/source-chart-duplicate-overlap/canonical20260801/semantics.json",
+            "sha256": "ee2e4bb9974e26dcad3e80aadc6265729e788e9b44fcc01532acf493281eaef0"
+          },
+          "physicalBTrack": {
+            "byteLength": 244,
+            "path": "artifacts/source-chart-duplicate-overlap/canonical20260801/physical.btrack",
+            "sha256": "e42b0c6f4abad25187debd39a9e9a0e3388988f4f4a950be0fa95b88d179541f"
+          },
+          "projection": {
+            "byteLength": 176,
+            "path": "artifacts/source-chart-duplicate-overlap/canonical20260801/projection.bin",
+            "sha256": "d2e8b6fbd8c3e5676ec044b30f9834667bdccdaef35336628e14f60a3dead61f"
+          },
+          "rawDigest": {
+            "byteLength": 32,
+            "path": "artifacts/source-chart-duplicate-overlap/canonical20260801/digest.bin",
+            "sha256": "5ff31ca61b0decb3ff3ab6d16596f5d77ce0322d7a2efe71d3c8bb90dee597d3"
+          },
+          "trackHash": "-o-Pu3wtkTP4QAMkpBuEzMiNTVGJZheBuaJULaC6Cz8"
+        },
+        "legacy6142": {
+          "diagnostics": {
+            "byteLength": 3,
+            "path": "artifacts/source-chart-duplicate-overlap/legacy6142/diagnostics.json",
+            "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570"
+          },
+          "parsedSemantics": {
+            "byteLength": 570,
+            "path": "artifacts/source-chart-duplicate-overlap/legacy6142/semantics.json",
+            "sha256": "161d6220eb4297c3c9e7550e05fe3c2b2eca82e7866ea50727a1999d614f29be"
+          },
+          "physicalBTrack": {
+            "byteLength": 152,
+            "path": "artifacts/source-chart-duplicate-overlap/legacy6142/physical.btrack",
+            "sha256": "77dcf10e5b69d0959577d679f887ac9531531c0f14c6cbf53eef2f3670f5d867"
+          },
+          "projection": {
+            "byteLength": 152,
+            "path": "artifacts/source-chart-duplicate-overlap/legacy6142/projection.bin",
+            "sha256": "77dcf10e5b69d0959577d679f887ac9531531c0f14c6cbf53eef2f3670f5d867"
+          },
+          "publishedPaddedTrackHash": "Wzh8B05_zTO8tDBjcGoJC4-9cNtYoh98z4mZQhh8f4g=",
+          "rawDigest": {
+            "byteLength": 32,
+            "path": "artifacts/source-chart-duplicate-overlap/legacy6142/digest.bin",
+            "sha256": "694cd0206dc56f423acad9e44b0dbfedfa06ac58b044d1ada60d10ab89913149"
+          },
+          "trackHash": "Wzh8B05_zTO8tDBjcGoJC4-9cNtYoh98z4mZQhh8f4g"
+        }
+      },
+      "id": "source-chart-duplicate-overlap",
+      "kind": "source-accepted",
+      "modifiers": {
+        "chord_snap_threshold": 0,
+        "eighthnote_hopo": false,
+        "five_lane_drums": false,
+        "hopo_frequency": 0,
+        "multiplier_note": 0,
+        "pro_drums": false,
+        "song_length": 0,
+        "sustain_cutoff_threshold": -1
+      },
+      "provenance": {
+        "author": "scan-chart migration maintainers",
+        "kind": "authored-minimal",
+        "license": "MIT",
+        "purpose": "Duplicate pruning and overlap correction for phrases and notes."
+      },
+      "source": {
+        "byteLength": 213,
+        "path": "artifacts/source-chart-duplicate-overlap/source.chart",
+        "sha256": "1b22e159e7f6b698568dff8cd833b960056aa04d324c51517c27e2faef165123"
+      },
+      "sourceFormat": "chart",
+      "target": {
+        "difficulty": "expert",
+        "instrument": "guitar"
+      }
+    },
+    {
+      "expected": {
+        "canonical20260801": {
+          "diagnostics": {
+            "byteLength": 3,
+            "path": "artifacts/source-chart-stored-range-boundaries/canonical20260801/diagnostics.json",
+            "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570"
+          },
+          "parsedSemantics": {
+            "byteLength": 1331,
+            "path": "artifacts/source-chart-stored-range-boundaries/canonical20260801/semantics.json",
+            "sha256": "3b1542d8feed657f8faadc36440b3de9a07b9381711977961b8746bcf1084f35"
+          },
+          "physicalBTrack": {
+            "byteLength": 494,
+            "path": "artifacts/source-chart-stored-range-boundaries/canonical20260801/physical.btrack",
+            "sha256": "b49654c386d888a8a709a457f71101ffa30a406e568835c68705cfdcd5110507"
+          },
+          "projection": {
+            "byteLength": 390,
+            "path": "artifacts/source-chart-stored-range-boundaries/canonical20260801/projection.bin",
+            "sha256": "b965a3d64a0502a4acbbd0f2b6204b4f289b0cf13a0e15f3866293c2e8c258b1"
+          },
+          "rawDigest": {
+            "byteLength": 32,
+            "path": "artifacts/source-chart-stored-range-boundaries/canonical20260801/digest.bin",
+            "sha256": "07320c86059f92f63655d0b45b16da8a638d9a026e6e557c27570f00bc655396"
+          },
+          "trackHash": "mzD2f2tj1rEi1ib-jQ425GBdUGvQsDvZ40yjuSFORQ4"
+        },
+        "legacy6142": {
+          "diagnostics": {
+            "byteLength": 3,
+            "path": "artifacts/source-chart-stored-range-boundaries/legacy6142/diagnostics.json",
+            "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570"
+          },
+          "parsedSemantics": {
+            "byteLength": 1255,
+            "path": "artifacts/source-chart-stored-range-boundaries/legacy6142/semantics.json",
+            "sha256": "ac4a7f7e8d3dbcdd340792a6c6706f7ee2ca062979e8929feb29f34ac531e3f2"
+          },
+          "physicalBTrack": {
+            "byteLength": 330,
+            "path": "artifacts/source-chart-stored-range-boundaries/legacy6142/physical.btrack",
+            "sha256": "a716debe4a0faa5ffe6e6858cada618b521884513ef8192067ef5cde1a3ad4ac"
+          },
+          "projection": {
+            "byteLength": 330,
+            "path": "artifacts/source-chart-stored-range-boundaries/legacy6142/projection.bin",
+            "sha256": "a716debe4a0faa5ffe6e6858cada618b521884513ef8192067ef5cde1a3ad4ac"
+          },
+          "publishedPaddedTrackHash": "RjDflijwXsw4L-tQ6t9MwaoGvA7scsmFBHG8imOsTZk=",
+          "rawDigest": {
+            "byteLength": 32,
+            "path": "artifacts/source-chart-stored-range-boundaries/legacy6142/digest.bin",
+            "sha256": "bfe3754b860282ac2665cf34f84e71c79641353fb71615bffc2768c2a765f87d"
+          },
+          "trackHash": "RjDflijwXsw4L-tQ6t9MwaoGvA7scsmFBHG8imOsTZk"
+        }
+      },
+      "id": "source-chart-stored-range-boundaries",
+      "kind": "source-accepted",
+      "modifiers": {
+        "chord_snap_threshold": 0,
+        "eighthnote_hopo": false,
+        "five_lane_drums": false,
+        "hopo_frequency": 0,
+        "multiplier_note": 0,
+        "pro_drums": false,
+        "song_length": 0,
+        "sustain_cutoff_threshold": -1
+      },
+      "provenance": {
+        "author": "scan-chart migration maintainers",
+        "kind": "authored-minimal",
+        "license": "MIT",
+        "purpose": "Star-power and solo exclusive ends plus flex-lane and freestyle inclusive ends."
+      },
+      "source": {
+        "byteLength": 426,
+        "path": "artifacts/source-chart-stored-range-boundaries/source.chart",
+        "sha256": "360434428312a84ac32e2ee7f2e069a5818a58400ae1426474234b3d24e28ac6"
+      },
+      "sourceFormat": "chart",
+      "target": {
+        "difficulty": "expert",
+        "instrument": "drums"
+      }
+    },
+    {
+      "expected": {
+        "parsedSemantics": {
+          "byteLength": 176,
+          "path": "artifacts/physical-resolution-only/semantics.json",
+          "sha256": "15fd764bd9cddaa4baf25fc5b184f376d4af057581b3dfad6b41aeb6cb2331ef"
+        },
+        "projection": {
+          "byteLength": 16,
+          "path": "artifacts/physical-resolution-only/projection.bin",
+          "sha256": "c045fbef2b1538d3e7e988366ca72601c3addcf20b9e321fc94f59a1d9bdadf0"
+        },
+        "rawDigest": {
+          "byteLength": 32,
+          "path": "artifacts/physical-resolution-only/digest.bin",
+          "sha256": "70ca0c8b85e552d029f18559e1b4fb052fdd038b45414c504d2995d34c46461c"
+        },
+        "trackHash": "MaBqvnz_JajGOY-WQtH_-E7wtWJbi6HT7iCaosdWcLo"
+      },
+      "id": "physical-resolution-only",
+      "kind": "btrack-accepted",
+      "physicalBTrack": {
+        "byteLength": 36,
+        "path": "artifacts/physical-resolution-only/physical.btrack",
+        "sha256": "9479928d8fb34974185319a3a972affb66271c19d7e914571546b6fea9d9bb82"
+      },
+      "provenance": {
+        "author": "scan-chart migration maintainers",
+        "kind": "authored-minimal",
+        "license": "MIT",
+        "purpose": "Mandatory Resolution with every empty optional section omitted."
+      }
+    },
+    {
+      "expected": {
+        "parsedSemantics": {
+          "byteLength": 1416,
+          "path": "artifacts/physical-all-sections/semantics.json",
+          "sha256": "d2f794abb41aaaafe8f1a2a9ad942effc5fd1e95e3eb0201e7e4d638ef5fcb81"
+        },
+        "projection": {
+          "byteLength": 443,
+          "path": "artifacts/physical-all-sections/projection.bin",
+          "sha256": "42048762f3d618c3ddfbc8874011c48e40a0310ba62d42c392236dedd24689b1"
+        },
+        "rawDigest": {
+          "byteLength": 32,
+          "path": "artifacts/physical-all-sections/digest.bin",
+          "sha256": "08ed911910785f9f33dc7db2d3b2aec7920272d0217bfaabd360026201c1e24a"
+        },
+        "trackHash": "EGfMn6cql7bjEsS9-5pRQCQZB7iVg-wqxjD8Tcgc6I4"
+      },
+      "id": "physical-all-sections",
+      "kind": "btrack-accepted",
+      "physicalBTrack": {
+        "byteLength": 559,
+        "path": "artifacts/physical-all-sections/physical.btrack",
+        "sha256": "c728ef02326bdc623fb64c5cc0925224830079c1710e7090c199d410a241a304"
+      },
+      "provenance": {
+        "author": "scan-chart migration maintainers",
+        "kind": "authored-minimal",
+        "license": "MIT",
+        "purpose": "Every recognized section and four representative stored range shapes."
+      }
+    },
+    {
+      "expected": {
+        "parsedSemantics": {
+          "byteLength": 176,
+          "path": "artifacts/physical-unknown-section/semantics.json",
+          "sha256": "15fd764bd9cddaa4baf25fc5b184f376d4af057581b3dfad6b41aeb6cb2331ef"
+        },
+        "projection": {
+          "byteLength": 16,
+          "path": "artifacts/physical-unknown-section/projection.bin",
+          "sha256": "c045fbef2b1538d3e7e988366ca72601c3addcf20b9e321fc94f59a1d9bdadf0"
+        },
+        "rawDigest": {
+          "byteLength": 32,
+          "path": "artifacts/physical-unknown-section/digest.bin",
+          "sha256": "70ca0c8b85e552d029f18559e1b4fb052fdd038b45414c504d2995d34c46461c"
+        },
+        "trackHash": "MaBqvnz_JajGOY-WQtH_-E7wtWJbi6HT7iCaosdWcLo"
+      },
+      "id": "physical-unknown-section",
+      "kind": "btrack-accepted",
+      "physicalBTrack": {
+        "byteLength": 58,
+        "path": "artifacts/physical-unknown-section/physical.btrack",
+        "sha256": "bed5f74b4f572d70115079269b2783ef981049d2e972341214d0292c1de08e64"
+      },
+      "provenance": {
+        "author": "scan-chart migration maintainers",
+        "kind": "authored-minimal",
+        "license": "MIT",
+        "purpose": "Unknown physical section excluded from semantics and TrackHash."
+      }
+    },
+    {
+      "expectedErrors": {
+        "byteLength": 115,
+        "path": "artifacts/physical-reject-duplicate-ids/errors.json",
+        "sha256": "e9aace36fa8042322d8d0739b3e22a88dbb8eea1f83468467a0fec4df7442a9e"
+      },
+      "id": "physical-reject-duplicate-ids",
+      "kind": "btrack-rejected",
+      "physicalBTrack": {
+        "byteLength": 60,
+        "path": "artifacts/physical-reject-duplicate-ids/physical.btrack",
+        "sha256": "6dd696fcebe1bffdabd66966d137c9ba9a69b173fc24d9708797a827c8a54716"
+      },
+      "provenance": {
+        "author": "scan-chart migration maintainers",
+        "kind": "authored-minimal",
+        "license": "MIT",
+        "purpose": "Duplicate section IDs are malformed."
+      }
+    },
+    {
+      "expectedErrors": {
+        "byteLength": 69,
+        "path": "artifacts/physical-reject-empty-optional/errors.json",
+        "sha256": "9b3f499cb8d7c27005bc165c59941adcd111a0c03dd63a91fef7050004f0278f"
+      },
+      "id": "physical-reject-empty-optional",
+      "kind": "btrack-rejected",
+      "physicalBTrack": {
+        "byteLength": 60,
+        "path": "artifacts/physical-reject-empty-optional/physical.btrack",
+        "sha256": "bb80c8f221b7a6f0c8934cd9ecf0f9d559ff6dd94f99a6a7bca8dbc1fa43deb7"
+      },
+      "provenance": {
+        "author": "scan-chart migration maintainers",
+        "kind": "authored-minimal",
+        "license": "MIT",
+        "purpose": "A zero-count optional recognized section is malformed."
+      }
+    },
+    {
+      "expectedErrors": {
+        "byteLength": 136,
+        "path": "artifacts/physical-reject-negative-range/errors.json",
+        "sha256": "213607cb810eeb4122f114f4e9818e36543885e1e4972bc881674a07254fc6eb"
+      },
+      "id": "physical-reject-negative-range",
+      "kind": "btrack-rejected",
+      "physicalBTrack": {
+        "byteLength": 84,
+        "path": "artifacts/physical-reject-negative-range/physical.btrack",
+        "sha256": "e51efc32fa7905c82f414bd5ca98f1e62c12d2b551ea46e6074c8db310e94bb3"
+      },
+      "provenance": {
+        "author": "scan-chart migration maintainers",
+        "kind": "authored-minimal",
+        "license": "MIT",
+        "purpose": "Negative signed range data is malformed."
+      }
+    },
+    {
+      "expectedErrors": {
+        "byteLength": 94,
+        "path": "artifacts/physical-reject-trailing-byte/errors.json",
+        "sha256": "09c3f9e82cfb756ce31131ecdcababf0a5398d022aa32c142add4610c4534cf7"
+      },
+      "id": "physical-reject-trailing-byte",
+      "kind": "btrack-rejected",
+      "physicalBTrack": {
+        "byteLength": 37,
+        "path": "artifacts/physical-reject-trailing-byte/physical.btrack",
+        "sha256": "b1a6d0b2f4b74ff760d6529bca9681b3ed1e109eac3df0f47e4ae354106c86eb"
+      },
+      "provenance": {
+        "author": "scan-chart migration maintainers",
+        "kind": "authored-minimal",
+        "license": "MIT",
+        "purpose": "Physical padding and trailing bytes are malformed."
+      }
+    },
+    {
+      "expectedErrors": {
+        "byteLength": 65,
+        "path": "artifacts/physical-reject-truncated-header/errors.json",
+        "sha256": "a1114d9b7e67fa7c3553950f96c195fb3a1c094733411b71b4c831274f36fdd0"
+      },
+      "id": "physical-reject-truncated-header",
+      "kind": "btrack-rejected",
+      "physicalBTrack": {
+        "byteLength": 7,
+        "path": "artifacts/physical-reject-truncated-header/physical.btrack",
+        "sha256": "f85a476e81340d729985288ab6f47df67e1c217f438c88e3ea746746aba90bc9"
+      },
+      "provenance": {
+        "author": "scan-chart migration maintainers",
+        "kind": "authored-minimal",
+        "license": "MIT",
+        "purpose": "A file shorter than the shared header is malformed."
+      }
+    },
+    {
+      "expectedErrors": {
+        "byteLength": 100,
+        "path": "artifacts/physical-reject-bad-magic/errors.json",
+        "sha256": "2cd043b33fef0c56c9dec76c8517b808a5cc391f8111f7cc5e67979115ddf85a"
+      },
+      "id": "physical-reject-bad-magic",
+      "kind": "btrack-rejected",
+      "physicalBTrack": {
+        "byteLength": 36,
+        "path": "artifacts/physical-reject-bad-magic/physical.btrack",
+        "sha256": "57990844a598e135acbc400a4017e076b0f7d5bfbbeed11d80a40c16c5b09676"
+      },
+      "provenance": {
+        "author": "scan-chart migration maintainers",
+        "kind": "authored-minimal",
+        "license": "MIT",
+        "purpose": "A non-CHNF magic value is malformed."
+      }
+    },
+    {
+      "expectedErrors": {
+        "byteLength": 70,
+        "path": "artifacts/physical-reject-version/errors.json",
+        "sha256": "4c1aa27cf6c2f6a9e08c7421b76ba0f653d9dedc626f8c5731f8b659d77a2235"
+      },
+      "id": "physical-reject-version",
+      "kind": "btrack-rejected",
+      "physicalBTrack": {
+        "byteLength": 36,
+        "path": "artifacts/physical-reject-version/physical.btrack",
+        "sha256": "229494a477ffbb51af6192a82943971ae8914bbd5e2df50ef5922b82ec1a5039"
+      },
+      "provenance": {
+        "author": "scan-chart migration maintainers",
+        "kind": "authored-minimal",
+        "license": "MIT",
+        "purpose": "An unsupported physical version is rejected."
+      }
+    },
+    {
+      "expectedErrors": {
+        "byteLength": 95,
+        "path": "artifacts/physical-reject-truncated-map/errors.json",
+        "sha256": "afd6a0377eec0c7f2159c1fc4f51ac88a936f948525b84066ffed653b01d39b7"
+      },
+      "id": "physical-reject-truncated-map",
+      "kind": "btrack-rejected",
+      "physicalBTrack": {
+        "byteLength": 31,
+        "path": "artifacts/physical-reject-truncated-map/physical.btrack",
+        "sha256": "010e2625b58aab46a0edf256ea1d98f1b681ce7bfc9b1e44352c9f8c07a73e16"
+      },
+      "provenance": {
+        "author": "scan-chart migration maintainers",
+        "kind": "authored-minimal",
+        "license": "MIT",
+        "purpose": "A truncated section map is malformed."
+      }
+    },
+    {
+      "expectedErrors": {
+        "byteLength": 116,
+        "path": "artifacts/physical-reject-noncanonical-offset/errors.json",
+        "sha256": "b5637d9a111b84903073279df2f4c65f5fe612be8108344da2afaa676091ed29"
+      },
+      "id": "physical-reject-noncanonical-offset",
+      "kind": "btrack-rejected",
+      "physicalBTrack": {
+        "byteLength": 37,
+        "path": "artifacts/physical-reject-noncanonical-offset/physical.btrack",
+        "sha256": "e02bd8b89dc8216e7f464f5188d3bc49b0d21f7fd64774b55c7e2e50f4c90083"
+      },
+      "provenance": {
+        "author": "scan-chart migration maintainers",
+        "kind": "authored-minimal",
+        "license": "MIT",
+        "purpose": "A physical gap is rejected instead of normalized."
+      }
+    },
+    {
+      "expectedErrors": {
+        "byteLength": 133,
+        "path": "artifacts/physical-reject-out-of-bounds/errors.json",
+        "sha256": "80b62b7555b4a2713bb797122be78e00e6cd9bcc5edf3a191f5e0c24882b59a5"
+      },
+      "id": "physical-reject-out-of-bounds",
+      "kind": "btrack-rejected",
+      "physicalBTrack": {
+        "byteLength": 36,
+        "path": "artifacts/physical-reject-out-of-bounds/physical.btrack",
+        "sha256": "fdf0257baffdfc71b35ab39d482fb02ac2ce4c6e1885c50369257aef9a755f57"
+      },
+      "provenance": {
+        "author": "scan-chart migration maintainers",
+        "kind": "authored-minimal",
+        "license": "MIT",
+        "purpose": "A section range beyond the file is malformed."
+      }
+    },
+    {
+      "expectedErrors": {
+        "byteLength": 79,
+        "path": "artifacts/physical-reject-offset-overflow/errors.json",
+        "sha256": "47aab98d0cdb035590e764f8e446bd802d313c13a27852dd7e613883bab8b954"
+      },
+      "id": "physical-reject-offset-overflow",
+      "kind": "btrack-rejected",
+      "physicalBTrack": {
+        "byteLength": 36,
+        "path": "artifacts/physical-reject-offset-overflow/physical.btrack",
+        "sha256": "d012ebfacbf2ac53837434faf4bc078798f62f0a36443f8e7f80016a7bad66f4"
+      },
+      "provenance": {
+        "author": "scan-chart migration maintainers",
+        "kind": "authored-minimal",
+        "license": "MIT",
+        "purpose": "Checked section-range arithmetic rejects uint64 overflow."
+      }
+    },
+    {
+      "expectedErrors": {
+        "byteLength": 44,
+        "path": "artifacts/physical-reject-missing-resolution/errors.json",
+        "sha256": "2a8867997ec3a91c909d9b7f4e2051a08711f3c73434e0729890177908fc1a8a"
+      },
+      "id": "physical-reject-missing-resolution",
+      "kind": "btrack-rejected",
+      "physicalBTrack": {
+        "byteLength": 33,
+        "path": "artifacts/physical-reject-missing-resolution/physical.btrack",
+        "sha256": "54292c1f2040bb81e4d8e710c89a7a5a846f49345eeb63bedf000dcf9ba649ce"
+      },
+      "provenance": {
+        "author": "scan-chart migration maintainers",
+        "kind": "authored-minimal",
+        "license": "MIT",
+        "purpose": "Resolution is mandatory even when unknown sections are present."
+      }
+    },
+    {
+      "expectedErrors": {
+        "byteLength": 118,
+        "path": "artifacts/physical-reject-count-length/errors.json",
+        "sha256": "7ef43a105e093bbd30ab5f6c3169c75bd48e853e2895321a6bca33458f61f34e"
+      },
+      "id": "physical-reject-count-length",
+      "kind": "btrack-rejected",
+      "physicalBTrack": {
+        "byteLength": 60,
+        "path": "artifacts/physical-reject-count-length/physical.btrack",
+        "sha256": "80f48eb3790d247fc6b587aeea51ccb2bda504d5b6d969311e13ca7f5a4c73ea"
+      },
+      "provenance": {
+        "author": "scan-chart migration maintainers",
+        "kind": "authored-minimal",
+        "license": "MIT",
+        "purpose": "A recognized count and payload-length mismatch is malformed."
+      }
+    },
+    {
+      "expectedErrors": {
+        "byteLength": 148,
+        "path": "artifacts/physical-reject-range-bounds/errors.json",
+        "sha256": "71727fefe2698063234f69c179e8db6d9c95e7777514449d717bbc2cc6f9fb87"
+      },
+      "id": "physical-reject-range-bounds",
+      "kind": "btrack-rejected",
+      "physicalBTrack": {
+        "byteLength": 84,
+        "path": "artifacts/physical-reject-range-bounds/physical.btrack",
+        "sha256": "4495e098fcffdf0e5c92f491315a818e97bbd6b351ea4930e7eef2d6b9f40633"
+      },
+      "provenance": {
+        "author": "scan-chart migration maintainers",
+        "kind": "authored-minimal",
+        "license": "MIT",
+        "purpose": "Range position and size must stay within five lanes."
+      }
+    },
+    {
+      "expectedErrors": {
+        "byteLength": 145,
+        "path": "artifacts/physical-reject-duplicate-range-tick/errors.json",
+        "sha256": "c2353785726afa84b5952d75fe024994c64f23cd2deba379c91c6ad5bd8449bd"
+      },
+      "id": "physical-reject-duplicate-range-tick",
+      "kind": "btrack-rejected",
+      "physicalBTrack": {
+        "byteLength": 108,
+        "path": "artifacts/physical-reject-duplicate-range-tick/physical.btrack",
+        "sha256": "b2abd14ac312969af68166501b8f22987f39069f5521200c1dc3681ba01cf634"
+      },
+      "provenance": {
+        "author": "scan-chart migration maintainers",
+        "kind": "authored-minimal",
+        "license": "MIT",
+        "purpose": "Physical range records must have strictly increasing ticks."
+      }
+    },
+    {
+      "expectedErrors": {
+        "byteLength": 151,
+        "path": "artifacts/physical-reject-boolean/errors.json",
+        "sha256": "5e0ecfed97653d58538fc85abe077e117547419edd58c3c56652b37a4ea009d7"
+      },
+      "id": "physical-reject-boolean",
+      "kind": "btrack-rejected",
+      "physicalBTrack": {
+        "byteLength": 77,
+        "path": "artifacts/physical-reject-boolean/physical.btrack",
+        "sha256": "04003caf5ce576f8856cfbc9fa95effc226365186a8b64a561cc32e5dfdf928d"
+      },
+      "provenance": {
+        "author": "scan-chart migration maintainers",
+        "kind": "authored-minimal",
+        "license": "MIT",
+        "purpose": "Boolean record bytes must be zero or one."
+      }
+    },
+    {
+      "expectedErrors": {
+        "byteLength": 143,
+        "path": "artifacts/physical-reject-note-type/errors.json",
+        "sha256": "93785e96cd5e5647540d65166d3721c605c9db048e981d6cc98509ecf85e4334"
+      },
+      "id": "physical-reject-note-type",
+      "kind": "btrack-rejected",
+      "physicalBTrack": {
+        "byteLength": 84,
+        "path": "artifacts/physical-reject-note-type/physical.btrack",
+        "sha256": "fc60d6abd1a50482301574bbf8da3f1be983af135722ba1eb84eff94fb49dc18"
+      },
+      "provenance": {
+        "author": "scan-chart migration maintainers",
+        "kind": "authored-minimal",
+        "license": "MIT",
+        "purpose": "Unknown NoteType values are malformed."
+      }
+    },
+    {
+      "expectedErrors": {
+        "byteLength": 148,
+        "path": "artifacts/physical-reject-note-flag-bits/errors.json",
+        "sha256": "515540ae322f194e901c2d66c517e6c1d02a0f0868abe032eedf62f21eb54041"
+      },
+      "id": "physical-reject-note-flag-bits",
+      "kind": "btrack-rejected",
+      "physicalBTrack": {
+        "byteLength": 84,
+        "path": "artifacts/physical-reject-note-flag-bits/physical.btrack",
+        "sha256": "7646904583e745e399dd41210d38849e44265b54c0c1e6161ab2f1cf1c4ca501"
+      },
+      "provenance": {
+        "author": "scan-chart migration maintainers",
+        "kind": "authored-minimal",
+        "license": "MIT",
+        "purpose": "Unknown NoteFlags bits are malformed."
+      }
+    },
+    {
+      "expectedErrors": {
+        "byteLength": 155,
+        "path": "artifacts/physical-reject-note-flag-combination/errors.json",
+        "sha256": "6dd806a0f36d0633ef6356081f71062ec318171b7fb0d1b4eac611eb1042151c"
+      },
+      "id": "physical-reject-note-flag-combination",
+      "kind": "btrack-rejected",
+      "physicalBTrack": {
+        "byteLength": 84,
+        "path": "artifacts/physical-reject-note-flag-combination/physical.btrack",
+        "sha256": "60c77be52f41425d89b022d12dcff0392a8ddcbbb3e2c7e34f555990433f2586"
+      },
+      "provenance": {
+        "author": "scan-chart migration maintainers",
+        "kind": "authored-minimal",
+        "license": "MIT",
+        "purpose": "Mutually exclusive attack flags cannot coexist."
+      }
+    },
+    {
+      "expectedErrors": {
+        "byteLength": 149,
+        "path": "artifacts/physical-reject-note-order/errors.json",
+        "sha256": "7bd49e87831ce3ee8364f5fbd8bdde4e5c6286c07ba484d53b96a60d5edd2812"
+      },
+      "id": "physical-reject-note-order",
+      "kind": "btrack-rejected",
+      "physicalBTrack": {
+        "byteLength": 108,
+        "path": "artifacts/physical-reject-note-order/physical.btrack",
+        "sha256": "60b1c197a47e4239eb640743b982c68bf7976ab70fb14f2144c1d730fedcc204"
+      },
+      "provenance": {
+        "author": "scan-chart migration maintainers",
+        "kind": "authored-minimal",
+        "license": "MIT",
+        "purpose": "Same-tick notes must use ascending NoteType order."
+      }
+    },
+    {
+      "expectedErrors": {
+        "byteLength": 149,
+        "path": "artifacts/physical-reject-phrase-overlap/errors.json",
+        "sha256": "5cbba11b7a478c5460b4ffb7163f9303cf3ebbc20e715fde4735098fd7f32dd4"
+      },
+      "id": "physical-reject-phrase-overlap",
+      "kind": "btrack-rejected",
+      "physicalBTrack": {
+        "byteLength": 92,
+        "path": "artifacts/physical-reject-phrase-overlap/physical.btrack",
+        "sha256": "437dcd252fb4ac78c51cfc15c2c8d12e0220b0e69c933273f29914fa9de32428"
+      },
+      "provenance": {
+        "author": "scan-chart migration maintainers",
+        "kind": "authored-minimal",
+        "license": "MIT",
+        "purpose": "Canonical phrase records cannot overlap."
+      }
+    },
+    {
+      "expectedErrors": {
+        "byteLength": 149,
+        "path": "artifacts/physical-reject-note-overlap/errors.json",
+        "sha256": "558e813069ffd1e7a9d7b6c666162d21ed3ad9e7418617e49bd380cadd6a2162"
+      },
+      "id": "physical-reject-note-overlap",
+      "kind": "btrack-rejected",
+      "physicalBTrack": {
+        "byteLength": 108,
+        "path": "artifacts/physical-reject-note-overlap/physical.btrack",
+        "sha256": "1da923d783b023c2d64d4625e764c5af1da30d1c88e902338a6aca148dfa39fc"
+      },
+      "provenance": {
+        "author": "scan-chart migration maintainers",
+        "kind": "authored-minimal",
+        "license": "MIT",
+        "purpose": "Canonical notes of the same type cannot overlap."
+      }
+    },
+    {
+      "expectedErrors": {
+        "byteLength": 115,
+        "path": "artifacts/physical-reject-descending-ids/errors.json",
+        "sha256": "26c81144f7b74a5dfae7c0809172fae2936d6aa28922d574ed2fac61a7657881"
+      },
+      "id": "physical-reject-descending-ids",
+      "kind": "btrack-rejected",
+      "physicalBTrack": {
+        "byteLength": 76,
+        "path": "artifacts/physical-reject-descending-ids/physical.btrack",
+        "sha256": "67f02f034dee7c2d479871207e9535acce4c1ff093656294bad7d3f21bc8acaf"
+      },
+      "provenance": {
+        "author": "scan-chart migration maintainers",
+        "kind": "authored-minimal",
+        "license": "MIT",
+        "purpose": "Descending section IDs are malformed."
+      }
+    },
+    {
+      "expectedErrors": {
+        "byteLength": 116,
+        "path": "artifacts/physical-reject-reordered-payloads/errors.json",
+        "sha256": "b6fa06ba43ce336efa9b84c65fdc682a9dfd871b16d7bcc8f11df95b4d3304ca"
+      },
+      "id": "physical-reject-reordered-payloads",
+      "kind": "btrack-rejected",
+      "physicalBTrack": {
+        "byteLength": 76,
+        "path": "artifacts/physical-reject-reordered-payloads/physical.btrack",
+        "sha256": "d58710a967090b4dfd24277d664ad257b9b117cf4e26886afcc71152edad11b5"
+      },
+      "provenance": {
+        "author": "scan-chart migration maintainers",
+        "kind": "authored-minimal",
+        "license": "MIT",
+        "purpose": "Payload order must follow strict section ID order."
+      }
+    },
+    {
+      "expectedErrors": {
+        "byteLength": 116,
+        "path": "artifacts/physical-reject-overlapping-payloads/errors.json",
+        "sha256": "9368a1260945667f39d8e7ec7d54d6f11b3229644060977e9e2cd8cea3b1103c"
+      },
+      "id": "physical-reject-overlapping-payloads",
+      "kind": "btrack-rejected",
+      "physicalBTrack": {
+        "byteLength": 76,
+        "path": "artifacts/physical-reject-overlapping-payloads/physical.btrack",
+        "sha256": "cb87e32bece4ddc7342f8280c7bc7a710481df9ae274e097ce1877d694e24065"
+      },
+      "provenance": {
+        "author": "scan-chart migration maintainers",
+        "kind": "authored-minimal",
+        "license": "MIT",
+        "purpose": "Overlapping physical section ranges are malformed."
+      }
+    },
+    {
+      "expectedErrors": {
+        "byteLength": 145,
+        "path": "artifacts/physical-reject-empty-star-power/errors.json",
+        "sha256": "03df38062c118dd280103826de8d3f9ca60f4d5e21eb921d3bb29d64f7c71577"
+      },
+      "id": "physical-reject-empty-star-power",
+      "kind": "btrack-rejected",
+      "physicalBTrack": {
+        "byteLength": 76,
+        "path": "artifacts/physical-reject-empty-star-power/physical.btrack",
+        "sha256": "6eeebfd36af4efefcf36e027439985a5e377457a927f9b650226ae9dc9ef9f8a"
+      },
+      "provenance": {
+        "author": "scan-chart migration maintainers",
+        "kind": "authored-minimal",
+        "license": "MIT",
+        "purpose": "A star-power phrase without notes is noncanonical."
+      }
+    },
+    {
+      "expectedErrors": {
+        "byteLength": 145,
+        "path": "artifacts/physical-reject-empty-solo/errors.json",
+        "sha256": "afe033918245af7fd9846fe772f0d7c47746f8644b924c792fc341170b8b43f4"
+      },
+      "id": "physical-reject-empty-solo",
+      "kind": "btrack-rejected",
+      "physicalBTrack": {
+        "byteLength": 76,
+        "path": "artifacts/physical-reject-empty-solo/physical.btrack",
+        "sha256": "873817c8c8310e66a3f379d4b4b2526c8dba08461bf02dc5924c8b34732a9f7d"
+      },
+      "provenance": {
+        "author": "scan-chart migration maintainers",
+        "kind": "authored-minimal",
+        "license": "MIT",
+        "purpose": "A solo phrase without notes is noncanonical."
+      }
+    },
+    {
+      "expectedErrors": {
+        "byteLength": 145,
+        "path": "artifacts/physical-reject-empty-flex/errors.json",
+        "sha256": "12659946aa8b9d659d980b8da8ec1e3ed0617e208b42b4b7ebb6d7c18561c70f"
+      },
+      "id": "physical-reject-empty-flex",
+      "kind": "btrack-rejected",
+      "physicalBTrack": {
+        "byteLength": 77,
+        "path": "artifacts/physical-reject-empty-flex/physical.btrack",
+        "sha256": "e5d0a5d3ca8c315fd8bea5276c183843600c0fce6d32064ce95860c9754f7941"
+      },
+      "provenance": {
+        "author": "scan-chart migration maintainers",
+        "kind": "authored-minimal",
+        "license": "MIT",
+        "purpose": "A flex lane without notes is noncanonical."
+      }
+    },
+    {
+      "expectedErrors": {
+        "byteLength": 145,
+        "path": "artifacts/physical-reject-empty-freestyle/errors.json",
+        "sha256": "2b99cf02c85dc6b57fca3b4638bb0df0893df4eb877c6c917c63402830226779"
+      },
+      "id": "physical-reject-empty-freestyle",
+      "kind": "btrack-rejected",
+      "physicalBTrack": {
+        "byteLength": 77,
+        "path": "artifacts/physical-reject-empty-freestyle/physical.btrack",
+        "sha256": "9d5e1dbebc08eed2beb047ddc67c179ec7928afe0e5c3b2639d0d1112db4ef96"
+      },
+      "provenance": {
+        "author": "scan-chart migration maintainers",
+        "kind": "authored-minimal",
+        "license": "MIT",
+        "purpose": "A freestyle range without notes is noncanonical."
+      }
+    }
+  ]
+}

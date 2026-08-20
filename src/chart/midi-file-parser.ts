@@ -113,7 +113,7 @@ type MidiTrackEvent = RawChartData['trackData'][number]['trackEvents'][number] &
  * [PART DRUMS_2X] (RBN)
  * Real Drums (Phase Shift)
  */
-export function parseNotesFromMidi(data: Uint8Array, iniChartModifiers: IniChartModifiers): RawChartData {
+export function parseNotesFromMidi(data: Uint8Array, iniChartModifiers: IniChartModifiers, tapEndInclusive = false): RawChartData {
 	const midiFile = parseMidi(data)
 	if (midiFile.header.format !== 1) {
 		throw `Invavlid .mid file: unsupported header format "${midiFile.header.format}"`
@@ -216,7 +216,7 @@ export function parseNotesFromMidi(data: Uint8Array, iniChartModifiers: IniChart
 		unrecognizedEventsTrackMidiEvents: eventsScan.unrecognizedMidiEvents,
 		unrecognizedMidiTracks,
 		unrecognizedChartSections: [],
-		trackData: buildMidiTrackData(tracks, iniChartModifiers, firstCodaTick),
+		trackData: buildMidiTrackData(tracks, iniChartModifiers, firstCodaTick, tapEndInclusive),
 		parseIssues: [...parseIssues, ...eventsScan.parseIssues],
 	}
 }
@@ -225,6 +225,7 @@ function buildMidiTrackData(
 	tracks: { trackName: TrackName; trackEvents: MidiEvent[] }[],
 	iniChartModifiers: IniChartModifiers,
 	firstCodaTick: number | null,
+	tapEndInclusive: boolean,
 ): RawChartData['trackData'] {
 	const out: RawChartData['trackData'] = []
 
@@ -236,7 +237,7 @@ function buildMidiTrackData(
 			scanInstrumentTrack(t.trackEvents, instrumentType, t.trackName)
 		const distributed = distributeInstrumentEvents(eventEnds)
 		const pairedEvents = getTrackEvents(distributed)
-		const step1 = splitMidiModifierSustains(pairedEvents, instrumentType)
+		const step1 = splitMidiModifierSustains(pairedEvents, instrumentType, tapEndInclusive)
 		const step2 = fixLegacyGhStarPower(step1, instrumentType, iniChartModifiers)
 		const trackDifficulties = fixFlexLaneLds(step2)
 
@@ -852,7 +853,11 @@ function getTrackEvents(trackEventEnds: { [key in Difficulty]: TrackEventEnd[] }
  * There are more "modifiers" like this, but these are the ones that are midi-specific.
  * Code to handle the remaining modifiers is shared between the .mid and .chart parsers later.
  */
-function splitMidiModifierSustains(events: { [key in Difficulty]: MidiTrackEvent[] }, instrumentType: InstrumentType) {
+function splitMidiModifierSustains(
+	events: { [key in Difficulty]: MidiTrackEvent[] },
+	instrumentType: InstrumentType,
+	tapEndInclusive: boolean,
+) {
 	let enableChartDynamics = false
 	const t = eventTypes
 	const modifierSustains: EventType[] =
@@ -888,7 +893,10 @@ function splitMidiModifierSustains(events: { [key in Difficulty]: MidiTrackEvent
 				let w = 0
 				for (let r = 0; r < activeModifiers.length; r++) {
 					const m = activeModifiers[r]
-					const ended = m.length === 0 ? m.tick < eventTick : m.tick + m.length <= eventTick
+					const ended =
+						m.length === 0 ? m.tick < eventTick
+						: tapEndInclusive && m.type === eventTypes.forceTap ? m.tick + m.length < eventTick
+						: m.tick + m.length <= eventTick
 					if (!ended) activeModifiers[w++] = m
 				}
 				activeModifiers.length = w

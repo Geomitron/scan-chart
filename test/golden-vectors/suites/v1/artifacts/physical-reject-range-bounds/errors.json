@@ -1,0 +1,9 @@
+[
+  {
+    "code": "recordValueInvalid",
+    "field": "position",
+    "reason": "rangeOutOfBounds",
+    "recordIndex": 0,
+    "sectionId": "8"
+  }
+]

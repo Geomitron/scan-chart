@@ -35,8 +35,26 @@ export type ParsedChartFile = ReturnType<typeof parseChartFile>
  * Throws an exception if `buffer` could not be parsed as a chart in the .chart or .mid format.
  */
 export function parseChartFile(data: Uint8Array, format: 'chart' | 'mid', partialIniChartModifiers: Partial<IniChartModifiers> = {}) {
+	return parseChartFileWithModifierBoundaries(data, format, partialIniChartModifiers, false)
+}
+
+/** Canonical identity parser entry point. Existing callers must keep using `parseChartFile`. */
+export function parseChartFileCanonicalIdentity(
+	data: Uint8Array,
+	format: 'chart' | 'mid',
+	partialIniChartModifiers: Partial<IniChartModifiers> = {},
+) {
+	return parseChartFileWithModifierBoundaries(data, format, partialIniChartModifiers, true)
+}
+
+function parseChartFileWithModifierBoundaries(
+	data: Uint8Array,
+	format: 'chart' | 'mid',
+	partialIniChartModifiers: Partial<IniChartModifiers>,
+	tapEndInclusive: boolean,
+) {
 	const iniChartModifiers = Object.assign({}, defaultMetadata, partialIniChartModifiers) as IniChartModifiers
-	const rawChartData = format === 'mid' ? parseNotesFromMidi(data, iniChartModifiers) : parseNotesFromChart(data)
+	const rawChartData = format === 'mid' ? parseNotesFromMidi(data, iniChartModifiers, tapEndInclusive) : parseNotesFromChart(data)
 	const timedTempos = getTimedTempos(rawChartData.tempos, rawChartData.chartTicksPerBeat)
 	const drumTracks = rawChartData.trackData.filter(track => track.instrument === 'drums')
 	const drumType =
