@@ -53,3 +53,6 @@ Rejected vectors contain only physical bytes and expected reader errors.
 
 Ticket 11 remains open until the game and validator owners either reproduce
 the relevant vectors or record an actionable discrepancy.
+
+Use [`OWNER_REPRODUCTION.md`](OWNER_REPRODUCTION.md) for the owner-specific
+vector sets, review scope, and non-secret response format.
