@@ -12,6 +12,7 @@
  */
 
 import { describe, expect, it } from 'vitest'
+import { writeMidi, MidiData } from '@geomitron/midi-file'
 
 import { parseChartFile } from 'src/chart/parse-chart-file'
 import { defaultMetadata } from 'src/ini/metadata'
@@ -21,6 +22,39 @@ import { File } from 'src/types'
 
 function buildChart(body: string): File[] {
 	return [{ fileName: 'notes.chart', data: new TextEncoder().encode(body) }]
+}
+
+/**
+ * A minimal `notes.mid` with a PART VOCALS track that has a real vocal note:
+ * a note 105 phrase marker, a sung pitch inside it, and a matching lyric.
+ * This is the case `.chart` cannot express, and the case `hasVocals` is for.
+ */
+function buildVocalMidi(iniLines?: string[]): File[] {
+	const tempoTrack: MidiData['tracks'][number] = [
+		{ deltaTime: 0, type: 'trackName', text: '' },
+		{ deltaTime: 0, type: 'setTempo', microsecondsPerBeat: 500000 },
+		{ deltaTime: 0, type: 'timeSignature', numerator: 4, denominator: 4, metronome: 24, thirtyseconds: 8 },
+		{ deltaTime: 0, type: 'endOfTrack' },
+	]
+	const vocalsTrack: MidiData['tracks'][number] = [
+		{ deltaTime: 0, type: 'trackName', text: 'PART VOCALS' },
+		// Phrase marker (note 105) opens at tick 0.
+		{ deltaTime: 0, type: 'noteOn', channel: 0, noteNumber: 105, velocity: 100 },
+		// A sung pitch inside the phrase, with its lyric.
+		{ deltaTime: 0, type: 'noteOn', channel: 0, noteNumber: 60, velocity: 100 },
+		{ deltaTime: 0, type: 'lyrics', text: 'Hello' },
+		{ deltaTime: 240, type: 'noteOff', channel: 0, noteNumber: 60, velocity: 0 },
+		{ deltaTime: 240, type: 'noteOff', channel: 0, noteNumber: 105, velocity: 0 },
+		{ deltaTime: 0, type: 'endOfTrack' },
+	]
+	const data = new Uint8Array(
+		writeMidi({ header: { format: 1, numTracks: 2, ticksPerBeat: 480 }, tracks: [tempoTrack, vocalsTrack] }),
+	)
+	const files: File[] = [{ fileName: 'notes.mid', data }]
+	if (iniLines) {
+		files.push({ fileName: 'song.ini', data: new TextEncoder().encode(['[Song]', ...iniLines].join('\n')) })
+	}
+	return files
 }
 
 describe('ParsedChart shape: derived flags no longer at top level', () => {
@@ -58,7 +92,10 @@ describe('scanChart: hasLyrics / hasVocals state-derived in notesData', () => {
 		expect(scanned.notesData!.hasLyrics).toBe(false)
 	})
 
-	it('hasVocals = true / hasLyrics = true when [Events] has phrase + lyric events', () => {
+	it('hasLyrics = true but hasVocals = false when [Events] has phrase + lyric events', () => {
+		// A phrase is only a range marker. The .chart format has no way to encode
+		// a vocal note, so a .chart with lyrics is a lyrics-only chart: it has
+		// lyrics to display and nothing to sing.
 		const body = [
 			'[Song]', '{', '  Resolution = 480', '}',
 			'[SyncTrack]', '{', '  0 = B 120000', '}',
@@ -72,8 +109,81 @@ describe('scanChart: hasLyrics / hasVocals state-derived in notesData', () => {
 		const files = buildChart(body)
 		const parseResult = parseChartAndIni(files)
 		const scanned = scanChart(files, parseResult, { includeMd5: false })
+		expect(scanned.notesData!.hasVocals).toBe(false)
+		expect(scanned.notesData!.hasLyrics).toBe(true)
+	})
+
+	it('does not ask for a diff_vocals value on a lyrics-only chart', () => {
+		// `hasVocals` gates the "Metadata is missing a diff_vocals value" issue.
+		// A lyrics-only chart has no vocals difficulty to declare, so asking for
+		// one is noise on every .chart that ships lyrics.
+		const body = [
+			'[Song]', '{', '  Resolution = 480', '}',
+			'[SyncTrack]', '{', '  0 = B 120000', '}',
+			'[Events]', '{',
+			'  0 = E "phrase_start"',
+			'  120 = E "lyric Hel"',
+			'  240 = E "lyric lo"',
+			'  480 = E "phrase_end"',
+			'}',
+			'[ExpertSingle]', '{',
+			'  0 = N 0 0',
+			'}',
+		].join('\r\n')
+		const files = buildChart(body)
+		const scanned = scanChart(files, parseChartAndIni(files), { includeMd5: false })
+		const diffVocalsIssues = scanned.metadataIssues.filter(i => i.description.includes('diff_vocals'))
+		expect(diffVocalsIssues).toEqual([])
+	})
+
+	it('hasVocals = true when a vocal phrase contains a pitched note', () => {
+		const files = buildVocalMidi()
+		const scanned = scanChart(files, parseChartAndIni(files), { includeMd5: false })
 		expect(scanned.notesData!.hasVocals).toBe(true)
 		expect(scanned.notesData!.hasLyrics).toBe(true)
+	})
+
+	it('still asks for a diff_vocals value when the chart really has vocals', () => {
+		// The positive direction of the fix. Needs a song.ini: without one,
+		// scanChart skips the whole metadata-issue block.
+		const files = buildVocalMidi(['name = T', 'artist = A', 'charter = C'])
+		const scanned = scanChart(files, parseChartAndIni(files), { includeMd5: false })
+		const missing = scanned.metadataIssues.filter(
+			i => i.metadataIssue === 'missingValue' && i.description.includes('diff_vocals'),
+		)
+		expect(missing).toHaveLength(1)
+	})
+
+	it('reports diff_vocals as an extra value on a lyrics-only chart that sets it', () => {
+		// The other side of the trade this fix makes. Before, a lyrics-only chart
+		// counted as having vocals, so setting diff_vocals looked correct and
+		// omitting it was flagged. Now it is the reverse: the value is extra,
+		// because there are no vocals for it to describe.
+		const body = [
+			'[Song]', '{', '  Resolution = 480', '}',
+			'[SyncTrack]', '{', '  0 = B 120000', '}',
+			'[Events]', '{',
+			'  0 = E "phrase_start"',
+			'  120 = E "lyric Hel"',
+			'  480 = E "phrase_end"',
+			'}',
+			'[ExpertSingle]', '{', '  0 = N 0 0', '}',
+		].join('\r\n')
+		const files: File[] = [
+			{ fileName: 'notes.chart', data: new TextEncoder().encode(body) },
+			{
+				fileName: 'song.ini',
+				data: new TextEncoder().encode(
+					['[Song]', 'name = T', 'artist = A', 'charter = C', 'diff_guitar = 3', 'diff_vocals = 4'].join('\n'),
+				),
+			},
+		]
+		const scanned = scanChart(files, parseChartAndIni(files), { includeMd5: false })
+		expect(scanned.notesData!.hasVocals).toBe(false)
+		const extra = scanned.metadataIssues.filter(i => i.description.includes('diff_vocals'))
+		expect(extra).toEqual([
+			{ metadataIssue: 'extraValue', description: 'Metadata contains "diff_vocals", but vocals are not charted.' },
+		])
 	})
 })
 
