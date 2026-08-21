@@ -83,14 +83,25 @@ export function scanParsedChart(parsedChart: ParsedChart, includeBTrack = false)
 	// `hasLyrics` / `hasVocals` are derived from the normalized vocal tracks
 	// rather than snapshotted at parse time — keeps them state-accurate if
 	// downstream code adds or removes vocal data.
+	//
+	// `hasVocals` means "there is a singable vocals part", so it requires a
+	// vocal note inside a phrase. A phrase on its own is only a range marker: a
+	// lyrics-only chart carries its lyrics inside phrases that hold no notes,
+	// and that is a chart with lyrics, not a chart with vocals. The .chart
+	// format cannot encode a vocal note at all, so `hasVocals` is always
+	// false there.
+	//
+	// `phrase.notes` is the playable projection, not every note in the source:
+	// the parser drops hidden percussion and notes that fall outside their
+	// phrase range. A vocals chart built only from such notes reports false.
 	let hasLyrics = false
 	let hasVocals = false
-	for (const part of Object.values(result.vocalTracks.parts)) {
-		if (part.notePhrases.length > 0) hasVocals = true
+	vocals: for (const part of Object.values(result.vocalTracks.parts)) {
 		for (const phrase of part.notePhrases) {
-			if (phrase.lyrics.length > 0) { hasLyrics = true; break }
+			if (phrase.notes.length > 0) hasVocals = true
+			if (phrase.lyrics.length > 0) hasLyrics = true
+			if (hasLyrics && hasVocals) break vocals
 		}
-		if (hasLyrics && hasVocals) break
 	}
 
 	return {
@@ -238,8 +249,11 @@ function findChartIssues(
 
 	// noNotes
 	{
-		const hasVocals = Object.values(chartData.vocalTracks.parts).some(p => p.notePhrases.length > 0)
-		if (chartData.trackData.every(track => track.noteEventGroups.length === 0) && !hasVocals) {
+		// Deliberately broader than `notesData.hasVocals`: any vocal phrase is
+		// enough content to keep a chart out of `noNotes`, even a lyrics-only
+		// phrase that carries no vocal note.
+		const hasVocalContent = Object.values(chartData.vocalTracks.parts).some(p => p.notePhrases.length > 0)
+		if (chartData.trackData.every(track => track.noteEventGroups.length === 0) && !hasVocalContent) {
 			addIssue(null, null, 'noNotes')
 		}
 	}
