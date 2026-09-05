@@ -295,7 +295,12 @@ async function generateSong(folder: string, inputRoot: string, outputRoot: strin
 	}
 }
 
-export async function generate(input: string, output: string): Promise<GenerateRunResult> {
+export interface GenerateRequest {
+	readonly input: string
+	readonly output: string
+}
+
+export async function generate({ input, output }: GenerateRequest): Promise<GenerateRunResult> {
 	const inputRoot = resolve(input)
 	const outputDirectory = resolve(output)
 	const folders = await discoverSongFolders(inputRoot)
@@ -335,7 +340,12 @@ export async function generate(input: string, output: string): Promise<GenerateR
 	}
 }
 
-export async function inspectBTrack(input: string, output: string): Promise<void> {
+export interface InspectBTrackRequest {
+	readonly input: string
+	readonly output: string
+}
+
+export async function inspectBTrack({ input, output }: InspectBTrackRequest): Promise<void> {
 	const outputDirectory = resolve(output)
 	const inputPath = resolve(input)
 	const bytes = new Uint8Array(await readFile(inputPath))

@@ -15,14 +15,16 @@ export interface CanonicalTrackKey {
 	readonly difficulty: Difficulty
 }
 
-export interface RangeShiftSourceLocation {
-	readonly format: 'chart' | 'mid'
+interface RangeShiftSourceDetails {
 	readonly instrument: Instrument
-	readonly containingDifficulty: Difficulty | null
 	readonly eventIndex: number
 	readonly tick: number
 	readonly text: string
 }
+
+export type RangeShiftSourceLocation =
+	| RangeShiftSourceDetails & { readonly format: 'chart'; readonly containingDifficulty: Difficulty }
+	| RangeShiftSourceDetails & { readonly format: 'mid'; readonly containingDifficulty: null }
 
 export type CanonicalSourceNotice =
 	| { readonly code: 'rangeShiftMalformed'; readonly source: RangeShiftSourceLocation }
@@ -132,14 +134,15 @@ function collectRangeShifts(
 		for (let eventIndex = 0; eventIndex < track.textEvents.length; eventIndex++) {
 			const event = track.textEvents[eventIndex]
 			if (!looksLikeMarker(format, event.text)) continue
-			const source: RangeShiftSourceLocation = {
-				format,
+			const sourceDetails: RangeShiftSourceDetails = {
 				instrument: track.instrument,
-				containingDifficulty: format === 'chart' ? track.difficulty : null,
 				eventIndex,
 				tick: event.tick,
 				text: event.text,
 			}
+			const source: RangeShiftSourceLocation = format === 'chart'
+				? { ...sourceDetails, format: 'chart', containingDifficulty: track.difficulty }
+				: { ...sourceDetails, format: 'mid', containingDifficulty: null }
 			const values = parseMarkerText(format, event.text)
 			if (!values || values.some(value => value !== undefined && !Number.isSafeInteger(value))) {
 				notices.push({ code: 'rangeShiftMalformed', source })

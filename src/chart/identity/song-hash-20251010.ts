@@ -104,47 +104,6 @@ const metadataDefaults: { readonly [K in keyof SongHashMetadata]: string } = {
 	icon: '',
 }
 
-export const legacySongHashInstrumentOrder = Object.freeze([
-	'guitar',
-	'guitarcoop',
-	'rhythm',
-	'bass',
-	'drums',
-	'keys',
-	'guitarghl',
-	'guitarcoopghl',
-	'rhythmghl',
-	'bassghl',
-] satisfies readonly Exclude<Instrument, 'keysghl'>[])
-
-export const canonicalSongHashInstrumentOrder = Object.freeze([
-	'guitar',
-	'guitarcoop',
-	'rhythm',
-	'bass',
-	'drums',
-	'keys',
-	'guitarghl',
-	'guitarcoopghl',
-	'rhythmghl',
-	'bassghl',
-	'keysghl',
-] satisfies readonly Instrument[])
-
-export const legacySongHashDifficultyOrder = Object.freeze([
-	'expert',
-	'hard',
-	'medium',
-	'easy',
-] satisfies readonly Difficulty[])
-
-export const canonicalSongHashDifficultyOrder = Object.freeze([
-	'easy',
-	'medium',
-	'hard',
-	'expert',
-] satisfies readonly Difficulty[])
-
 const legacyInstrumentIds = {
 	guitar: 0,
 	guitarcoop: 1,
@@ -176,6 +135,18 @@ const canonicalDifficultyIds = {
 	hard: 2,
 	expert: 3,
 } satisfies Record<Difficulty, number>
+
+function keysById<Key extends string>(ids: Readonly<Record<Key, number>>): readonly Key[] {
+	const entries: [Key, number][] = []
+	for (const key in ids) entries.push([key, ids[key]])
+	entries.sort((left, right) => left[1] - right[1])
+	return Object.freeze(entries.map(([key]) => key))
+}
+
+export const legacySongHashInstrumentOrder = keysById(legacyInstrumentIds)
+export const canonicalSongHashInstrumentOrder = keysById(canonicalInstrumentIds)
+export const legacySongHashDifficultyOrder = keysById(legacyDifficultyIds)
+export const canonicalSongHashDifficultyOrder = keysById(canonicalDifficultyIds)
 
 function canonicalInstrumentId(instrument: Instrument): number {
 	return canonicalInstrumentIds[instrument]

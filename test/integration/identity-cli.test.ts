@@ -38,7 +38,7 @@ describe('identity CLI generation', () => {
 		await writeFile(join(song, 'notes.chart'), validChart())
 		await writeFile(join(song, 'song.ini'), '[Song]\r\nname = Empty Output\r\nsong_length = 1234\r\n')
 
-		const result = await generate(song, output)
+		const result = await generate({ input: song, output })
 		expect(result.results).toHaveLength(1)
 		expect(result.results[0].kind).toBe('success')
 		await expect(access(join(output, 'song', 'manifest.json'))).resolves.toBeUndefined()
@@ -54,7 +54,7 @@ describe('identity CLI generation', () => {
 		await writeFile(join(song, 'song.ini'), '[Song]\r\nname = Protected Output\r\nsong_length = 1234\r\n')
 		await writeFile(join(output, 'keep.txt'), 'do not delete')
 
-		await expect(generate(song, output)).rejects.toThrow('Output directory is not empty')
+		await expect(generate({ input: song, output })).rejects.toThrow('Output directory is not empty')
 		await expect(readFile(join(output, 'keep.txt'), 'utf8')).resolves.toBe('do not delete')
 	})
 
@@ -67,7 +67,7 @@ describe('identity CLI generation', () => {
 		await writeFile(join(song, 'song.ini'), '[Song]\r\nname = Protected File\r\nsong_length = 1234\r\n')
 		await writeFile(output, 'do not delete')
 
-		await expect(generate(song, output)).rejects.toThrow('Output path already exists and is not a directory')
+		await expect(generate({ input: song, output })).rejects.toThrow('Output path already exists and is not a directory')
 		await expect(readFile(output, 'utf8')).resolves.toBe('do not delete')
 	})
 
@@ -80,10 +80,10 @@ describe('identity CLI generation', () => {
 		await mkdir(inspected)
 		await writeFile(join(song, 'notes.chart'), validChart())
 		await writeFile(join(song, 'song.ini'), '[Song]\r\nname = Inspect Output\r\nsong_length = 1234\r\n')
-		await generate(song, generated)
+		await generate({ input: song, output: generated })
 
 		const btrack = join(generated, 'song', 'canonical20260801', 'tracks', '000-guitar-expert', 'physical.btrack')
-		await inspectBTrack(btrack, inspected)
+		await inspectBTrack({ input: btrack, output: inspected })
 		await expect(access(join(inspected, 'manifest.json'))).resolves.toBeUndefined()
 	})
 
@@ -98,7 +98,7 @@ describe('identity CLI generation', () => {
 		await writeFile(join(good, 'song.ini'), '[Song]\r\nname = Good Song\r\nsong_length = 1234\r\n')
 		await writeFile(join(bad, 'notes.chart'), 'not a chart')
 
-		const result = await generate(root, output)
+		const result = await generate({ input: root, output })
 		expect(result.results.map(item => item.kind).sort()).toEqual(['failure', 'success'])
 		await expect(access(join(output, 'songs', 'Artist', 'Good Song', 'canonical20260801', 'song', 'song-hash.txt')))
 			.resolves.toBeUndefined()
@@ -122,7 +122,7 @@ describe('identity CLI generation', () => {
 		await mkdir(song)
 		await writeFile(join(song, 'notes.chart'), validChart())
 
-		const result = await generate(song, output)
+		const result = await generate({ input: song, output })
 		expect(result.results[0]).toMatchObject({ kind: 'success', legacySongHash: null })
 		await expect(access(join(output, 'song', 'canonical20260801', 'song', 'song-hash.txt'))).resolves.toBeUndefined()
 		await expect(access(join(output, 'song', 'frozenLegacy6142', 'tracks', '000-guitar-expert', 'physical.btrack')))

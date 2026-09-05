@@ -62,7 +62,7 @@ async function selfTest(): Promise<void> {
 			'[ExpertSingle]', '{', '  0 = N 0 192', '}',
 		].join('\r\n'))
 		await writeFile(join(song, 'song.ini'), '[song]\r\nsong_length = 1001\r\n')
-		const result = await generate(song, output)
+		const result = await generate({ input: song, output })
 		if (result.results.length !== 1 || result.results[0].kind !== 'success') {
 			throw new Error(`Folder generation self-test failed: ${JSON.stringify(result.results)}`)
 		}
@@ -80,7 +80,7 @@ async function selfTest(): Promise<void> {
 		}
 		const btrack = join(output, 'song', 'canonical20260801', 'tracks', '000-guitar-expert', 'physical.btrack')
 		const inspected = join(temporary, 'inspected')
-		await inspectBTrack(btrack, inspected)
+		await inspectBTrack({ input: btrack, output: inspected })
 		const inspectionManifest = await readFile(join(inspected, 'manifest.json'), 'utf8')
 		if (!inspectionManifest.includes('"profile": "canonical20260801"')
 			|| !inspectionManifest.includes('"definition": "strikecore-selected-track-last-note-v1"')
@@ -133,7 +133,7 @@ async function main(args: readonly string[]): Promise<number> {
 	}
 	if (command === 'generate') {
 		if (!args[1]) throw new Error('Missing song folder or library root')
-		const result = await generate(args[1], option(args, '--out'))
+		const result = await generate({ input: args[1], output: option(args, '--out') })
 		const failures = result.results.filter(item => item.kind === 'failure')
 		process.stdout.write(`Generated ${result.results.length - failures.length} of ${result.results.length} song folders in ${result.outputDirectory}\n`)
 		for (const failure of failures) process.stderr.write(`${failure.path}: ${failure.error}\n`)
@@ -141,7 +141,7 @@ async function main(args: readonly string[]): Promise<number> {
 	}
 	if (command === 'inspect-btrack') {
 		if (!args[1]) throw new Error('Missing canonical BTrack path')
-		await inspectBTrack(args[1], option(args, '--out'))
+		await inspectBTrack({ input: args[1], output: option(args, '--out') })
 		return 0
 	}
 	if (command === 'compare') {
