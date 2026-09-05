@@ -68,7 +68,13 @@ function assertBuiltProvenance(expected: BuildProvenance, environment: NodeJS.Pr
 	], { encoding: 'utf8', env: environment })
 	const actual: unknown = JSON.parse(output)
 	if (!isBuildProvenance(actual)) throw new Error('Built ch-identity returned invalid provenance')
-	for (const key of Object.keys(expected) as (keyof BuildProvenance)[]) {
+	const keys = [
+		'scanChartVersion',
+		'scanChartCommit',
+		'scanChartDirty',
+		'sourceTreeSha256',
+	] satisfies readonly (keyof BuildProvenance)[]
+	for (const key of keys) {
 		if (actual[key] !== expected[key]) {
 			throw new Error(`Built provenance mismatch for ${key}: ${String(actual[key])} != ${String(expected[key])}`)
 		}

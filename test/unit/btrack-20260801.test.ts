@@ -186,7 +186,7 @@ describe('CHNF/20260801', () => {
 		expect(read.identity.physicalBTrack.bytes).toEqual(input)
 	})
 
-	it('refuses to write or read stored ranges that contain no notes', () => {
+	it('prunes empty phrases but preserves freestyle ranges without notes', () => {
 		expect(() => identifyCanonicalTrack({
 			...emptyTrack(),
 			flexLanes: [{ tick: 0n, length: 100n, isDouble: false }],
@@ -206,6 +206,17 @@ describe('CHNF/20260801', () => {
 				reason: 'containsNoNotes',
 			}],
 		})
+
+		const freestyle = identifyCanonicalTrack({
+			...emptyTrack(),
+			drumFreestyle: [{ tick: 0n, length: 100n, isCoda: false }],
+		})
+		const read = readBTrack20260801(freestyle.physicalBTrack.bytes)
+		expect(read.kind).toBe('accepted')
+		if (read.kind !== 'accepted') return
+		expect(read.semantics.drumFreestyle).toEqual([
+			{ tick: 0n, length: 100n, isCoda: false },
+		])
 	})
 
 	it('rejects malformed physical files before identity', () => {

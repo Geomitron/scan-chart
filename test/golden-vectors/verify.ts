@@ -9,7 +9,7 @@ import { readBTrack20260801 } from 'src/chart/identity/btrack-20260801'
 import { deriveSourceCase, stableJson } from './derive'
 import { FixtureFile, GoldenManifestV1, parseManifest } from './schema'
 
-const suiteRoot = path.resolve('test/golden-vectors/suites/v1')
+const suiteRoot = path.resolve('test/golden-vectors/suites/v2')
 
 function equalBytes(left: Uint8Array, right: Uint8Array): boolean {
 	return left.length === right.length && left.every((value, index) => value === right[index])

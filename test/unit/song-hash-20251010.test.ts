@@ -84,7 +84,7 @@ describe('SongHash 20251010', () => {
 		)
 	})
 
-	it('uses profile-specific ordering and includes GHL keys only canonically', () => {
+	it('uses profile-specific ordering and omits GHL keys only from legacy SongHash', () => {
 		const result = songBundle20251010.calculate({
 			source: { format: 'chart', bytes: chart() },
 			modifiers: defaultMetadata,
@@ -97,18 +97,20 @@ describe('SongHash 20251010', () => {
 		expect(result.frozenLegacy6142.tracks.map(track => [track.instrument, track.difficulty])).toEqual([
 			['guitar', 'expert'],
 			['guitar', 'easy'],
+			['keysghl', 'easy'],
 		])
 		expect(result.canonical20260801.tracks.map(track => [track.instrument, track.difficulty])).toEqual([
 			['guitar', 'easy'],
 			['guitar', 'expert'],
 			['keysghl', 'easy'],
 		])
-		expect(result.frozenLegacy6142.tracks.map(track => track.duration.durationMs)).toEqual([1n, 1n])
+		expect(result.frozenLegacy6142.tracks.map(track => track.duration.durationMs)).toEqual([1n, 1n, 1n])
 		expect(result.canonical20260801.tracks.map(track => track.duration.durationMs)).toEqual([1n, 1n, 1n])
 
 		expect(result.frozenLegacy6142.song.kind).toBe('available')
 		if (result.frozenLegacy6142.song.kind !== 'available') return
 		const legacySong = result.frozenLegacy6142.song.identity
+		expect(legacySong.members.map(member => member.instrument)).toEqual(['guitar', 'guitar'])
 		const legacy = new DataView(legacySong.preimage.buffer, legacySong.preimage.byteOffset, legacySong.preimage.byteLength)
 		const canonical = new DataView(
 			result.canonical20260801.song.preimage.buffer,
@@ -168,19 +170,27 @@ describe('SongHash 20251010', () => {
 		if (result.kind !== 'accepted') return
 		expect(result.frozenLegacy6142.song.kind).toBe('available')
 		if (result.frozenLegacy6142.song.kind !== 'available') return
-		const legacyMembers = result.frozenLegacy6142.tracks.map(track => ({
+		const legacyMembers = result.frozenLegacy6142.tracks.flatMap(track => track.instrument === 'keysghl' ? [] : [{
 			instrument: track.instrument,
 			difficulty: track.difficulty,
 			digest: track.identity.digest,
-		})).reverse()
+		}]).reverse()
 		const canonicalMembers = result.canonical20260801.tracks.map(track => ({
 			instrument: track.instrument,
 			difficulty: track.difficulty,
 			digest: track.identity.digest,
 		})).reverse()
-		expect(frozenLegacy6142.calculateSongIdentity(metadata, historicalSongHashDurationMs(1000n), legacyMembers).songHash.value)
+		expect(frozenLegacy6142.calculateSongIdentity({
+			metadata,
+			durationMs: historicalSongHashDurationMs(1000n),
+			members: legacyMembers,
+		}).songHash.value)
 			.toBe(result.frozenLegacy6142.song.identity.songHash.value)
-		expect(canonical20260801.calculateSongIdentity(metadata, result.canonical20260801.duration.durationMs, canonicalMembers).songHash.value)
+		expect(canonical20260801.calculateSongIdentity({
+			metadata,
+			durationMs: result.canonical20260801.duration.durationMs,
+			members: canonicalMembers,
+		}).songHash.value)
 			.toBe(result.canonical20260801.song.songHash.value)
 	})
 

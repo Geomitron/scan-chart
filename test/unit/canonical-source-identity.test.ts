@@ -169,7 +169,10 @@ describe('canonical source identity', () => {
 		expect(track.semantics.starPower).toEqual([{ tick: 200n, length: 100n }])
 		expect(track.semantics.solos).toEqual([{ tick: 600n, length: 101n }])
 		expect(track.semantics.flexLanes).toEqual([{ tick: 800n, length: 100n, isDouble: false }])
-		expect(track.semantics.drumFreestyle).toEqual([{ tick: 1200n, length: 100n, isCoda: false }])
+		expect(track.semantics.drumFreestyle).toEqual([
+			{ tick: 1200n, length: 100n, isCoda: false },
+			{ tick: 1400n, length: 100n, isCoda: false },
+		])
 	})
 
 	it('retains range-shift source events for downstream round-trip writers', () => {

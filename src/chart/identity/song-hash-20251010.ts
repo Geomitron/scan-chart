@@ -36,6 +36,18 @@ export interface CanonicalSongHashMember {
 	readonly digest: CanonicalBlake3Digest
 }
 
+export interface LegacySongIdentityRequest {
+	readonly metadata: SongHashMetadata
+	readonly durationMs: HistoricalSongHashDurationMs
+	readonly members: readonly LegacySongHashMember[]
+}
+
+export interface CanonicalSongIdentityRequest {
+	readonly metadata: SongHashMetadata
+	readonly durationMs: CanonicalChartDurationMs
+	readonly members: readonly CanonicalSongHashMember[]
+}
+
 export interface LegacySongHash {
 	readonly profile: 'clone-hero-1.1.0.6142'
 	readonly encoding: 'base64url-unpadded'
@@ -133,12 +145,44 @@ export const canonicalSongHashDifficultyOrder = Object.freeze([
 	'expert',
 ] satisfies readonly Difficulty[])
 
+const legacyInstrumentIds = {
+	guitar: 0,
+	guitarcoop: 1,
+	rhythm: 2,
+	bass: 3,
+	drums: 4,
+	keys: 5,
+	guitarghl: 6,
+	guitarcoopghl: 7,
+	rhythmghl: 8,
+	bassghl: 9,
+} satisfies Record<Exclude<Instrument, 'keysghl'>, number>
+
+const canonicalInstrumentIds = {
+	...legacyInstrumentIds,
+	keysghl: 10,
+} satisfies Record<Instrument, number>
+
+const legacyDifficultyIds = {
+	expert: 0,
+	hard: 1,
+	medium: 2,
+	easy: 3,
+} satisfies Record<Difficulty, number>
+
+const canonicalDifficultyIds = {
+	easy: 0,
+	medium: 1,
+	hard: 2,
+	expert: 3,
+} satisfies Record<Difficulty, number>
+
 function canonicalInstrumentId(instrument: Instrument): number {
-	return canonicalSongHashInstrumentOrder.indexOf(instrument)
+	return canonicalInstrumentIds[instrument]
 }
 
 function legacyInstrumentId(instrument: Exclude<Instrument, 'keysghl'>): number {
-	return legacySongHashInstrumentOrder.indexOf(instrument)
+	return legacyInstrumentIds[instrument]
 }
 
 function uint32(value: number): Uint8Array {
@@ -234,23 +278,19 @@ function assertUniqueMembers(members: readonly WireMember[]): void {
 	}
 }
 
-export function identifyLegacySong(
-	metadata: SongHashMetadata,
-	durationMs: HistoricalSongHashDurationMs,
-	members: readonly LegacySongHashMember[],
-): LegacySongIdentity {
-	const orderedMembers = [...members].sort((left, right) =>
+export function identifyLegacySong(request: LegacySongIdentityRequest): LegacySongIdentity {
+	const orderedMembers = [...request.members].sort((left, right) =>
 		legacyInstrumentId(left.instrument) - legacyInstrumentId(right.instrument)
-		|| legacySongHashDifficultyOrder.indexOf(left.difficulty) - legacySongHashDifficultyOrder.indexOf(right.difficulty))
+		|| legacyDifficultyIds[left.difficulty] - legacyDifficultyIds[right.difficulty])
 	const wireMembers = orderedMembers.map(member => ({
 		instrumentId: legacyInstrumentId(member.instrument),
-		difficultyId: legacySongHashDifficultyOrder.indexOf(member.difficulty),
+		difficultyId: legacyDifficultyIds[member.difficulty],
 		digest: member.digest.bytes,
 	}))
 	assertUniqueMembers(wireMembers)
 	const preimage = serializeSongHash20251010({
-		metadata,
-		durationMs,
+		metadata: request.metadata,
+		durationMs: request.durationMs,
 		members: wireMembers,
 	})
 	const result = digestSong(preimage)
@@ -258,8 +298,8 @@ export function identifyLegacySong(
 	const digestBytes = ownedBytes(result.digest)
 	return {
 		profile: 'clone-hero-1.1.0.6142',
-		metadata: { ...metadata },
-		durationMs,
+		metadata: { ...request.metadata },
+		durationMs: request.durationMs,
 		members: orderedMembers,
 		get preimage() { return preimageBytes() },
 		get digest() { return digestBytes() },
@@ -272,23 +312,19 @@ export function identifyLegacySong(
 	}
 }
 
-export function identifyCanonicalSong(
-	metadata: SongHashMetadata,
-	durationMs: CanonicalChartDurationMs,
-	members: readonly CanonicalSongHashMember[],
-): CanonicalSongIdentity {
-	const orderedMembers = [...members].sort((left, right) =>
+export function identifyCanonicalSong(request: CanonicalSongIdentityRequest): CanonicalSongIdentity {
+	const orderedMembers = [...request.members].sort((left, right) =>
 		canonicalInstrumentId(left.instrument) - canonicalInstrumentId(right.instrument)
-		|| canonicalSongHashDifficultyOrder.indexOf(left.difficulty) - canonicalSongHashDifficultyOrder.indexOf(right.difficulty))
+		|| canonicalDifficultyIds[left.difficulty] - canonicalDifficultyIds[right.difficulty])
 	const wireMembers = orderedMembers.map(member => ({
 		instrumentId: canonicalInstrumentId(member.instrument),
-		difficultyId: canonicalSongHashDifficultyOrder.indexOf(member.difficulty),
+		difficultyId: canonicalDifficultyIds[member.difficulty],
 		digest: member.digest.bytes,
 	}))
 	assertUniqueMembers(wireMembers)
 	const preimage = serializeSongHash20251010({
-		metadata,
-		durationMs,
+		metadata: request.metadata,
+		durationMs: request.durationMs,
 		members: wireMembers,
 	})
 	const result = digestSong(preimage)
@@ -296,8 +332,8 @@ export function identifyCanonicalSong(
 	const digestBytes = ownedBytes(result.digest)
 	return {
 		profile: 'canonical-20260801',
-		metadata: { ...metadata },
-		durationMs,
+		metadata: { ...request.metadata },
+		durationMs: request.durationMs,
 		members: orderedMembers,
 		get preimage() { return preimageBytes() },
 		get digest() { return digestBytes() },

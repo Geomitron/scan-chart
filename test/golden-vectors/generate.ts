@@ -6,7 +6,7 @@ import path from 'node:path'
 import { readBTrack20260801 } from 'src/chart/identity/btrack-20260801'
 
 import { physicalCases, resolvedModifiers, sourceCases } from './cases'
-import { canonicalPipeline, deriveSourceCase, stableJson } from './derive'
+import { canonicalPipeline, deriveSourceCase, DerivedPipeline, stableJson } from './derive'
 import { BTrackAcceptedVector, BTrackRejectedVector, FixtureFile, FixtureProvenance, GoldenManifestV1, SourceAcceptedVector } from './schema'
 
 function outputArgument(): string {
@@ -50,7 +50,7 @@ async function main(): Promise<void> {
 	for (const sourceCase of sourceCases) {
 		const derived = deriveSourceCase(sourceCase)
 		const root = `artifacts/${sourceCase.id}`
-		const pipeline = async (name: 'legacy6142' | 'canonical20260801', value: typeof derived.legacy) => ({
+		const pipeline = async (name: 'legacy6142' | 'canonical20260801', value: DerivedPipeline) => ({
 			parsedSemantics: await artifact(`${root}/${name}/semantics.json`, stableJson(value.semantics)),
 			diagnostics: await artifact(`${root}/${name}/diagnostics.json`, stableJson(value.diagnostics)),
 			physicalBTrack: await artifact(`${root}/${name}/physical.btrack`, value.physical),
@@ -66,10 +66,10 @@ async function main(): Promise<void> {
 			source: await artifact(`${root}/source.${sourceCase.format === 'chart' ? 'chart' : 'mid'}`, sourceCase.bytes),
 			modifiers: resolvedModifiers,
 			target: sourceCase.target,
-			expected: {
-				legacy6142: {
-					...await pipeline('legacy6142', derived.legacy),
-					publishedPaddedTrackHash: derived.legacy.publishedPaddedTrackHash!,
+				expected: {
+					legacy6142: {
+						...await pipeline('legacy6142', derived.legacy),
+						publishedPaddedTrackHash: derived.legacy.publishedPaddedTrackHash,
 				},
 				canonical20260801: await pipeline('canonical20260801', derived.canonical),
 			},

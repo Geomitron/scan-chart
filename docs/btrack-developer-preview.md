@@ -29,7 +29,7 @@ canonical BTrack reader. It does not rewrite approved fixtures.
 ## Compare a source parser and BTrack writer
 
 Use the `source-accepted` entries in
-`test/golden-vectors/suites/v1/manifest.json`. For each entry:
+`test/golden-vectors/suites/v2/manifest.json`. For each entry:
 
 1. Parse the referenced `source.chart` or `source.mid`.
 2. Compare your parsed Track with the profile's `semantics.json`.

@@ -3,7 +3,7 @@ import { calculateCanonicalChartDuration, CanonicalChartDuration } from '../char
 import { parseChartFileCanonicalIdentity } from '../parse-chart-file'
 import type { SourceParseError, SourceParseRequest } from './public'
 import { CanonicalTrackSemantics, createFiveFretRange } from './btrack-20260801'
-import { identityTrackKey } from './track-key'
+import { identityTrackKey, IdentityTrackKey } from './track-key'
 
 const canonicalParsedTrackToken: unique symbol = Symbol('canonicalParsedTrack')
 
@@ -114,9 +114,9 @@ function looksLikeMarker(format: 'chart' | 'mid', text: string): boolean {
 function collectRangeShifts(
 	format: 'chart' | 'mid',
 	tracks: ReturnType<typeof parseChartFileCanonicalIdentity>['trackData'],
-): { readonly byTrack: ReadonlyMap<string, readonly SourceRangeShiftMarker[]>; readonly notices: readonly CanonicalSourceNotice[] } {
+): { readonly byTrack: ReadonlyMap<IdentityTrackKey, readonly SourceRangeShiftMarker[]>; readonly notices: readonly CanonicalSourceNotice[] } {
 	const notices: CanonicalSourceNotice[] = []
-	const markers = new Map<string, SourceRangeShiftMarker[]>()
+	const markers = new Map<IdentityTrackKey, SourceRangeShiftMarker[]>()
 	let sourceOrder = 0
 
 	const seenMidiTextStreams = new Set<typeof tracks[number]['textEvents']>()
@@ -184,7 +184,7 @@ function collectRangeShifts(
 		}
 	}
 
-	const canonical = new Map<string, readonly SourceRangeShiftMarker[]>()
+	const canonical = new Map<IdentityTrackKey, readonly SourceRangeShiftMarker[]>()
 	for (const [key, values] of markers) {
 		const lastAtTick = new Map<number, SourceRangeShiftMarker>()
 		for (const value of values.sort((left, right) => left.tick - right.tick || left.sourceOrder - right.sourceOrder)) {
@@ -218,7 +218,7 @@ function buildSemantics(
 	const starPower = track.starPowerSections.filter(range => containsNote(range, false))
 	const solos = track.soloSections.filter(range => containsNote(range, false))
 	const flexLanes = track.flexLanes.filter(range => containsNote(range, true))
-	const drumFreestyle = track.drumFreestyleSections.filter(range => containsNote(range, true))
+	const drumFreestyle = track.drumFreestyleSections
 
 	return {
 		resolution: parsed.resolution,

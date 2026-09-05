@@ -57,7 +57,11 @@ describe('frozen legacy identity', () => {
 		expect(parsed.kind).toBe('accepted')
 		if (parsed.kind !== 'accepted') return
 
-		const identity = frozenLegacy6142.calculateTrackIdentity(parsed.chart, 'guitar', 'expert')
+		const identity = frozenLegacy6142.calculateTrackIdentity({
+			chart: parsed.chart,
+			instrument: 'guitar',
+			difficulty: 'expert',
+		})
 		expect(identity.profile).toBe('clone-hero-1.1.0.6142')
 		expect(identity.physicalBTrack.physicalVersion).toBe(20240320)
 		expect(Buffer.from(identity.physicalBTrack.bytes).toString('hex')).toBe(expectedPhysicalHex)
@@ -75,7 +79,11 @@ describe('frozen legacy identity', () => {
 		})
 		if (parsed.kind !== 'accepted') throw new Error('Expected source to parse')
 
-		const identity = frozenLegacy6142.calculateTrackIdentity(parsed.chart, 'guitar', 'expert')
+		const identity = frozenLegacy6142.calculateTrackIdentity({
+			chart: parsed.chart,
+			instrument: 'guitar',
+			difficulty: 'expert',
+		})
 		const firstRead = identity.physicalBTrack.bytes
 		firstRead[0] = 0
 

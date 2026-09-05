@@ -4,6 +4,9 @@
 
 `test/integration` contains synthetic filesystem and tool tests. Run them with `npm run test:integration`.
 
+`test/golden-vectors` contains the current BTrack and parser reference suite.
+Run it with `npm run vectors:verify`.
+
 Run the library against a local chart folder or corpus and print the JSON output with:
 
 ```bash

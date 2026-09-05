@@ -107,6 +107,14 @@ function isTrackHash(value: unknown): value is string {
 	return typeof value === 'string' && /^[A-Za-z0-9_-]{43}$/.test(value)
 }
 
+function isInstrument(value: unknown): value is Instrument {
+	return typeof value === 'string' && instruments.some(instrument => instrument === value)
+}
+
+function isDifficulty(value: unknown): value is Difficulty {
+	return typeof value === 'string' && difficulties.some(difficulty => difficulty === value)
+}
+
 function isExpectedPipeline(value: unknown): value is ExpectedPipeline {
 	return isObject(value) && hasOnlyKeys(value, [
 		'parsedSemantics', 'diagnostics', 'physicalBTrack', 'projection', 'rawDigest', 'trackHash',
@@ -138,7 +146,7 @@ function isModifiers(value: unknown): value is IniChartModifiers {
 
 function isTarget(value: unknown): value is SourceAcceptedVector['target'] {
 	return isObject(value) && hasOnlyKeys(value, ['instrument', 'difficulty']) &&
-		instruments.includes(value.instrument as Instrument) && difficulties.includes(value.difficulty as Difficulty)
+		isInstrument(value.instrument) && isDifficulty(value.difficulty)
 }
 
 function assertVector(value: unknown): asserts value is GoldenVector {

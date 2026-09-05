@@ -98,7 +98,7 @@ describe('track duration', () => {
 			],
 			['0 = B 120000', '96 = B 60000'],
 		)
-		expect(calculateParsedTrackDuration(parsed, 'guitar', 'expert')).toEqual({
+		expect(calculateParsedTrackDuration({ chart: parsed, instrument: 'guitar', difficulty: 'expert' })).toEqual({
 			definition: 'strikecore-selected-track-last-note-v1',
 			durationMs: 750n,
 			lastNoteEndTick: 192n,
@@ -111,7 +111,7 @@ describe('track duration', () => {
 
 	it('does not add the Song duration final beat', () => {
 		const parsed = chart(['[ExpertSingle]', '{', '  0 = N 0 192', '}'])
-		expect(calculateParsedTrackDuration(parsed, 'guitar', 'expert').durationMs).toBe(500n)
+		expect(calculateParsedTrackDuration({ chart: parsed, instrument: 'guitar', difficulty: 'expert' }).durationMs).toBe(500n)
 		expect(calculateCanonicalChartDuration(parsed).durationMs).toBe(1000n)
 	})
 
@@ -124,12 +124,12 @@ describe('track duration', () => {
 		]>()
 		const parsed = chart(['[ExpertSingle]', '{', '  0 = N 0 192', '}'])
 		expect(calculateCanonicalChartDuration(parsed).songSpeed).toBe(1)
-		expect(calculateParsedTrackDuration(parsed, 'guitar', 'expert').songSpeed).toBe(1)
+		expect(calculateParsedTrackDuration({ chart: parsed, instrument: 'guitar', difficulty: 'expert' }).songSpeed).toBe(1)
 	})
 
 	it('uses a one-millisecond minimum for an empty selected Track', () => {
 		const parsed = chart(['[ExpertSingle]', '{', '  0 = S 2 192', '}'])
-		expect(calculateParsedTrackDuration(parsed, 'guitar', 'expert')).toMatchObject({
+		expect(calculateParsedTrackDuration({ chart: parsed, instrument: 'guitar', difficulty: 'expert' })).toMatchObject({
 			durationMs: 1n,
 			lastNoteEndTick: 0n,
 			minimumDurationMs: 1,

@@ -29,6 +29,7 @@ export type {
 	FrozenLegacy6142Api,
 	FrozenLegacyParseOutcome,
 	FrozenLegacyParsedChart,
+	FrozenLegacyTrackRequest,
 	FrozenLegacyTrackIdentity,
 	FrozenLegacySongBundleIdentity,
 	LegacyBlake3Digest,
@@ -42,7 +43,7 @@ export type {
 	SourceParseError,
 	SourceParseRequest,
 } from './chart/identity/public'
-export type { CanonicalChartDuration, TrackDuration } from './chart/chart-duration'
+export type { CanonicalChartDuration, ParsedTrackDurationRequest, TrackDuration } from './chart/chart-duration'
 export type {
 	CanonicalChartDurationMs,
 	HistoricalSongHashDurationMs,
@@ -52,8 +53,10 @@ export type {
 	CanonicalSongHash,
 	CanonicalSongIdentity,
 	CanonicalSongHashMember,
+	CanonicalSongIdentityRequest,
 	LegacySongHash,
 	LegacySongIdentity,
+	LegacySongIdentityRequest,
 	LegacySongHashMember,
 	SongHashMetadata,
 } from './chart/identity/song-hash-20251010'

@@ -47,7 +47,9 @@ function midiTrack(name: string, events: readonly { tick: number; event: MidiEve
 	const result: MidiData['tracks'][number] = [{ deltaTime: 0, type: 'trackName', text: name }]
 	let previousTick = 0
 	for (const entry of ordered) {
-		result.push({ ...entry.event, deltaTime: entry.tick - previousTick } as MidiEvent)
+		const event: MidiEvent = { ...entry.event }
+		event.deltaTime = entry.tick - previousTick
+		result.push(event)
 		previousTick = entry.tick
 	}
 	result.push({ deltaTime: 0, type: 'endOfTrack' })
@@ -438,5 +440,5 @@ export const physicalCases: readonly AuthoredPhysicalCase[] = [
 	{ id: 'physical-reject-empty-star-power', purpose: 'A star-power phrase without notes is noncanonical.', expected: 'rejected', bytes: emptyStarPower },
 	{ id: 'physical-reject-empty-solo', purpose: 'A solo phrase without notes is noncanonical.', expected: 'rejected', bytes: emptySolo },
 	{ id: 'physical-reject-empty-flex', purpose: 'A flex lane without notes is noncanonical.', expected: 'rejected', bytes: emptyFlex },
-	{ id: 'physical-reject-empty-freestyle', purpose: 'A freestyle range without notes is noncanonical.', expected: 'rejected', bytes: emptyFreestyle },
+	{ id: 'physical-empty-freestyle', purpose: 'A freestyle range without notes remains canonical and hash-relevant.', expected: 'accepted', bytes: emptyFreestyle },
 ]

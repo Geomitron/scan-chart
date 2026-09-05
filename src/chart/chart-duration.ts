@@ -29,6 +29,12 @@ export interface TrackDuration {
 	readonly minimumDurationMs: 1
 }
 
+export interface ParsedTrackDurationRequest {
+	readonly chart: ParsedChartFile
+	readonly instrument: Instrument
+	readonly difficulty: Difficulty
+}
+
 interface AssignedTempo {
 	readonly tick: bigint
 	readonly beatsPerMinute: number
@@ -160,14 +166,10 @@ function createTrackDuration(
 }
 
 /** Calculates the trusted graph/display duration for one parsed source Track. */
-export function calculateParsedTrackDuration(
-	chart: ParsedChartFile,
-	instrument: Instrument,
-	difficulty: Difficulty,
-): TrackDuration {
-	const track = chart.trackData.find(candidate =>
-		candidate.instrument === instrument && candidate.difficulty === difficulty)
-	if (!track) throw new RangeError(`Track not found: ${instrument} ${difficulty}`)
+export function calculateParsedTrackDuration(request: ParsedTrackDurationRequest): TrackDuration {
+	const track = request.chart.trackData.find(candidate =>
+		candidate.instrument === request.instrument && candidate.difficulty === request.difficulty)
+	if (!track) throw new RangeError(`Track not found: ${request.instrument} ${request.difficulty}`)
 	let lastNoteEndTick = BigInt(0)
 	for (const note of track.noteEventGroups.flat()) {
 		const tick = requireNonnegativeSafeInteger(note.tick, 'note tick')
@@ -176,7 +178,7 @@ export function calculateParsedTrackDuration(
 		requireNonnegativeSafeInteger(endTick, 'note end tick')
 		lastNoteEndTick = lastNoteEndTick > BigInt(endTick) ? lastNoteEndTick : BigInt(endTick)
 	}
-	return createTrackDuration(chart.resolution, parsedTempos(chart), lastNoteEndTick)
+	return createTrackDuration(request.chart.resolution, parsedTempos(request.chart), lastNoteEndTick)
 }
 
 /** Calculates the same duration directly from trusted canonical BTrack semantics. */

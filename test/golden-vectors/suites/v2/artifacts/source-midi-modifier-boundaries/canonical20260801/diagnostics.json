@@ -1,0 +1,15 @@
+[
+  {
+    "code": "rangeShiftOutOfBounds",
+    "position": 3,
+    "size": 0,
+    "source": {
+      "containingDifficulty": null,
+      "eventIndex": 3,
+      "format": "mid",
+      "instrument": "guitar",
+      "text": "[ld_range_shift 3 3 0]",
+      "tick": 650
+    }
+  }
+]

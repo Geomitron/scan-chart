@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest'
 
 import { parseManifest } from '../golden-vectors/schema'
 
-const manifestPath = path.resolve('test/golden-vectors/suites/v1/manifest.json')
+const manifestPath = path.resolve('test/golden-vectors/suites/v2/manifest.json')
 
 function approvedManifest() {
 	return parseManifest(JSON.parse(readFileSync(manifestPath, 'utf8')))

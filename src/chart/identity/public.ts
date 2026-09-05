@@ -24,6 +24,7 @@ import {
 	parseCanonicalSource,
 } from './canonical-source'
 import {
+	CanonicalSongIdentityRequest,
 	CanonicalSongIdentity,
 	CanonicalSongHashMember,
 	identifyCanonicalSong,
@@ -31,13 +32,12 @@ import {
 	canonicalSongHashDifficultyOrder,
 	canonicalSongHashInstrumentOrder,
 	legacySongHashDifficultyOrder,
-	legacySongHashInstrumentOrder,
 	LegacySongHashMember,
 	LegacySongIdentity,
+	LegacySongIdentityRequest,
 	SongHashMetadata,
 } from './song-hash-20251010'
 import {
-	CanonicalChartDurationMs,
 	HistoricalSongHashDurationMs,
 } from './duration-types'
 import { identityTrackKey } from './track-key'
@@ -114,33 +114,23 @@ export interface FrozenLegacyTrackIdentity {
 
 export interface FrozenLegacy6142Api {
 	parseSource(request: SourceParseRequest): FrozenLegacyParseOutcome
-	calculateTrackDuration(
-		chart: FrozenLegacyParsedChart,
-		instrument: Instrument,
-		difficulty: Difficulty,
-	): TrackDuration
-	calculateTrackIdentity(
-		chart: FrozenLegacyParsedChart,
-		instrument: Instrument,
-		difficulty: Difficulty,
-	): FrozenLegacyTrackIdentity
-	calculateSongIdentity(
-		metadata: SongHashMetadata,
-		durationMs: HistoricalSongHashDurationMs,
-		members: readonly LegacySongHashMember[],
-	): LegacySongIdentity
+	calculateTrackDuration(request: FrozenLegacyTrackRequest): TrackDuration
+	calculateTrackIdentity(request: FrozenLegacyTrackRequest): FrozenLegacyTrackIdentity
+	calculateSongIdentity(request: LegacySongIdentityRequest): LegacySongIdentity
 }
 
 export interface Canonical20260801Api {
 	parseSource(request: SourceParseRequest): CanonicalParseOutcome
 	calculateTrackDuration(semantics: CanonicalTrackSemantics): TrackDuration
 	calculateTrackIdentity(track: CanonicalParsedTrack): CanonicalTrackIdentity
-	calculateSongIdentity(
-		metadata: SongHashMetadata,
-		durationMs: CanonicalChartDurationMs,
-		members: readonly CanonicalSongHashMember[],
-	): CanonicalSongIdentity
+	calculateSongIdentity(request: CanonicalSongIdentityRequest): CanonicalSongIdentity
 	readBTrack(bytes: Uint8Array): CanonicalBTrackReadOutcome
+}
+
+export interface FrozenLegacyTrackRequest {
+	readonly chart: FrozenLegacyParsedChart
+	readonly instrument: Instrument
+	readonly difficulty: Difficulty
 }
 
 export interface SongBundleIdentityRequest extends SourceParseRequest {
@@ -153,7 +143,7 @@ export type FrozenLegacySongBundleIdentity =
 	| { readonly kind: 'unavailable'; readonly reason: 'historicalDurationUnavailable' }
 
 export interface LegacyBundleTrackIdentity {
-	readonly instrument: Exclude<Instrument, 'keysghl'>
+	readonly instrument: Instrument
 	readonly difficulty: Difficulty
 	readonly duration: TrackDuration
 	readonly identity: FrozenLegacyTrackIdentity
@@ -217,11 +207,13 @@ function parseFrozenLegacySource(request: SourceParseRequest): FrozenLegacyParse
 }
 
 function calculateFrozenLegacyTrackIdentity(
-	chart: FrozenLegacyParsedChart,
-	instrument: Instrument,
-	difficulty: Difficulty,
+request: FrozenLegacyTrackRequest,
 ): FrozenLegacyTrackIdentity {
-	const current = calculateTrackHash(chart[frozenLegacyChartToken], instrument, difficulty)
+	const current = calculateTrackHash(
+		request.chart[frozenLegacyChartToken],
+		request.instrument,
+		request.difficulty,
+	)
 	const physicalBytes = copyBytes(current.btrack)
 	const projectionBytes = copyBytes(current.btrack)
 	const digestBytes = copyBytes(blake3(current.btrack))
@@ -256,8 +248,11 @@ function calculateFrozenLegacyTrackIdentity(
 
 export const frozenLegacy6142: FrozenLegacy6142Api = {
 	parseSource: parseFrozenLegacySource,
-	calculateTrackDuration: (chart, instrument, difficulty) =>
-		calculateParsedTrackDuration(chart[frozenLegacyChartToken], instrument, difficulty),
+	calculateTrackDuration: request => calculateParsedTrackDuration({
+		chart: request.chart[frozenLegacyChartToken],
+		instrument: request.instrument,
+		difficulty: request.difficulty,
+	}),
 	calculateTrackIdentity: calculateFrozenLegacyTrackIdentity,
 	calculateSongIdentity: identifyLegacySong,
 }
@@ -280,17 +275,17 @@ function calculateSongBundleIdentity(request: SongBundleIdentityRequest): SongBu
 		.map(track => identityTrackKey(track.instrument, track.difficulty)))
 	const legacyTracks: LegacyBundleTrackIdentity[] = []
 	const legacyMembers: LegacySongHashMember[] = []
-	for (const instrument of legacySongHashInstrumentOrder) {
+	for (const instrument of canonicalSongHashInstrumentOrder) {
 		for (const difficulty of legacySongHashDifficultyOrder) {
 			if (!legacySourceKeys.has(identityTrackKey(instrument, difficulty))) continue
-			const identity = calculateFrozenLegacyTrackIdentity(legacyParsed.chart, instrument, difficulty)
-			const duration = calculateParsedTrackDuration(
-				legacyParsed.chart[frozenLegacyChartToken],
+			const identity = calculateFrozenLegacyTrackIdentity({ chart: legacyParsed.chart, instrument, difficulty })
+			const duration = calculateParsedTrackDuration({
+				chart: legacyParsed.chart[frozenLegacyChartToken],
 				instrument,
 				difficulty,
-			)
+			})
 			legacyTracks.push({ instrument, difficulty, duration, identity })
-			legacyMembers.push({ instrument, difficulty, digest: identity.digest })
+			if (instrument !== 'keysghl') legacyMembers.push({ instrument, difficulty, digest: identity.digest })
 		}
 	}
 
@@ -317,12 +312,20 @@ function calculateSongBundleIdentity(request: SongBundleIdentityRequest): SongBu
 				? { kind: 'unavailable', reason: 'historicalDurationUnavailable' }
 				: {
 					kind: 'available',
-					identity: identifyLegacySong(request.metadata, request.legacyDurationMs, legacyMembers),
+					identity: identifyLegacySong({
+						metadata: request.metadata,
+						durationMs: request.legacyDurationMs,
+						members: legacyMembers,
+					}),
 				},
 		},
 		canonical20260801: {
 			tracks: canonicalTracks,
-			song: identifyCanonicalSong(request.metadata, canonicalParsed.chart.duration.durationMs, canonicalMembers),
+			song: identifyCanonicalSong({
+				metadata: request.metadata,
+				durationMs: canonicalParsed.chart.duration.durationMs,
+				members: canonicalMembers,
+			}),
 			duration: canonicalParsed.chart.duration,
 			notices: canonicalParsed.notices,
 		},

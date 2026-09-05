@@ -278,6 +278,10 @@ function noteFlagError(type: NoteType, flags: number): 'flagBitsUnknown' | 'flag
 	return null
 }
 
+function isNoteType(value: number): value is NoteType {
+	return Object.values(noteTypes).some(noteType => noteType === value)
+}
+
 function assertStrictTicks(values: readonly { readonly tick: bigint }[], section: string): void {
 	for (let index = 1; index < values.length; index++) {
 		if (values[index].tick <= values[index - 1].tick) throw new RangeError(`${section} ticks must be strictly increasing`)
@@ -307,7 +311,6 @@ function assertCanonicalPhrasePruning(semantics: CanonicalTrackSemantics): void 
 		['star power', semantics.starPower, false],
 		['solo', semantics.solos, false],
 		['flex lane', semantics.flexLanes, true],
-		['drum freestyle', semantics.drumFreestyle, true],
 	]
 	for (const [name, ranges, inclusiveEnd] of sections) {
 		if (ranges.some(range => !phraseContainsNote(range, semantics.notes, inclusiveEnd))) {
@@ -666,20 +669,30 @@ function parseRecognizedSections(
 	}
 
 	const sections = entries.map(entry => ({ id: entry.id, payload: payloadFor(bytes, entry) }))
-	const resolutionPayload = sections.find(section => section.id === SECTION_RESOLUTION)!.payload
+	const resolutionPayload = payloadFor(bytes, resolutionEntry)
 	const resolution = new DataView(resolutionPayload.buffer, resolutionPayload.byteOffset, resolutionPayload.byteLength).getUint32(0, true)
 	if (resolution === 0) return invalidRecord(SECTION_RESOLUTION, 0, 'resolution', 'zero')
 
-	const mutable = {
+	const mutable: {
+		resolution: number
+		tempos: CanonicalTempo[]
+		timeSignatures: CanonicalTimeSignature[]
+		starPower: CanonicalTickRange[]
+		solos: CanonicalTickRange[]
+		flexLanes: CanonicalFlexLane[]
+		drumFreestyle: CanonicalDrumFreestyle[]
+		rangeShifts: CanonicalRangeShift[]
+		notes: CanonicalNote[]
+	} = {
 		resolution,
-		tempos: [] as CanonicalTempo[],
-		timeSignatures: [] as CanonicalTimeSignature[],
-		starPower: [] as CanonicalTickRange[],
-		solos: [] as CanonicalTickRange[],
-		flexLanes: [] as CanonicalFlexLane[],
-		drumFreestyle: [] as CanonicalDrumFreestyle[],
-		rangeShifts: [] as CanonicalRangeShift[],
-		notes: [] as CanonicalNote[],
+		tempos: [],
+		timeSignatures: [],
+		starPower: [],
+		solos: [],
+		flexLanes: [],
+		drumFreestyle: [],
+		rangeShifts: [],
+		notes: [],
 	}
 
 	for (const entry of entries) {
@@ -759,10 +772,10 @@ function parseRecognizedSections(
 				if (entry.id === SECTION_NOTE) {
 					const type = view.getUint32(offset + 16, true)
 					const flags = view.getUint32(offset + 20, true)
-					if (!Object.values(noteTypes).includes(type as NoteType)) {
+					if (!isNoteType(type)) {
 						return invalidRecord(entry.id, index, 'noteType', 'enumUnknown')
 					}
-					const flagError = noteFlagError(type as NoteType, flags)
+					const flagError = noteFlagError(type, flags)
 					if (flagError) return invalidRecord(entry.id, index, 'noteFlags', flagError)
 					if (sameTick && previousNoteType !== undefined && type <= previousNoteType) {
 						return invalidRecord(entry.id, index, 'noteType', 'orderNoncanonical')
@@ -773,7 +786,7 @@ function parseRecognizedSections(
 						return invalidRecord(entry.id, index, 'length', 'overlapNoncanonical')
 					}
 					previousNoteEnd.set(type, tick + length)
-					mutable.notes.push({ tick, length, type: type as NoteType, flags })
+					mutable.notes.push({ tick, length, type, flags })
 				}
 			}
 		}
@@ -782,7 +795,6 @@ function parseRecognizedSections(
 		[SECTION_STAR_POWER, mutable.starPower, false],
 		[SECTION_SOLO, mutable.solos, false],
 		[SECTION_FLEX_LANE, mutable.flexLanes, true],
-		[SECTION_DRUM_FREESTYLE, mutable.drumFreestyle, true],
 	]
 	for (const [sectionId, ranges, inclusiveEnd] of phraseSections) {
 		const emptyIndex = ranges.findIndex(range => !phraseContainsNote(range, mutable.notes, inclusiveEnd))

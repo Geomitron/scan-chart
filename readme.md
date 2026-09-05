@@ -61,10 +61,14 @@ function parseChartFile(data: Uint8Array, format: 'chart' | 'mid', iniChartModif
 function calculateTrackHash(parsedChart: ParsedChart, instrument: Instrument, difficulty: Difficulty): { hash: string, btrack: Uint8Array }
 
 // The profiles use different duration definitions.
-frozenLegacy6142.calculateSongIdentity(metadata, historicalDurationMs, legacyMembers)
+frozenLegacy6142.calculateSongIdentity({ metadata, durationMs: historicalDurationMs, members: legacyMembers })
 const canonical = canonical20260801.parseSource(sourceRequest)
 if (canonical.kind === 'accepted') {
-	canonical20260801.calculateSongIdentity(metadata, canonical.chart.duration.durationMs, canonicalMembers)
+	canonical20260801.calculateSongIdentity({
+		metadata,
+		durationMs: canonical.chart.duration.durationMs,
+		members: canonicalMembers,
+	})
 }
 
 // Derives both complete SongHash profiles, both TrackHash/BTrack profiles,

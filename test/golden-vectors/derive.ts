@@ -51,10 +51,13 @@ export interface DerivedPipeline {
 	readonly projection: Uint8Array
 	readonly digest: Uint8Array
 	readonly trackHash: string
-	readonly publishedPaddedTrackHash?: string
 }
 
-function legacyPipeline(identity: FrozenLegacyTrackIdentity, semantics: unknown): DerivedPipeline {
+export interface DerivedLegacyPipeline extends DerivedPipeline {
+	readonly publishedPaddedTrackHash: string
+}
+
+function legacyPipeline(identity: FrozenLegacyTrackIdentity, semantics: unknown): DerivedLegacyPipeline {
 	return {
 		semantics,
 		diagnostics: [],
@@ -78,7 +81,7 @@ export function canonicalPipeline(identity: CanonicalTrackIdentity, semantics: C
 }
 
 export function deriveSourceCase(sourceCase: AuthoredSourceCase, modifiers: IniChartModifiers = resolvedModifiers): {
-	readonly legacy: DerivedPipeline
+	readonly legacy: DerivedLegacyPipeline
 	readonly canonical: DerivedPipeline
 } {
 	const request = {
@@ -87,11 +90,11 @@ export function deriveSourceCase(sourceCase: AuthoredSourceCase, modifiers: IniC
 	} as const
 	const legacyParsed = frozenLegacy6142.parseSource(request)
 	if (legacyParsed.kind !== 'accepted') throw new Error(`${sourceCase.id}: frozen legacy parser rejected the source`)
-	const legacyIdentity = frozenLegacy6142.calculateTrackIdentity(
-		legacyParsed.chart,
-		sourceCase.target.instrument,
-		sourceCase.target.difficulty,
-	)
+	const legacyIdentity = frozenLegacy6142.calculateTrackIdentity({
+		chart: legacyParsed.chart,
+		instrument: sourceCase.target.instrument,
+		difficulty: sourceCase.target.difficulty,
+	})
 	const legacySemantics = identitySemantics(
 		parseChartFile(sourceCase.bytes.slice(), sourceCase.format, modifiers),
 		sourceCase.target.instrument,

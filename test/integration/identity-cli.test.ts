@@ -20,6 +20,7 @@ function validChart(): string {
 		'[SyncTrack]', '{', '  0 = B 120000', '}',
 		'[Events]', '{', '}',
 		'[ExpertSingle]', '{', '  0 = N 0 192', '}',
+		'[EasyGHLKeys]', '{', '  0 = N 0 192', '}',
 	].join('\r\n')
 }
 
@@ -125,6 +126,8 @@ describe('identity CLI generation', () => {
 		expect(result.results[0]).toMatchObject({ kind: 'success', legacySongHash: null })
 		await expect(access(join(output, 'song', 'canonical20260801', 'song', 'song-hash.txt'))).resolves.toBeUndefined()
 		await expect(access(join(output, 'song', 'frozenLegacy6142', 'tracks', '000-guitar-expert', 'physical.btrack')))
+			.resolves.toBeUndefined()
+		await expect(access(join(output, 'song', 'frozenLegacy6142', 'tracks', '001-keysghl-easy', 'physical.btrack')))
 			.resolves.toBeUndefined()
 		const manifest = await readFile(join(output, 'song', 'manifest.json'), 'utf8')
 		expect(manifest).toContain('"reason": "missingSongLength"')
