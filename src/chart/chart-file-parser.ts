@@ -55,6 +55,11 @@ const trackNameMap = {
 	HardGHLBass: { instrument: 'bassghl', difficulty: 'hard' },
 	MediumGHLBass: { instrument: 'bassghl', difficulty: 'medium' },
 	EasyGHLBass: { instrument: 'bassghl', difficulty: 'easy' },
+
+	ExpertGHLKeys: { instrument: 'keysghl', difficulty: 'expert' },
+	HardGHLKeys: { instrument: 'keysghl', difficulty: 'hard' },
+	MediumGHLKeys: { instrument: 'keysghl', difficulty: 'medium' },
+	EasyGHLKeys: { instrument: 'keysghl', difficulty: 'easy' },
 } as const
 /* eslint-enable @typescript-eslint/naming-convention */
 
@@ -556,7 +561,8 @@ function getNEventType(value: string, instrument: Instrument): EventType | null 
 		case 'guitarghl':
 		case 'guitarcoopghl':
 		case 'rhythmghl':
-		case 'bassghl': {
+		case 'bassghl':
+		case 'keysghl': {
 			switch (value) {
 				case '0':
 					return eventTypes.white1

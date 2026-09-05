@@ -20,6 +20,20 @@ raw BLAKE3 digest, and unpadded base64url TrackHash. Legacy and canonical hash
 strings, physical bytes, projection bytes, and digest bytes use distinct
 nominal types.
 
+Each profile also exposes its own SongHash calculation. Callers must provide
+members carrying that profile's branded TrackHash digest, so canonical members
+cannot enter a legacy SongHash or vice versa. The source-folder reference tool
+orchestrates both profiles when it needs a dual output bundle; the package does
+not expose an ambiguous mode flag.
+
+Canonical source parsing also owns canonical chart duration. It finds the
+latest regular-note end across every parsed instrument and difficulty, adds
+one beat, and converts that tick through the full tempo map at song speed
+`1.0`. The dual-bundle operation always uses this derived value for canonical
+SongHash. Frozen legacy SongHash accepts a separate historical duration; when
+that value is unavailable, canonical SongHash and both TrackHash/BTrack
+profiles remain available while legacy SongHash is explicitly unavailable.
+
 The canonical profile also exposes one strict `readBTrack` operation. An
 accepted result contains semantics and identity. A rejected result contains a
 nonempty error list and cannot expose semantics, projection bytes, a digest,
@@ -85,8 +99,9 @@ API does not expose a new padded-hash option.
 4. Implement the equivalent MIDI path while retaining same-tick event order.
 5. Add the immutable fixture package, draft generator, and read-only verifier.
 
-SongHash remains Ticket 12 work. Release behavior, package adoption, the
-corpus-scanner rollout, and dependent-system upgrades remain Ticket 13 work.
+Ticket 14 adds the profile-specific SongHash calculators and offline reference
+tool. Their final normative fixture coverage still depends on Ticket 12.
+Package adoption and dependent-system upgrades remain later migration work.
 
 ## Decision
 

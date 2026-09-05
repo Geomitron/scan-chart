@@ -2,6 +2,8 @@
 
 `test/unit` contains in-memory vitest unit tests.
 
+`test/integration` contains synthetic filesystem and tool tests. Run them with `npm run test:integration`.
+
 Run the library against a local chart folder or corpus and print the JSON output with:
 
 ```bash

@@ -88,6 +88,8 @@ export interface ScannedChartMetadata {
 	diff_drums_real?: number
 	/** The difficulty rating of the keys chart. Usually an integer between 0 and 6 (inclusive) */
 	diff_keys?: number
+	/** The difficulty rating of the GHL (6-fret) keys chart. Usually an integer between 0 and 6 (inclusive) */
+	diff_keys_ghl?: number
 	/** The difficulty rating of the GHL (6-fret) lead guitar chart. Usually an integer between 0 and 6 (inclusive) */
 	diff_guitarghl?: number
 	/** The difficulty rating of the GHL (6-fret) co-op guitar chart. Usually an integer between 0 and 6 (inclusive) */
@@ -236,6 +238,7 @@ export const instruments = [
 	'guitarcoopghl', // GHL (6-fret) Co-op Guitar
 	'rhythmghl', // GHL (6-fret) Rhythm Guitar
 	'bassghl', // GHL (6-fret) Bass Guitar
+	'keysghl', // GHL (6-fret) Keys
 ] as const
 
 export type InstrumentType = ObjectValues<typeof instrumentTypes>
@@ -247,7 +250,7 @@ export const instrumentTypes = {
 export function getInstrumentType(instrument: Instrument) {
 	if (instrument === 'drums') {
 		return instrumentTypes.drums
-	} else if (instrument === 'guitarghl' || instrument === 'guitarcoopghl' || instrument === 'rhythmghl' || instrument === 'bassghl') {
+	} else if (instrument === 'guitarghl' || instrument === 'guitarcoopghl' || instrument === 'rhythmghl' || instrument === 'bassghl' || instrument === 'keysghl') {
 		return instrumentTypes.sixFret
 	} else {
 		return instrumentTypes.fiveFret

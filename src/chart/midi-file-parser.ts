@@ -32,6 +32,7 @@ const trackNames = [
 	'PART GUITAR COOP GHL',
 	'PART RHYTHM GHL',
 	'PART BASS GHL',
+	'PART KEYS GHL',
 	'PART VOCALS',
 	'HARM1',
 	'HARM2',
@@ -64,6 +65,7 @@ const instrumentNameMap: { [key in InstrumentTrackName]: Instrument } = {
 	'PART GUITAR COOP GHL': 'guitarcoopghl',
 	'PART RHYTHM GHL': 'rhythmghl',
 	'PART BASS GHL': 'bassghl',
+	'PART KEYS GHL': 'keysghl',
 } as const
 /* eslint-enable @typescript-eslint/naming-convention */
 

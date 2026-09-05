@@ -1,7 +1,9 @@
 import { Difficulty, difficulties, Instrument } from '../../types'
+import { calculateCanonicalChartDuration, CanonicalChartDuration } from '../chart-duration'
 import { parseChartFileCanonicalIdentity } from '../parse-chart-file'
 import type { SourceParseError, SourceParseRequest } from './public'
 import { CanonicalTrackSemantics, createFiveFretRange } from './btrack-20260801'
+import { identityTrackKey } from './track-key'
 
 const canonicalParsedTrackToken: unique symbol = Symbol('canonicalParsedTrack')
 
@@ -58,6 +60,7 @@ export interface CanonicalParsedTrack {
 export interface CanonicalParsedChart {
 	readonly profile: 'canonical-20260801'
 	readonly sourceFormat: 'chart' | 'mid'
+	readonly duration: CanonicalChartDuration
 	readonly tracks: readonly CanonicalParsedTrack[]
 }
 
@@ -106,10 +109,6 @@ function parseMarkerText(format: 'chart' | 'mid', text: string): readonly [numbe
 
 function looksLikeMarker(format: 'chart' | 'mid', text: string): boolean {
 	return format === 'chart' ? text.startsWith('ld_range_shift') : text.startsWith('[ld_range_shift')
-}
-
-function trackKey(instrument: Instrument, difficulty: Difficulty): string {
-	return `${instrument}:${difficulty}`
 }
 
 function collectRangeShifts(
@@ -171,7 +170,7 @@ function collectRangeShifts(
 				continue
 			}
 
-			const key = trackKey(track.instrument, difficulty)
+			const key = identityTrackKey(track.instrument, difficulty)
 			const current = markers.get(key) ?? []
 			current.push({
 				tick: event.tick,
@@ -263,12 +262,17 @@ export function parseCanonicalSource(request: SourceParseRequest): CanonicalPars
 		const tracks = parsed.trackData.map(track => ({
 			profile: 'canonical-20260801' as const,
 			key: { instrument: track.instrument, difficulty: track.difficulty },
-			semantics: buildSemantics(parsed, track, ranges.byTrack.get(trackKey(track.instrument, track.difficulty)) ?? []),
+			semantics: buildSemantics(parsed, track, ranges.byTrack.get(identityTrackKey(track.instrument, track.difficulty)) ?? []),
 			[canonicalParsedTrackToken]: true as const,
 		}))
 		return {
 			kind: 'accepted',
-			chart: { profile: 'canonical-20260801', sourceFormat: request.source.format, tracks },
+			chart: {
+				profile: 'canonical-20260801',
+				sourceFormat: request.source.format,
+				duration: calculateCanonicalChartDuration(parsed),
+				tracks,
+			},
 			notices: ranges.notices,
 		}
 	} catch (error: unknown) {

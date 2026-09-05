@@ -17,6 +17,12 @@ To run unit tests, use:
 $ npm test
 ```
 
+Run filesystem and tool integration tests with:
+
+```bash
+$ npm run test:integration
+```
+
 Corpus tests use a local chart library that is not committed. Run a differential scan against the published baseline with:
 
 ```bash
@@ -30,6 +36,11 @@ $ npm run corpus:parity -- --input <corpus> --ch-bin <HashScanTool.exe>
 ```
 
 The legacy hash JSON helper is still available with `npm run test:cli -- --inputFolder <corpus> --outputFolder <output>`.
+
+For the in-development `CHNF/20260801` BTrack and TrackHash profiles, see the
+[BTrack developer preview](docs/btrack-developer-preview.md). It includes the
+golden-vector workflow, the standalone reference tool, and the current
+stability limits.
 
 # API
 
@@ -48,6 +59,17 @@ function scanChart(files: { fileName: string; data: Uint8Array }[], parseResult:
 
 function parseChartFile(data: Uint8Array, format: 'chart' | 'mid', iniChartModifiers: IniChartModifiers): ParsedChart
 function calculateTrackHash(parsedChart: ParsedChart, instrument: Instrument, difficulty: Difficulty): { hash: string, btrack: Uint8Array }
+
+// The profiles use different duration definitions.
+frozenLegacy6142.calculateSongIdentity(metadata, historicalDurationMs, legacyMembers)
+const canonical = canonical20260801.parseSource(sourceRequest)
+if (canonical.kind === 'accepted') {
+	canonical20260801.calculateSongIdentity(metadata, canonical.chart.duration.durationMs, canonicalMembers)
+}
+
+// Derives both complete SongHash profiles, both TrackHash/BTrack profiles,
+// canonical Song duration, and each Track duration from one source chart.
+songBundle20251010.calculate(bundleRequest)
 
 interface ScanChartConfig {
 	/**
@@ -141,6 +163,8 @@ interface ScannedChartMetadata {
 	diff_drums_real?: number
 	/** The difficulty rating of the keys chart. Usually an integer between 0 and 6 (inclusive) */
 	diff_keys?: number
+	/** The difficulty rating of the GHL (6-fret) keys chart. Usually an integer between 0 and 6 (inclusive) */
+	diff_keys_ghl?: number
 	/** The difficulty rating of the GHL (6-fret) lead guitar chart. Usually an integer between 0 and 6 (inclusive) */
 	diff_guitarghl?: number
 	/** The difficulty rating of the GHL (6-fret) co-op guitar chart. Usually an integer between 0 and 6 (inclusive) */
@@ -289,6 +313,7 @@ const instruments = [
 	'guitarcoopghl', // GHL (6-fret) Co-op Guitar
 	'rhythmghl',     // GHL (6-fret) Rhythm Guitar
 	'bassghl',       // GHL (6-fret) Bass Guitar
+	'keysghl',       // GHL (6-fret) Keys
 ] as const
 
 type InstrumentType = ObjectValues<typeof instrumentTypes>

@@ -10,6 +10,10 @@ A library that parses and scans rhythm-game chart folders (Clone Hero and simila
 An in-memory test under `test/unit/*.test.ts` (run via `npm test`) that builds synthetic chart/MIDI bytes and asserts parser behavior. Needs no files on disk.
 _Avoid_: "regression test" for these.
 
+**Integration test**:
+A committed test under `test/integration/*.test.ts` (run via `npm run test:integration`) that exercises filesystem or tool orchestration with synthetic temporary inputs. It does not require a local chart corpus or external reference executable.
+_Avoid_: "corpus test" for these.
+
 **Corpus test**:
 A test that runs a real on-disk library of chart folders through the scanner and compares the output against a reference. Distinguished from a unit test by its dependency on a **corpus**.
 _Avoid_: "integration test", "regression test" (both ambiguous here).
@@ -60,6 +64,7 @@ A self-contained per-chart directory generated for a member of the diff set, hol
 
 - `src/`: production library code exported through `src/index.ts` and bundled into `dist/`.
 - `test/unit/`: vitest unit tests run by `npm test`.
+- `test/integration/`: filesystem and tool integration tests run by `npm run test:integration`.
 - `test/corpus/shared/`: manifest walking, file loading, snapshot normalization/IO, btrack decoding, and investigation bundle helpers.
 - `test/corpus/differential/`: baseline-vs-working-tree corpus command run by `npm run corpus:diff -- --input <corpus>`.
 - `test/corpus/reference-parity/`: scan-chart-vs-HashScanTool corpus command run by `npm run corpus:parity -- --input <corpus> --ch-bin <HashScanTool.exe>`.

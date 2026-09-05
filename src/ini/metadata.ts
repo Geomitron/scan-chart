@@ -15,6 +15,7 @@ export const defaultMetadata = {
 	diff_drums: -1,
 	diff_drums_real: -1,
 	diff_keys: -1,
+	diff_keys_ghl: -1,
 	diff_guitarghl: -1,
 	diff_guitar_coop_ghl: -1,
 	diff_rhythm_ghl: -1,
