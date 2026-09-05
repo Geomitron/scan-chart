@@ -10,11 +10,6 @@ import type { SongHashMetadata } from '../../src/chart/identity/song-hash-202510
 import { identityTrackKey, IdentityTrackKey } from '../../src/chart/identity/track-key'
 import { parseHistoricalDuration } from './duration'
 
-declare const __SCAN_CHART_COMMIT__: string | undefined
-declare const __SCAN_CHART_DIRTY__: boolean | undefined
-declare const __SCAN_CHART_SOURCE_TREE_SHA256__: string | undefined
-declare const __SCAN_CHART_VERSION__: string | undefined
-
 const skippedDirectories = new Set(['.git', 'node_modules'])
 
 interface ArtifactReference {
@@ -73,14 +68,14 @@ function json(value: unknown): Uint8Array {
 		typeof current === 'bigint' ? current.toString() : current, 2)}\n`)
 }
 
-function toolProvenance(): object {
+export function toolProvenance(): object {
 	return {
 		name: 'ch-identity',
 		version: '0.1.0',
-		scanChartVersion: typeof __SCAN_CHART_VERSION__ === 'undefined' ? 'working-tree' : __SCAN_CHART_VERSION__,
-		scanChartCommit: typeof __SCAN_CHART_COMMIT__ === 'undefined' ? 'working-tree' : __SCAN_CHART_COMMIT__,
-		scanChartDirty: typeof __SCAN_CHART_DIRTY__ === 'undefined' ? true : __SCAN_CHART_DIRTY__,
-		sourceTreeSha256: typeof __SCAN_CHART_SOURCE_TREE_SHA256__ === 'undefined' ? 'working-tree' : __SCAN_CHART_SOURCE_TREE_SHA256__,
+		scanChartVersion: process.env.SCAN_CHART_BUILD_VERSION ?? 'working-tree',
+		scanChartCommit: process.env.SCAN_CHART_BUILD_COMMIT ?? 'working-tree',
+		scanChartDirty: process.env.SCAN_CHART_BUILD_DIRTY !== 'false',
+		sourceTreeSha256: process.env.SCAN_CHART_BUILD_SOURCE_TREE_SHA256 ?? 'working-tree',
 		profiles: {
 			legacy: 'clone-hero-1.1.0.6142',
 			canonical: '20260801',

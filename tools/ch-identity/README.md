@@ -45,8 +45,12 @@ The command exits with code 0 for an exact match, 1 for differences, and 2 for i
 
 ```powershell
 node ch-identity.cjs self-test
+node ch-identity.cjs provenance
 ```
 
-The self-test reproduces a pinned production SongHash and runs a complete folder-to-artifacts scan with distinct historical and canonical durations.
+The self-test reproduces a pinned production SongHash and runs a complete
+folder-to-artifacts scan with distinct historical and canonical durations. The
+provenance command prints the scan-chart commit, dirty state, source-tree
+checksum, and calculation profiles embedded during the build.
 
 Before use, verify the files against `SHA256SUMS`.

@@ -7,7 +7,7 @@ import { join } from 'node:path'
 import { base64url } from 'rfc4648'
 
 import { serializeSongHash20251010 } from '../../src/chart/identity/song-hash-20251010'
-import { generate, inspectBTrack } from './generate'
+import { generate, inspectBTrack, toolProvenance } from './generate'
 
 const help = `ch-identity
 
@@ -17,6 +17,7 @@ Usage:
   ch-identity generate <song-folder-or-library-root> --out <new-directory>
   ch-identity inspect-btrack <canonical.btrack> --out <new-directory>
   ch-identity compare <reference-manifest.json> <candidate-manifest.json>
+  ch-identity provenance
   ch-identity self-test
 `
 
@@ -146,6 +147,10 @@ async function main(args: readonly string[]): Promise<number> {
 	if (command === 'compare') {
 		if (!args[1] || !args[2]) throw new Error('compare requires reference and candidate manifest paths')
 		return await compare(args[1], args[2]) ? 0 : 1
+	}
+	if (command === 'provenance') {
+		process.stdout.write(`${JSON.stringify(toolProvenance())}\n`)
+		return 0
 	}
 	if (command === 'self-test') {
 		await selfTest()

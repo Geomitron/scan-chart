@@ -1,51 +1,7 @@
-import { execFileSync } from 'node:child_process'
-import { createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
 import { defineConfig } from 'tsup'
-
-function commit(): string {
-	try {
-		return execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim()
-	} catch {
-		return 'unknown'
-	}
-}
-
-function dirty(): boolean {
-	try {
-		return execFileSync('git', ['status', '--porcelain'], { encoding: 'utf8' }).trim().length > 0
-	} catch {
-		return true
-	}
-}
-
-function sourceTreeSha256(): string {
-	const files = execFileSync('git', [
-		'ls-files',
-		'--cached',
-		'--others',
-		'--exclude-standard',
-		'--',
-		'src',
-		'tools',
-		'package.json',
-		'tsconfig.json',
-		'tsconfig.test.json',
-	], { encoding: 'utf8' })
-		.split(/\r?\n/)
-		.filter(Boolean)
-		.sort()
-	const hash = createHash('sha256')
-	for (const file of files) {
-		hash.update(file.replaceAll('\\', '/'))
-		hash.update('\0')
-		hash.update(readFileSync(file))
-		hash.update('\0')
-	}
-	return hash.digest('hex')
-}
 
 const packageJson: unknown = JSON.parse(readFileSync(resolve('package.json'), 'utf8'))
 
@@ -54,6 +10,12 @@ function packageVersion(value: unknown): string {
 		throw new Error('package.json does not contain a string version')
 	}
 	return value.version
+}
+
+function requiredBuildValue(name: string): string {
+	const value = process.env[name]
+	if (value === undefined) throw new Error(`Missing build provenance: ${name}`)
+	return value
 }
 
 export default defineConfig({
@@ -68,9 +30,9 @@ export default defineConfig({
 	outDir: 'dist/ch-identity',
 	outExtension: () => ({ js: '.cjs' }),
 	define: {
-		__SCAN_CHART_COMMIT__: JSON.stringify(commit()),
-		__SCAN_CHART_DIRTY__: JSON.stringify(dirty()),
-		__SCAN_CHART_SOURCE_TREE_SHA256__: JSON.stringify(sourceTreeSha256()),
-		__SCAN_CHART_VERSION__: JSON.stringify(packageVersion(packageJson)),
+		'process.env.SCAN_CHART_BUILD_COMMIT': JSON.stringify(requiredBuildValue('SCAN_CHART_BUILD_COMMIT')),
+		'process.env.SCAN_CHART_BUILD_DIRTY': JSON.stringify(requiredBuildValue('SCAN_CHART_BUILD_DIRTY')),
+		'process.env.SCAN_CHART_BUILD_SOURCE_TREE_SHA256': JSON.stringify(requiredBuildValue('SCAN_CHART_BUILD_SOURCE_TREE_SHA256')),
+		'process.env.SCAN_CHART_BUILD_VERSION': JSON.stringify(packageVersion(packageJson)),
 	},
 })
