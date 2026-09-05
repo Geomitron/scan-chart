@@ -1,0 +1,2 @@
+test/golden-vectors/suites/** -text
+test/golden-vectors/suites/**/*.chart binary
