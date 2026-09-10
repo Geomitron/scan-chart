@@ -57,6 +57,8 @@ function parseChartFileWithModifierBoundaries(
 	const rawChartData = format === 'mid' ? parseNotesFromMidi(data, iniChartModifiers, tapEndInclusive) : parseNotesFromChart(data)
 	const timedTempos = getTimedTempos(rawChartData.tempos, rawChartData.chartTicksPerBeat)
 	const drumTracks = rawChartData.trackData.filter(track => track.instrument === 'drums')
+	// Both flags are invalid together but remain preserved for diagnostics and round-tripping.
+	// Five-lane takes semantic precedence, per the Clone Hero developer consensus of 2026-04-07.
 	const drumType =
 		drumTracks.length === 0 ? null
 		: iniChartModifiers.five_lane_drums ? drumTypes.fiveLane
