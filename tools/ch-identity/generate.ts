@@ -115,7 +115,7 @@ function sourceFiles(entries: readonly string[]): readonly string[] {
 export async function discoverSongFolders(input: string): Promise<readonly string[]> {
 	const root = resolve(input)
 	const found: string[] = []
-	async function walk(directory: string): Promise<void> {
+	const walk = async (directory: string): Promise<void> => {
 		const entries = await readdir(directory, { withFileTypes: true })
 		if (sourceFiles(entries.filter(entry => entry.isFile()).map(entry => entry.name)).length > 0) {
 			found.push(directory)

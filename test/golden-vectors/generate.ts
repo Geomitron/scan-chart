@@ -28,7 +28,7 @@ async function main(): Promise<void> {
 	await mkdir(path.dirname(output), { recursive: true })
 	await mkdir(output)
 
-	async function artifact(relativePath: string, value: Uint8Array): Promise<FixtureFile> {
+	const artifact = async (relativePath: string, value: Uint8Array): Promise<FixtureFile> => {
 		const absolute = path.join(output, relativePath)
 		await mkdir(path.dirname(absolute), { recursive: true })
 		await writeFile(absolute, value, { flag: 'wx' })
