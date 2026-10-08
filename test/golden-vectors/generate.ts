@@ -4,10 +4,12 @@ import { mkdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 
 import { readBTrack20260801 } from 'src/chart/identity/btrack-20260801'
+import { parseChartAndIni } from 'src/chart/parse-chart-and-ini'
+import { scanParsedChart } from 'src/chart/scan-parsed-chart'
 
-import { physicalCases, resolvedModifiers, sourceCases } from './cases'
-import { canonicalPipeline, deriveSourceCase, DerivedPipeline, stableJson } from './derive'
-import { BTrackAcceptedVector, BTrackRejectedVector, FixtureFile, FixtureProvenance, GoldenManifestV1, SourceAcceptedVector } from './schema'
+import { physicalCases, resolvedModifiers, songCases, sourceCases } from './cases'
+import { canonicalPipeline, deriveCanonicalSourceCase, deriveSongCase, stableJson } from './derive'
+import { FixtureFile, FixtureProvenance, GoldenManifestV2, GoldenVectorV2 } from './schema'
 
 function outputArgument(): string {
 	const index = process.argv.indexOf('--out')
@@ -20,6 +22,15 @@ function isWithin(parent: string, child: string): boolean {
 	return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative))
 }
 
+/** Fails generation when the BTrack writer and reader disagree on a generated Track. */
+function assertReadable(id: string, physical: Uint8Array, trackHash: string): void {
+	const read = readBTrack20260801(physical)
+	if (read.kind !== 'accepted' || read.identity.trackHash.value !== trackHash) {
+		throw new Error(`${id}: the canonical reader does not reproduce the written BTrack`)
+	}
+}
+
+/** Writes a schema-version-2 draft suite: the canonical profile only, with song vectors. */
 async function main(): Promise<void> {
 	const output = outputArgument()
 	const approvedRoot = path.resolve('test/golden-vectors/suites')
@@ -45,38 +56,85 @@ async function main(): Promise<void> {
 		license: 'MIT',
 		purpose,
 	})
-	const vectors: (SourceAcceptedVector | BTrackAcceptedVector | BTrackRejectedVector)[] = []
+	const ids = new Set<string>()
+	const claim = (id: string) => {
+		if (ids.has(id)) throw new Error(`Duplicate vector id: ${id}`)
+		ids.add(id)
+	}
+	const vectors: GoldenVectorV2[] = []
 
 	for (const sourceCase of sourceCases) {
-		const derived = deriveSourceCase(sourceCase)
+		claim(sourceCase.id)
+		const modifiers = sourceCase.modifiers ?? resolvedModifiers
+		const derived = deriveCanonicalSourceCase(sourceCase, modifiers)
+		assertReadable(sourceCase.id, derived.physical, derived.trackHash)
 		const root = `artifacts/${sourceCase.id}`
-		const pipeline = async (name: 'legacy6142' | 'canonical20260801', value: DerivedPipeline) => ({
-			parsedSemantics: await artifact(`${root}/${name}/semantics.json`, stableJson(value.semantics)),
-			diagnostics: await artifact(`${root}/${name}/diagnostics.json`, stableJson(value.diagnostics)),
-			physicalBTrack: await artifact(`${root}/${name}/physical.btrack`, value.physical),
-			projection: await artifact(`${root}/${name}/projection.bin`, value.projection),
-			rawDigest: await artifact(`${root}/${name}/digest.bin`, value.digest),
-			trackHash: value.trackHash,
-		})
 		vectors.push({
 			kind: 'source-accepted',
 			id: sourceCase.id,
 			provenance: provenance(sourceCase.purpose),
 			sourceFormat: sourceCase.format,
 			source: await artifact(`${root}/source.${sourceCase.format === 'chart' ? 'chart' : 'mid'}`, sourceCase.bytes),
-			modifiers: resolvedModifiers,
+			modifiers,
 			target: sourceCase.target,
-				expected: {
-					legacy6142: {
-						...await pipeline('legacy6142', derived.legacy),
-						publishedPaddedTrackHash: derived.legacy.publishedPaddedTrackHash,
-				},
-				canonical20260801: await pipeline('canonical20260801', derived.canonical),
+			expected: {
+				parsedSemantics: await artifact(`${root}/semantics.json`, stableJson(derived.semantics)),
+				diagnostics: await artifact(`${root}/diagnostics.json`, stableJson(derived.diagnostics)),
+				physicalBTrack: await artifact(`${root}/physical.btrack`, derived.physical),
+				projection: await artifact(`${root}/projection.bin`, derived.projection),
+				rawDigest: await artifact(`${root}/digest.bin`, derived.digest),
+				trackHash: derived.trackHash,
+			},
+		})
+	}
+
+	for (const songCase of songCases) {
+		claim(songCase.id)
+		const derived = deriveSongCase(songCase.id, songCase.files)
+		const scanned = parseChartAndIni(songCase.files.map(file => ({ fileName: file.name, data: file.bytes.slice() }))).parsedChart
+		const scan = scanned === null ? null : scanParsedChart(scanned)
+		if (scan?.songHash !== derived.songHash || String(scan.songDurationMs) !== derived.songDuration.durationMs) {
+			throw new Error(`${songCase.id}: the scanner reports a different SongHash or song duration`)
+		}
+		const root = `artifacts/${songCase.id}`
+		const files = []
+		for (const file of songCase.files) files.push({ name: file.name, file: await artifact(`${root}/input/${file.name}`, file.bytes) })
+		const members = []
+		for (const [index, member] of derived.members.entries()) {
+			assertReadable(songCase.id, member.physical, member.trackHash)
+			const memberRoot = `${root}/members/${String(index).padStart(2, '0')}-${member.instrument}-${member.difficulty}`
+			members.push({
+				instrument: member.instrument,
+				difficulty: member.difficulty,
+				parsedSemantics: await artifact(`${memberRoot}/semantics.json`, stableJson(member.semantics)),
+				physicalBTrack: await artifact(`${memberRoot}/physical.btrack`, member.physical),
+				projection: await artifact(`${memberRoot}/projection.bin`, member.projection),
+				rawDigest: await artifact(`${memberRoot}/digest.bin`, member.digest),
+				trackHash: member.trackHash,
+				trackDuration: member.trackDuration,
+			})
+		}
+		vectors.push({
+			kind: 'song-accepted',
+			id: songCase.id,
+			provenance: provenance(songCase.purpose),
+			files,
+			expected: {
+				selectedSource: derived.selectedSource,
+				modifiers: derived.modifiers,
+				metadata: derived.metadata,
+				diagnostics: await artifact(`${root}/diagnostics.json`, stableJson(derived.diagnostics)),
+				songDuration: derived.songDuration,
+				members,
+				preimage: await artifact(`${root}/song/preimage.chsh`, derived.preimage),
+				rawDigest: await artifact(`${root}/song/digest.bin`, derived.digest),
+				songHash: derived.songHash,
 			},
 		})
 	}
 
 	for (const physicalCase of physicalCases) {
+		claim(physicalCase.id)
 		const root = `artifacts/${physicalCase.id}`
 		const physicalBTrack = await artifact(`${root}/physical.btrack`, physicalCase.bytes)
 		const read = readBTrack20260801(physicalCase.bytes)
@@ -107,13 +165,13 @@ async function main(): Promise<void> {
 		}
 	}
 
-	const manifest: GoldenManifestV1 = {
-		schemaVersion: 1,
+	const manifest: GoldenManifestV2 = {
+		schemaVersion: 2,
 		contract: {
-			legacy: 'clone-hero-1.1.0.6142',
+			profile: 'canonical-20260801',
 			physical: 'CHNF/20260801',
 			projection: 'ticket-03-map-first',
-			parser: 'ticket-05-20260801',
+			songHash: 'CHSH/20260801',
 		},
 		compatibility: {
 			vectorIdsAreImmutable: true,
