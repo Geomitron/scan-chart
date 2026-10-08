@@ -80,7 +80,7 @@ export function toolProvenance(): object {
 		profiles: {
 			legacy: 'clone-hero-1.1.0.6142',
 			canonical: '20260801',
-			songHashWireVersion: 20251010,
+			songHashWireVersions: { legacy: 20251010, canonical: 20260801 },
 		},
 	}
 }
