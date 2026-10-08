@@ -1,5 +1,6 @@
 import * as _ from 'lodash'
 
+import { trimDotnet } from '../shared/text'
 import { decodeIni } from './decode-ini'
 
 export const $NoSection: unique symbol = Symbol('Lines before any sections')
@@ -13,8 +14,9 @@ export interface IniObject {
  */
 export function parseIni(file: Uint8Array): { iniObject: IniObject; folderIssues: { folderIssue: 'badIniLine'; description: string }[] } {
 	const iniLines = decodeIni(file)
+		.replace(/^\uFEFF/, '') // CH IniFile.Load removes one leading byte order mark
 		.split(/\r?\n/g)
-		.map(line => line.trim())
+		.map(trimDotnet)
 
 	const iniObject: IniObject = Object.create(null)
 	const folderIssues: { folderIssue: 'badIniLine'; description: string }[] = []
@@ -34,8 +36,8 @@ export function parseIni(file: Uint8Array): { iniObject: IniObject; folderIssues
 			}
 		} else if (line.includes('=')) {
 			const delimeterPos = line.indexOf('=')
-			const key = line.slice(0, delimeterPos).trim().toLowerCase()
-			const value = line.slice(delimeterPos + 1).trim()
+			const key = trimDotnet(line.slice(0, delimeterPos)).toLowerCase()
+			const value = trimDotnet(line.slice(delimeterPos + 1))
 
 			;(iniObject[currentSection] ??= Object.create(null))[key] = value
 		} else {
