@@ -8,6 +8,7 @@ describe('parse profiles', () => {
 			{
 			  "canonical20260801": {
 			    "chartTrackAllocation": "sectionsWithNotes",
+			    "midiChartDynamics": "fromEvent",
 			    "midiDuplicateInstrumentTracks": "firstWins",
 			    "midiTapEnd": "inclusive",
 			    "midiTrackAllocation": "difficultiesWithNotes",
@@ -15,6 +16,7 @@ describe('parse profiles', () => {
 			  },
 			  "frozenLegacy6142": {
 			    "chartTrackAllocation": "everySection",
+			    "midiChartDynamics": "leaksAcrossDifficulties",
 			    "midiDuplicateInstrumentTracks": "keepAll",
 			    "midiTapEnd": "exclusive",
 			    "midiTrackAllocation": "difficultiesWithNotesAndExpert",
@@ -22,6 +24,7 @@ describe('parse profiles', () => {
 			  },
 			  "scanner": {
 			    "chartTrackAllocation": "everySection",
+			    "midiChartDynamics": "fromEvent",
 			    "midiDuplicateInstrumentTracks": "keepAll",
 			    "midiTapEnd": "exclusive",
 			    "midiTrackAllocation": "difficultiesWithNotes",
