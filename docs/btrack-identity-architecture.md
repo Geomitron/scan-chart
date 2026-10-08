@@ -1,16 +1,16 @@
 # BTrack identity architecture
 
-The identity profiles provide CH legacy and canonical TrackHash calculations.
-The existing `parseChartFile`, `calculateTrackHash`, and `scanChart` exports
-retain their general-purpose scanner behavior. Use `frozenLegacy6142` for CH
-legacy identity: its MIDI parser also retains noteless tracks allocated by CH.
+The package exports one identity profile, `canonical20260801`. The frozen
+Clone Hero `1.1.0.6142` profile (`frozenLegacy6142`) and the dual-profile
+bundle remain in `src/chart/identity/public.ts` as a reference for the
+`ch-identity` tool; they are not exported. `parseChartFile` keeps its
+general-purpose scanner behavior.
 
 ## Public boundary
 
-New code chooses one concrete identity profile:
+New code uses the canonical profile:
 
 ```ts
-const legacy = frozenLegacy6142.parseSource(request)
 const canonical = canonical20260801.parseSource(request)
 ```
 
@@ -20,11 +20,13 @@ raw BLAKE3 digest, and unpadded base64url TrackHash. Legacy and canonical hash
 strings, physical bytes, projection bytes, and digest bytes use distinct
 nominal types.
 
-Each profile also exposes its own SongHash calculation. Callers must provide
+Each profile also has its own SongHash calculation. Callers must provide
 members carrying that profile's branded TrackHash digest, so canonical members
-cannot enter a legacy SongHash or vice versa. The source-folder reference tool
-orchestrates both profiles when it needs a dual output bundle; the package does
-not expose an ambiguous mode flag.
+cannot enter a legacy SongHash or vice versa. `calculateSongBundle` derives the
+canonical members, their durations, and the SongHash from one parsed chart. The
+canonical SongHash writes wire version `20260801`; the legacy one keeps
+`20251010`. The source-folder reference tool orchestrates both profiles when it
+needs a dual output bundle; the package does not expose an ambiguous mode flag.
 
 Canonical source parsing also owns canonical chart duration. It finds the
 latest regular-note end across every parsed instrument and difficulty, adds
@@ -45,6 +47,12 @@ BTrack bytes.
 
 ## Internal ownership
 
+Each parse profile is one frozen rules object in `src/chart/parse-rules.ts`:
+the general scanner, frozen legacy 6142, and canonical 20260801. The parser
+reads tap boundaries, track allocation, duplicate MIDI instrument tracks, and
+chart dynamics from that object, and a snapshot test pins every rule. A
+canonical track exists only if it has a note after parsing, in either format.
+
 Source decoders retain a `sourceOrder` value until each identity profile has
 resolved same-tick precedence. A private range-shift marker distinguishes an
 omitted size from an explicit size. This distinction prevents an invalid
@@ -52,8 +60,6 @@ explicit size from receiving the omitted-size default.
 
 The frozen legacy profile owns the released modifier boundaries, contiguous
 `CHNF/20240320` writer, whole-file digest, and legacy string-form fixtures.
-The existing compatibility exports keep their current behavior and ownership
-semantics.
 
 The canonical profile owns the Ticket 05 parser rules. It produces a separate
 semantic model with five-fret range shifts and the canonical tap boundary.
@@ -106,6 +112,5 @@ Package adoption and dependent-system upgrades remain later migration work.
 ## Decision
 
 This design uses concrete profile objects instead of a mode flag or a generic
-profile parameter. It keeps identity choice visible, prevents cross-profile
-mixing at compile time, and leaves the current public API stable during the
-migration.
+profile parameter. It keeps identity choice visible and prevents cross-profile
+mixing at compile time.

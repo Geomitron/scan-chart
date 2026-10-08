@@ -12,9 +12,8 @@ export {
 	canonicalChartDurationDefinition,
 	trackDurationDefinition,
 } from './chart/chart-duration'
-export { canonicalChartDurationMs, historicalSongHashDurationMs, trackDurationMs } from './chart/identity/duration-types'
-export { calculateTrackHash } from './chart/track-hasher'
-export { canonical20260801, frozenLegacy6142, songBundle20251010 } from './chart/identity/public'
+export { canonicalChartDurationMs, trackDurationMs } from './chart/identity/duration-types'
+export { canonical20260801 } from './chart/identity/public'
 export { scanIni } from './ini/scan-ini'
 
 /**
@@ -26,38 +25,18 @@ export type {
 	ChartSource,
 	Canonical20260801Api,
 	CanonicalBundleTrackIdentity,
-	FrozenLegacy6142Api,
-	FrozenLegacyParseOutcome,
-	FrozenLegacyParsedChart,
-	FrozenLegacyTrackRequest,
-	FrozenLegacyTrackIdentity,
-	FrozenLegacySongBundleIdentity,
-	LegacyBlake3Digest,
-	LegacyPhysicalBTrack,
-	LegacyTrackHash,
-	LegacyTrackHashProjection,
-	LegacyBundleTrackIdentity,
-	SongBundle20251010Api,
-	SongBundleIdentityOutcome,
-	SongBundleIdentityRequest,
+	CanonicalSongBundle,
+	CanonicalSongBundleRequest,
 	SourceParseError,
 	SourceParseRequest,
 } from './chart/identity/public'
 export type { CanonicalChartDuration, ParsedTrackDurationRequest, TrackDuration } from './chart/chart-duration'
-export type {
-	CanonicalChartDurationMs,
-	HistoricalSongHashDurationMs,
-	TrackDurationMs,
-} from './chart/identity/duration-types'
+export type { CanonicalChartDurationMs, TrackDurationMs } from './chart/identity/duration-types'
 export type {
 	CanonicalSongHash,
 	CanonicalSongIdentity,
 	CanonicalSongHashMember,
 	CanonicalSongIdentityRequest,
-	LegacySongHash,
-	LegacySongIdentity,
-	LegacySongIdentityRequest,
-	LegacySongHashMember,
 	SongHashMetadata,
 } from './chart/identity/song-hash-20251010'
 export type {

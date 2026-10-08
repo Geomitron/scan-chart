@@ -8,7 +8,7 @@ import {
 	calculateCanonicalTrackDuration,
 	calculateParsedTrackDuration,
 } from '../chart-duration'
-import type { TrackDuration } from '../chart-duration'
+import type { CanonicalChartDuration, TrackDuration } from '../chart-duration'
 import {
 	CanonicalBTrackReadOutcome,
 	CanonicalTrackSemantics,
@@ -26,7 +26,6 @@ import {
 import {
 	CanonicalSongIdentityRequest,
 	CanonicalSongIdentity,
-	CanonicalSongHashMember,
 	identifyCanonicalSong,
 	identifyLegacySong,
 	canonicalSongHashDifficultyOrder,
@@ -124,7 +123,22 @@ export interface Canonical20260801Api {
 	calculateTrackDuration(semantics: CanonicalTrackSemantics): TrackDuration
 	calculateTrackIdentity(track: CanonicalParsedTrack): CanonicalTrackIdentity
 	calculateSongIdentity(request: CanonicalSongIdentityRequest): CanonicalSongIdentity
+	/** Calculates every member track's identity and duration, and the song's SongHash, from one parsed chart. */
+	calculateSongBundle(request: CanonicalSongBundleRequest): CanonicalSongBundle
 	readBTrack(bytes: Uint8Array): CanonicalBTrackReadOutcome
+}
+
+export interface CanonicalSongBundleRequest {
+	readonly chart: CanonicalParsedChart
+	/** The song's metadata before the SongHash writer resolves it; see `CanonicalSongIdentityRequest.metadata`. */
+	readonly metadata: SongHashMetadata
+}
+
+export interface CanonicalSongBundle {
+	/** The SongHash members in SongHash order: every parsed track, each with its identity and duration. */
+	readonly tracks: readonly CanonicalBundleTrackIdentity[]
+	readonly song: CanonicalSongIdentity
+	readonly duration: CanonicalChartDuration
 }
 
 export interface FrozenLegacyTrackRequest {
@@ -260,11 +274,34 @@ export const frozenLegacy6142: FrozenLegacy6142Api = {
 	calculateSongIdentity: identifyLegacySong,
 }
 
+function calculateCanonicalSongBundle(request: CanonicalSongBundleRequest): CanonicalSongBundle {
+	const tracksByKey = new Map(request.chart.tracks.map(track => [identityTrackKey(track.key.instrument, track.key.difficulty), track]))
+	const tracks: CanonicalBundleTrackIdentity[] = []
+	for (const instrument of canonicalSongHashInstrumentOrder) {
+		for (const difficulty of canonicalSongHashDifficultyOrder) {
+			const track = tracksByKey.get(identityTrackKey(instrument, difficulty))
+			if (!track) continue
+			const identity = identifyCanonicalTrack(track.semantics)
+			tracks.push({ instrument, difficulty, duration: calculateCanonicalTrackDuration(track.semantics), identity })
+		}
+	}
+	return {
+		tracks,
+		song: identifyCanonicalSong({
+			metadata: request.metadata,
+			durationMs: request.chart.duration.durationMs,
+			members: tracks.map(({ instrument, difficulty, identity }) => ({ instrument, difficulty, digest: identity.digest })),
+		}),
+		duration: request.chart.duration,
+	}
+}
+
 export const canonical20260801: Canonical20260801Api = {
 	parseSource: parseCanonicalSource,
 	calculateTrackDuration: calculateCanonicalTrackDuration,
 	calculateTrackIdentity: track => identifyCanonicalTrack(track.semantics),
 	calculateSongIdentity: identifyCanonicalSong,
+	calculateSongBundle: calculateCanonicalSongBundle,
 	readBTrack: readBTrack20260801,
 }
 
@@ -292,20 +329,7 @@ function calculateSongBundleIdentity(request: SongBundleIdentityRequest): SongBu
 		}
 	}
 
-	const canonicalTracksByKey = new Map(canonicalParsed.chart.tracks
-		.map(track => [identityTrackKey(track.key.instrument, track.key.difficulty), track]))
-	const canonicalTracks: CanonicalBundleTrackIdentity[] = []
-	const canonicalMembers: CanonicalSongHashMember[] = []
-	for (const instrument of canonicalSongHashInstrumentOrder) {
-		for (const difficulty of canonicalSongHashDifficultyOrder) {
-			const track = canonicalTracksByKey.get(identityTrackKey(instrument, difficulty))
-			if (!track) continue
-			const identity = identifyCanonicalTrack(track.semantics)
-			const duration = calculateCanonicalTrackDuration(track.semantics)
-			canonicalTracks.push({ instrument, difficulty, duration, identity })
-			canonicalMembers.push({ instrument, difficulty, digest: identity.digest })
-		}
-	}
+	const canonical = calculateCanonicalSongBundle({ chart: canonicalParsed.chart, metadata: request.canonicalMetadata })
 
 	return {
 		kind: 'accepted',
@@ -322,16 +346,7 @@ function calculateSongBundleIdentity(request: SongBundleIdentityRequest): SongBu
 					}),
 				},
 		},
-		canonical20260801: {
-			tracks: canonicalTracks,
-			song: identifyCanonicalSong({
-				metadata: request.canonicalMetadata,
-				durationMs: canonicalParsed.chart.duration.durationMs,
-				members: canonicalMembers,
-			}),
-			duration: canonicalParsed.chart.duration,
-			notices: canonicalParsed.notices,
-		},
+		canonical20260801: { ...canonical, notices: canonicalParsed.notices },
 	}
 }
 

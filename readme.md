@@ -58,22 +58,15 @@ function parseChartAndIni(files: { fileName: string; data: Uint8Array }[]): Pars
 function scanChart(files: { fileName: string; data: Uint8Array }[], parseResult: ParseChartAndIniResult, config?: ScanChartConfig): ScannedChart
 
 function parseChartFile(data: Uint8Array, format: 'chart' | 'mid', iniChartModifiers: IniChartModifiers): ParsedChart
-function calculateTrackHash(parsedChart: ParsedChart, instrument: Instrument, difficulty: Difficulty): { hash: string, btrack: Uint8Array }
 
-// The profiles use different duration definitions.
-frozenLegacy6142.calculateSongIdentity({ metadata, durationMs: historicalDurationMs, members: legacyMembers })
-const canonical = canonical20260801.parseSource(sourceRequest)
+// The canonical 20260801 identity profile: BTrack, TrackHash, SongHash, and durations.
+const canonical = canonical20260801.parseSource({ source: { format, bytes }, modifiers: iniChartModifiers })
 if (canonical.kind === 'accepted') {
-	canonical20260801.calculateSongIdentity({
-		metadata,
-		durationMs: canonical.chart.duration.durationMs,
-		members: canonicalMembers,
-	})
+	// Each member track's BTrack, TrackHash, and duration, the canonical song duration, and the SongHash.
+	// For a chart folder, pass `parseChartAndIni(files).parsedChart.songHashMetadata` as the metadata.
+	canonical20260801.calculateSongBundle({ chart: canonical.chart, metadata })
 }
-
-// Derives both complete SongHash profiles, both TrackHash/BTrack profiles,
-// canonical Song duration, and each Track duration from one source chart.
-songBundle20251010.calculate(bundleRequest)
+canonical20260801.readBTrack(btrackBytes)
 
 interface ScanChartConfig {
 	/**
