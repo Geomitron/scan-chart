@@ -1,4 +1,4 @@
-/** Mirrors CH ParsingTools.DetectEncoding and UnsafeIO.ReadAllText. */
+/** Mirrors CH ParsingTools.DetectEncoding and UnsafeIO.ReadAllText, which keep any byte order mark after the detected one. */
 export function decodeIni(bytes: Uint8Array): string {
 	if (
 		bytes.length >= 4 &&
@@ -15,9 +15,9 @@ export function decodeIni(bytes: Uint8Array): string {
 		}
 		return characters.join('')
 	}
-	if (bytes[0] === 0xff && bytes[1] === 0xfe) return new TextDecoder('utf-16le', { fatal: true }).decode(bytes.subarray(2))
-	if (bytes[0] === 0xfe && bytes[1] === 0xff) return new TextDecoder('utf-16be', { fatal: true }).decode(bytes.subarray(2))
-	if (bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf) return new TextDecoder('utf-8', { fatal: true }).decode(bytes.subarray(3))
+	if (bytes[0] === 0xff && bytes[1] === 0xfe) return new TextDecoder('utf-16le', { fatal: true, ignoreBOM: true }).decode(bytes.subarray(2))
+	if (bytes[0] === 0xfe && bytes[1] === 0xff) return new TextDecoder('utf-16be', { fatal: true, ignoreBOM: true }).decode(bytes.subarray(2))
+	if (bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf) return new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes.subarray(3))
 	if (bytes[0] === 0x2b && bytes[1] === 0x2f && bytes[2] === 0x76) throw new Error('UTF-7 INI encoding is not supported')
 	try {
 		return new TextDecoder('utf-8', { fatal: true }).decode(bytes)
