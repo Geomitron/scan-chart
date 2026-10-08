@@ -115,7 +115,7 @@ type MidiTrackEvent = RawChartData['trackData'][number]['trackEvents'][number] &
  * [PART DRUMS_2X] (RBN)
  * Real Drums (Phase Shift)
  */
-export function parseNotesFromMidi(data: Uint8Array, iniChartModifiers: IniChartModifiers, tapEndInclusive = false): RawChartData {
+export function parseNotesFromMidi(data: Uint8Array, iniChartModifiers: IniChartModifiers, tapEndInclusive = false, preserveNotelessTracks = false): RawChartData {
 	const midiFile = parseMidi(data)
 	if (midiFile.header.format !== 1) {
 		throw `Invavlid .mid file: unsupported header format "${midiFile.header.format}"`
@@ -218,7 +218,7 @@ export function parseNotesFromMidi(data: Uint8Array, iniChartModifiers: IniChart
 		unrecognizedEventsTrackMidiEvents: eventsScan.unrecognizedMidiEvents,
 		unrecognizedMidiTracks,
 		unrecognizedChartSections: [],
-		trackData: buildMidiTrackData(tracks, iniChartModifiers, firstCodaTick, tapEndInclusive),
+		trackData: buildMidiTrackData(tracks, iniChartModifiers, firstCodaTick, tapEndInclusive, preserveNotelessTracks),
 		parseIssues: [...parseIssues, ...eventsScan.parseIssues],
 	}
 }
@@ -228,6 +228,7 @@ function buildMidiTrackData(
 	iniChartModifiers: IniChartModifiers,
 	firstCodaTick: number | null,
 	tapEndInclusive: boolean,
+	preserveNotelessTracks: boolean,
 ): RawChartData['trackData'] {
 	const out: RawChartData['trackData'] = []
 
@@ -237,7 +238,7 @@ function buildMidiTrackData(
 		const instrumentType = getInstrumentType(instrument)
 		const { eventEnds, textEvents, versusPhrases, animations, unrecognizedEvents: trackUnrecognized } =
 			scanInstrumentTrack(t.trackEvents, instrumentType, t.trackName)
-		const distributed = distributeInstrumentEvents(eventEnds)
+		const distributed = distributeInstrumentEvents(eventEnds, preserveNotelessTracks)
 		const pairedEvents = getTrackEvents(distributed)
 		const step1 = splitMidiModifierSustains(pairedEvents, instrumentType, tapEndInclusive)
 		const step2 = fixLegacyGhStarPower(step1, instrumentType, iniChartModifiers)
@@ -245,7 +246,7 @@ function buildMidiTrackData(
 
 		for (const difficulty of difficulties) {
 			const diffEvents = trackDifficulties[difficulty]
-			if (diffEvents.length === 0) continue // uncharted difficulty — no need to allocate/emit
+			if (diffEvents.length === 0 && !(preserveNotelessTracks && difficulty === 'expert')) continue
 
 			const result: RawChartData['trackData'][number] = {
 				instrument,
@@ -293,7 +294,7 @@ function buildMidiTrackData(
 
 			// Tracks with only global modifier events (e.g. [ENABLE_CHART_DYNAMICS])
 			// and no notes are dropped so writer round-trip stays stable.
-			if (hasRealTrackEvents || result.starPowerSections.length > 0 || result.soloSections.length > 0) {
+			if (preserveNotelessTracks || hasRealTrackEvents || result.starPowerSections.length > 0 || result.soloSections.length > 0) {
 				out.push(result)
 			}
 		}
@@ -752,10 +753,10 @@ function getDrumsNoteType(note: number, difficulty: Difficulty) {
  * enableChartDynamics is meant to apply to all charted difficulties.
  * Distributes all of these to each difficulty in the instrument.
  */
-function distributeInstrumentEvents(eventEnds: { [difficulty in Difficulty | 'all']: TrackEventEnd[] }) {
+function distributeInstrumentEvents(eventEnds: { [difficulty in Difficulty | 'all']: TrackEventEnd[] }, preserveNotelessTracks: boolean) {
 	for (const instrumentEvent of eventEnds.all) {
 		for (const difficulty of difficulties) {
-			if (eventEnds[difficulty].length === 0) {
+			if (eventEnds[difficulty].length === 0 && !(preserveNotelessTracks && difficulty === 'expert')) {
 				continue // Skip adding modifiers to uncharted difficulties
 			}
 			eventEnds[difficulty].push({

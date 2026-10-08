@@ -38,6 +38,11 @@ export function parseChartFile(data: Uint8Array, format: 'chart' | 'mid', partia
 	return parseChartFileWithModifierBoundaries(data, format, partialIniChartModifiers, false)
 }
 
+/** CH identity retains MIDI tracks allocated for markers, including an empty Expert track. */
+export function parseChartFileFrozenLegacyIdentity(data: Uint8Array, format: 'chart' | 'mid', modifiers: Partial<IniChartModifiers> = {}) {
+	return parseChartFileWithModifierBoundaries(data, format, modifiers, false, true)
+}
+
 /** Canonical identity parser entry point. Existing callers must keep using `parseChartFile`. */
 export function parseChartFileCanonicalIdentity(
 	data: Uint8Array,
@@ -52,9 +57,10 @@ function parseChartFileWithModifierBoundaries(
 	format: 'chart' | 'mid',
 	partialIniChartModifiers: Partial<IniChartModifiers>,
 	tapEndInclusive: boolean,
+	preserveNotelessMidiTracks = false,
 ) {
 	const iniChartModifiers = Object.assign({}, defaultMetadata, partialIniChartModifiers) as IniChartModifiers
-	const rawChartData = format === 'mid' ? parseNotesFromMidi(data, iniChartModifiers, tapEndInclusive) : parseNotesFromChart(data)
+	const rawChartData = format === 'mid' ? parseNotesFromMidi(data, iniChartModifiers, tapEndInclusive, preserveNotelessMidiTracks) : parseNotesFromChart(data)
 	const timedTempos = getTimedTempos(rawChartData.tempos, rawChartData.chartTicksPerBeat)
 	const drumTracks = rawChartData.trackData.filter(track => track.instrument === 'drums')
 	// Both flags are invalid together but remain preserved for diagnostics and round-tripping.
