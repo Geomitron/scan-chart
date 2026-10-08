@@ -134,7 +134,10 @@ export interface FrozenLegacyTrackRequest {
 }
 
 export interface SongBundleIdentityRequest extends SourceParseRequest {
-	readonly metadata: SongHashMetadata
+	/** The header strings for the legacy SongHash, written as given. */
+	readonly legacyMetadata: SongHashMetadata
+	/** The metadata for the canonical SongHash, which its writer resolves (see `CanonicalSongIdentityRequest`). */
+	readonly canonicalMetadata: SongHashMetadata
 	readonly legacyDurationMs?: HistoricalSongHashDurationMs
 }
 
@@ -313,7 +316,7 @@ function calculateSongBundleIdentity(request: SongBundleIdentityRequest): SongBu
 				: {
 					kind: 'available',
 					identity: identifyLegacySong({
-						metadata: request.metadata,
+						metadata: request.legacyMetadata,
 						durationMs: request.legacyDurationMs,
 						members: legacyMembers,
 					}),
@@ -322,7 +325,7 @@ function calculateSongBundleIdentity(request: SongBundleIdentityRequest): SongBu
 		canonical20260801: {
 			tracks: canonicalTracks,
 			song: identifyCanonicalSong({
-				metadata: request.metadata,
+				metadata: request.canonicalMetadata,
 				durationMs: canonicalParsed.chart.duration.durationMs,
 				members: canonicalMembers,
 			}),

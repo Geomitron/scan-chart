@@ -1,5 +1,6 @@
 import { Difficulty, Instrument } from '../types'
-import { getEncoding } from '../shared/text'
+import { decodeCloneHeroText } from '../shared/decode-text'
+import { getEncoding, trimDotnet } from '../shared/text'
 import { EventType, eventTypes, RawChartData } from './raw-types'
 import { extractChartLyrics, extractChartVocalPhrases } from './lyric-parser'
 
@@ -116,6 +117,7 @@ export function parseNotesFromChart(data: Uint8Array): RawChartData {
 	if (!resolution) {
 		throw 'Invalid .chart file: resolution not found.'
 	}
+	const songMetadata = readChartSongMetadata(data)
 
 	// Collect any [Song] keys not claimed by a typed metadata field into
 	// `extraChartSongFields` so they round-trip verbatim. Parallel to how
@@ -134,12 +136,12 @@ export function parseNotesFromChart(data: Uint8Array): RawChartData {
 	return {
 		chartTicksPerBeat: resolution,
 		metadata: {
-			name: metadata['Name'] || undefined,
-			artist: metadata['Artist'] || undefined,
-			album: metadata['Album'] || undefined,
-			genre: metadata['Genre'] || undefined,
-			year: metadata['Year']?.slice(2) || undefined, // Thank you GHTCP, very cool
-			charter: metadata['Charter'] || undefined,
+			name: songMetadata.name || undefined,
+			artist: songMetadata.artist || undefined,
+			album: songMetadata.album || undefined,
+			genre: songMetadata.genre || undefined,
+			year: songMetadata.year || undefined,
+			charter: songMetadata.charter || undefined,
 			diff_guitar: Number(metadata['Difficulty']) || undefined,
 			// "Offset" and "PreviewStart" are in units of seconds.
 			// NOTE: [Song].Offset is a .chart-only property — distinct from
@@ -175,6 +177,77 @@ export function parseNotesFromChart(data: Uint8Array): RawChartData {
 		unrecognizedChartSections: buildUnrecognizedChartSections(fileSections, fileSectionKeys),
 		trackData: buildChartTrackData(fileSections, firstCodaTick),
 	}
+}
+
+type ChartSongMetadata = { [key in 'name' | 'artist' | 'album' | 'genre' | 'year' | 'charter']?: string }
+
+const chartSongMetadataFields = new Map<string, keyof ChartSongMetadata>([
+	['Name', 'name'],
+	['Artist', 'artist'],
+	['Album', 'album'],
+	['Genre', 'genre'],
+	['Year', 'year'],
+	['Charter', 'charter'],
+])
+
+/**
+ * Reads song metadata as Clone Hero's `SongEntry.ReadFeedbackChartMetadata` does: the first `{}` block of the
+ * file, case-sensitive keys, the first nonblank value of each key, outer quotes removed, and .NET trimming. A
+ * `Name` of `TEMPO TRACK` or `midi_export` stops the reader. A leading `, ` is removed from `Year`.
+ */
+function readChartSongMetadata(data: Uint8Array): ChartSongMetadata {
+	const metadata: ChartSongMetadata = {}
+	let text: string
+	try {
+		text = decodeCloneHeroText(data)
+	} catch {
+		return metadata
+	}
+	let position = text.indexOf('{') + 1
+	if (position === 0) return metadata
+	while (position < text.length) {
+		while (position < text.length && ' \r\n\t'.includes(text[position])) position++
+		if (position === text.length || text[position] === '}') break
+		const lineEnd = findEndOfLine(text, position)
+		const line = text.slice(position, lineEnd)
+		position = lineEnd + 1
+		const separator = line.indexOf('=')
+		if (separator === -1) continue
+		const field = chartSongMetadataFields.get(trimDotnet(line.slice(0, separator)))
+		let value = trimDotnet(stripOuterQuotes(trimDotnet(line.slice(separator + 1))))
+		if (value === '') continue
+		if (field === 'name' && (value === 'TEMPO TRACK' || value === 'midi_export')) break
+		if (field === 'year' && value.startsWith(', ')) value = value.slice(2)
+		if (field !== undefined) metadata[field] ??= value
+	}
+	return metadata
+}
+
+/** Mirrors CH `ParsingTools.FindEndOfLine`: a line ends at LF, or at CR only when LF follows it. */
+function findEndOfLine(text: string, position: number) {
+	for (let index = position; index < text.length; index++) {
+		const char = text.charCodeAt(index)
+		if (char === 10 || (char === 13 && text.charCodeAt(index + 1) === 10)) return index
+	}
+	return text.length
+}
+
+/** Removes the outer quote pair, or a lone quote at either end, as CH's `.chart` metadata reader does. */
+function stripOuterQuotes(value: string) {
+	const first = value.indexOf('"')
+	if (first === -1) return value
+	let last = value.lastIndexOf('"')
+	if (first === last) {
+		return first === 0 ? value.slice(1)
+			: first === value.length - 1 ? value.slice(0, -1)
+			: value
+	}
+	let result = value
+	if (first === 0) {
+		result = result.slice(1)
+		last--
+	}
+	return last === result.length - 1 ? result.slice(0, -1) : result
 }
 
 function buildUnrecognizedChartSections(

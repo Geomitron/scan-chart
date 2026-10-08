@@ -2,6 +2,7 @@ import { blake3 } from '@awasm/noble'
 import { base64url } from 'rfc4648'
 
 import type { Difficulty, Instrument } from '../../types'
+import { removeStyleTags } from '../../shared/text'
 import { CanonicalChartDurationMs, HistoricalSongHashDurationMs } from './duration-types'
 import type { CanonicalBlake3Digest } from './btrack-20260801'
 import type { LegacyBlake3Digest } from './public'
@@ -43,6 +44,11 @@ export interface LegacySongIdentityRequest {
 }
 
 export interface CanonicalSongIdentityRequest {
+	/**
+	 * The song's metadata before the canonical writer resolves it, as Clone Hero holds it on the song. The writer
+	 * treats `null`, "0", and "-1" as unset, strips style tags, lowercases the icon, and clears an icon that equals
+	 * the charter. Use `ParsedChart.songHashMetadata` for a chart folder.
+	 */
 	readonly metadata: SongHashMetadata
 	readonly durationMs: CanonicalChartDurationMs
 	readonly members: readonly CanonicalSongHashMember[]
@@ -74,6 +80,7 @@ export interface LegacySongIdentity {
 
 export interface CanonicalSongIdentity {
 	readonly profile: 'canonical-20260801'
+	/** The resolved metadata written into the SongHash. */
 	readonly metadata: SongHashMetadata
 	readonly durationMs: CanonicalChartDurationMs
 	readonly members: readonly CanonicalSongHashMember[]
@@ -203,6 +210,25 @@ function resolvedMetadata(metadata: SongHashMetadata): { readonly [K in keyof So
 	}
 }
 
+/** Mirrors `BinarySongWriter.Resolve` and its icon rule in Clone Hero's canonical SongHash writer. */
+function resolveCanonicalMetadata(metadata: SongHashMetadata): { readonly [K in keyof SongHashMetadata]: string } {
+	const resolve = (field: keyof SongHashMetadata) => {
+		const value = metadata[field]
+		return removeStyleTags(value === null || value === '0' || value === '-1' ? metadataDefaults[field] : value)
+	}
+	const charter = resolve('charter')
+	const icon = resolve('icon').toLowerCase()
+	return {
+		name: resolve('name'),
+		artist: resolve('artist'),
+		album: resolve('album'),
+		genre: resolve('genre'),
+		year: resolve('year'),
+		charter,
+		icon: icon === charter.toLowerCase() ? '' : icon,
+	}
+}
+
 export function serializeSongHash20251010(request: SerializeSongHashRequest): Uint8Array {
 	if (request.durationMs < MIN_INT64 || request.durationMs > MAX_INT64) {
 		throw new RangeError('SongHash duration must fit signed int64')
@@ -293,8 +319,9 @@ export function identifyCanonicalSong(request: CanonicalSongIdentityRequest): Ca
 		digest: member.digest.bytes,
 	}))
 	assertUniqueMembers(wireMembers)
+	const metadata = resolveCanonicalMetadata(request.metadata)
 	const preimage = serializeSongHash20251010({
-		metadata: request.metadata,
+		metadata,
 		durationMs: request.durationMs,
 		members: wireMembers,
 	})
@@ -303,7 +330,7 @@ export function identifyCanonicalSong(request: CanonicalSongIdentityRequest): Ca
 	const digestBytes = ownedBytes(result.digest)
 	return {
 		profile: 'canonical-20260801',
-		metadata: { ...request.metadata },
+		metadata,
 		durationMs: request.durationMs,
 		members: orderedMembers,
 		get preimage() { return preimageBytes() },
