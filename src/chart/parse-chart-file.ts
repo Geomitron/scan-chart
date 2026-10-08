@@ -552,8 +552,9 @@ function trimSustains(
 	chartTicksPerBeat: number,
 	format: 'chart' | 'mid',
 ) {
+	// Like Clone Hero, any negative threshold selects the default.
 	const sustainThresholdTicks =
-		sustain_cutoff_threshold !== -1 ? sustain_cutoff_threshold
+		sustain_cutoff_threshold >= 0 ? sustain_cutoff_threshold
 		: format === 'mid' ? Math.floor(chartTicksPerBeat / 3) + 1
 		: 0
 
@@ -798,10 +799,9 @@ function resolveFretModifiers(
 	format: 'chart' | 'mid',
 ): UntimedNoteEvent[][] {
 	const hopoThresholdTicks =
-		iniChartModifiers.hopo_frequency ||
-		(iniChartModifiers.eighthnote_hopo ?
-			Math.floor(1 + chartTicksPerBeat / 2)
-		:	Math.floor(format === 'mid' ? 1 + chartTicksPerBeat / 3 : (65 / 192) * chartTicksPerBeat))
+		iniChartModifiers.hopo_frequency > 0 ? iniChartModifiers.hopo_frequency
+		: iniChartModifiers.eighthnote_hopo ? Math.floor(1 + chartTicksPerBeat / 2)
+		: Math.floor(format === 'mid' ? 1 + chartTicksPerBeat / 3 : (65 / 192) * chartTicksPerBeat)
 
 	const noteEventGroups: UntimedNoteEvent[][] = []
 
