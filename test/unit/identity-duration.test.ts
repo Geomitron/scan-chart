@@ -8,7 +8,11 @@ import {
 import type { CanonicalTrackSemantics } from 'src/chart/identity/btrack-20260801'
 import { parseChartFile } from 'src/chart/parse-chart-file'
 import { noteTypes } from 'src/chart/types'
-import { parseHistoricalDuration } from '../../tools/ch-identity/duration'
+import { parseHistoricalDuration as parseHistoricalDurationBytes } from '../../tools/ch-identity/duration'
+
+function parseHistoricalDuration(text: string | null) {
+	return parseHistoricalDurationBytes(text === null ? null : new TextEncoder().encode(text))
+}
 
 function chart(
 	sections: readonly string[],
@@ -45,6 +49,14 @@ describe('canonical chart duration', () => {
 			['0 = B 120000', '288 = B 60000'],
 		)
 		expect(calculateCanonicalChartDuration(parsed).durationMs).toBe(1250n)
+	})
+
+	it('adds one quarter-note regardless of the final time-signature denominator', () => {
+		const parsed = chart(
+			['[ExpertSingle]', '{', '  0 = N 0 192', '}'],
+			['0 = B 120000', '0 = TS 7 3', '192 = TS 3 1'],
+		)
+		expect(calculateCanonicalChartDuration(parsed)).toMatchObject({ durationMs: 1000n, endTick: 384n })
 	})
 
 	it('matches the StrikeCore bit-increment boundary before the final ceiling', () => {

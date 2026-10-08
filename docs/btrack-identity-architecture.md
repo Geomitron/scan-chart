@@ -1,9 +1,9 @@
 # BTrack identity architecture
 
-Ticket 11 adds a canonical TrackHash implementation without changing the
-meaning of the current `scan-chart` APIs. The existing `parseChartFile`,
-`calculateTrackHash`, and `scanChart` exports remain the compatibility path for
-the pinned legacy implementation.
+The identity profiles provide CH legacy and canonical TrackHash calculations.
+The existing `parseChartFile`, `calculateTrackHash`, and `scanChart` exports
+retain their general-purpose scanner behavior. Use `frozenLegacy6142` for CH
+legacy identity: its MIDI parser also retains noteless tracks allocated by CH.
 
 ## Public boundary
 
@@ -28,7 +28,7 @@ not expose an ambiguous mode flag.
 
 Canonical source parsing also owns canonical chart duration. It finds the
 latest regular-note end across every parsed instrument and difficulty, adds
-one beat, and converts that tick through the full tempo map at song speed
+one quarter-note in ticks, and converts that tick through the full tempo map at song speed
 `1.0`. The dual-bundle operation always uses this derived value for canonical
 SongHash. Frozen legacy SongHash accepts a separate historical duration; when
 that value is unavailable, canonical SongHash and both TrackHash/BTrack

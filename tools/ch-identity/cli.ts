@@ -61,13 +61,14 @@ async function selfTest(): Promise<void> {
 			'[Events]', '{', '}',
 			'[ExpertSingle]', '{', '  0 = N 0 192', '}',
 		].join('\r\n'))
-		await writeFile(join(song, 'song.ini'), '[song]\r\nsong_length = 1001\r\n')
+		await writeFile(join(song, 'song.ini'), '\ufeff[Song]\r\nsong_length = 9999\r\nSONG_LENGTH = 1001\r\n', 'utf16le')
 		const result = await generate({ input: song, output })
 		if (result.results.length !== 1 || result.results[0].kind !== 'success') {
 			throw new Error(`Folder generation self-test failed: ${JSON.stringify(result.results)}`)
 		}
 		const manifest = await readFile(join(output, 'song', 'manifest.json'), 'utf8')
-		if (!manifest.includes('"definition": "strikecore-all-track-last-note-plus-one-beat-v1"')
+		if (!manifest.includes('"songDurationMs": "1000"')
+			|| !manifest.includes('"definition": "strikecore-all-track-last-note-plus-one-beat-v1"')
 			|| !manifest.includes('"durationMs": "1000"')
 			|| !manifest.includes('"definition": "strikecore-selected-track-last-note-v1"')
 			|| !manifest.includes('"durationMs": "500"')
@@ -78,6 +79,14 @@ async function selfTest(): Promise<void> {
 		if (!manifest.includes('"sourceTreeSha256"')) {
 			throw new Error('Folder generation self-test did not record source-tree provenance')
 		}
+		await rm(join(song, 'song.ini'))
+		const fallbackOutput = join(temporary, 'fallback-output')
+		const fallback = await generate({ input: song, output: fallbackOutput })
+		if (fallback.results[0]?.kind !== 'success' || fallback.results[0].legacySongHash === null) {
+			throw new Error('Chart-only legacy fallback self-test failed')
+		}
+		const fallbackManifest = await readFile(join(fallbackOutput, 'song', 'manifest.json'), 'utf8')
+		if (!fallbackManifest.includes('"source": "chart-fallback"')) throw new Error('Missing chart fallback provenance')
 		const btrack = join(output, 'song', 'canonical20260801', 'tracks', '000-guitar-expert', 'physical.btrack')
 		const inspected = join(temporary, 'inspected')
 		await inspectBTrack({ input: btrack, output: inspected })

@@ -92,10 +92,10 @@ command.
 - BTrack represents already-parsed Track semantics. Source parsing rules still
   affect the BTrack and TrackHash. Record intentional YARG parsing differences
   instead of forcing them to match silently.
-- Frozen legacy SongHash needs the historical duration used by the released
-  client. The folder tool reads a nonzero `song_length` from `song.ini`. If the
-  value is unavailable, the tool still produces both TrackHash/BTrack profiles
-  and canonical SongHash, and marks legacy SongHash unavailable.
+- Frozen legacy SongHash follows CH's INI, audio, then chart length order.
+  Audio-dependent legacy hashes remain unavailable because the bundle omits
+  BASS. See [the tool README](../tools/ch-identity/README.md) for the fallback,
+  INI encoding, and MIDI track-retention rules.
 - Canonical SongHash, canonical Song duration, and per-Track duration are
   implemented, but their independent normative vectors and Clone Hero owner
   sign-off remain pending. Use them for integration work, not permanent
