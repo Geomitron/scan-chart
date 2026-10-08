@@ -1,6 +1,7 @@
 # BTrack identity architecture
 
-The package exports one identity profile, `canonical20260801`. The frozen
+The package exports one identity profile, `canonical20260801`, and `scanChart`
+reports its TrackHashes, BTracks, SongHash, and song duration. The frozen
 Clone Hero `1.1.0.6142` profile (`frozenLegacy6142`) and the dual-profile
 bundle remain in `src/chart/identity/public.ts` as a reference for the
 `ch-identity` tool; they are not exported. `parseChartFile` keeps its

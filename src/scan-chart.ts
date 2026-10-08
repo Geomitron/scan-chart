@@ -29,6 +29,8 @@ export function scanChart(
 		folderIssues: [],
 		metadataIssues: [],
 		playable: true,
+		songHash: null,
+		songDurationMs: null,
 	}
 
 	chart.md5 = resolvedConfig.includeMd5 ? getChartMD5(files) : 'md5 calculation skipped'
@@ -40,6 +42,14 @@ export function scanChart(
 	if (parseResult.parsedChart) {
 		const chartData = scanParsedChart(parseResult.parsedChart, resolvedConfig.includeBTrack)
 		chart.chartHash = chartData.chartHash
+		chart.songHash = chartData.songHash
+		chart.songDurationMs = chartData.songDurationMs
+		if (chartData.identityError !== null) {
+			chart.folderIssues.push({
+				folderIssue: 'badChartIdentity',
+				description: `This chart's TrackHashes and SongHash couldn't be calculated: ${chartData.identityError}`,
+			})
+		}
 		chart.notesData = chartData.notesData
 		const instruments = chartData.notesData.instruments
 		if (parseResult.hasIni) {

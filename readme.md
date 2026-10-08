@@ -35,7 +35,7 @@ Run reference parity against HashScanTool with:
 $ npm run corpus:parity -- --input <corpus> --ch-bin <HashScanTool.exe>
 ```
 
-The legacy hash JSON helper is still available with `npm run test:cli -- --inputFolder <corpus> --outputFolder <output>`.
+The hash JSON helper, which records `scanChart`'s canonical TrackHashes, is available with `npm run test:cli -- --inputFolder <corpus> --outputFolder <output>`.
 
 For the in-development `CHNF/20260801` BTrack and TrackHash profiles, see the
 [BTrack developer preview](docs/btrack-developer-preview.md). It includes the
@@ -111,6 +111,17 @@ interface ScannedChart {
 	md5: string
 	/** A blake3 hash of just the chart file and the .ini modifiers that impact chart parsing. If this changes, the in-game score is reset. */
 	chartHash: string
+	/**
+	 * The canonical 20260801 SongHash, as unpadded base64url. It identifies the song on leaderboards and covers the
+	 * song's metadata, `songDurationMs`, and the TrackHash of every track in `notesData.trackHashes`.
+	 * `null` if the chart couldn't be parsed, or if the canonical profile rejected it (see the `badChartIdentity` folder issue).
+	 */
+	songHash: string | null
+	/**
+	 * The canonical song duration in milliseconds: the time at song speed 1.0 of the latest note end across every
+	 * track plus one quarter-note, rounded up. It doesn't depend on audio or `song_length`. `null` when `songHash` is.
+	 */
+	songDurationMs: number | null
 	/** If the chart is able to be played in-game. This is `false` if `notesData` is `null`. */
 	playable: boolean
 
@@ -274,16 +285,17 @@ interface NotesData {
 		nps: number
 	}[]
 	/**
-	 * Hashes of each track. This is specifically designed to change if and only if the chart changes in a way that impacts scoring or difficulty.
-	 * This means it is useful for games to use this to determine which charts should share the same leaderboard.
-	 *
-	 * Detailed information on how this is calculated can be found here: https://drive.google.com/open?id=1AfZMSc687C1PZCoAWKQDhdAExV7Pt45t6adz71szd3U
+	 * The canonical 20260801 TrackHash of each track that has at least one note, in SongHash order (by instrument,
+	 * then Easy to Expert). A TrackHash changes if and only if the track changes in a way that impacts scoring or
+	 * difficulty, so games can use it to decide which charts share a leaderboard. Empty if the canonical profile
+	 * rejected the chart (see the `badChartIdentity` folder issue).
 	 */
 	trackHashes: {
 		instrument: Instrument
 		difficulty: Difficulty
+		/** The canonical TrackHash, as unpadded base64url. */
 		hash: string
-		/** The full btrack data for this track. `hash` is derived from this. `null` if `ScanChartConfig.includeBTrack` is `false`. */
+		/** The track's `CHNF/20260801` BTrack. `hash` is derived from it. `null` if `ScanChartConfig.includeBTrack` is `false`. */
 		btrack: Uint8Array<ArrayBuffer> | null
 	}[]
 	/** MD5 hash of the chart's tempo map, including BPM markers and time signature markers. */
@@ -376,6 +388,7 @@ type FolderIssueType =
 	| 'noChart'                 // This chart doesn't have "notes.chart"/"notes.mid"
 	| 'invalidChart'            // .chart/.mid file is not named "notes.chart"/"notes.mid"
 	| 'badChart'                // This chart's .chart/.mid file couldn't be parsed
+	| 'badChartIdentity'        // The canonical identity profile rejected this chart, so it has no TrackHashes or SongHash
 	| 'multipleChart'           // This chart has multiple .chart/.mid files
 	| 'badVideo'                // This chart has a video background that will not work on Linux
 	| 'multipleVideo'           // This chart has multiple video background files
@@ -395,6 +408,20 @@ interface ParsedChart {
 	format: 'chart' | 'mid'
 	/** The fully-resolved ini modifiers that influenced parsing. */
 	iniChartModifiers: IniChartModifiers
+	/**
+	 * The metadata Clone Hero hashes into the canonical SongHash, before the SongHash writer resolves it: the song.ini
+	 * `[song]` values when a song.ini with that section loads, otherwise the `.chart [Song]` values. Blank values are
+	 * "Unknown …". Style tags and the "0"/"-1" sentinels remain; the writer handles them.
+	 */
+	songHashMetadata: {
+		name: string | null
+		artist: string | null
+		album: string | null
+		genre: string | null
+		year: string | null
+		charter: string | null
+		icon: string | null
+	}
 	resolution: number
 	drumType: DrumType | null
 	metadata: {
