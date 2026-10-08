@@ -7,16 +7,19 @@ describe('parse profiles', () => {
 		expect(parseRules).toMatchInlineSnapshot(`
 			{
 			  "canonical20260801": {
+			    "chartTrackAllocation": "sectionsWithNotes",
 			    "midiTapEnd": "inclusive",
 			    "midiTrackAllocation": "difficultiesWithNotes",
 			    "profile": "canonical20260801",
 			  },
 			  "frozenLegacy6142": {
+			    "chartTrackAllocation": "everySection",
 			    "midiTapEnd": "exclusive",
 			    "midiTrackAllocation": "difficultiesWithNotesAndExpert",
 			    "profile": "frozenLegacy6142",
 			  },
 			  "scanner": {
+			    "chartTrackAllocation": "everySection",
 			    "midiTapEnd": "exclusive",
 			    "midiTrackAllocation": "difficultiesWithNotes",
 			    "profile": "scanner",
