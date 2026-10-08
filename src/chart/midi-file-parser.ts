@@ -236,10 +236,14 @@ function buildMidiTrackData(
 ): RawChartData['trackData'] {
 	const out: RawChartData['trackData'] = []
 	const allocatesEmptyExpert = rules.midiTrackAllocation === 'difficultiesWithNotesAndExpert'
+	const seenInstruments = new Set<Instrument>()
 
 	for (const t of tracks) {
 		const instrument = instrumentNameMap[t.trackName as InstrumentTrackName]
 		if (instrument === undefined) continue // vocal/EVENTS tracks handled elsewhere
+		// Clone Hero marks the instrument as seen even when its first track has no notes.
+		if (rules.midiDuplicateInstrumentTracks === 'firstWins' && seenInstruments.has(instrument)) continue
+		seenInstruments.add(instrument)
 		const instrumentType = getInstrumentType(instrument)
 		const { eventEnds, textEvents, versusPhrases, animations, unrecognizedEvents: trackUnrecognized } =
 			scanInstrumentTrack(t.trackEvents, instrumentType, t.sourceName)

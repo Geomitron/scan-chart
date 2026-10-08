@@ -8,18 +8,21 @@ describe('parse profiles', () => {
 			{
 			  "canonical20260801": {
 			    "chartTrackAllocation": "sectionsWithNotes",
+			    "midiDuplicateInstrumentTracks": "firstWins",
 			    "midiTapEnd": "inclusive",
 			    "midiTrackAllocation": "difficultiesWithNotes",
 			    "profile": "canonical20260801",
 			  },
 			  "frozenLegacy6142": {
 			    "chartTrackAllocation": "everySection",
+			    "midiDuplicateInstrumentTracks": "keepAll",
 			    "midiTapEnd": "exclusive",
 			    "midiTrackAllocation": "difficultiesWithNotesAndExpert",
 			    "profile": "frozenLegacy6142",
 			  },
 			  "scanner": {
 			    "chartTrackAllocation": "everySection",
+			    "midiDuplicateInstrumentTracks": "keepAll",
 			    "midiTapEnd": "exclusive",
 			    "midiTrackAllocation": "difficultiesWithNotes",
 			    "profile": "scanner",
