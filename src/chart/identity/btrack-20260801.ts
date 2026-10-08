@@ -326,16 +326,13 @@ function assertCanonicalRecordOrder(semantics: CanonicalTrackSemantics): void {
 	assertNonoverlappingRanges(semantics.solos, 'solo')
 	assertStrictTicks(semantics.rangeShifts, 'range shift')
 
-	const flexEnds = new Map<boolean, bigint>()
-	for (let index = 0; index < semantics.flexLanes.length; index++) {
+	// Flex lanes may overlap, including lanes of the same type; only their order is canonical.
+	for (let index = 1; index < semantics.flexLanes.length; index++) {
 		const lane = semantics.flexLanes[index]
 		const previous = semantics.flexLanes[index - 1]
-		if (previous && (lane.tick < previous.tick || (lane.tick === previous.tick && (previous.isDouble || !lane.isDouble)))) {
+		if (lane.tick < previous.tick || (lane.tick === previous.tick && (previous.isDouble || !lane.isDouble))) {
 			throw new RangeError('flex lanes must be ordered by tick, then single before double')
 		}
-		const priorEnd = flexEnds.get(lane.isDouble)
-		if (priorEnd !== undefined && lane.tick < priorEnd) throw new RangeError('flex lanes of the same type must not overlap')
-		flexEnds.set(lane.isDouble, lane.tick + lane.length)
 	}
 
 	for (let index = 1; index < semantics.drumFreestyle.length; index++) {
@@ -708,7 +705,6 @@ function parseRecognizedSections(
 		let previousFlexDouble: boolean | undefined
 		let previousNoteType: number | undefined
 		let previousPhraseEnd: bigint | undefined
-		const previousFlexEnd = new Map<boolean, bigint>()
 		const previousNoteEnd = new Map<number, bigint>()
 		for (let index = 0; index < countResult; index++) {
 			const offset = 4 + index * recordSize
@@ -757,11 +753,6 @@ function parseRecognizedSections(
 						return invalidRecord(entry.id, index, 'isDouble', 'orderNoncanonical')
 					}
 					previousFlexDouble = isDouble === 1
-					const priorEnd = previousFlexEnd.get(isDouble === 1)
-					if (priorEnd !== undefined && tick < priorEnd) {
-						return invalidRecord(entry.id, index, 'length', 'overlapNoncanonical')
-					}
-					previousFlexEnd.set(isDouble === 1, tick + length)
 					mutable.flexLanes.push({ tick, length, isDouble: isDouble === 1 })
 				}
 				if (entry.id === SECTION_DRUM_FREESTYLE) {

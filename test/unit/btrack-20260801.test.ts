@@ -280,4 +280,46 @@ describe('CHNF/20260801', () => {
 
 		for (const [input, code] of cases) expectRejectedCode(input, code)
 	})
+
+	it('accepts overlapping flex lanes of the same type, as the BTrack spec allows', () => {
+		const semantics: CanonicalTrackSemantics = {
+			...emptyTrack(),
+			flexLanes: [
+				{ tick: 0n, length: 768n, isDouble: false },
+				{ tick: 0n, length: 100n, isDouble: true },
+				{ tick: 50n, length: 100n, isDouble: true },
+				{ tick: 384n, length: 768n, isDouble: false },
+			],
+			notes: [
+				{ tick: 0n, length: 0n, type: noteTypes.redDrum, flags: noteFlags.tom },
+				{ tick: 100n, length: 0n, type: noteTypes.redDrum, flags: noteFlags.tom },
+				{ tick: 400n, length: 0n, type: noteTypes.redDrum, flags: noteFlags.tom },
+			],
+		}
+		const identity = identifyCanonicalTrack(semantics)
+		const read = readBTrack20260801(identity.physicalBTrack.bytes)
+		expect(read.kind).toBe('accepted')
+		if (read.kind !== 'accepted') return
+		expect(read.semantics).toEqual(semantics)
+		expect(read.identity.trackHash.value).toBe(identity.trackHash.value)
+	})
+
+	it('still requires flex lanes in tick order with single before double and no repeated tick and type', () => {
+		const note = { tick: 0n, length: 0n, type: noteTypes.redDrum, flags: noteFlags.tom }
+		const lanes = (flexLanes: CanonicalTrackSemantics['flexLanes']) => () => identifyCanonicalTrack({ ...emptyTrack(), flexLanes, notes: [note] })
+		expect(lanes([{ tick: 0n, length: 10n, isDouble: true }, { tick: 0n, length: 10n, isDouble: false }])).toThrow('single before double')
+		expect(lanes([{ tick: 0n, length: 10n, isDouble: false }, { tick: 0n, length: 20n, isDouble: false }])).toThrow('single before double')
+
+		const lane = (tick: bigint, isDouble: number) => bytes(17, view => {
+			view.setBigInt64(0, tick, true)
+			view.setBigInt64(8, 10n, true)
+			view.setUint8(16, isDouble)
+		})
+		const notes = counted(bytes(24, view => {
+			view.setUint32(16, noteTypes.redDrum, true)
+			view.setUint32(20, noteFlags.tom, true)
+		}))
+		expectRejectedCode(physical([{ id: 1n, payload: resolution }, { id: 6n, payload: counted(lane(0n, 0), lane(0n, 0)) }, { id: 9n, payload: notes }]),
+			'recordValueInvalid')
+	})
 })
