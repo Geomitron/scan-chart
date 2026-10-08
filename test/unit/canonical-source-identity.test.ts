@@ -190,4 +190,28 @@ describe('canonical source identity', () => {
 		const midiTrack = parsedMidi.trackData.find(track => track.instrument === 'guitar' && track.difficulty === 'expert')!
 		expect(midiTrack.textEvents.some(event => event.text === '[ld_range_shift 3 1 5]')).toBe(true)
 	})
+
+	it('keeps overlapping same-type flex lanes from the source and hashes them', () => {
+		const parsed = canonical20260801.parseSource({
+			source: {
+				format: 'chart',
+				bytes: chart({
+					Song: ['Resolution = 192'],
+					SyncTrack: ['0 = B 120000'],
+					Events: [],
+					ExpertDrums: ['0 = N 1 0', '0 = S 65 768', '0 = S 65 100', '384 = N 1 0', '384 = S 65 768', '768 = N 1 0'],
+				}),
+			},
+			modifiers: defaultMetadata,
+		})
+		expect(parsed.kind).toBe('accepted')
+		if (parsed.kind !== 'accepted') return
+		const track = parsed.chart.tracks[0]
+		expect(track.semantics.flexLanes).toEqual([
+			{ tick: 0n, length: 768n, isDouble: false },
+			{ tick: 384n, length: 768n, isDouble: false },
+		])
+		const identity = canonical20260801.calculateTrackIdentity(track)
+		expect(canonical20260801.readBTrack(identity.physicalBTrack.bytes).kind).toBe('accepted')
+	})
 })
