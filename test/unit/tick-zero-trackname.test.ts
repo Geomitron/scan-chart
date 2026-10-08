@@ -1,17 +1,14 @@
 /**
  * Tests for the MIDI track-name discovery in `getTracks`. Some charts emit
- * multiple `trackName` events at tick 0 — typically a bogus or descriptive
- * name first (e.g. `[ENHANCED_OPENS]`, `TEMPO TRACK`, the song title)
- * followed by the real instrument name (e.g. `PART BASS`). YARG.Core takes
- * only the first tick-0 trackName and drops the track if it isn't a known
- * instrument; scan-chart intentionally does NOT match that behavior. We
- * walk all tick-0 trackName events and accept the first one that matches a
- * known instrument so these charts stay playable.
+ * multiple `trackName` events at tick 0. As in Clone Hero, the last one names
+ * the track (each one replaces the previous in DryWetMidi's TrackChunk), in
+ * every profile.
  *
  * Real-world charts that hit this path:
- *   - "Culture Killer - Blindfolded Death" (PART BASS, PART GUITAR)
- *   - "Periphery - Ji" (PART DRUMS)
- *   - "school food punishment - close, down, back to" (PART DRUMS)
+ *   - "Culture Killer - Blindfolded Death" ([ENHANCED_OPENS], PART BASS): bass
+ *   - "Periphery - Ji" (TEMPO TRACK, PART DRUMS): drums
+ *   - "HEALTH - Isn't Everyone" (PART DRUMS, [ENABLE_CHART_DYNAMICS]): no drums
+ *   - "Kristoff Miro - Reflejo" (PART BASS, PART GUITAR): guitar
  */
 
 import { describe, it, expect } from 'vitest'
@@ -56,43 +53,68 @@ function trackWithLeadingNames(
 }
 
 describe('MIDI: tick-0 trackName resolution', () => {
-	it('accepts a recognized instrument trackName even when a bogus name comes first at tick 0', () => {
-		// PART BASS expert kick is MIDI note 95. (Same difficulty layout as guitar.)
+	const instruments = (midi: Uint8Array) => {
+		const canonical = canonical20260801.parseSource({ source: { format: 'mid', bytes: midi }, modifiers: defaultMetadata })
+		return {
+			scanner: parseChartFile(midi, 'mid').trackData.map(track => track.instrument),
+			legacy: parseChartFileFrozenLegacyIdentity(midi, 'mid').trackData.map(track => track.instrument),
+			canonical: canonical.kind === 'accepted' ? canonical.chart.tracks.map(track => track.key.instrument) : null,
+		}
+	}
+	const everyProfile = (instrument: string[]) => ({ scanner: instrument, legacy: instrument, canonical: instrument })
+
+	it('accepts a recognized instrument trackName when a bogus name comes first at tick 0', () => {
+		// PART BASS expert green is MIDI note 96. (Same difficulty layout as guitar.)
 		const bass = trackWithLeadingNames(['[ENHANCED_OPENS]', 'PART BASS'], 96)
 		const midi = buildMidi(480, [tempoTrack(), bass])
-		const result = parseNotesFromMidi(midi, defaultMetadata)
 
-		const bassTracks = result.trackData.filter(t => t.instrument === 'bass')
-		expect(bassTracks.length).toBeGreaterThan(0)
-		expect(result.unrecognizedMidiTracks).toHaveLength(0)
+		expect(instruments(midi)).toEqual(everyProfile(['bass']))
+		expect(parseNotesFromMidi(midi, defaultMetadata).unrecognizedMidiTracks).toHaveLength(0)
 	})
 
-	it('accepts PART DRUMS even when a descriptive name (e.g. song title) comes first at tick 0', () => {
+	it('accepts PART DRUMS when a descriptive name (e.g. song title) comes first at tick 0', () => {
 		// PART DRUMS expert red drum is MIDI note 97.
 		const drums = trackWithLeadingNames(['school food punishment - close, down, back to', 'PART DRUMS'], 97)
 		const midi = buildMidi(480, [tempoTrack(), drums])
-		const result = parseNotesFromMidi(midi, defaultMetadata)
 
-		const drumTracks = result.trackData.filter(t => t.instrument === 'drums')
-		expect(drumTracks.length).toBeGreaterThan(0)
-		expect(result.unrecognizedMidiTracks).toHaveLength(0)
+		expect(instruments(midi)).toEqual(everyProfile(['drums']))
+		expect(parseNotesFromMidi(midi, defaultMetadata).unrecognizedMidiTracks).toHaveLength(0)
 	})
 
-	it('takes the first MATCHING name when multiple recognized names appear at tick 0', () => {
-		// If two known instrument names somehow appear at tick 0 on the same
-		// track, the first one wins. (Pathological but well-defined.)
+	it('drops the instrument when an unrecognized name follows it at tick 0', () => {
+		const drums = trackWithLeadingNames(['PART DRUMS', '[ENABLE_CHART_DYNAMICS]'], 97)
+		const midi = buildMidi(480, [tempoTrack(), drums])
+
+		expect(instruments(midi)).toEqual(everyProfile([]))
+		const unrecognized = parseNotesFromMidi(midi, defaultMetadata).unrecognizedMidiTracks
+		expect(unrecognized.map(track => track.trackName)).toEqual(['[ENABLE_CHART_DYNAMICS]'])
+	})
+
+	it('takes the last name when several recognized names appear at tick 0', () => {
 		const ambiguous = trackWithLeadingNames(['PART BASS', 'PART GUITAR'], 96)
 		const midi = buildMidi(480, [tempoTrack(), ambiguous])
-		const result = parseNotesFromMidi(midi, defaultMetadata)
 
-		expect(result.trackData.some(t => t.instrument === 'bass')).toBe(true)
-		expect(result.trackData.some(t => t.instrument === 'guitar')).toBe(false)
+		expect(instruments(midi)).toEqual(everyProfile(['guitar']))
 	})
 
-	it('captures the first tick-0 trackName as unrecognized when no known instrument matches', () => {
+	it('reads the events track only when EVENTS is its last tick-0 name', () => {
+		const events = (names: string[]): MidiData['tracks'][number] => [
+			...names.map(text => ({ deltaTime: 0, type: 'trackName' as const, text })),
+			{ deltaTime: 0, type: 'text', text: '[section intro]' },
+			{ deltaTime: 0, type: 'endOfTrack' },
+		]
+		const sections = (names: string[]) => {
+			const midi = buildMidi(480, [tempoTrack(), events(names), trackWithLeadingNames(['PART BASS'], 96)])
+			return parseNotesFromMidi(midi, defaultMetadata).sections.map(section => section.name)
+		}
+
+		expect(sections(['TEMPO TRACK', 'EVENTS'])).toEqual(['intro'])
+		expect(sections(['EVENTS', "Plato's Tripartite"])).toEqual([])
+	})
+
+	it('captures the last tick-0 trackName as unrecognized when it is not a known track', () => {
 		// VENUE isn't a recognized instrument track, so it's stored verbatim
-		// in unrecognizedMidiTracks for round-trip. The captured trackName
-		// should be the first one we saw at tick 0.
+		// in unrecognizedMidiTracks for round-trip.
 		const venue: MidiData['tracks'][number] = [
 			{ deltaTime: 0, type: 'trackName', text: 'CUSTOM VENUE LEAD' },
 			{ deltaTime: 0, type: 'trackName', text: 'VENUE' },
@@ -105,7 +127,7 @@ describe('MIDI: tick-0 trackName resolution', () => {
 
 		expect(result.trackData).toHaveLength(0)
 		expect(result.unrecognizedMidiTracks).toHaveLength(1)
-		expect(result.unrecognizedMidiTracks[0].trackName).toBe('CUSTOM VENUE LEAD')
+		expect(result.unrecognizedMidiTracks[0].trackName).toBe('VENUE')
 	})
 
 	it('ignores trackName events past tick 0', () => {
