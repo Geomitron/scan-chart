@@ -16,6 +16,11 @@ export interface ParseRules {
 	readonly midiTrackAllocation: 'difficultiesWithNotes' | 'difficultiesWithNotesAndExpert'
 	/** Which `.chart` difficulty sections become tracks: every recognized section, or only sections with a note. */
 	readonly chartTrackAllocation: 'everySection' | 'sectionsWithNotes'
+	/**
+	 * What happens when several MIDI tracks name the same instrument. `firstWins` reads only the first such
+	 * track, as Clone Hero does; `keepAll` parses each of them.
+	 */
+	readonly midiDuplicateInstrumentTracks: 'keepAll' | 'firstWins'
 }
 
 const scanner: ParseRules = Object.freeze({
@@ -23,6 +28,7 @@ const scanner: ParseRules = Object.freeze({
 	midiTapEnd: 'exclusive',
 	midiTrackAllocation: 'difficultiesWithNotes',
 	chartTrackAllocation: 'everySection',
+	midiDuplicateInstrumentTracks: 'keepAll',
 })
 
 const frozenLegacy6142: ParseRules = Object.freeze({
@@ -30,6 +36,7 @@ const frozenLegacy6142: ParseRules = Object.freeze({
 	midiTapEnd: 'exclusive',
 	midiTrackAllocation: 'difficultiesWithNotesAndExpert',
 	chartTrackAllocation: 'everySection',
+	midiDuplicateInstrumentTracks: 'keepAll',
 })
 
 const canonical20260801: ParseRules = Object.freeze({
@@ -37,6 +44,7 @@ const canonical20260801: ParseRules = Object.freeze({
 	midiTapEnd: 'inclusive',
 	midiTrackAllocation: 'difficultiesWithNotes',
 	chartTrackAllocation: 'sectionsWithNotes',
+	midiDuplicateInstrumentTracks: 'firstWins',
 })
 
 export const parseRules = Object.freeze({ scanner, frozenLegacy6142, canonical20260801 })

@@ -74,3 +74,34 @@ describe('canonical SongHash membership', () => {
 		expect(canonicalKeys('mid', bytes)).toEqual(['guitar:expert', 'drums:medium'])
 	})
 })
+
+describe('MIDI tracks that name the same instrument', () => {
+	const firstDrums = midiTrack('PART DRUMS', [{ tick: 0, noteNumber: 97 }])
+	const secondDrums = midiTrack('part drum', [{ tick: 1920, noteNumber: 98 }, { tick: 1920, noteNumber: 84 }])
+
+	it('reads only the first track in the canonical profile, including for chart duration', () => {
+		const bytes = midi([firstDrums, secondDrums])
+		const parsed = canonical20260801.parseSource({ source: { format: 'mid', bytes }, modifiers: defaultMetadata })
+		if (parsed.kind !== 'accepted') throw new Error(parsed.errors[0].message)
+		expect(parsed.chart.tracks.map(track => `${track.key.instrument}:${track.key.difficulty}`)).toEqual(['drums:expert'])
+		expect(parsed.chart.tracks[0].semantics.notes.map(note => note.tick)).toEqual([0n])
+		expect(parsed.chart.duration.contentLastTick).toBe(0n)
+	})
+
+	it('lets a noteless first track hide a later one, as Clone Hero marks the instrument seen', () => {
+		const bytes = midi([midiTrack('PART GUITAR', [{ tick: 0, noteNumber: 116 }]), midiTrack('T1 GEMS', [{ tick: 0, noteNumber: 96 }])])
+		expect(canonicalKeys('mid', bytes)).toEqual([])
+	})
+
+	it('keeps both tracks in the scanner and hashes the first in the legacy profile', () => {
+		const bytes = midi([firstDrums, secondDrums])
+		expect(parseChartFile(bytes, 'mid').trackData.map(track => `${track.instrument}:${track.difficulty}`))
+			.toEqual(['drums:expert', 'drums:expert', 'drums:hard'])
+		const legacy = frozenLegacy6142.parseSource({ source: { format: 'mid', bytes }, modifiers: defaultMetadata })
+		const firstOnly = frozenLegacy6142.parseSource({ source: { format: 'mid', bytes: midi([firstDrums]) }, modifiers: defaultMetadata })
+		if (legacy.kind !== 'accepted' || firstOnly.kind !== 'accepted') throw new Error('Expected legacy parses')
+		const hash = (chart: typeof legacy.chart) =>
+			frozenLegacy6142.calculateTrackIdentity({ chart, instrument: 'drums', difficulty: 'expert' }).trackHash.value
+		expect(hash(legacy.chart)).toBe(hash(firstOnly.chart))
+	})
+})
