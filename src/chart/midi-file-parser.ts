@@ -381,52 +381,41 @@ function getTracks(midiData: MidiData) {
 	const unrecognizedMidiTracks: { trackName: string; events: MidiEvent[] }[] = []
 
 	for (const [i, track] of midiData.tracks.entries()) {
-		// We intentionally do NOT match YARG.Core's GetTrackName here, which
-		// returns the FIRST tick-0 trackName even if it isn't a recognized
-		// instrument. Some real charts (e.g. "Culture Killer - Blindfolded
-		// Death", "Periphery - Ji", "school food punishment - close, down,
-		// back to") emit a bogus leading trackName at tick 0 immediately
-		// followed by the real instrument trackName, also at tick 0:
+		// A track is named by its LAST tick-0 trackName, as in Clone Hero,
+		// where each one replaces the previous (DryWetMidi TrackChunk). Some
+		// real charts emit a bogus trackName before the real one, and keep
+		// their instrument:
 		//
-		//   [ENHANCED_OPENS] → PART BASS    (Culture Killer)
+		//   [ENHANCED_OPENS] → PART BASS    (Culture Killer - Blindfolded Death)
 		//   TEMPO TRACK      → PART DRUMS   (Periphery - Ji)
 		//   <song title>     → PART DRUMS   (school food punishment)
 		//
-		// YARG drops these tracks; we keep them. Walk every tick-0 trackName
-		// and accept the first one that matches a recognized instrument, in any
-		// letter case. Capture the first tick-0 trackName for unrecognized-track
-		// round-trip purposes regardless of whether anything matched.
-		let firstTickZeroTrackName: string | null = null
-		let recognizedTrackName: TrackName | null = null
-		let recognizedSourceName = ''
+		// A real name followed by another one is lost, as it is in Clone Hero:
+		// "PART DRUMS" then "[ENABLE_CHART_DYNAMICS]" (HEALTH - Isn't Everyone)
+		// is not a drums track. Names are matched in any letter case.
+		let sourceName: string | null = null
 		for (const event of track) {
 			if (event.deltaTime !== 0) {
 				break
 			}
 			if (event.type === 'trackName') {
-				if (firstTickZeroTrackName === null) {
-					firstTickZeroTrackName = event.text
-				}
-				const trackName = trackNamesByLowercase.get(toLowerInvariant(event.text))
-				if (recognizedTrackName === null && trackName !== undefined) {
-					recognizedTrackName = trackName
-					recognizedSourceName = event.text
-				}
+				sourceName = event.text
 			}
 		}
+		const trackName = sourceName === null ? undefined : trackNamesByLowercase.get(toLowerInvariant(sourceName))
 
 		// Clone Hero reads track 0 only as the conductor track and, if it is named so, the events track.
-		if (recognizedTrackName !== null && (i !== 0 || recognizedTrackName === 'EVENTS')) {
+		if (sourceName !== null && trackName !== undefined && (i !== 0 || trackName === 'EVENTS')) {
 			tracks.push({
-				trackName: recognizedTrackName,
-				sourceName: recognizedSourceName,
+				trackName,
+				sourceName,
 				trackEvents: track,
 			})
 		} else if (i !== 0) {
 			// Track 0 is the conductor track (tempo/timeSignature) and isn't a
 			// musical track — skip it from unrecognized capture.
 			unrecognizedMidiTracks.push({
-				trackName: firstTickZeroTrackName ?? '',
+				trackName: sourceName ?? '',
 				events: track,
 			})
 		}

@@ -1120,7 +1120,7 @@ function membershipCases(): AuthoredSongCase[] {
 			]),
 			songIni(songIniBase)),
 		midiWithIni('song-midi-tick-zero-track-names',
-			'C4c: with several tick-0 track names the first recognized one names the track: PART DRUMS before Drums, PART BASS before PART GUITAR, and PART KEYS after Keys.',
+			'C4c: with several tick-0 track names the last one names the track, as in Clone Hero: PART DRUMS then Drums is not drums, PART BASS then PART GUITAR is guitar, and Keys then PART KEYS is keys.',
 			midi([
 				midiTrack(['PART DRUMS', 'Drums'], note(0, 97, 10)),
 				midiTrack(['PART BASS', 'PART GUITAR'], note(0, 96, 10)),
