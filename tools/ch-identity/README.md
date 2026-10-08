@@ -1,4 +1,4 @@
-# ch-identity
+# ch-identity 0.2.0
 
 `ch-identity` generates frozen-legacy and canonical SongHash, TrackHash, and BTrack reference artifacts from Clone Hero song folders.
 
@@ -17,11 +17,15 @@ node ch-identity.cjs generate C:\path\to\song-or-library --out C:\path\to\output
 
 The output directory may be missing or empty. The tool refuses files and non-empty directories, then publishes the completed output atomically. For a library, it processes each song folder independently and records failures in the top-level `manifest.json`.
 
-Canonical duration is derived from the complete chart at song speed 1.0. The tool finds the latest regular-note end across all instruments and difficulties, adds one beat, converts that tick through the complete tempo map, and rounds up once to milliseconds. Audio, `song_length`, vocal-note collections, and chart events do not affect canonical duration.
+Canonical `songDurationMs` is derived from the complete chart at song speed 1.0. The tool finds the latest regular-note end across all instruments and difficulties, adds one quarter-note in ticks, converts that tick through the complete tempo map, and rounds up once to milliseconds. This mirrors CH's `Song.GetLastTick()` and `Song.TickPositionToTime()`: tempo changes during the added beat count; time signature does not change its tick length. Audio, `song_length`, vocal-note collections, and chart events do not affect canonical duration.
 
 Each Track also records its own duration at song speed 1.0. Track duration runs from chart time zero to that Track's latest regular-note end, uses the complete tempo map, does not add a beat, rounds up to milliseconds, and has a one-millisecond minimum. This is the trusted time scale for labeling the Track's existing 50 validation-graph buckets; it does not change or regenerate those buckets.
 
-The frozen legacy SongHash needs the historical duration used by released clients. The tool uses a nonzero `song_length` from `song.ini` for that profile. If it is absent, the manifest reports the legacy SongHash as unavailable while still generating both generations of TrackHash and BTrack and the canonical SongHash.
+Legacy length follows CH's `Cache.TryUpdateChartMetadata` order: a nonzero signed-int32 `song_length`, then non-crowd audio length, then chart length. This bundle does not include BASS. If the INI length is missing, zero, or invalid and a supported audio stem is present, it reports `audioLengthUnavailable` while still generating both TrackHash/BTrack profiles and canonical SongHash. Without supported audio stems, it uses CH's chart fallback and records `chart-fallback`. Supported stems and extensions match CH; crowd and preview audio do not determine legacy length.
+
+INI section names and keys are lowercased, and the last duplicate key wins in both profiles. Decoding matches CH's BOM detection for UTF-8/16/32, strict UTF-8 without a BOM, and ISO-8859-1 fallback for invalid BOM-less UTF-8. BOM-less UTF-16/32 is not guessed; its embedded NULs can prevent recognition of `song_length`. Malformed BOM-tagged Unicode is rejected. Canonical duration remains independent of INI length.
+
+Legacy identity retains noteless MIDI tracks, including the Expert track CH creates for each recognized instrument. Canonical identity prunes MIDI tracks with no regular notes. The general-purpose scanner and round-trip writer retain their existing track allocation behavior.
 
 Each song manifest records both Song-duration profiles, each Track duration, input checksums, hash profiles, notices, and checksums for every artifact. It also records the source-tree SHA-256 used to build the tool, so a dirty build remains identifiable.
 

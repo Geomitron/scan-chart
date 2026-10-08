@@ -3,12 +3,13 @@ import { lstat, mkdir, mkdtemp, readFile, readdir, rename, rm, rmdir, writeFile 
 import { dirname, extname, join, relative, resolve, sep } from 'node:path'
 
 import { parseChartAndIni } from '../../src/chart/parse-chart-and-ini'
+import { parseChartFileFrozenLegacyIdentity } from '../../src/chart/parse-chart-file'
 import { canonical20260801, songBundle20251010 } from '../../src/chart/identity/public'
 import type { TrackDuration } from '../../src/chart/chart-duration'
 import type { Difficulty, File, Instrument, ScannedChartMetadata } from '../../src/types'
 import type { SongHashMetadata } from '../../src/chart/identity/song-hash-20251010'
 import { identityTrackKey, IdentityTrackKey } from '../../src/chart/identity/track-key'
-import { parseHistoricalDuration } from './duration'
+import { resolveHistoricalDuration } from './duration'
 
 const skippedDirectories = new Set(['.git', 'node_modules'])
 
@@ -71,7 +72,7 @@ function json(value: unknown): Uint8Array {
 export function toolProvenance(): object {
 	return {
 		name: 'ch-identity',
-		version: '0.1.0',
+		version: '0.2.0',
 		scanChartVersion: process.env.SCAN_CHART_BUILD_VERSION ?? 'working-tree',
 		scanChartCommit: process.env.SCAN_CHART_BUILD_COMMIT ?? 'working-tree',
 		scanChartDirty: process.env.SCAN_CHART_BUILD_DIRTY !== 'false',
@@ -133,6 +134,7 @@ async function loadFolder(folder: string): Promise<{
 	readonly sourceName: string
 	readonly sourceBytes: Uint8Array
 	readonly iniBytes: Uint8Array | null
+	readonly fileNames: readonly string[]
 }> {
 	const entries = await readdir(folder, { withFileTypes: true })
 	const names = entries.filter(entry => entry.isFile()).map(entry => entry.name)
@@ -149,7 +151,7 @@ async function loadFolder(folder: string): Promise<{
 		iniBytes = new Uint8Array(await readFile(join(folder, iniNames[0])))
 		files.push({ fileName: 'song.ini', data: iniBytes })
 	}
-	return { files, sourceName, sourceBytes, iniBytes }
+	return { files, sourceName, sourceBytes, iniBytes, fileNames: names }
 }
 
 function songMetadata(metadata: ScannedChartMetadata): SongHashMetadata {
@@ -237,8 +239,9 @@ async function generateSong(folder: string, inputRoot: string, outputRoot: strin
 	if (!parsed.parsedChart) {
 		throw new Error(parsed.chartFolderIssues.map(issue => issue.description).join(' ') || 'Chart parser rejected the source')
 	}
-	const iniText = loaded.iniBytes === null ? null : new TextDecoder().decode(loaded.iniBytes)
-	const historicalDuration = parseHistoricalDuration(iniText)
+	const historicalDuration = resolveHistoricalDuration(loaded.iniBytes, loaded.fileNames, parseChartFileFrozenLegacyIdentity(
+		parsed.parsedChart.chartBytes, parsed.parsedChart.format, parsed.parsedChart.iniChartModifiers,
+	))
 	const bundle = songBundle20251010.calculate({
 		source: { format: parsed.parsedChart.format, bytes: parsed.parsedChart.chartBytes },
 		modifiers: parsed.parsedChart.iniChartModifiers,
@@ -275,6 +278,7 @@ async function generateSong(folder: string, inputRoot: string, outputRoot: strin
 			ini: loaded.iniBytes === null ? null : { bytes: loaded.iniBytes.byteLength, sha256: sha256(loaded.iniBytes) },
 		},
 		duration: {
+			songDurationMs: bundle.canonical20260801.duration.durationMs,
 			canonical: bundle.canonical20260801.duration,
 			frozenLegacy: historicalDuration,
 		},

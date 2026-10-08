@@ -29,6 +29,35 @@ afterEach(async () => {
 })
 
 describe('identity CLI generation', () => {
+	it('uses the chart fallback without audio and keeps canonical duration independent of INI length and encoding', async () => {
+		const root = await temporaryDirectory()
+		const variants = [
+			{ name: 'utf8', ini: Buffer.from('[song]\nsong_length = 9999\nSONG_LENGTH = 2345'), legacy: '2345', source: 'song.ini:song_length' },
+			{ name: 'utf16', ini: Buffer.from('\ufeff[song]\nsong_length = 9999\nSONG_LENGTH = 2345', 'utf16le'), legacy: '2345', source: 'song.ini:song_length' },
+			{ name: 'no-bom', ini: Buffer.from('[song]\nsong_length = 2345', 'utf16le'), legacy: '1000', source: 'chart-fallback' },
+			{ name: 'invalid-last', ini: Buffer.from('[song]\nsong_length = 9999\nSONG_LENGTH = invalid'), legacy: '1000', source: 'chart-fallback' },
+		]
+		const canonicalHashes = new Set<string>()
+		for (const variant of variants) {
+			const song = join(root, variant.name)
+			const output = join(root, `${variant.name}-output`)
+			await mkdir(song)
+			await writeFile(join(song, 'notes.chart'), validChart())
+			await writeFile(join(song, 'song.ini'), variant.ini)
+			await writeFile(join(song, 'crowd.ogg'), 'Crowd is excluded from CH length scanning')
+			const result = await generate({ input: song, output })
+			expect(result.results[0].kind).toBe('success')
+			if (result.results[0].kind !== 'success') throw new Error(result.results[0].error)
+			expect(result.results[0].legacySongHash).not.toBeNull()
+			canonicalHashes.add(result.results[0].canonicalSongHash)
+			const manifest = await readFile(join(output, 'song', 'manifest.json'), 'utf8')
+			expect(manifest).toContain('"songDurationMs": "1000"')
+			expect(manifest).toContain(`"source": "${variant.source}"`)
+			expect(manifest).toContain(`"durationMs": "${variant.legacy}"`)
+		}
+		expect(canonicalHashes.size).toBe(1)
+	})
+
 	it('accepts an existing empty output directory', async () => {
 		const root = await temporaryDirectory()
 		const song = join(root, 'song')
@@ -121,6 +150,7 @@ describe('identity CLI generation', () => {
 		const output = join(root, 'output')
 		await mkdir(song)
 		await writeFile(join(song, 'notes.chart'), validChart())
+		await writeFile(join(song, 'song.ogg'), 'Audio is present; this tool cannot measure its BASS duration')
 
 		const result = await generate({ input: song, output })
 		expect(result.results[0]).toMatchObject({ kind: 'success', legacySongHash: null })
@@ -130,7 +160,7 @@ describe('identity CLI generation', () => {
 		await expect(access(join(output, 'song', 'frozenLegacy6142', 'tracks', '001-keysghl-easy', 'physical.btrack')))
 			.resolves.toBeUndefined()
 		const manifest = await readFile(join(output, 'song', 'manifest.json'), 'utf8')
-		expect(manifest).toContain('"reason": "missingSongLength"')
+		expect(manifest).toContain('"reason": "audioLengthUnavailable"')
 		expect(manifest).toContain('"reason": "historicalDurationUnavailable"')
 		expect(manifest).toContain('"definition": "strikecore-selected-track-last-note-v1"')
 		expect(manifest).toContain('"durationMs": "500"')
