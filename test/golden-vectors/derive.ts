@@ -2,12 +2,15 @@ import { base64url } from 'rfc4648'
 
 import { CanonicalTrackIdentity, CanonicalTrackSemantics } from 'src/chart/identity/btrack-20260801'
 import { canonical20260801, frozenLegacy6142, FrozenLegacyTrackIdentity } from 'src/chart/identity/public'
+import type { SongHashMetadata } from 'src/chart/identity/song-hash-20251010'
+import { parseChartAndIni } from 'src/chart/parse-chart-and-ini'
 import { parseChartFile } from 'src/chart/parse-chart-file'
 import { pruneEmptyPhrases } from 'src/chart/track-hasher'
 import { IniChartModifiers } from 'src/chart/types'
-import { Difficulty, Instrument } from 'src/types'
+import { Difficulty, File, Instrument } from 'src/types'
 
 import { AuthoredSourceCase, resolvedModifiers } from './cases'
+import { ResolvedSongHashMetadata } from './schema'
 
 export function normalize(value: unknown): unknown {
 	if (typeof value === 'bigint') return value.toString(10)
@@ -111,5 +114,119 @@ export function deriveSourceCase(sourceCase: AuthoredSourceCase, modifiers: IniC
 	return {
 		legacy: legacyPipeline(legacyIdentity, legacySemantics),
 		canonical: canonicalPipeline(canonicalIdentity, canonicalTrack.semantics, canonicalParsed.notices),
+	}
+}
+
+/** Derives the canonical pipeline alone, for suites from v3 on. */
+export function deriveCanonicalSourceCase(sourceCase: AuthoredSourceCase, modifiers: IniChartModifiers): DerivedPipeline {
+	const parsed = canonical20260801.parseSource({ source: { format: sourceCase.format, bytes: sourceCase.bytes }, modifiers })
+	if (parsed.kind !== 'accepted') throw new Error(`${sourceCase.id}: canonical parser rejected the source`)
+	const track = parsed.chart.tracks.find(candidate =>
+		candidate.key.instrument === sourceCase.target.instrument && candidate.key.difficulty === sourceCase.target.difficulty)
+	if (!track) throw new Error(`${sourceCase.id}: canonical target was not parsed`)
+	return canonicalPipeline(canonical20260801.calculateTrackIdentity(track), track.semantics, parsed.notices)
+}
+
+/** The song.ini keys that change how a chart parses. */
+export function chartModifiers(values: IniChartModifiers): IniChartModifiers {
+	return {
+		song_length: values.song_length,
+		hopo_frequency: values.hopo_frequency,
+		eighthnote_hopo: values.eighthnote_hopo,
+		multiplier_note: values.multiplier_note,
+		sustain_cutoff_threshold: values.sustain_cutoff_threshold,
+		chord_snap_threshold: values.chord_snap_threshold,
+		five_lane_drums: values.five_lane_drums,
+		pro_drums: values.pro_drums,
+	}
+}
+
+export interface DerivedSongMember {
+	readonly instrument: Instrument
+	readonly difficulty: Difficulty
+	readonly semantics: CanonicalTrackSemantics
+	readonly physical: Uint8Array
+	readonly projection: Uint8Array
+	readonly digest: Uint8Array
+	readonly trackHash: string
+	readonly trackDuration: { readonly lastNoteEndTick: string; readonly durationMs: string }
+}
+
+export interface DerivedSong {
+	readonly selectedSource: string
+	readonly modifiers: IniChartModifiers
+	readonly metadata: { readonly selected: SongHashMetadata; readonly resolved: ResolvedSongHashMetadata }
+	readonly diagnostics: unknown
+	readonly songDuration: { readonly contentLastTick: string; readonly endTick: string; readonly durationMs: string }
+	readonly members: readonly DerivedSongMember[]
+	readonly preimage: Uint8Array
+	readonly digest: Uint8Array
+	readonly songHash: string
+}
+
+function resolvedStrings(id: string, metadata: SongHashMetadata): ResolvedSongHashMetadata {
+	const text = (value: string | null) => {
+		if (value === null) throw new Error(`${id}: the SongHash writer left a metadata field unset`)
+		return value
+	}
+	return {
+		name: text(metadata.name),
+		artist: text(metadata.artist),
+		album: text(metadata.album),
+		genre: text(metadata.genre),
+		year: text(metadata.year),
+		charter: text(metadata.charter),
+		icon: text(metadata.icon),
+	}
+}
+
+/**
+ * Derives the canonical SongHash of a song folder the way the scanner does: choose the notes file and read song.ini
+ * (`parseChartAndIni`), parse the notes file with the canonical profile and the song.ini chart modifiers, then
+ * hash every member Track and the song with the metadata Clone Hero holds on the song.
+ */
+export function deriveSongCase(id: string, inputs: readonly { readonly name: string; readonly bytes: Uint8Array }[]): DerivedSong {
+	const files: File[] = inputs.map(input => ({ fileName: input.name, data: input.bytes.slice() }))
+	const folder = parseChartAndIni(files)
+	const chart = folder.parsedChart
+	if (!chart) throw new Error(`${id}: the scanner found no chart: ${folder.chartFolderIssues.map(issue => issue.description).join(' ')}`)
+	const selected = files.find(file => file.data === chart.chartBytes)
+	if (!selected) throw new Error(`${id}: the selected notes file is not one of the inputs`)
+	const modifiers = chartModifiers(chart.iniChartModifiers)
+	const parsed = canonical20260801.parseSource({ source: { format: chart.format, bytes: chart.chartBytes }, modifiers })
+	if (parsed.kind !== 'accepted') throw new Error(`${id}: canonical parser rejected the source`)
+	const bundle = canonical20260801.calculateSongBundle({ chart: parsed.chart, metadata: chart.songHashMetadata })
+	const members = bundle.tracks.map(member => {
+		const track = parsed.chart.tracks.find(candidate =>
+			candidate.key.instrument === member.instrument && candidate.key.difficulty === member.difficulty)
+		if (!track) throw new Error(`${id}: SongHash member ${member.instrument}/${member.difficulty} was not parsed`)
+		return {
+			instrument: member.instrument,
+			difficulty: member.difficulty,
+			semantics: track.semantics,
+			physical: member.identity.physicalBTrack.bytes,
+			projection: member.identity.projection.bytes,
+			digest: member.identity.digest.bytes,
+			trackHash: member.identity.trackHash.value,
+			trackDuration: {
+				lastNoteEndTick: member.duration.lastNoteEndTick.toString(10),
+				durationMs: member.duration.durationMs.toString(10),
+			},
+		}
+	})
+	return {
+		selectedSource: selected.fileName,
+		modifiers,
+		metadata: { selected: chart.songHashMetadata, resolved: resolvedStrings(id, bundle.song.metadata) },
+		diagnostics: parsed.notices,
+		songDuration: {
+			contentLastTick: bundle.duration.contentLastTick.toString(10),
+			endTick: bundle.duration.endTick.toString(10),
+			durationMs: bundle.duration.durationMs.toString(10),
+		},
+		members,
+		preimage: bundle.song.preimage,
+		digest: bundle.song.digest,
+		songHash: bundle.song.songHash.value,
 	}
 }
