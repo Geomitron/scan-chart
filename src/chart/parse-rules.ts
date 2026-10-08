@@ -14,24 +14,29 @@ export interface ParseRules {
 	 * that Clone Hero 1.1.0.6142 allocates for every recognized instrument track, even when it has no notes.
 	 */
 	readonly midiTrackAllocation: 'difficultiesWithNotes' | 'difficultiesWithNotesAndExpert'
+	/** Which `.chart` difficulty sections become tracks: every recognized section, or only sections with a note. */
+	readonly chartTrackAllocation: 'everySection' | 'sectionsWithNotes'
 }
 
 const scanner: ParseRules = Object.freeze({
 	profile: 'scanner',
 	midiTapEnd: 'exclusive',
 	midiTrackAllocation: 'difficultiesWithNotes',
+	chartTrackAllocation: 'everySection',
 })
 
 const frozenLegacy6142: ParseRules = Object.freeze({
 	profile: 'frozenLegacy6142',
 	midiTapEnd: 'exclusive',
 	midiTrackAllocation: 'difficultiesWithNotesAndExpert',
+	chartTrackAllocation: 'everySection',
 })
 
 const canonical20260801: ParseRules = Object.freeze({
 	profile: 'canonical20260801',
 	midiTapEnd: 'inclusive',
 	midiTrackAllocation: 'difficultiesWithNotes',
+	chartTrackAllocation: 'sectionsWithNotes',
 })
 
 export const parseRules = Object.freeze({ scanner, frozenLegacy6142, canonical20260801 })

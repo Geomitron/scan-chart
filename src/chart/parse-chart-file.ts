@@ -124,7 +124,8 @@ function parseChartFileWithRules(
 /** Applies the profile's track-allocation rule after notes have been resolved. */
 function isTrackAllocated(noteEventGroups: unknown[][], format: 'chart' | 'mid', rules: ParseRules) {
 	const hasNotes = noteEventGroups.some(group => group.length > 0)
-	return format === 'mid' ? rules.midiTrackAllocation === 'difficultiesWithNotesAndExpert' || hasNotes : true
+	return format === 'mid' ? rules.midiTrackAllocation === 'difficultiesWithNotesAndExpert' || hasNotes
+		: rules.chartTrackAllocation === 'everySection' || hasNotes
 }
 
 // ---------------------------------------------------------------------------
