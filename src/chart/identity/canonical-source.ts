@@ -262,9 +262,7 @@ export function parseCanonicalSource(request: SourceParseRequest): CanonicalPars
 			request.modifiers,
 		)
 		const ranges = collectRangeShifts(request.source.format, parsed.trackData)
-		const tracks = parsed.trackData
-			.filter(track => request.source.format !== 'mid' || track.noteEventGroups.some(group => group.length > 0))
-			.map(track => ({
+		const tracks = parsed.trackData.map(track => ({
 			profile: 'canonical-20260801' as const,
 			key: { instrument: track.instrument, difficulty: track.difficulty },
 			semantics: buildSemantics(parsed, track, ranges.byTrack.get(identityTrackKey(track.instrument, track.difficulty)) ?? []),
