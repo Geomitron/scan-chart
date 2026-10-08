@@ -1,11 +1,11 @@
-# ch-identity 0.2.0
+# ch-identity 0.3.0
 
 `ch-identity` generates frozen-legacy and canonical SongHash, TrackHash, and BTrack reference artifacts from Clone Hero song folders.
 
 ## Requirements
 
 - Node.js 24.6 or later on Windows, macOS, or Linux
-- A song folder or library directory that contains `notes.chart` or `notes.mid`
+- A song folder or library directory that contains `notes.chart` or `notes.mid`. When a folder has both, the tool uses `notes.mid`, as Clone Hero does.
 
 The release bundle is standalone. It does not need a scan-chart checkout, npm install, game files, audio decoders, or BASS.
 
@@ -25,7 +25,9 @@ Legacy length follows CH's `Cache.TryUpdateChartMetadata` order: a nonzero signe
 
 INI section names and keys are lowercased, and the last duplicate key wins in both profiles. Decoding matches CH's BOM detection for UTF-8/16/32, strict UTF-8 without a BOM, and ISO-8859-1 fallback for invalid BOM-less UTF-8. BOM-less UTF-16/32 is not guessed; its embedded NULs can prevent recognition of `song_length`. Malformed BOM-tagged Unicode is rejected. Canonical duration remains independent of INI length.
 
-Legacy identity retains noteless MIDI tracks, including the Expert track CH creates for each recognized instrument. Canonical identity prunes MIDI tracks with no regular notes. The general-purpose scanner and round-trip writer retain their existing track allocation behavior.
+Legacy identity retains noteless MIDI tracks, including the Expert track CH creates for each recognized instrument. Canonical identity includes only tracks with at least one note, in both formats, and reads only the first MIDI track of each instrument. MIDI track names match in any letter case in both profiles.
+
+The canonical SongHash takes the metadata Clone Hero puts on the song: the `[song]` values of a loaded song.ini, otherwise the `.chart [Song]` values read as CH reads them. It then treats "0" and "-1" as unset, strips style tags, lowercases the icon, clears an icon that equals the charter, and writes wire version 20260801. The legacy SongHash header keeps the scanner's metadata and version 20251010. The manifest records both profiles' metadata.
 
 Each song manifest records both Song-duration profiles, each Track duration, input checksums, hash profiles, notices, and checksums for every artifact. It also records the source-tree SHA-256 used to build the tool, so a dirty build remains identifiable.
 

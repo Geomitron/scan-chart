@@ -72,7 +72,7 @@ function json(value: unknown): Uint8Array {
 export function toolProvenance(): object {
 	return {
 		name: 'ch-identity',
-		version: '0.2.0',
+		version: '0.3.0',
 		scanChartVersion: process.env.SCAN_CHART_BUILD_VERSION ?? 'working-tree',
 		scanChartCommit: process.env.SCAN_CHART_BUILD_COMMIT ?? 'working-tree',
 		scanChartDirty: process.env.SCAN_CHART_BUILD_DIRTY !== 'false',

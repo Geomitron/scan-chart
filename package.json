@@ -13,6 +13,13 @@
 			"require": "./dist/index.js"
 		}
 	},
+	"files": [
+		"dist/index.js",
+		"dist/index.mjs",
+		"dist/index.d.ts",
+		"src",
+		"CHANGELOG.md"
+	],
 	"description": "A library that scans charts for rhythm games like Clone Hero.",
 	"scripts": {
 		"build": "tsup src/index.ts --format cjs,esm --dts",
