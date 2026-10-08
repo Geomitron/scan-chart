@@ -3,6 +3,7 @@ import { defaultMetadata } from '../ini/metadata'
 import { Difficulty, DrumType, drumTypes, getInstrumentType, Instrument, instrumentTypes } from '../types'
 import { parseNotesFromChart } from './chart-file-parser'
 import { parseNotesFromMidi } from './midi-file-parser'
+import { parseRules, ParseRules } from './parse-rules'
 import {
 	IniChartModifiers,
 	NoteEvent,
@@ -35,32 +36,31 @@ export type ParsedChartFile = ReturnType<typeof parseChartFile>
  * Throws an exception if `buffer` could not be parsed as a chart in the .chart or .mid format.
  */
 export function parseChartFile(data: Uint8Array, format: 'chart' | 'mid', partialIniChartModifiers: Partial<IniChartModifiers> = {}) {
-	return parseChartFileWithModifierBoundaries(data, format, partialIniChartModifiers, false)
+	return parseChartFileWithRules(data, format, partialIniChartModifiers, parseRules.scanner)
 }
 
-/** CH identity retains MIDI tracks allocated for markers, including an empty Expert track. */
+/** Parses with the frozen Clone Hero 1.1.0.6142 identity rules. */
 export function parseChartFileFrozenLegacyIdentity(data: Uint8Array, format: 'chart' | 'mid', modifiers: Partial<IniChartModifiers> = {}) {
-	return parseChartFileWithModifierBoundaries(data, format, modifiers, false, true)
+	return parseChartFileWithRules(data, format, modifiers, parseRules.frozenLegacy6142)
 }
 
-/** Canonical identity parser entry point. Existing callers must keep using `parseChartFile`. */
+/** Parses with the canonical 20260801 identity rules. Existing callers must keep using `parseChartFile`. */
 export function parseChartFileCanonicalIdentity(
 	data: Uint8Array,
 	format: 'chart' | 'mid',
 	partialIniChartModifiers: Partial<IniChartModifiers> = {},
 ) {
-	return parseChartFileWithModifierBoundaries(data, format, partialIniChartModifiers, true)
+	return parseChartFileWithRules(data, format, partialIniChartModifiers, parseRules.canonical20260801)
 }
 
-function parseChartFileWithModifierBoundaries(
+function parseChartFileWithRules(
 	data: Uint8Array,
 	format: 'chart' | 'mid',
 	partialIniChartModifiers: Partial<IniChartModifiers>,
-	tapEndInclusive: boolean,
-	preserveNotelessMidiTracks = false,
+	rules: ParseRules,
 ) {
 	const iniChartModifiers = Object.assign({}, defaultMetadata, partialIniChartModifiers) as IniChartModifiers
-	const rawChartData = format === 'mid' ? parseNotesFromMidi(data, iniChartModifiers, tapEndInclusive, preserveNotelessMidiTracks) : parseNotesFromChart(data)
+	const rawChartData = format === 'mid' ? parseNotesFromMidi(data, iniChartModifiers, rules) : parseNotesFromChart(data)
 	const timedTempos = getTimedTempos(rawChartData.tempos, rawChartData.chartTicksPerBeat)
 	const drumTracks = rawChartData.trackData.filter(track => track.instrument === 'drums')
 	// Both flags are invalid together but remain preserved for diagnostics and round-tripping.
@@ -110,7 +110,7 @@ function parseChartFileWithModifierBoundaries(
 			animations: setEventMsTimes(track.animations, timedTempos, tpb),
 			unrecognizedMidiEvents: track.unrecognizedMidiEvents,
 			noteEventGroups: noteEventGroupsByTrack[index],
-		})),
+		})).filter(track => isTrackAllocated(track.noteEventGroups, format, rules)),
 		unrecognized: {
 			eventsTrackTextEvents: setEventMsTimes(rawChartData.unrecognizedEventsTrackTextEvents, timedTempos, rawChartData.chartTicksPerBeat),
 			eventsTrackMidiEvents: rawChartData.unrecognizedEventsTrackMidiEvents,
@@ -119,6 +119,12 @@ function parseChartFileWithModifierBoundaries(
 			syncTrackEvents: rawChartData.unrecognizedSyncTrackEvents,
 		},
 	}
+}
+
+/** Applies the profile's track-allocation rule after notes have been resolved. */
+function isTrackAllocated(noteEventGroups: unknown[][], format: 'chart' | 'mid', rules: ParseRules) {
+	const hasNotes = noteEventGroups.some(group => group.length > 0)
+	return format === 'mid' ? rules.midiTrackAllocation === 'difficultiesWithNotesAndExpert' || hasNotes : true
 }
 
 // ---------------------------------------------------------------------------
