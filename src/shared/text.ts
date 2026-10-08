@@ -46,11 +46,23 @@ const tagPattern = allowedTags.map(tag => `\\b${tag}\\b`).join('|')
 const dotnetWhitespace = '\\t\\n\\v\\f\\r \\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000'
 const dotnetTrimPattern = new RegExp(`^[${dotnetWhitespace}]+|[${dotnetWhitespace}]+$`, 'g')
 const dotnetWhitespaceOnlyPattern = new RegExp(`^[${dotnetWhitespace}]*$`)
+const asciiPattern = /^[\x00-\x7f]*$/
 const styleTagPattern = new RegExp(`<[${dotnetWhitespace}]*\\/?[${dotnetWhitespace}]*(?:#|${tagPattern})[^>]*>`, 'gi')
 
 /** @returns `text` without leading or trailing whitespace, as .NET's `String.Trim()` removes it. */
 export function trimDotnet(text: string) {
 	return text.replace(dotnetTrimPattern, '')
+}
+
+/**
+ * @returns `text` lowercased as .NET's `ToLowerInvariant()` does: each character on its own, by its simple case
+ * mapping. Unlike `toLowerCase()`, a final capital sigma becomes "σ" and "İ" becomes "i".
+ */
+export function toLowerInvariant(text: string) {
+	if (asciiPattern.test(text)) return text.toLowerCase()
+	let lowered = ''
+	for (const char of text) lowered += String.fromCodePoint(char.toLowerCase().codePointAt(0)!)
+	return lowered
 }
 
 /** @returns `true` if `text` is `null`, empty, or only whitespace, as .NET's `String.IsNullOrWhiteSpace()` decides. */

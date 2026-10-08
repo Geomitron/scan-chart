@@ -1,4 +1,4 @@
-import { isNullOrWhiteSpaceDotnet } from '../../shared/text'
+import { isNullOrWhiteSpaceDotnet, toLowerInvariant } from '../../shared/text'
 import type { SongHashMetadata } from './song-hash-20251010'
 
 type SongTextField = 'name' | 'artist' | 'album' | 'genre' | 'year' | 'charter'
@@ -45,6 +45,6 @@ export function selectSongHashMetadata(
 		genre: known('genre'),
 		year: known('year'),
 		charter: known('charter'),
-		icon: (iniSong?.icon ?? '').toLowerCase(),
+		icon: toLowerInvariant(iniSong?.icon ?? ''),
 	}
 }

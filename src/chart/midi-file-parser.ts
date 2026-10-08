@@ -5,6 +5,7 @@ import { EventType, eventTypes, RawChartData, VocalTrackData } from './raw-types
 import { IniChartModifiers } from './types'
 import { parseRules, ParseRules } from './parse-rules'
 import { scanVocalTrack } from './lyric-parser'
+import { toLowerInvariant } from '../shared/text'
 
 // Union two phrase lists, dedup by tick (keep longest length), sort by tick.
 function mergePhraseLists(a: { tick: number; length: number }[], b: { tick: number; length: number }[]): { tick: number; length: number }[] {
@@ -406,7 +407,7 @@ function getTracks(midiData: MidiData) {
 				if (firstTickZeroTrackName === null) {
 					firstTickZeroTrackName = event.text
 				}
-				const trackName = trackNamesByLowercase.get(event.text.toLowerCase())
+				const trackName = trackNamesByLowercase.get(toLowerInvariant(event.text))
 				if (recognizedTrackName === null && trackName !== undefined) {
 					recognizedTrackName = trackName
 					recognizedSourceName = event.text
