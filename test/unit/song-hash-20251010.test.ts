@@ -74,7 +74,8 @@ describe('SongHash 20251010', () => {
 				tracks: [conductor, guitar, bass, drums],
 			})) },
 			modifiers: defaultMetadata,
-			metadata,
+			legacyMetadata: metadata,
+			canonicalMetadata: metadata,
 			legacyDurationMs: historicalSongHashDurationMs(1000n),
 		})
 		expect(result.kind).toBe('accepted')
@@ -136,7 +137,8 @@ describe('SongHash 20251010', () => {
 		const result = songBundle20251010.calculate({
 			source: { format: 'chart', bytes: chart() },
 			modifiers: defaultMetadata,
-			metadata,
+			legacyMetadata: metadata,
+			canonicalMetadata: metadata,
 			legacyDurationMs: historicalSongHashDurationMs(1000n),
 		})
 		expect(result.kind).toBe('accepted')
@@ -194,7 +196,8 @@ describe('SongHash 20251010', () => {
 		const result = songBundle20251010.calculate({
 			source: { format: 'chart', bytes: chart() },
 			modifiers: defaultMetadata,
-			metadata,
+			legacyMetadata: metadata,
+			canonicalMetadata: metadata,
 			legacyDurationMs: historicalSongHashDurationMs(1000n),
 		})
 		expect(result.kind).toBe('accepted')
@@ -211,7 +214,8 @@ describe('SongHash 20251010', () => {
 		const result = songBundle20251010.calculate({
 			source: { format: 'chart', bytes: chart() },
 			modifiers: defaultMetadata,
-			metadata,
+			legacyMetadata: metadata,
+			canonicalMetadata: metadata,
 			legacyDurationMs: historicalSongHashDurationMs(1000n),
 		})
 		expect(result.kind).toBe('accepted')
@@ -246,7 +250,8 @@ describe('SongHash 20251010', () => {
 		const result = songBundle20251010.calculate({
 			source: { format: 'chart', bytes: chart() },
 			modifiers: defaultMetadata,
-			metadata,
+			legacyMetadata: metadata,
+			canonicalMetadata: metadata,
 		})
 		expect(result.kind).toBe('accepted')
 		if (result.kind !== 'accepted') return

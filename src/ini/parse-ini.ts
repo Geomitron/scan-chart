@@ -1,7 +1,7 @@
 import * as _ from 'lodash'
 
 import { trimDotnet } from '../shared/text'
-import { decodeIni } from './decode-ini'
+import { decodeCloneHeroText } from '../shared/decode-text'
 
 export const $NoSection: unique symbol = Symbol('Lines before any sections')
 export interface IniObject {
@@ -13,7 +13,7 @@ export interface IniObject {
  * @returns the `IniObject` parsed from `file`.
  */
 export function parseIni(file: Uint8Array): { iniObject: IniObject; folderIssues: { folderIssue: 'badIniLine'; description: string }[] } {
-	const iniLines = decodeIni(file)
+	const iniLines = decodeCloneHeroText(file)
 		.replace(/^\uFEFF/, '') // CH IniFile.Load removes one leading byte order mark
 		.split(/\r?\n/g)
 		.map(trimDotnet)

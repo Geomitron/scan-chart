@@ -242,10 +242,12 @@ async function generateSong(folder: string, inputRoot: string, outputRoot: strin
 	const historicalDuration = resolveHistoricalDuration(loaded.iniBytes, loaded.fileNames, parseChartFileFrozenLegacyIdentity(
 		parsed.parsedChart.chartBytes, parsed.parsedChart.format, parsed.parsedChart.iniChartModifiers,
 	))
+	const legacyMetadata = songMetadata(parsed.parsedChart.metadata)
 	const bundle = songBundle20251010.calculate({
 		source: { format: parsed.parsedChart.format, bytes: parsed.parsedChart.chartBytes },
 		modifiers: parsed.parsedChart.iniChartModifiers,
-		metadata: songMetadata(parsed.parsedChart.metadata),
+		legacyMetadata,
+		canonicalMetadata: parsed.parsedChart.songHashMetadata,
 		...(historicalDuration.kind === 'available' ? { legacyDurationMs: historicalDuration.durationMs } : {}),
 	})
 	if (bundle.kind === 'rejected') throw new Error(bundle.errors.map(error => error.message).join(' '))
@@ -282,7 +284,10 @@ async function generateSong(folder: string, inputRoot: string, outputRoot: strin
 			canonical: bundle.canonical20260801.duration,
 			frozenLegacy: historicalDuration,
 		},
-		metadata: songMetadata(parsed.parsedChart.metadata),
+		metadata: {
+			frozenLegacy6142: legacyMetadata,
+			canonical20260801: bundle.canonical20260801.song.metadata,
+		},
 		profiles: {
 			frozenLegacy6142: { song: legacySong, tracks: legacyTracks },
 			canonical20260801: { song: canonicalSong, tracks: canonicalTracks, notices: bundle.canonical20260801.notices },

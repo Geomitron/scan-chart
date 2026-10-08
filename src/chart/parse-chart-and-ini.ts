@@ -6,6 +6,8 @@ import { File, FolderIssueType, MetadataIssueType } from '../types'
 import { getExtension, hasChartExtension, hasChartName } from '../shared/file-names'
 import { IniChartModifiers } from './types'
 import { parseChartFile, ParsedChartFile } from './parse-chart-file'
+import { selectSongHashMetadata } from './identity/song-metadata'
+import type { SongHashMetadata } from './identity/song-hash-20251010'
 
 /**
  * Folder-parse result: a parsed chart file plus source bytes and ini modifiers
@@ -24,6 +26,12 @@ export type ParsedChart = ParsedChartFile & {
 	format: 'chart' | 'mid'
 	/** The fully-resolved ini modifiers that influenced parsing. */
 	iniChartModifiers: IniChartModifiers
+	/**
+	 * The metadata Clone Hero hashes into the canonical SongHash, before the SongHash writer resolves it.
+	 * When a song.ini with a `[song]` section loads, only its values are used; otherwise the `.chart [Song]`
+	 * values are. Blank values are "Unknown …". Unlike `metadata`, style tags and the "0"/"-1" sentinels remain.
+	 */
+	songHashMetadata: SongHashMetadata
 }
 
 export interface ParseChartAndIniResult {
@@ -104,6 +112,7 @@ export function parseChartAndIni(files: File[]): ParseChartAndIniResult {
 				chartBytes: chartData,
 				format: format!,
 				iniChartModifiers,
+				songHashMetadata: selectSongHashMetadata(iniData.songSection, inner.metadata),
 			}) as ParsedChart
 		} catch (err) {
 			chartFolderIssues.push({

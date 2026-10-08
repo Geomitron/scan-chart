@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { decodeIni } from 'src/ini/decode-ini'
+import { decodeCloneHeroText } from 'src/shared/decode-text'
 import { parseIni } from 'src/ini/parse-ini'
 import { scanIni } from 'src/ini/scan-ini'
 import { parseHistoricalDuration } from '../../tools/ch-identity/duration'
@@ -51,7 +51,7 @@ describe('CH INI identity parsing', () => {
 		['UTF-32 LE', utf32(text, true)],
 		['UTF-32 BE', utf32(text, false)],
 	] satisfies [string, Uint8Array][])('reads %s before extracting metadata or legacy length', (_label, data) => {
-		expect(decodeIni(data)).toBe(text)
+		expect(decodeCloneHeroText(data)).toBe(text)
 		expect(parseHistoricalDuration(data)).toMatchObject({ kind: 'available', durationMs: 2345n })
 		expect(scanIni([{ fileName: 'song.ini', data }]).metadata?.name).toBe('Café 🎸')
 	})
@@ -68,10 +68,10 @@ describe('CH INI identity parsing', () => {
 	})
 
 	it('rejects invalid BOM-tagged Unicode instead of applying Latin-1 fallback', () => {
-		expect(() => decodeIni(Uint8Array.of(0xef, 0xbb, 0xbf, 0xff))).toThrow()
-		expect(() => decodeIni(Uint8Array.of(0xff, 0xfe, 0x61))).toThrow()
-		expect(() => decodeIni(Uint8Array.of(0xff, 0xfe, 0, 0, 0))).toThrow()
-		expect(() => decodeIni(Uint8Array.of(0xff, 0xfe, 0, 0, 0, 0xd8, 0, 0))).toThrow()
+		expect(() => decodeCloneHeroText(Uint8Array.of(0xef, 0xbb, 0xbf, 0xff))).toThrow()
+		expect(() => decodeCloneHeroText(Uint8Array.of(0xff, 0xfe, 0x61))).toThrow()
+		expect(() => decodeCloneHeroText(Uint8Array.of(0xff, 0xfe, 0, 0, 0))).toThrow()
+		expect(() => decodeCloneHeroText(Uint8Array.of(0xff, 0xfe, 0, 0, 0, 0xd8, 0, 0))).toThrow()
 	})
 
 	it('reports undecodable song.ini files as a folder issue when scanning', () => {

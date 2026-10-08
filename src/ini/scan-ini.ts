@@ -29,6 +29,11 @@ type ScanIniResult = {
 	folderIssues: { folderIssue: FolderIssueType; description: string }[]
 	metadataIssues: { metadataIssue: MetadataIssueType; description: string }[]
 	unknownIniValues: { [key: string]: string }
+	/**
+	 * The `[song]` section as Clone Hero reads it, or `null` when Clone Hero would not load one: it reads only a
+	 * file named song.ini (in any letter case) and needs a `[song]` section. Keys are lowercase.
+	 */
+	songSection: { readonly [key: string]: string } | null
 }
 
 const integerProperties: MetaNumberKey[] = [
@@ -65,7 +70,7 @@ export function scanIni(files: File[]): ScanIniResult {
 	const findIniDataResult = findIniData(files)
 	folderIssues.push(...findIniDataResult.folderIssues)
 	if (!findIniDataResult.iniData) {
-		return { metadata: null, folderIssues, metadataIssues: [], unknownIniValues: {} }
+		return { metadata: null, folderIssues, metadataIssues: [], unknownIniValues: {}, songSection: null }
 	}
 
 	let parseIniResult: ReturnType<typeof parseIni>
@@ -74,40 +79,51 @@ export function scanIni(files: File[]): ScanIniResult {
 	} catch (error) {
 		const reason = error instanceof Error ? error.message : String(error)
 		folderIssues.push({ folderIssue: 'invalidMetadata', description: `"song.ini" couldn't be decoded: ${reason}` })
-		return { metadata: null, folderIssues, metadataIssues: [], unknownIniValues: {} }
+		return { metadata: null, folderIssues, metadataIssues: [], unknownIniValues: {}, songSection: null }
 	}
 	folderIssues.push(...parseIniResult.folderIssues)
 	const songSection = parseIniResult.iniObject.song
 	if (songSection === undefined) {
 		folderIssues.push({ folderIssue: 'invalidMetadata', description: '"song.ini" doesn\'t have a "[Song]" section.' })
-		return { metadata: null, folderIssues, metadataIssues: [], unknownIniValues: {} }
+		return { metadata: null, folderIssues, metadataIssues: [], unknownIniValues: {}, songSection: null }
 	}
 
 	const { metadata, metadataIssues, unknownIniValues } = extractSongMetadata(songSection)
 
-	return { metadata, folderIssues, metadataIssues, unknownIniValues }
+	return {
+		metadata,
+		folderIssues,
+		metadataIssues,
+		unknownIniValues,
+		songSection: findIniDataResult.isSongIni ? songSection : null,
+	}
 }
 
 /**
- * @returns the .ini file data in this chart, or `null` if one wasn't found.
+ * @returns the .ini file data in this chart, or `null` if one wasn't found. Prefers "song.ini", then that name in
+ * another letter case, then the last other .ini file.
  */
 function findIniData(files: File[]): {
 	iniData: Uint8Array | null
+	/** `true` if the chosen file is one Clone Hero reads: song.ini in any letter case. */
+	isSongIni: boolean
 	folderIssues: { folderIssue: FolderIssueType; description: string }[]
 } {
 	const folderIssues: { folderIssue: FolderIssueType; description: string }[] = []
 	let iniCount = 0
-	let bestIniData: Uint8Array | null = null
-	let lastIniData: Uint8Array | null = null
+	let bestIni: File | null = null
+	let songIni: File | null = null
+	let lastIni: File | null = null
 
 	for (const file of files) {
 		if (hasIniExtension(file.fileName)) {
 			iniCount++
-			lastIniData = file.data
+			lastIni = file
+			if (file.fileName.toLowerCase() === 'song.ini') songIni = file
 			if (!hasIniName(file.fileName)) {
 				folderIssues.push({ folderIssue: 'invalidIni', description: `"${file.fileName}" is not named "song.ini".` })
 			} else {
-				bestIniData = file.data
+				bestIni = file
 			}
 		}
 	}
@@ -116,14 +132,11 @@ function findIniData(files: File[]): {
 		folderIssues.push({ folderIssue: 'multipleIniFiles', description: 'This chart has multiple .ini files.' })
 	}
 
-	if (bestIniData !== null) {
-		return { iniData: bestIniData, folderIssues }
-	} else if (lastIniData !== null) {
-		return { iniData: lastIniData, folderIssues }
-	} else {
+	const ini = bestIni ?? songIni ?? lastIni
+	if (ini === null) {
 		folderIssues.push({ folderIssue: 'noMetadata', description: 'This chart doesn\'t have "song.ini".' })
-		return { iniData: null, folderIssues }
 	}
+	return { iniData: ini?.data ?? null, isSongIni: ini?.fileName.toLowerCase() === 'song.ini', folderIssues }
 }
 
 /** All keys that extractSongMetadata reads (primary + legacy aliases). */
