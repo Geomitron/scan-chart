@@ -28,6 +28,7 @@ const trackNames = [
 	'PART RHYTHM',
 	'PART BASS',
 	'PART DRUMS',
+	'PART DRUM',
 	'PART KEYS',
 	'PART GUITAR GHL',
 	'PART GUITAR COOP GHL',
@@ -43,6 +44,8 @@ const trackNames = [
 	'PART HARM3',
 	'EVENTS',
 ] as const
+/** Clone Hero lowercases MIDI track names before matching them (MidReader.ReadMidiData). */
+const trackNamesByLowercase = new Map<string, TrackName>(trackNames.map(name => [name.toLowerCase(), name]))
 
 const vocalTrackNameMap: { [key in VocalTrackName]: string } = {
 	'PART VOCALS': 'vocals',
@@ -61,6 +64,7 @@ const instrumentNameMap: { [key in InstrumentTrackName]: Instrument } = {
 	'PART RHYTHM': 'rhythm',
 	'PART BASS': 'bass',
 	'PART DRUMS': 'drums',
+	'PART DRUM': 'drums',
 	'PART KEYS': 'keys',
 	'PART GUITAR GHL': 'guitarghl',
 	'PART GUITAR COOP GHL': 'guitarcoopghl',
@@ -225,7 +229,7 @@ export function parseNotesFromMidi(data: Uint8Array, iniChartModifiers: IniChart
 }
 
 function buildMidiTrackData(
-	tracks: { trackName: TrackName; trackEvents: MidiEvent[] }[],
+	tracks: MidiSourceTrack[],
 	iniChartModifiers: IniChartModifiers,
 	firstCodaTick: number | null,
 	rules: ParseRules,
@@ -238,7 +242,7 @@ function buildMidiTrackData(
 		if (instrument === undefined) continue // vocal/EVENTS tracks handled elsewhere
 		const instrumentType = getInstrumentType(instrument)
 		const { eventEnds, textEvents, versusPhrases, animations, unrecognizedEvents: trackUnrecognized } =
-			scanInstrumentTrack(t.trackEvents, instrumentType, t.trackName)
+			scanInstrumentTrack(t.trackEvents, instrumentType, t.sourceName)
 		const distributed = distributeInstrumentEvents(eventEnds, allocatesEmptyExpert)
 		const pairedEvents = getTrackEvents(distributed)
 		const step1 = splitMidiModifierSustains(pairedEvents, instrumentType, rules)
@@ -357,8 +361,15 @@ function convertToAbsoluteTime(midiData: MidiData) {
 	}
 }
 
+interface MidiSourceTrack {
+	trackName: TrackName
+	/** The recognized track name as written in the file. */
+	sourceName: string
+	trackEvents: MidiEvent[]
+}
+
 function getTracks(midiData: MidiData) {
-	const tracks: { trackName: TrackName; trackEvents: MidiEvent[] }[] = []
+	const tracks: MidiSourceTrack[] = []
 	const unrecognizedMidiTracks: { trackName: string; events: MidiEvent[] }[] = []
 
 	for (const [i, track] of midiData.tracks.entries()) {
@@ -374,11 +385,12 @@ function getTracks(midiData: MidiData) {
 		//   <song title>     → PART DRUMS   (school food punishment)
 		//
 		// YARG drops these tracks; we keep them. Walk every tick-0 trackName
-		// and accept the first one that matches a recognized instrument.
-		// Capture the first tick-0 trackName for unrecognized-track
+		// and accept the first one that matches a recognized instrument, in any
+		// letter case. Capture the first tick-0 trackName for unrecognized-track
 		// round-trip purposes regardless of whether anything matched.
 		let firstTickZeroTrackName: string | null = null
 		let recognizedTrackName: TrackName | null = null
+		let recognizedSourceName = ''
 		for (const event of track) {
 			if (event.deltaTime !== 0) {
 				break
@@ -387,8 +399,10 @@ function getTracks(midiData: MidiData) {
 				if (firstTickZeroTrackName === null) {
 					firstTickZeroTrackName = event.text
 				}
-				if (recognizedTrackName === null && trackNames.includes(event.text as TrackName)) {
-					recognizedTrackName = event.text as TrackName
+				const trackName = trackNamesByLowercase.get(event.text.toLowerCase())
+				if (recognizedTrackName === null && trackName !== undefined) {
+					recognizedTrackName = trackName
+					recognizedSourceName = event.text
 				}
 			}
 		}
@@ -396,6 +410,7 @@ function getTracks(midiData: MidiData) {
 		if (recognizedTrackName !== null) {
 			tracks.push({
 				trackName: recognizedTrackName,
+				sourceName: recognizedSourceName,
 				trackEvents: track,
 			})
 		} else if (i !== 0) {
@@ -1067,7 +1082,7 @@ interface EventsScanResult {
 	parseIssues: RawChartData['parseIssues']
 }
 
-function scanEventsTrack(tracks: { trackName: TrackName; trackEvents: MidiEvent[] }[]): EventsScanResult {
+function scanEventsTrack(tracks: MidiSourceTrack[]): EventsScanResult {
 	const result: EventsScanResult = {
 		sections: [],
 		endEvents: [],

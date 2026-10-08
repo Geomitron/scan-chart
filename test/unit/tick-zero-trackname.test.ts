@@ -17,6 +17,8 @@
 import { describe, it, expect } from 'vitest'
 import { writeMidi, MidiData } from '@geomitron/midi-file'
 import { parseNotesFromMidi } from 'src/chart/midi-file-parser'
+import { canonical20260801 } from 'src/chart/identity/public'
+import { parseChartFile, parseChartFileFrozenLegacyIdentity } from 'src/chart/parse-chart-file'
 import { defaultMetadata } from 'src/ini/metadata'
 
 function buildMidi(ticksPerBeat: number, tracks: MidiData['tracks']): Uint8Array {
@@ -120,5 +122,47 @@ describe('MIDI: tick-0 trackName resolution', () => {
 		expect(result.trackData.some(t => t.instrument === 'bass')).toBe(false)
 		expect(result.unrecognizedMidiTracks).toHaveLength(1)
 		expect(result.unrecognizedMidiTracks[0].trackName).toBe('NOT_A_REAL_NAME')
+	})
+})
+
+describe('MIDI: track-name letter case', () => {
+	it.each([
+		['part drums', 97, 'drums'],
+		['Part Guitar', 96, 'guitar'],
+		['t1 gems', 96, 'guitar'],
+		['PART DRUM', 97, 'drums'],
+		['part guitar ghl', 95, 'guitarghl'],
+	] as const)('recognizes %s in every profile, as Clone Hero lowercases names', (name, noteNumber, instrument) => {
+		const midi = buildMidi(480, [tempoTrack(), trackWithLeadingNames([name], noteNumber)])
+		expect(parseNotesFromMidi(midi, defaultMetadata).unrecognizedMidiTracks).toHaveLength(0)
+		expect(parseChartFile(midi, 'mid').trackData.map(track => track.instrument)).toEqual([instrument])
+		expect(parseChartFileFrozenLegacyIdentity(midi, 'mid').trackData.map(track => track.instrument)).toEqual([instrument])
+		const canonical = canonical20260801.parseSource({ source: { format: 'mid', bytes: midi }, modifiers: defaultMetadata })
+		expect(canonical.kind === 'accepted' && canonical.chart.tracks.map(track => track.key.instrument)).toEqual([instrument])
+	})
+
+	it('reads a lowercase events track, including the coda that marks drum freestyle', () => {
+		const events: MidiData['tracks'][number] = [
+			{ deltaTime: 0, type: 'trackName', text: 'events' },
+			{ deltaTime: 0, type: 'text', text: '[section intro]' },
+			{ deltaTime: 480, type: 'text', text: '[coda]' },
+			{ deltaTime: 0, type: 'endOfTrack' },
+		]
+		const drums: MidiData['tracks'][number] = [
+			{ deltaTime: 0, type: 'trackName', text: 'part drums' },
+			{ deltaTime: 0, type: 'text', text: 'part drums' },
+			{ deltaTime: 0, type: 'noteOn', channel: 0, noteNumber: 97, velocity: 100 },
+			{ deltaTime: 0, type: 'noteOn', channel: 0, noteNumber: 120, velocity: 100 },
+			{ deltaTime: 960, type: 'noteOff', channel: 0, noteNumber: 97, velocity: 0 },
+			{ deltaTime: 0, type: 'noteOff', channel: 0, noteNumber: 120, velocity: 0 },
+			{ deltaTime: 0, type: 'noteOn', channel: 0, noteNumber: 120, velocity: 100 },
+			{ deltaTime: 480, type: 'noteOff', channel: 0, noteNumber: 120, velocity: 0 },
+			{ deltaTime: 0, type: 'endOfTrack' },
+		]
+		const result = parseNotesFromMidi(buildMidi(480, [tempoTrack(), events, drums]), defaultMetadata)
+		expect(result.sections.map(section => section.name)).toEqual(['intro'])
+		const expert = result.trackData.find(track => track.instrument === 'drums' && track.difficulty === 'expert')!
+		expect(expert.drumFreestyleSections.map(section => section.isCoda)).toEqual([false, true])
+		expect(expert.textEvents).toEqual([])
 	})
 })
