@@ -68,9 +68,16 @@ export function scanIni(files: File[]): ScanIniResult {
 		return { metadata: null, folderIssues, metadataIssues: [], unknownIniValues: {} }
 	}
 
-	const parseIniResult = parseIni(findIniDataResult.iniData)
+	let parseIniResult: ReturnType<typeof parseIni>
+	try {
+		parseIniResult = parseIni(findIniDataResult.iniData)
+	} catch (error) {
+		const reason = error instanceof Error ? error.message : String(error)
+		folderIssues.push({ folderIssue: 'invalidMetadata', description: `"song.ini" couldn't be decoded: ${reason}` })
+		return { metadata: null, folderIssues, metadataIssues: [], unknownIniValues: {} }
+	}
 	folderIssues.push(...parseIniResult.folderIssues)
-	const songSection = parseIniResult.iniObject.song || parseIniResult.iniObject.Song || parseIniResult.iniObject.SONG
+	const songSection = parseIniResult.iniObject.song
 	if (songSection === undefined) {
 		folderIssues.push({ folderIssue: 'invalidMetadata', description: '"song.ini" doesn\'t have a "[Song]" section.' })
 		return { metadata: null, folderIssues, metadataIssues: [], unknownIniValues: {} }
