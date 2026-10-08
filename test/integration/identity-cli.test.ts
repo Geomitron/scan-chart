@@ -2,6 +2,7 @@ import { access, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promise
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
+import { writeMidi } from '@geomitron/midi-file'
 import { afterEach, describe, expect, it } from 'vitest'
 
 import { generate, inspectBTrack } from '../../tools/ch-identity/generate'
@@ -22,6 +23,21 @@ function validChart(): string {
 		'[ExpertSingle]', '{', '  0 = N 0 192', '}',
 		'[EasyGHLKeys]', '{', '  0 = N 0 192', '}',
 	].join('\r\n')
+}
+
+function validMidi(): Uint8Array {
+	return new Uint8Array(writeMidi({
+		header: { format: 1, numTracks: 2, ticksPerBeat: 192 },
+		tracks: [
+			[{ deltaTime: 0, type: 'setTempo', microsecondsPerBeat: 500000 }, { deltaTime: 0, type: 'endOfTrack' }],
+			[
+				{ deltaTime: 0, type: 'trackName', text: 'PART BASS' },
+				{ deltaTime: 0, type: 'noteOn', channel: 0, noteNumber: 96, velocity: 100 },
+				{ deltaTime: 192, type: 'noteOff', channel: 0, noteNumber: 96, velocity: 0 },
+				{ deltaTime: 0, type: 'endOfTrack' },
+			],
+		],
+	}))
 }
 
 afterEach(async () => {
@@ -164,5 +180,25 @@ describe('identity CLI generation', () => {
 		expect(manifest).toContain('"reason": "historicalDurationUnavailable"')
 		expect(manifest).toContain('"definition": "strikecore-selected-track-last-note-v1"')
 		expect(manifest).toContain('"durationMs": "500"')
+	})
+
+	it('uses notes.mid when a folder also has notes.chart', async () => {
+		const root = await temporaryDirectory()
+		const both = join(root, 'both')
+		const midiOnly = join(root, 'midi-only')
+		for (const folder of [both, midiOnly]) {
+			await mkdir(folder)
+			await writeFile(join(folder, 'notes.mid'), validMidi())
+			await writeFile(join(folder, 'song.ini'), '[Song]\r\nname = Both Files\r\nsong_length = 1234\r\n')
+		}
+		await writeFile(join(both, 'notes.chart'), validChart())
+
+		const result = await generate({ input: root, output: join(root, 'output') })
+		expect(result.results.map(item => item.kind)).toEqual(['success', 'success'])
+		const [bothResult, midiResult] = result.results
+		if (bothResult.kind !== 'success' || midiResult.kind !== 'success') throw new Error('Expected both folders to succeed')
+		expect(bothResult.canonicalSongHash).toBe(midiResult.canonicalSongHash)
+		const manifest = await readFile(join(root, 'output', 'songs', 'both', 'manifest.json'), 'utf8')
+		expect(manifest).toContain('"sourceFile": "notes.mid"')
 	})
 })
