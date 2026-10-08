@@ -8,7 +8,8 @@ import type { CanonicalBlake3Digest } from './btrack-20260801'
 import type { LegacyBlake3Digest } from './public'
 
 const MAGIC = new Uint8Array([0x43, 0x48, 0x53, 0x48])
-const VERSION = 20251010
+const LEGACY_VERSION = 20251010
+const CANONICAL_VERSION = 20260801
 const MIN_INT64 = BigInt('-9223372036854775808')
 const MAX_INT64 = BigInt('9223372036854775807')
 
@@ -229,7 +230,13 @@ function resolveCanonicalMetadata(metadata: SongHashMetadata): { readonly [K in 
 	}
 }
 
+/** Serializes the legacy SongHash preimage, wire version 20251010. */
 export function serializeSongHash20251010(request: SerializeSongHashRequest): Uint8Array {
+	return serializeSongHash(LEGACY_VERSION, request)
+}
+
+/** Both profiles share the CHSH layout; the canonical profile writes version 20260801. */
+function serializeSongHash(version: number, request: SerializeSongHashRequest): Uint8Array {
 	if (request.durationMs < MIN_INT64 || request.durationMs > MAX_INT64) {
 		throw new RangeError('SongHash duration must fit signed int64')
 	}
@@ -242,7 +249,7 @@ export function serializeSongHash20251010(request: SerializeSongHashRequest): Ui
 	}
 	return concatenate([
 		MAGIC,
-		uint32(VERSION),
+		uint32(version),
 		framedString(metadata.name),
 		framedString(metadata.artist),
 		framedString(metadata.album),
@@ -320,7 +327,7 @@ export function identifyCanonicalSong(request: CanonicalSongIdentityRequest): Ca
 	}))
 	assertUniqueMembers(wireMembers)
 	const metadata = resolveCanonicalMetadata(request.metadata)
-	const preimage = serializeSongHash20251010({
+	const preimage = serializeSongHash(CANONICAL_VERSION, {
 		metadata,
 		durationMs: request.durationMs,
 		members: wireMembers,

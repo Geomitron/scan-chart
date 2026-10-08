@@ -110,6 +110,19 @@ describe('SongHash 20251010', () => {
 		)
 	})
 
+	it('pins a canonical SongHash, which writes wire version 20260801', () => {
+		const result = songBundle20251010.calculate({
+			source: { format: 'chart', bytes: chart() },
+			modifiers: defaultMetadata,
+			legacyMetadata: metadata,
+			canonicalMetadata: metadata,
+		})
+		if (result.kind !== 'accepted') throw new Error('Expected the chart to parse')
+		const preimage = result.canonical20260801.song.preimage
+		expect(Buffer.from(preimage.subarray(0, 8)).toString('hex')).toBe('43485348c1273501')
+		expect(result.canonical20260801.song.songHash.value).toBe('447hp7JkPsiGwxl9N66r_SP8vIArZJhkObAqU-y1-do')
+	})
+
 	it('preserves signed-int64 duration bytes above the float precision boundary', () => {
 		const preimage = serializeSongHash20251010({
 			metadata: {
@@ -167,6 +180,8 @@ describe('SongHash 20251010', () => {
 			result.canonical20260801.song.preimage.byteOffset,
 			result.canonical20260801.song.preimage.byteLength,
 		)
+		expect(legacy.getUint32(4, true)).toBe(20251010)
+		expect(canonical.getUint32(4, true)).toBe(20260801)
 		const legacyRecordsOffset = legacySong.preimage.byteLength - 80
 		const canonicalRecordsOffset = result.canonical20260801.song.preimage.byteLength - 120
 		expect(legacy.getUint32(legacyRecordsOffset, true)).toBe(0)
