@@ -97,12 +97,15 @@ interface TrackEventEnd {
 	channel: number
 	// Necessary because .mid stores track events as separate start and end events
 	isStart: boolean
+	/** On difficulty notes: `true` if an `[ENABLE_CHART_DYNAMICS]` event came earlier in the MIDI track. */
+	chartDynamics?: boolean
 }
 
 // Necessary because .mid stores some additional modifiers and information using velocity
 type MidiTrackEvent = RawChartData['trackData'][number]['trackEvents'][number] & {
 	velocity: number
 	channel: number
+	chartDynamics?: boolean
 }
 
 /**
@@ -456,6 +459,7 @@ function scanInstrumentTrack(
 	trackName: string,
 ): TrackScanResult {
 	let enhancedOpens = false
+	let chartDynamics = false
 	const eeAll: TrackEventEnd[] = []
 	const eeExpert: TrackEventEnd[] = []
 	const eeHard: TrackEventEnd[] = []
@@ -568,6 +572,7 @@ function scanInstrumentTrack(
 						velocity,
 						channel,
 						isStart,
+						chartDynamics,
 					})
 					consumed = true
 				}
@@ -636,6 +641,7 @@ function scanInstrumentTrack(
 				// Treat this like the other events that have a start and end, so it can be processed the same way later
 				eventEnds['all'].push({ tick: event.deltaTime, type: eventTypes.enableChartDynamics, channel: 1, isStart: true, velocity: 127 })
 				eventEnds['all'].push({ tick: event.deltaTime, type: eventTypes.enableChartDynamics, channel: 1, isStart: false, velocity: 127 })
+				chartDynamics = true
 				consumedAsNote = true
 			}
 
@@ -825,6 +831,7 @@ function getTrackEvents(trackEventEnds: { [key in Difficulty]: TrackEventEnd[] }
 					type: trackEventEnd.type,
 					velocity: trackEventEnd.velocity,
 					channel: trackEventEnd.channel,
+					chartDynamics: trackEventEnd.chartDynamics,
 				}
 				if (partialTrackEvents === undefined) {
 					partialTrackEvents = []
@@ -948,7 +955,8 @@ function splitMidiModifierSustains(
 					}
 				}
 
-				if (enableChartDynamics && instrumentType === instrumentTypes.drums && (event.velocity === 1 || event.velocity === 127)) {
+				const dynamics = rules.midiChartDynamics === 'fromEvent' ? event.chartDynamics === true : enableChartDynamics
+				if (dynamics && instrumentType === instrumentTypes.drums && (event.velocity === 1 || event.velocity === 127)) {
 					newEvents[difficulty].push({
 						tick: event.tick,
 						length: 0,

@@ -21,6 +21,13 @@ export interface ParseRules {
 	 * track, as Clone Hero does; `keepAll` parses each of them.
 	 */
 	readonly midiDuplicateInstrumentTracks: 'keepAll' | 'firstWins'
+	/**
+	 * Which MIDI drum notes `[ENABLE_CHART_DYNAMICS]` turns into accents and ghosts. `fromEvent` matches Clone
+	 * Hero's single pass: every note that comes after the event in the track, on every difficulty.
+	 * `leaksAcrossDifficulties` is scan-chart 8's behavior: after the event on the first charted difficulty
+	 * (Expert first), and on every note of each later difficulty.
+	 */
+	readonly midiChartDynamics: 'fromEvent' | 'leaksAcrossDifficulties'
 }
 
 const scanner: ParseRules = Object.freeze({
@@ -29,6 +36,7 @@ const scanner: ParseRules = Object.freeze({
 	midiTrackAllocation: 'difficultiesWithNotes',
 	chartTrackAllocation: 'everySection',
 	midiDuplicateInstrumentTracks: 'keepAll',
+	midiChartDynamics: 'fromEvent',
 })
 
 const frozenLegacy6142: ParseRules = Object.freeze({
@@ -37,6 +45,7 @@ const frozenLegacy6142: ParseRules = Object.freeze({
 	midiTrackAllocation: 'difficultiesWithNotesAndExpert',
 	chartTrackAllocation: 'everySection',
 	midiDuplicateInstrumentTracks: 'keepAll',
+	midiChartDynamics: 'leaksAcrossDifficulties',
 })
 
 const canonical20260801: ParseRules = Object.freeze({
@@ -45,6 +54,7 @@ const canonical20260801: ParseRules = Object.freeze({
 	midiTrackAllocation: 'difficultiesWithNotes',
 	chartTrackAllocation: 'sectionsWithNotes',
 	midiDuplicateInstrumentTracks: 'firstWins',
+	midiChartDynamics: 'fromEvent',
 })
 
 export const parseRules = Object.freeze({ scanner, frozenLegacy6142, canonical20260801 })
