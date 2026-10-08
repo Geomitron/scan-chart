@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import { parseIni } from 'src/ini/parse-ini'
 import { scanIni } from 'src/ini/scan-ini'
-import { isNullOrWhiteSpaceDotnet, removeStyleTags, trimDotnet } from 'src/shared/text'
+import { isNullOrWhiteSpaceDotnet, removeStyleTags, toLowerInvariant, trimDotnet } from 'src/shared/text'
 
 const dotnetWhitespace = [
 	'\t', '\n', '\v', '\f', '\r', ' ', '\u0085', '\u00a0', '\u1680',
@@ -14,7 +14,7 @@ function ini(text: string): Uint8Array {
 	return new TextEncoder().encode(text)
 }
 
-describe('.NET whitespace', () => {
+describe('.NET text rules', () => {
 	it.each(dotnetWhitespace.map(char => [char.codePointAt(0)!.toString(16).padStart(4, '0'), char]))('trims U+%s', (_code, char) => {
 		expect(trimDotnet(`${char}${char}value${char}`)).toBe('value')
 		expect(isNullOrWhiteSpaceDotnet(char)).toBe(true)
@@ -48,5 +48,12 @@ describe('.NET whitespace', () => {
 		expect(removeStyleTags('<\u0085b>Name</\u2003b>')).toBe('Name')
 		expect(removeStyleTags('Name\ufeff')).toBe('Name\ufeff')
 		expect(removeStyleTags('<\ufeffb>Name')).toBe('<\ufeffb>Name')
+	})
+
+	it('lowercases each character by its simple case mapping, as ToLowerInvariant does', () => {
+		expect(toLowerInvariant('MyIcon')).toBe('myicon')
+		expect(toLowerInvariant('\u0391\u03a3')).toBe('\u03b1\u03c3')
+		expect('\u0391\u03a3'.toLowerCase()).toBe('\u03b1\u03c2')
+		expect(toLowerInvariant('PART GU\u0130TAR')).toBe('part guitar')
 	})
 })

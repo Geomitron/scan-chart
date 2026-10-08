@@ -2,7 +2,7 @@ import { blake3 } from '@awasm/noble'
 import { base64url } from 'rfc4648'
 
 import type { Difficulty, Instrument } from '../../types'
-import { removeStyleTags } from '../../shared/text'
+import { removeStyleTags, toLowerInvariant } from '../../shared/text'
 import { CanonicalChartDurationMs, HistoricalSongHashDurationMs } from './duration-types'
 import type { CanonicalBlake3Digest } from './btrack-20260801'
 import type { LegacyBlake3Digest } from './public'
@@ -218,7 +218,7 @@ function resolveCanonicalMetadata(metadata: SongHashMetadata): { readonly [K in 
 		return removeStyleTags(value === null || value === '0' || value === '-1' ? metadataDefaults[field] : value)
 	}
 	const charter = resolve('charter')
-	const icon = resolve('icon').toLowerCase()
+	const icon = toLowerInvariant(resolve('icon'))
 	return {
 		name: resolve('name'),
 		artist: resolve('artist'),
@@ -226,7 +226,7 @@ function resolveCanonicalMetadata(metadata: SongHashMetadata): { readonly [K in 
 		genre: resolve('genre'),
 		year: resolve('year'),
 		charter,
-		icon: icon === charter.toLowerCase() ? '' : icon,
+		icon: icon === toLowerInvariant(charter) ? '' : icon,
 	}
 }
 

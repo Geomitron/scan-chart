@@ -150,6 +150,7 @@ describe('canonical SongHash metadata resolution', () => {
 		expect(canonicalMetadata({ charter: '<color=#fff>Geo</color>', icon: 'GEO' }).icon).toBe('')
 		expect(canonicalMetadata({ charter: 'Geo', icon: 'Other' }).icon).toBe('other')
 		expect(canonicalMetadata({ charter: 'Geo', icon: '-1' }).icon).toBe('')
+		expect(canonicalMetadata({ charter: '\u0391\u03a3', icon: '\u03b1\u03c3' }).icon).toBe('')
 	})
 
 	it('gives a .chart-only folder the SongHash of the equivalent song.ini', () => {
