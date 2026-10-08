@@ -10,7 +10,8 @@ import { msToExactTime } from '../shared/time'
 import { computeHopoThresholdTicks, isNaturalHopo } from './natural-hopo'
 import { IniChartModifiers, NoteEvent, noteFlags, NoteType, noteTypes } from './types'
 import { ParsedChart } from './parse-chart-and-ini'
-import { calculateTrackHash, pruneEmptyPhrases } from './track-hasher'
+import { pruneEmptyPhrases } from './track-hasher'
+import { canonical20260801, CanonicalSongBundle } from './identity/public'
 
 const LEADING_SILENCE_THRESHOLD_MS = 1000
 const MIN_SUSTAIN_GAP_MS = 40
@@ -23,21 +24,21 @@ const NPS_GROUP_SIZE_MS = 1000
  * the previous `scanChart(files, …)` returned; this version takes a
  * `ParsedChart` so callers can reuse a parse result without redoing it.
  *
- * `trackHashes` is byte-stable across releases — see the spec in track-hasher.ts.
+ * `trackHashes` and `songHash` come from the canonical 20260801 identity profile, which parses the source again
+ * with its own rules. `identityError` is set when that profile rejects the chart.
  */
 export function scanParsedChart(parsedChart: ParsedChart, includeBTrack = false) {
 	const result = parsedChart
 	const iniChartModifiers = result.iniChartModifiers
 
-	const trackHashes = result.trackData.map(t => {
-		const hash = calculateTrackHash(result, t.instrument, t.difficulty)
-		return {
-			instrument: t.instrument,
-			difficulty: t.difficulty,
-			hash: hash.hash,
-			btrack: includeBTrack ? hash.btrack : null,
-		}
-	})
+	const identity = calculateCanonicalIdentity(result)
+	const bundle = identity.kind === 'accepted' ? identity.bundle : null
+	const trackHashes = (bundle?.tracks ?? []).map(track => ({
+		instrument: track.instrument,
+		difficulty: track.difficulty,
+		hash: track.identity.trackHash.value,
+		btrack: includeBTrack ? track.identity.physicalBTrack.bytes : null,
+	}))
 
 	// Walk every noteEventGroup once to derive all state-dependent flags.
 	// `hasForcedNotes` mirrors the old source-derived semantics: true iff the
@@ -95,6 +96,9 @@ export function scanParsedChart(parsedChart: ParsedChart, includeBTrack = false)
 
 	return {
 		chartHash: getChartHash(result.chartBytes, iniChartModifiers),
+		songHash: bundle?.song.songHash.value ?? null,
+		songDurationMs: bundle === null ? null : Number(bundle.duration.durationMs),
+		identityError: identity.kind === 'rejected' ? identity.error : null,
 		notesData: {
 			instruments: _.chain(result.trackData)
 				.map(t => t.instrument)
@@ -143,6 +147,21 @@ export function scanParsedChart(parsedChart: ParsedChart, includeBTrack = false)
 				.thru(({ min, max }) => (min !== undefined && max !== undefined ? _.round(max - min, 3) : iniChartModifiers.song_length))
 				.value(),
 		},
+	}
+}
+
+function calculateCanonicalIdentity(parsedChart: ParsedChart):
+	| { readonly kind: 'accepted'; readonly bundle: CanonicalSongBundle }
+	| { readonly kind: 'rejected'; readonly error: string } {
+	const parsed = canonical20260801.parseSource({
+		source: { format: parsedChart.format, bytes: parsedChart.chartBytes },
+		modifiers: parsedChart.iniChartModifiers,
+	})
+	if (parsed.kind === 'rejected') return { kind: 'rejected', error: parsed.errors.map(error => error.message).join(' ') }
+	try {
+		return { kind: 'accepted', bundle: canonical20260801.calculateSongBundle({ chart: parsed.chart, metadata: parsedChart.songHashMetadata }) }
+	} catch (error) {
+		return { kind: 'rejected', error: error instanceof Error ? error.message : String(error) }
 	}
 }
 
@@ -253,10 +272,12 @@ function findChartIssues(
 			if (instrumentGroup.every(track => track.difficulty !== 'expert')) {
 				addIssue(instrumentGroup[0].instrument, null, 'noExpert')
 			} else {
-				const expertHash = trackHashes.find(t => t.instrument === instrumentGroup[0].instrument && t.difficulty === 'expert')!.hash
+				// Canonical hashes omit noteless tracks, and every hash is absent if the canonical profile rejected the chart.
+				const expertHash = trackHashes.find(t => t.instrument === instrumentGroup[0].instrument && t.difficulty === 'expert')?.hash
 				for (const track of instrumentGroup.filter(t => t.difficulty !== 'expert')) {
 					if (
-						expertHash === trackHashes.find(t => t.instrument === track.instrument && t.difficulty === track.difficulty)!.hash &&
+						expertHash !== undefined &&
+						expertHash === trackHashes.find(t => t.instrument === track.instrument && t.difficulty === track.difficulty)?.hash &&
 						track.noteEventGroups.length > 20
 					) {
 						addIssue(track.instrument, track.difficulty, 'difficultyNotReduced')

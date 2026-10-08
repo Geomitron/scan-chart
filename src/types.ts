@@ -38,6 +38,17 @@ export interface ScannedChart {
 	md5: string
 	/** A blake3 hash of just the chart file and the .ini modifiers that impact chart parsing. If this changes, the in-game score is reset. */
 	chartHash: string
+	/**
+	 * The canonical 20260801 SongHash, as unpadded base64url. It identifies the song on leaderboards and covers the
+	 * song's metadata, `songDurationMs`, and the TrackHash of every track in `notesData.trackHashes`.
+	 * `null` if the chart couldn't be parsed, or if the canonical profile rejected it (see the `badChartIdentity` folder issue).
+	 */
+	songHash: string | null
+	/**
+	 * The canonical song duration in milliseconds: the time at song speed 1.0 of the latest note end across every
+	 * track plus one quarter-note, rounded up. It doesn't depend on audio or `song_length`. `null` when `songHash` is.
+	 */
+	songDurationMs: number | null
 	/** If the chart is able to be played in-game. This is `false` if `notesData` is `null`. */
 	playable: boolean
 
@@ -202,16 +213,17 @@ export interface NotesData {
 		nps: number
 	}[]
 	/**
-	 * Hashes of each track. This is specifically designed to change if and only if the chart changes in a way that impacts scoring or difficulty.
-	 * This means it is useful for games to use this to determine which charts should share the same leaderboard.
-	 *
-	 * Detailed information on how this is calculated can be found here: https://drive.google.com/open?id=1AfZMSc687C1PZCoAWKQDhdAExV7Pt45t6adz71szd3U
+	 * The canonical 20260801 TrackHash of each track that has at least one note, in SongHash order (by instrument,
+	 * then Easy to Expert). A TrackHash changes if and only if the track changes in a way that impacts scoring or
+	 * difficulty, so games can use it to decide which charts share a leaderboard. Empty if the canonical profile
+	 * rejected the chart (see the `badChartIdentity` folder issue).
 	 */
 	trackHashes: {
 		instrument: Instrument
 		difficulty: Difficulty
+		/** The canonical TrackHash, as unpadded base64url. */
 		hash: string
-		/** The full btrack data for this track. `hash` is derived from this. `null` if `ScanChartConfig.includeBTrack` is `false`. */
+		/** The track's `CHNF/20260801` BTrack. `hash` is derived from it. `null` if `ScanChartConfig.includeBTrack` is `false`. */
 		btrack: Uint8Array<ArrayBuffer> | null
 	}[]
 	/** MD5 hash of the chart's tempo map, including BPM markers and time signature markers. */
@@ -308,6 +320,7 @@ export type FolderIssueType =
 	| 'noChart' // This chart doesn't have "notes.chart"/"notes.mid"
 	| 'invalidChart' // .chart/.mid file is not named "notes.chart"/"notes.mid"
 	| 'badChart' // This chart's .chart/.mid file couldn't be parsed
+	| 'badChartIdentity' // The canonical identity profile rejected this chart, so it has no TrackHashes or SongHash
 	| 'multipleChart' // This chart has multiple .chart/.mid files
 	| 'badVideo' // This chart has a video background that will not work on Linux
 	| 'multipleVideo' // This chart has multiple video background files

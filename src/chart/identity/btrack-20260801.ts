@@ -115,7 +115,7 @@ export interface CanonicalPhysicalBTrack {
 	readonly kind: 'sectioned-btrack'
 	readonly profile: 'canonical-20260801'
 	readonly physicalVersion: 20260801
-	readonly bytes: Uint8Array
+	readonly bytes: Uint8Array<ArrayBuffer>
 	readonly [canonicalPhysicalToken]: true
 }
 
@@ -242,7 +242,7 @@ interface SectionMapEntry {
 	readonly length: number
 }
 
-function copyBytes(source: Uint8Array): () => Uint8Array {
+function copyBytes(source: Uint8Array): () => Uint8Array<ArrayBuffer> {
 	const owned = source.slice()
 	return () => owned.slice()
 }
