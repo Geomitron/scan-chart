@@ -3,7 +3,7 @@ import * as _ from 'lodash'
 import { defaultMetadata } from '../ini/metadata'
 import { scanIni } from '../ini/scan-ini'
 import { File, FolderIssueType, MetadataIssueType } from '../types'
-import { getExtension, hasChartExtension, hasChartName } from '../shared/file-names'
+import { getBasename, getExtension, hasChartExtension, hasChartName } from '../shared/file-names'
 import { IniChartModifiers } from './types'
 import { parseChartFile, ParsedChartFile } from './parse-chart-file'
 import { selectSongHashMetadata } from './identity/song-metadata'
@@ -135,9 +135,14 @@ export function parseChartAndIni(files: File[]): ParseChartAndIniResult {
 function findChartData(files: File[]) {
 	const folderIssues: { folderIssue: FolderIssueType; description: string }[] = []
 
+	// Like Clone Hero, prefer a file named "notes" in any letter case, and .mid over .chart when both exist.
 	const chartFiles = _.chain(files)
 		.filter(f => hasChartExtension(f.fileName))
-		.orderBy([f => hasChartName(f.fileName), f => getExtension(f.fileName).toLowerCase() === 'mid'], ['desc', 'desc'])
+		.orderBy([
+			f => getBasename(f.fileName).toLowerCase() === 'notes',
+			f => getExtension(f.fileName).toLowerCase() === 'mid',
+			f => hasChartName(f.fileName),
+		], ['desc', 'desc', 'desc'])
 		.value()
 
 	for (const file of chartFiles) {

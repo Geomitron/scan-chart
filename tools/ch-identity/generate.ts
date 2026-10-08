@@ -138,7 +138,10 @@ async function loadFolder(folder: string): Promise<{
 }> {
 	const entries = await readdir(folder, { withFileTypes: true })
 	const names = entries.filter(entry => entry.isFile()).map(entry => entry.name)
-	const sources = sourceFiles(names)
+	const allSources = sourceFiles(names)
+	// Clone Hero plays notes.mid when a folder has both chart files.
+	const midiSources = allSources.filter(name => extname(name).toLowerCase() === '.mid')
+	const sources = midiSources.length > 0 ? midiSources : allSources
 	if (sources.length !== 1) throw new Error(`Expected exactly one notes.chart or notes.mid; found ${sources.length}`)
 	const iniNames = names.filter(name => name.toLowerCase() === 'song.ini')
 	if (iniNames.length > 1) throw new Error(`Expected at most one song.ini; found ${iniNames.length}`)
