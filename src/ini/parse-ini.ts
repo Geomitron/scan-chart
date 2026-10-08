@@ -1,6 +1,6 @@
 import * as _ from 'lodash'
 
-import { trimDotnet } from '../shared/text'
+import { toLowerInvariant, trimDotnet } from '../shared/text'
 import { decodeCloneHeroText } from '../shared/decode-text'
 
 export const $NoSection: unique symbol = Symbol('Lines before any sections')
@@ -27,16 +27,12 @@ export function parseIni(file: Uint8Array): { iniObject: IniObject; folderIssues
 			continue
 		}
 
-		if (line[0].startsWith('[')) {
-			const match = /\[(.+)]$/.exec(line)
-			if (match === null) {
-				folderIssues.push({ folderIssue: 'badIniLine', description: `Unsupported type of line: "${_.truncate(line, { length: 200 })}"` })
-			} else {
-				currentSection = match[1].toLowerCase()
-			}
+		// Like CH IniFile.Load: "[]" starts a section named "", and "[name=value" is a key.
+		if (line.startsWith('[') && line.endsWith(']')) {
+			currentSection = toLowerInvariant(line.slice(1, -1))
 		} else if (line.includes('=')) {
 			const delimeterPos = line.indexOf('=')
-			const key = trimDotnet(line.slice(0, delimeterPos)).toLowerCase()
+			const key = toLowerInvariant(trimDotnet(line.slice(0, delimeterPos)))
 			const value = trimDotnet(line.slice(delimeterPos + 1))
 
 			;(iniObject[currentSection] ??= Object.create(null))[key] = value
