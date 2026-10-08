@@ -53,12 +53,16 @@ describe('scanIni: unknownIniValues', () => {
 			'[Song]',
 			'frets = Legacy Charter',    // legacy alias for charter
 			'track = 5',                 // legacy alias for album_track
-			'hopofreq = 170',           // legacy alias for hopo_frequency
-			'star_power_note = 116',    // legacy alias for multiplier_note
 		])
 
 		const result = scanIni(files)
 		expect(result.unknownIniValues).toEqual({})
+	})
+
+	it('preserves hopofreq and star_power_note without reading them, as Clone Hero ignores them', () => {
+		const result = scanIni(buildIni(['[Song]', 'hopofreq = 170', 'star_power_note = 103']))
+		expect(result.metadata).toMatchObject({ hopo_frequency: 0, multiplier_note: 0 })
+		expect(result.unknownIniValues).toEqual({ hopofreq: '170', star_power_note: '103' })
 	})
 
 	it('preserves common unrecognized keys found in real charts', () => {

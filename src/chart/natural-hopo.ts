@@ -147,7 +147,7 @@ export function computeHopoThresholdTicks(
 	eighthnoteHopo: boolean,
 	format: 'chart' | 'mid',
 ): number {
-	if (iniHopoFreq) return iniHopoFreq
+	if (iniHopoFreq > 0) return iniHopoFreq
 	if (eighthnoteHopo) return Math.floor(1 + resolution / 2)
 	return Math.floor(format === 'mid' ? 1 + resolution / 3 : (65 / 192) * resolution)
 }

@@ -63,6 +63,8 @@ const integerProperties: MetaNumberKey[] = [
 	'video_start_time',
 ]
 const requiredProperties: MetaStringKey[] = ['name', 'artist', 'album', 'genre', 'year', 'charter']
+/** Integer keys that change how notes parse. Clone Hero reads them with `IniFile.GetInt`, so they parse like `int.TryParse`. */
+const chartModifierIntegers = ['hopo_frequency', 'multiplier_note', 'sustain_cutoff_threshold', 'chord_snap_threshold'] as const
 
 export function scanIni(files: File[]): ScanIniResult {
 	const folderIssues: { folderIssue: FolderIssueType; description: string }[] = []
@@ -142,7 +144,7 @@ function findIniData(files: File[]): {
 /** All keys that extractSongMetadata reads (primary + legacy aliases). */
 const knownIniKeys = new Set([
 	...Object.keys(defaultMetadata),
-	'frets', 'track', 'hopofreq', 'star_power_note', // legacy aliases
+	'frets', 'track', // legacy aliases
 ])
 
 /**
@@ -185,11 +187,12 @@ function extractSongMetadata(songSection: { [key: string]: string }): {
 		playlist_track: getIniInteger(songSection, 'playlist_track'),
 		modchart: getIniBoolean(songSection, 'modchart'),
 		delay: getIniInteger(songSection, 'delay'),
-		hopo_frequency: getIniInteger(songSection, 'hopo_frequency', 'hopofreq'),
+		// Clone Hero clamps hopo_frequency and reads no legacy alias for it or multiplier_note (SongGameMetadata.ParseFromIni).
+		hopo_frequency: Math.min(Math.max(getChartModifierInteger(songSection, 'hopo_frequency'), 0), 65535),
 		eighthnote_hopo: getIniBoolean(songSection, 'eighthnote_hopo'),
-		multiplier_note: getIniInteger(songSection, 'multiplier_note', 'star_power_note'),
-		sustain_cutoff_threshold: getIniInteger(songSection, 'sustain_cutoff_threshold'),
-		chord_snap_threshold: getIniInteger(songSection, 'chord_snap_threshold'),
+		multiplier_note: getChartModifierInteger(songSection, 'multiplier_note'),
+		sustain_cutoff_threshold: getChartModifierInteger(songSection, 'sustain_cutoff_threshold'),
+		chord_snap_threshold: getChartModifierInteger(songSection, 'chord_snap_threshold'),
 		video_start_time: getIniInteger(songSection, 'video_start_time'),
 		five_lane_drums: getIniBoolean(songSection, 'five_lane_drums'),
 		pro_drums: getIniBoolean(songSection, 'pro_drums'),
@@ -208,6 +211,15 @@ function extractSongMetadata(songSection: { [key: string]: string }): {
 				description: `The "${integerProperty}" value in "song.ini" is "${metadata[integerProperty]}", which is not an integer.`,
 			})
 			metadata[integerProperty] = Math.round(metadata[integerProperty])
+		}
+	}
+	for (const key of chartModifierIntegers) {
+		const value = songSection[key]
+		if (value !== undefined && value !== '' && parseDotnetInt(value) === null) {
+			metadataIssues.push({
+				metadataIssue: 'invalidValue',
+				description: `The "${key}" value in "song.ini" is "${value}", which is not an integer.`,
+			})
 		}
 	}
 	for (const requiredProperty of requiredProperties) {
@@ -280,6 +292,27 @@ function getIniInteger(songSection: { [key: string]: string }, key: MetaNumberKe
 }
 
 /**
+ * @returns the value in `songSection` at `key`, parsed as Clone Hero's `IniFile.GetInt` parses it, or the default.
+ */
+function getChartModifierInteger(songSection: { [key: string]: string }, key: (typeof chartModifierIntegers)[number]) {
+	const value = songSection[key]
+	return (value === undefined ? null : parseDotnetInt(value)) ?? defaultMetadata[key]
+}
+
+/**
+ * Parses `value` as .NET's `int.TryParse` does with the invariant culture: optional ASCII whitespace, an optional
+ * sign, ASCII digits, optional whitespace, then optional NUL characters, within the signed 32-bit range.
+ * @returns the integer, or `null` if .NET would not parse it.
+ */
+function parseDotnetInt(value: string): number | null {
+	const match = /^[\x09-\x0d ]*([+-]?[0-9]+)[\x09-\x0d ]*\x00*$/.exec(value)
+	if (match === null) return null
+	const parsed = Number(match[1])
+	if (parsed < -2147483648 || parsed > 2147483647) return null
+	return parsed === 0 ? 0 : parsed
+}
+
+/**
  * @returns the value in `songSection` at `key`, parsed as a boolean.
  * Falls back to `legacyKey` if not found or invalid.
  * Then falls back to the default value if `legacyKey` is not found or invalid.
@@ -299,13 +332,16 @@ function getIniBoolean(songSection: { [key: string]: string }, key: MetaBooleanK
 }
 
 /**
- * Clone Hero and YARG both accept ini booleans in any case (e.g. `true`, `True`, `TRUE`).
- * @returns `true`/`false` if `value` is a recognized boolean literal, or `null` otherwise.
+ * Parses `value` as Clone Hero's `IniFile.TryGetBool` does: any integer `int.TryParse` accepts is `true` unless it
+ * is 0, and "true" or "false" match in any letter case (e.g. "2" and "TRUE" are `true`; "yes" is not a boolean).
+ * @returns `true`/`false` if `value` is a recognized boolean, or `null` otherwise.
  */
 function parseBoolean(value: string | undefined): boolean | null {
 	if (value === undefined) return null
-	const lowered = value.toLowerCase()
-	if (lowered === 'true' || lowered === '1') return true
-	if (lowered === 'false' || lowered === '0') return false
+	const integer = parseDotnetInt(value)
+	if (integer !== null) return integer !== 0
+	const upper = value.toUpperCase()
+	if (upper === 'TRUE') return true
+	if (upper === 'FALSE') return false
 	return null
 }
