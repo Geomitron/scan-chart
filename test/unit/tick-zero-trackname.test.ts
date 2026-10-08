@@ -166,3 +166,31 @@ describe('MIDI: track-name letter case', () => {
 		expect(expert.textEvents).toEqual([])
 	})
 })
+
+describe('MIDI: track 0', () => {
+	const conductor = (name: string, extra: MidiData['tracks'][number] = []): MidiData['tracks'][number] => [
+		{ deltaTime: 0, type: 'trackName', text: name },
+		{ deltaTime: 0, type: 'setTempo', microsecondsPerBeat: 500000 },
+		...extra,
+		{ deltaTime: 0, type: 'endOfTrack' },
+	]
+
+	it('is never an instrument track, in any profile, as Clone Hero reads instruments from track 1 on', () => {
+		const guitarNotes: MidiData['tracks'][number] = [
+			{ deltaTime: 0, type: 'noteOn', channel: 0, noteNumber: 96, velocity: 100 },
+			{ deltaTime: 480, type: 'noteOff', channel: 0, noteNumber: 96, velocity: 0 },
+		]
+		const midi = buildMidi(480, [conductor('PART GUITAR', guitarNotes), trackWithLeadingNames(['PART BASS'], 96)])
+		const instruments = (tracks: readonly { instrument: string }[]) => tracks.map(track => track.instrument)
+		expect(instruments(parseChartFile(midi, 'mid').trackData)).toEqual(['bass'])
+		expect(instruments(parseChartFileFrozenLegacyIdentity(midi, 'mid').trackData)).toEqual(['bass'])
+		const canonical = canonical20260801.parseSource({ source: { format: 'mid', bytes: midi }, modifiers: defaultMetadata })
+		expect(canonical.kind === 'accepted' && canonical.chart.tracks.map(track => track.key.instrument)).toEqual(['bass'])
+		expect(parseNotesFromMidi(midi, defaultMetadata).unrecognizedMidiTracks).toHaveLength(0)
+	})
+
+	it('can still be the events track', () => {
+		const midi = buildMidi(480, [conductor('EVENTS', [{ deltaTime: 0, type: 'text', text: '[section intro]' }]), trackWithLeadingNames(['PART BASS'], 96)])
+		expect(parseNotesFromMidi(midi, defaultMetadata).sections.map(section => section.name)).toEqual(['intro'])
+	})
+})

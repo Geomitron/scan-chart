@@ -415,7 +415,8 @@ function getTracks(midiData: MidiData) {
 			}
 		}
 
-		if (recognizedTrackName !== null) {
+		// Clone Hero reads track 0 only as the conductor track and, if it is named so, the events track.
+		if (recognizedTrackName !== null && (i !== 0 || recognizedTrackName === 'EVENTS')) {
 			tracks.push({
 				trackName: recognizedTrackName,
 				sourceName: recognizedSourceName,
