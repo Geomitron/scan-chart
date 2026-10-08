@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { canonical20260801 } from 'src/chart/identity/public'
 import { SongHashMetadata } from 'src/chart/identity/song-hash-20251010'
 import { canonicalChartDurationMs } from 'src/chart/identity/duration-types'
-import { parseNotesFromChart } from 'src/chart/chart-file-parser'
+import { parseNotesFromChart, readChartSongMetadata } from 'src/chart/chart-file-parser'
 import { parseChartAndIni } from 'src/chart/parse-chart-and-ini'
 import { File } from 'src/types'
 
@@ -15,7 +15,7 @@ function chart(songLines: readonly string[], firstSection = 'Song'): Uint8Array 
 }
 
 function chartMetadata(songLines: readonly string[]) {
-	return parseNotesFromChart(chart(songLines)).metadata
+	return readChartSongMetadata(chart(songLines))
 }
 
 function folder(songLines: readonly string[], ini?: { fileName: string; text: string }): File[] {
@@ -64,22 +64,33 @@ describe('.chart [Song] metadata read as Clone Hero reads it', () => {
 	})
 
 	it('stops reading at a TEMPO TRACK or midi_export name', () => {
-		expect(chartMetadata(['Artist = "Before"', 'Name = "TEMPO TRACK"', 'Charter = "After"'])).toMatchObject({
-			artist: 'Before',
-			name: undefined,
-			charter: undefined,
-		})
-		expect(chartMetadata(['Name = "Kept"', 'Name = "midi_export"', 'Album = "After"'])).toMatchObject({ name: 'Kept', album: undefined })
+		expect(chartMetadata(['Artist = "Before"', 'Name = "TEMPO TRACK"', 'Charter = "After"'])).toEqual({ artist: 'Before' })
+		expect(chartMetadata(['Name = "Kept"', 'Name = "midi_export"', 'Album = "After"'])).toEqual({ name: 'Kept' })
 	})
 
 	it('reads only the first section of the file', () => {
-		expect(parseNotesFromChart(chart(['Name = "Late"'], 'SyncTrack')).metadata.name).toBeUndefined()
+		expect(readChartSongMetadata(chart(['Name = "Late"'], 'SyncTrack')).name).toBeUndefined()
 	})
 
 	it('decodes text that is not UTF-8 as ISO-8859-1', () => {
 		const prefix = new TextEncoder().encode('[Song]\r\n{\r\n  Resolution = 192\r\n  Name = "Caf')
 		const suffix = new TextEncoder().encode('"\r\n}\r\n[SyncTrack]\r\n{\r\n  0 = B 120000\r\n}\r\n')
-		expect(parseNotesFromChart(Uint8Array.from([...prefix, 0xe9, ...suffix])).metadata.name).toBe('Caf\u00e9')
+		expect(readChartSongMetadata(Uint8Array.from([...prefix, 0xe9, ...suffix])).name).toBe('Caf\u00e9')
+	})
+})
+
+describe('.chart [Song] metadata in the scanner', () => {
+	it('removes a leading ", " from Year only when it is present', () => {
+		expect(parseNotesFromChart(chart(['Year = "2004"'])).metadata.year).toBe('2004')
+		expect(parseNotesFromChart(chart(['Year = ", 2004"'])).metadata.year).toBe('2004')
+	})
+
+	it('keeps [Song] values that the Clone Hero reader skips, for round-trip writers', () => {
+		expect(parseNotesFromChart(chart(['Name = "Late"'], 'SyncTrack')).metadata.name).toBe('Late')
+		expect(parseNotesFromChart(chart(['Name = "TEMPO TRACK"', 'Artist = "After"'])).metadata).toMatchObject({
+			name: 'TEMPO TRACK',
+			artist: 'After',
+		})
 	})
 })
 
