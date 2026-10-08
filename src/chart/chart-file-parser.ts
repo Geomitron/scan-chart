@@ -117,7 +117,6 @@ export function parseNotesFromChart(data: Uint8Array): RawChartData {
 	if (!resolution) {
 		throw 'Invalid .chart file: resolution not found.'
 	}
-	const songMetadata = readChartSongMetadata(data)
 
 	// Collect any [Song] keys not claimed by a typed metadata field into
 	// `extraChartSongFields` so they round-trip verbatim. Parallel to how
@@ -136,12 +135,13 @@ export function parseNotesFromChart(data: Uint8Array): RawChartData {
 	return {
 		chartTicksPerBeat: resolution,
 		metadata: {
-			name: songMetadata.name || undefined,
-			artist: songMetadata.artist || undefined,
-			album: songMetadata.album || undefined,
-			genre: songMetadata.genre || undefined,
-			year: songMetadata.year || undefined,
-			charter: songMetadata.charter || undefined,
+			name: metadata['Name'] || undefined,
+			artist: metadata['Artist'] || undefined,
+			album: metadata['Album'] || undefined,
+			genre: metadata['Genre'] || undefined,
+			// GH-era charts write ", 2004" so the year reads well after the artist; Clone Hero removes that prefix.
+			year: (metadata['Year']?.startsWith(', ') ? metadata['Year'].slice(2) : metadata['Year']) || undefined,
+			charter: metadata['Charter'] || undefined,
 			diff_guitar: Number(metadata['Difficulty']) || undefined,
 			// "Offset" and "PreviewStart" are in units of seconds.
 			// NOTE: [Song].Offset is a .chart-only property — distinct from
@@ -179,7 +179,7 @@ export function parseNotesFromChart(data: Uint8Array): RawChartData {
 	}
 }
 
-type ChartSongMetadata = { [key in 'name' | 'artist' | 'album' | 'genre' | 'year' | 'charter']?: string }
+export type ChartSongMetadata = { [key in 'name' | 'artist' | 'album' | 'genre' | 'year' | 'charter']?: string }
 
 const chartSongMetadataFields = new Map<string, keyof ChartSongMetadata>([
 	['Name', 'name'],
@@ -194,8 +194,11 @@ const chartSongMetadataFields = new Map<string, keyof ChartSongMetadata>([
  * Reads song metadata as Clone Hero's `SongEntry.ReadFeedbackChartMetadata` does: the first `{}` block of the
  * file, case-sensitive keys, the first nonblank value of each key, outer quotes removed, and .NET trimming. A
  * `Name` of `TEMPO TRACK` or `midi_export` stops the reader. A leading `, ` is removed from `Year`.
+ *
+ * This feeds the canonical SongHash only. `parseNotesFromChart` keeps its own `[Song]` reading for the scanner's
+ * metadata, which writers round-trip.
  */
-function readChartSongMetadata(data: Uint8Array): ChartSongMetadata {
+export function readChartSongMetadata(data: Uint8Array): ChartSongMetadata {
 	const metadata: ChartSongMetadata = {}
 	let text: string
 	try {

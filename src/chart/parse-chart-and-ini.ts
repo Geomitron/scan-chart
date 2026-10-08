@@ -6,6 +6,7 @@ import { File, FolderIssueType, MetadataIssueType } from '../types'
 import { getBasename, getExtension, hasChartExtension, hasChartName } from '../shared/file-names'
 import { IniChartModifiers } from './types'
 import { parseChartFile, ParsedChartFile } from './parse-chart-file'
+import { readChartSongMetadata } from './chart-file-parser'
 import { selectSongHashMetadata } from './identity/song-metadata'
 import type { SongHashMetadata } from './identity/song-hash-20251010'
 
@@ -18,8 +19,7 @@ export type ParsedChart = ParsedChartFile & {
 	 * The raw bytes of the source chart file. Needed by `scanChart` to compute
 	 * `chartHash`, which is `blake3(chartBytes ++ ini-modifier name/value
 	 * pairs)` — the file contents directly plus the few ini knobs that affect
-	 * parsing. (Predates the SongHash spec, which scan-chart does not yet
-	 * implement; once it does, this field can be dropped.)
+	 * parsing — and to parse the chart again with the canonical identity rules.
 	 */
 	chartBytes: Uint8Array
 	/** The format the chart was parsed from. */
@@ -112,7 +112,7 @@ export function parseChartAndIni(files: File[]): ParseChartAndIniResult {
 				chartBytes: chartData,
 				format: format!,
 				iniChartModifiers,
-				songHashMetadata: selectSongHashMetadata(iniData.songSection, inner.metadata),
+				songHashMetadata: selectSongHashMetadata(iniData.songSection, format === 'chart' ? readChartSongMetadata(chartData) : {}),
 			}) as ParsedChart
 		} catch (err) {
 			chartFolderIssues.push({
