@@ -2,7 +2,7 @@ import { blake3 } from '@awasm/noble'
 
 import { Difficulty, Instrument } from '../../types'
 import { IniChartModifiers } from '../types'
-import { parseChartFile, ParsedChartFile } from '../parse-chart-file'
+import { parseChartFileFrozenLegacyIdentity, ParsedChartFile } from '../parse-chart-file'
 import { calculateTrackHash } from '../track-hasher'
 import {
 	calculateCanonicalTrackDuration,
@@ -190,7 +190,7 @@ function describeError(error: unknown): string {
 
 function parseFrozenLegacySource(request: SourceParseRequest): FrozenLegacyParseOutcome {
 	try {
-		const parsed = parseChartFile(request.source.bytes.slice(), request.source.format, request.modifiers)
+		const parsed = parseChartFileFrozenLegacyIdentity(request.source.bytes.slice(), request.source.format, request.modifiers)
 		return {
 			kind: 'accepted',
 			chart: {

@@ -1,4 +1,5 @@
 import { blake3 } from '@awasm/noble'
+import { MidiData, writeMidi } from '@geomitron/midi-file'
 import { base64url } from 'rfc4648'
 import { describe, expect, it } from 'vitest'
 
@@ -46,6 +47,53 @@ function chart(): Uint8Array {
 }
 
 describe('SongHash 20251010', () => {
+	it('retains empty and marker-only MIDI tracks only in legacy SongHash membership', () => {
+		const conductor: MidiData['tracks'][number] = [
+			{ deltaTime: 0, type: 'setTempo', microsecondsPerBeat: 500000 },
+			{ deltaTime: 0, type: 'endOfTrack' },
+		]
+		const guitar: MidiData['tracks'][number] = [
+			{ deltaTime: 0, type: 'trackName', text: 'PART GUITAR' },
+			{ deltaTime: 0, type: 'noteOn', channel: 0, noteNumber: 60, velocity: 100 },
+			{ deltaTime: 192, type: 'noteOff', channel: 0, noteNumber: 60, velocity: 0 },
+			{ deltaTime: 0, type: 'endOfTrack' },
+		]
+		const bass: MidiData['tracks'][number] = [
+			{ deltaTime: 0, type: 'trackName', text: 'PART BASS' },
+			{ deltaTime: 0, type: 'endOfTrack' },
+		]
+		const drums: MidiData['tracks'][number] = [
+			{ deltaTime: 0, type: 'trackName', text: 'PART DRUMS' },
+			{ deltaTime: 0, type: 'noteOn', channel: 0, noteNumber: 116, velocity: 100 },
+			{ deltaTime: 192, type: 'noteOff', channel: 0, noteNumber: 116, velocity: 0 },
+			{ deltaTime: 0, type: 'endOfTrack' },
+		]
+		const result = songBundle20251010.calculate({
+			source: { format: 'mid', bytes: new Uint8Array(writeMidi({
+				header: { format: 1, numTracks: 4, ticksPerBeat: 192 },
+				tracks: [conductor, guitar, bass, drums],
+			})) },
+			modifiers: defaultMetadata,
+			metadata,
+			legacyDurationMs: historicalSongHashDurationMs(1000n),
+		})
+		expect(result.kind).toBe('accepted')
+		if (result.kind !== 'accepted') return
+		expect(result.frozenLegacy6142.tracks.map(track => `${track.instrument}:${track.difficulty}`))
+			.toEqual(['guitar:expert', 'guitar:easy', 'bass:expert', 'drums:expert'])
+		expect(result.canonical20260801.tracks.map(track => `${track.instrument}:${track.difficulty}`)).toEqual(['guitar:easy'])
+		const drumTrack = result.frozenLegacy6142.tracks.find(track => track.instrument === 'drums')
+		expect(drumTrack?.duration.durationMs).toBe(1n)
+		expect(result.canonical20260801.duration.durationMs).toBe(1000n)
+		if (result.frozenLegacy6142.song.kind !== 'available') throw new Error('Expected legacy identity')
+		const withoutEmptyTracks = frozenLegacy6142.calculateSongIdentity({
+			metadata, durationMs: historicalSongHashDurationMs(1000n),
+			members: result.frozenLegacy6142.tracks.filter(track => track.difficulty === 'easy')
+				.flatMap(track => track.instrument === 'keysghl' ? [] : [{ instrument: track.instrument, difficulty: track.difficulty, digest: track.identity.digest }]),
+		})
+		expect(result.frozenLegacy6142.song.identity.songHash.value).not.toBe(withoutEmptyTracks.songHash.value)
+	})
+
 	it('reproduces a pinned Clone Hero 1.1 SongHash', () => {
 		const preimage = serializeSongHash20251010({
 			metadata,
