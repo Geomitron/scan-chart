@@ -79,4 +79,10 @@ describe('CH INI identity parsing', () => {
 		expect(result.metadata).toBeNull()
 		expect(result.folderIssues).toEqual([expect.objectContaining({ folderIssue: 'invalidMetadata' })])
 	})
+
+	it('reads section headers as CH IniFile.Load does', () => {
+		const sections = parseIni(new TextEncoder().encode('[song]\nname = Real\n[]\nname = Other\n[song\n[weird = 1\n')).iniObject
+		expect(sections.song).toEqual({ name: 'Real' })
+		expect(sections['']).toEqual({ name: 'Other', '[weird': '1' })
+	})
 })
