@@ -1,0 +1,9 @@
+[
+  {
+    "code": "recordValueInvalid",
+    "field": "noteFlags",
+    "reason": "flagCombinationInvalid",
+    "recordIndex": 0,
+    "sectionId": "9"
+  }
+]

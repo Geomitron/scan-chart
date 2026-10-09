@@ -1,0 +1,37 @@
+[
+  {
+    "code": "rangeShiftOutOfBounds",
+    "position": 3,
+    "size": 4,
+    "source": {
+      "containingDifficulty": null,
+      "eventIndex": 5,
+      "format": "mid",
+      "instrument": "guitar",
+      "text": "[ld_range_shift 3 3 4]",
+      "tick": 500
+    }
+  },
+  {
+    "code": "rangeShiftMalformed",
+    "source": {
+      "containingDifficulty": null,
+      "eventIndex": 6,
+      "format": "mid",
+      "instrument": "guitar",
+      "text": "[ld_range_shift  3 2 2]",
+      "tick": 600
+    }
+  },
+  {
+    "code": "rangeShiftInstrumentInapplicable",
+    "source": {
+      "containingDifficulty": null,
+      "eventIndex": 0,
+      "format": "mid",
+      "instrument": "drums",
+      "text": "[ld_range_shift 3 1 5]",
+      "tick": 100
+    }
+  }
+]

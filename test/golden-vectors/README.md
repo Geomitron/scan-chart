@@ -1,18 +1,18 @@
 # BTrack golden vectors
 
-Version 2 is the current BTrack, TrackHash, and source-parser reference suite.
+Version 3 is the current canonical TrackHash and SongHash reference suite.
 Run it with:
 
 ```text
 npm run vectors:verify
 ```
 
-See `suites/v2/README.md` for coverage, compatibility policy, and the version 1
-correction. Older suite directories remain immutable for audit history.
+See `suites/v3/README.md` for coverage, compatibility policy, and the changes
+from version 2. Older suite directories remain immutable for audit history.
 
 ## Drafting the next suite
 
-`cases.ts` holds the authored cases of the next suite, version 3, which covers
+`cases.ts` holds the authored cases of version 3, the latest suite, which covers
 the canonical `canonical-20260801` profile only and adds song vectors: a song
 folder in, the canonical SongHash out. It uses manifest schema version 2;
 suites v1 and v2 use schema version 1, and the verifier reads both.

@@ -1,0 +1,9 @@
+[
+  {
+    "code": "recordValueInvalid",
+    "field": "isDouble",
+    "reason": "orderNoncanonical",
+    "recordIndex": 1,
+    "sectionId": "6"
+  }
+]
