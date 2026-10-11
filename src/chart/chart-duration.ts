@@ -62,13 +62,14 @@ function tickPeriodToTime(startTick: bigint, endTick: bigint, resolution: number
 	return (Number(endTick - startTick) * 60) / (resolution * beatsPerMinute)
 }
 
-function assignedTempos(resolutionValue: number, tempos: readonly DurationTempo[]): readonly AssignedTempo[] {
+function assignedTempos(resolutionValue: number, tempos: readonly DurationTempo[], roundTempos: boolean): readonly AssignedTempo[] {
 	const resolution = requirePositiveFinite(resolutionValue, 'resolution')
 	const temposAtTick = new Map<bigint, number>()
 	for (const tempo of tempos) {
 		if (tempo.tick < BigInt(0)) throw new RangeError('tempo tick must be nonnegative')
 		const tick = tempo.tick
-		temposAtTick.set(tick, roundBpm(requirePositiveFinite(tempo.beatsPerMinute, 'tempo BPM')))
+		const beatsPerMinute = requirePositiveFinite(tempo.beatsPerMinute, 'tempo BPM')
+		temposAtTick.set(tick, roundTempos ? roundBpm(beatsPerMinute) : beatsPerMinute)
 	}
 	if (!temposAtTick.has(BigInt(0))) temposAtTick.set(BigInt(0), 120)
 
@@ -105,8 +106,8 @@ function bitIncrement(value: number): number {
 	return view.getFloat64(0, false)
 }
 
-function tickPositionToTime(resolution: number, tempoSource: readonly DurationTempo[], position: bigint): number {
-	const tempos = assignedTempos(resolution, tempoSource)
+function tickPositionToTime(resolution: number, tempoSource: readonly DurationTempo[], position: bigint, roundTempos: boolean): number {
+	const tempos = assignedTempos(resolution, tempoSource, roundTempos)
 	let active = tempos[0]
 	for (const tempo of tempos) {
 		if (tempo.tick > position) break
@@ -153,7 +154,7 @@ function createTrackDuration(
 	const resolution = requireNonnegativeSafeInteger(resolutionValue, 'resolution')
 	if (resolution === 0) throw new RangeError('resolution must be greater than zero')
 	if (lastNoteEndTick < BigInt(0)) throw new RangeError('last note end tick must be nonnegative')
-	const roundedDurationMs = Math.max(1, Math.ceil(tickPositionToTime(resolution, tempos, lastNoteEndTick) * 1000))
+	const roundedDurationMs = Math.max(1, Math.ceil(tickPositionToTime(resolution, tempos, lastNoteEndTick, true) * 1000))
 	requireNonnegativeSafeInteger(roundedDurationMs, 'track duration')
 	return {
 		definition: trackDurationDefinition,
@@ -200,6 +201,18 @@ export function calculateCanonicalTrackDuration(semantics: CanonicalTrackSemanti
  * tick; vocal-note collections and chart events do not.
  */
 export function calculateCanonicalChartDuration(chart: ParsedChartFile): CanonicalChartDuration {
+	return chartDuration(chart, true)
+}
+
+/**
+ * The chart-length fallback of the frozen legacy SongHash: the same duration with exact tempos, because Clone Hero
+ * 1.1.0.6142 didn't round them.
+ */
+export function calculateLegacyChartFallbackDurationMs(chart: ParsedChartFile): bigint {
+	return chartDuration(chart, false).durationMs
+}
+
+function chartDuration(chart: ParsedChartFile, roundTempos: boolean): CanonicalChartDuration {
 	const resolution = requireNonnegativeSafeInteger(chart.resolution, 'resolution')
 	if (resolution === 0) throw new RangeError('resolution must be greater than zero')
 	let contentLastTick = 0
@@ -214,7 +227,7 @@ export function calculateCanonicalChartDuration(chart: ParsedChartFile): Canonic
 	}
 	const endTick = contentLastTick + resolution
 	requireNonnegativeSafeInteger(endTick, 'duration end tick')
-	const durationMs = Math.ceil(tickPositionToTime(resolution, parsedTempos(chart), BigInt(endTick)) * 1000)
+	const durationMs = Math.ceil(tickPositionToTime(resolution, parsedTempos(chart), BigInt(endTick), roundTempos) * 1000)
 	requireNonnegativeSafeInteger(durationMs, 'canonical chart duration')
 	return {
 		definition: canonicalChartDurationDefinition,
