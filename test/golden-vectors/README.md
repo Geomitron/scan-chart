@@ -12,10 +12,11 @@ from version 2. Older suite directories remain immutable for audit history.
 
 ## Drafting the next suite
 
-`cases.ts` holds the authored cases of version 3, the latest suite, which covers
-the canonical `canonical-20260801` profile only and adds song vectors: a song
-folder in, the canonical SongHash out. It uses manifest schema version 2;
-suites v1 and v2 use schema version 1, and the verifier reads both.
+`cases.ts` holds the authored cases of the next suite, version 4. Like version 3,
+the latest approved suite, it covers the canonical `canonical-20260801` profile
+only and includes song vectors: a song folder in, the canonical SongHash out.
+Both use manifest schema version 2; suites v1 and v2 use schema version 1, and
+the verifier reads both.
 
 ```text
 npm run vectors:generate -- --out <new-directory>
