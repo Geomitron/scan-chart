@@ -6,7 +6,7 @@ import { defaultMetadata } from 'src/ini/metadata'
 import { Difficulty, Instrument } from 'src/types'
 
 /*
- * The authored cases of the next suite, v3: the canonical `canonical-20260801` profile only. Approved suites are
+ * The authored cases of the next suite, v4: the canonical `canonical-20260801` profile only. Approved suites are
  * frozen in `suites/`; changing a case here changes only drafts generated from now on.
  */
 
@@ -1230,9 +1230,45 @@ function durationCases(): AuthoredSongCase[] {
 	]
 }
 
+/** Green, red and yellow guitar notes a beat apart at 480 ticks per beat, the content of both tempo-rounding vectors. */
+const tempoRoundingNotes: readonly (readonly [tick: number, fret: number])[] = [[0, 0], [480, 1], [960, 2]]
+
+/**
+ * C16: `.chart` stores 140 BPM as `B 140000` and `.mid` as 428571 microseconds per beat, 140.00014 BPM. Both round
+ * to 140.000, so the two folders have equal TrackHashes and durations.
+ */
+function tempoRoundingCases(): AuthoredSongCase[] {
+	return [
+		{
+			id: 'song-tempo-rounding-chart',
+			purpose: 'C16: a .chart at B 140000; its TrackHash and durations equal song-tempo-rounding-mid.',
+			files: [
+				{
+					name: 'notes.chart',
+					bytes: chart({
+						Song: ['Resolution = 480'],
+						SyncTrack: ['0 = B 140000', '0 = TS 4'],
+						Events: [],
+						ExpertSingle: tempoRoundingNotes.map(([tick, fret]) => `${tick} = N ${fret} 0`),
+					}),
+				},
+				{ name: 'song.ini', bytes: songIni(songIniBase) },
+			],
+		},
+		midiWithIni('song-tempo-rounding-mid',
+			'C16: a .mid at 428571 microseconds per beat, which rounds to 140.000 BPM; its TrackHash and durations equal song-tempo-rounding-chart.',
+			midi([midiTrack('PART GUITAR', tempoRoundingNotes.flatMap(([tick, fret]) => note(tick, 96 + fret, 10)))], 480, midiTrack('', [
+				{ tick: 0, event: { deltaTime: 0, type: 'setTempo', microsecondsPerBeat: 428571 } },
+				{ tick: 0, event: { deltaTime: 0, type: 'timeSignature', numerator: 4, denominator: 4, metronome: 24, thirtyseconds: 8 } },
+			])),
+			songIni(songIniBase)),
+	]
+}
+
 export const songCases: readonly AuthoredSongCase[] = [
 	...metadataCases(),
 	...membershipCases(),
 	...modifierCases(),
 	...durationCases(),
+	...tempoRoundingCases(),
 ]

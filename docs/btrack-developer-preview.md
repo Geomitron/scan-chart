@@ -85,7 +85,9 @@ command.
   commit that produced your comparison results.
 - The canonical physical format is `CHNF/20260801`. TrackHash uses the
   canonical semantic projection, not the physical file bytes. The projection
-  excludes the magic, physical version, offsets, lengths, and unknown sections.
+  excludes the magic, physical version, offsets, lengths, and unknown sections,
+  and rounds each tempo to 0.001 BPM so a chart converted between `.chart` and
+  `.mid` keeps its TrackHash. The physical file keeps the exact tempo.
 - The canonical reader requires the strict physical layout. It rejects gaps,
   overlaps, reordered payloads, trailing bytes, empty optional sections, and
   malformed recognized data.

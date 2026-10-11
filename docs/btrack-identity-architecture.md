@@ -32,7 +32,7 @@ needs a dual output bundle; the package does not expose an ambiguous mode flag.
 Canonical source parsing also owns canonical chart duration. It finds the
 latest regular-note end across every parsed instrument and difficulty, adds
 one quarter-note in ticks, and converts that tick through the full tempo map at song speed
-`1.0`. The dual-bundle operation always uses this derived value for canonical
+`1.0`, with each tempo rounded to 0.001 BPM as in the TrackHash projection. The dual-bundle operation always uses this derived value for canonical
 SongHash. Frozen legacy SongHash accepts a separate historical duration; when
 that value is unavailable, canonical SongHash and both TrackHash/BTrack
 profiles remain available while legacy SongHash is explicitly unavailable.
