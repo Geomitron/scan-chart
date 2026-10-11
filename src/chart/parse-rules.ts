@@ -28,6 +28,11 @@ export interface ParseRules {
 	 * (Expert first), and on every note of each later difficulty.
 	 */
 	readonly midiChartDynamics: 'fromEvent' | 'leaksAcrossDifficulties'
+	/**
+	 * Whether `[ENABLE_CHART_DYNAMICS]` turns kick velocities into accents and ghosts. Clone Hero 1.1.0.6142 does;
+	 * kick dynamics are not supported, so later builds ignore them.
+	 */
+	readonly midiKickDynamics: 'applied' | 'ignored'
 }
 
 const scanner: ParseRules = Object.freeze({
@@ -37,6 +42,7 @@ const scanner: ParseRules = Object.freeze({
 	chartTrackAllocation: 'everySection',
 	midiDuplicateInstrumentTracks: 'keepAll',
 	midiChartDynamics: 'fromEvent',
+	midiKickDynamics: 'ignored',
 })
 
 const frozenLegacy6142: ParseRules = Object.freeze({
@@ -46,6 +52,7 @@ const frozenLegacy6142: ParseRules = Object.freeze({
 	chartTrackAllocation: 'everySection',
 	midiDuplicateInstrumentTracks: 'keepAll',
 	midiChartDynamics: 'leaksAcrossDifficulties',
+	midiKickDynamics: 'applied',
 })
 
 const canonical20260801: ParseRules = Object.freeze({
@@ -55,6 +62,7 @@ const canonical20260801: ParseRules = Object.freeze({
 	chartTrackAllocation: 'sectionsWithNotes',
 	midiDuplicateInstrumentTracks: 'firstWins',
 	midiChartDynamics: 'fromEvent',
+	midiKickDynamics: 'ignored',
 })
 
 export const parseRules = Object.freeze({ scanner, frozenLegacy6142, canonical20260801 })

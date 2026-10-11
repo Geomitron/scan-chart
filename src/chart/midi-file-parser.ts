@@ -947,7 +947,9 @@ function splitMidiModifierSustains(
 				}
 
 				const dynamics = rules.midiChartDynamics === 'fromEvent' ? event.chartDynamics === true : enableChartDynamics
-				if (dynamics && instrumentType === instrumentTypes.drums && (event.velocity === 1 || event.velocity === 127)) {
+				const isKick = event.type === eventTypes.kick || event.type === eventTypes.kick2x
+				if (dynamics && instrumentType === instrumentTypes.drums && (event.velocity === 1 || event.velocity === 127)
+					&& !(isKick && rules.midiKickDynamics === 'ignored')) {
 					newEvents[difficulty].push({
 						tick: event.tick,
 						length: 0,

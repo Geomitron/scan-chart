@@ -322,4 +322,18 @@ describe('CHNF/20260801', () => {
 		expectRejectedCode(physical([{ id: 1n, payload: resolution }, { id: 6n, payload: counted(lane(0n, 0), lane(0n, 0)) }, { id: 9n, payload: notes }]),
 			'recordValueInvalid')
 	})
+
+	it('rejects accents and ghosts on kicks, which have no dynamics', () => {
+		for (const flag of [noteFlags.accent, noteFlags.ghost]) {
+			const writeKick = () => identifyCanonicalTrack({ ...emptyTrack(), notes: [{ tick: 0n, length: 0n, type: noteTypes.kick, flags: flag }] })
+			expect(writeKick).toThrow('note flags are invalid')
+			const kick = counted(bytes(24, view => {
+				view.setUint32(16, noteTypes.kick, true)
+				view.setUint32(20, flag, true)
+			}))
+			expectRejectedCode(physical([{ id: 1n, payload: resolution }, { id: 9n, payload: kick }]), 'recordValueInvalid')
+		}
+		const pad = { tick: 0n, length: 0n, type: noteTypes.redDrum, flags: noteFlags.accent | noteFlags.tom }
+		expect(() => identifyCanonicalTrack({ ...emptyTrack(), notes: [pad] })).not.toThrow()
+	})
 })

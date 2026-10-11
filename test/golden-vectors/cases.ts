@@ -423,6 +423,17 @@ function chartDynamicsCases(): AuthoredSourceCase[] {
 			}),
 			target: { instrument: 'drums', difficulty: 'expert' },
 		},
+		{
+			id: 'source-midi-kick-dynamics-ignored',
+			purpose: 'C17: kicks have no dynamics. After [ENABLE_CHART_DYNAMICS], velocity 127 and 1 on a kick or 2x kick add no flag, while the red and yellow pads still get an accent and a ghost.',
+			format: 'mid',
+			bytes: midi([midiTrack('PART DRUMS', [
+				textEvent(0, '[ENABLE_CHART_DYNAMICS]'),
+				...note(0, 96, 60, 127), ...note(480, 96, 60, 1), ...note(960, 95, 60, 127), ...note(1440, 95, 60, 1),
+				...note(1920, 97, 60, 127), ...note(2400, 98, 60, 1),
+			])]),
+			target: { instrument: 'drums', difficulty: 'expert' },
+		},
 	]
 }
 
@@ -782,6 +793,10 @@ const invalidNoteFlagCombination = physical([{ id: 1n, payload: resolution }, ..
 	id: 9n,
 	payload: counted(noteRecord(0n, 0n, noteTypes.green, noteFlags.strum | noteFlags.tap)),
 }])
+const kickAccent = physical([{ id: 1n, payload: resolution }, ...tempoMap, {
+	id: 9n,
+	payload: counted(noteRecord(0n, 0n, noteTypes.kick, noteFlags.accent)),
+}])
 const unorderedNotes = physical([{ id: 1n, payload: resolution }, {
 	id: 9n,
 	payload: counted(
@@ -877,6 +892,12 @@ export const physicalCases: readonly AuthoredPhysicalCase[] = [
 		purpose: 'Mutually exclusive attack flags cannot coexist; the tempo map is present.',
 		expected: 'rejected',
 		bytes: invalidNoteFlagCombination,
+	},
+	{
+		id: 'physical-reject-kick-dynamics',
+		purpose: 'C17: kicks have no dynamics, so an accent or ghost on a kick is malformed; the tempo map is present.',
+		expected: 'rejected',
+		bytes: kickAccent,
 	},
 	{ id: 'physical-reject-note-order', purpose: 'Same-tick notes must use ascending NoteType order.', expected: 'rejected', bytes: unorderedNotes },
 	{ id: 'physical-reject-phrase-overlap', purpose: 'Canonical phrase records cannot overlap.', expected: 'rejected', bytes: overlappingPhrase },

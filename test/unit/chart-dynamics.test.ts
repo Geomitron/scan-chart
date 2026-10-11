@@ -78,6 +78,20 @@ describe('[ENABLE_CHART_DYNAMICS] in MIDI', () => {
 			.toEqual({ expert: after, hard: after })
 	})
 
+	it('ignores velocities on kicks, which have no dynamics, except in the frozen legacy profile', () => {
+		// Expert kick (96) at velocities 127 and 1, then an Expert red pad (97) at 127
+		const bytes = drums([
+			[0, dynamicsText()],
+			[0, noteOn(96, 127)], [60, noteOff(96)],
+			[480, noteOn(96, 1)], [540, noteOff(96)],
+			[960, noteOn(97, 127)], [1020, noteOff(97)],
+		])
+		for (const parse of [parseChartFile, parseChartFileCanonicalIdentity]) {
+			expect(dynamicsByTick(parse, bytes)).toEqual({ expert: { 0: '-', 480: '-', 960: 'accent' } })
+		}
+		expect(dynamicsByTick(parseChartFileFrozenLegacyIdentity, bytes).expert).toEqual({ 0: 'accent', 480: 'ghost', 960: 'accent' })
+	})
+
 	it('accepts the event with or without brackets', () => {
 		const bytes = drums([[0, dynamicsText('ENABLE_CHART_DYNAMICS')], [0, noteOn(98, 127)], [60, noteOff(98)]])
 		expect(dynamicsByTick(parseChartFileCanonicalIdentity, bytes)).toEqual({ expert: { 0: 'accent' } })

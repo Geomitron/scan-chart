@@ -269,6 +269,7 @@ function noteFlagError(type: NoteType, flags: number): 'flagBitsUnknown' | 'flag
 	if (!hasAtMostOneFlag(flags, noteFlags.discoNoflip | noteFlags.disco)) return 'flagCombinationInvalid'
 	if (!hasAtMostOneFlag(flags, noteFlags.ghost | noteFlags.accent)) return 'flagCombinationInvalid'
 	if ((flags & noteFlags.doubleKick) !== 0 && type !== noteTypes.kick) return 'flagCombinationInvalid'
+	if ((flags & (noteFlags.ghost | noteFlags.accent)) !== 0 && type === noteTypes.kick) return 'flagCombinationInvalid'
 	if ((flags & (noteFlags.tom | noteFlags.cymbal)) !== 0 && (type < noteTypes.redDrum || type > noteTypes.greenDrum)) {
 		return 'flagCombinationInvalid'
 	}
