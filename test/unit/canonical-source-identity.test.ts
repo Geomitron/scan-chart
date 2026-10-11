@@ -138,7 +138,12 @@ describe('canonical source identity', () => {
 		expect(parsed.notices.map(notice => notice.code)).toEqual(['rangeShiftOutOfBounds'])
 
 		const identity = canonical20260801.calculateTrackIdentity(canonical)
-		expect(containsBytes(identity.projection.bytes, [0x46, 0x7a, 0x5e, 0x11, 0xfc, 0xff, 0x5d, 0x40])).toBe(true)
+		// 500001 microseconds per beat is 119.99976 BPM: the BTrack keeps it, and the TrackHash rounds it to 120
+		const exactTempo = [0x46, 0x7a, 0x5e, 0x11, 0xfc, 0xff, 0x5d, 0x40]
+		const roundedTempo = [0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x5e, 0x40]
+		expect(containsBytes(identity.physicalBTrack.bytes, exactTempo)).toBe(true)
+		expect(containsBytes(identity.projection.bytes, exactTempo)).toBe(false)
+		expect(containsBytes(identity.projection.bytes, roundedTempo)).toBe(true)
 	})
 
 	it('uses exclusive star-power and solo ends and inclusive flex and freestyle ends', () => {

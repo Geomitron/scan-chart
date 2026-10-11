@@ -1,6 +1,6 @@
 import type { ParsedChartFile } from './parse-chart-file'
 import type { Difficulty, Instrument } from '../types'
-import type { CanonicalTrackSemantics } from './identity/btrack-20260801'
+import { roundBpm, type CanonicalTrackSemantics } from './identity/btrack-20260801'
 import {
 	canonicalChartDurationMs,
 	CanonicalChartDurationMs,
@@ -68,7 +68,7 @@ function assignedTempos(resolutionValue: number, tempos: readonly DurationTempo[
 	for (const tempo of tempos) {
 		if (tempo.tick < BigInt(0)) throw new RangeError('tempo tick must be nonnegative')
 		const tick = tempo.tick
-		temposAtTick.set(tick, requirePositiveFinite(tempo.beatsPerMinute, 'tempo BPM'))
+		temposAtTick.set(tick, roundBpm(requirePositiveFinite(tempo.beatsPerMinute, 'tempo BPM')))
 	}
 	if (!temposAtTick.has(BigInt(0))) temposAtTick.set(BigInt(0), 120)
 

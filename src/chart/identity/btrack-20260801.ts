@@ -481,8 +481,30 @@ function writePhysicalFile(sections: readonly CanonicalSection[]): Uint8Array {
 	return bytes
 }
 
+/**
+ * `.chart` stores tempo in thousandths of a BPM and `.mid` in microseconds per beat, so most tempos can't be converted
+ * exactly. The TrackHash and chart durations use tempos rounded to 0.001 BPM, so a chart keeps its hashes when
+ * converted between the two formats. BTrack files and gameplay keep the exact tempo.
+ */
+export function roundBpm(beatsPerMinute: number): number {
+	return Math.floor(beatsPerMinute * 1000 + 0.5) / 1000
+}
+
+function roundTempoPayload(payload: Uint8Array): Uint8Array {
+	const rounded = payload.slice()
+	const view = new DataView(rounded.buffer)
+	const count = view.getUint32(0, true)
+	for (let index = 0; index < count; index++) {
+		const offset = 4 + index * 16 + 8
+		view.setFloat64(offset, roundBpm(view.getFloat64(offset, true)), true)
+	}
+	return rounded
+}
+
 function projectTrackHash(sections: readonly CanonicalSection[]): Uint8Array {
-	const recognized = sections.filter(section => section.id >= SECTION_RESOLUTION && section.id <= SECTION_NOTE)
+	const recognized = sections
+		.filter(section => section.id >= SECTION_RESOLUTION && section.id <= SECTION_NOTE)
+		.map(section => section.id === SECTION_TEMPO ? { ...section, payload: roundTempoPayload(section.payload) } : section)
 	const payloadLength = recognized.reduce((length, section) => length + section.payload.length, 0)
 	const bytes = new Uint8Array(4 + 8 * recognized.length + payloadLength)
 	const view = new DataView(bytes.buffer)
