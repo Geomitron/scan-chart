@@ -1,6 +1,6 @@
 import { historicalSongHashDurationMs, HistoricalSongHashDurationMs } from '../../src/chart/identity/duration-types'
 import { parseIni } from '../../src/ini/parse-ini'
-import { calculateCanonicalChartDuration } from '../../src/chart/chart-duration'
+import { calculateLegacyChartFallbackDurationMs } from '../../src/chart/chart-duration'
 import type { ParsedChartFile } from '../../src/chart/parse-chart-file'
 
 export interface HistoricalDurationAvailable {
@@ -27,7 +27,7 @@ export function resolveHistoricalDuration(
 	return {
 		kind: 'available',
 		source: 'chart-fallback',
-		durationMs: historicalSongHashDurationMs(calculateCanonicalChartDuration(legacyChart).durationMs),
+		durationMs: historicalSongHashDurationMs(calculateLegacyChartFallbackDurationMs(legacyChart)),
 	}
 }
 

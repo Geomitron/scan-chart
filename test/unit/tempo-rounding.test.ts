@@ -1,8 +1,10 @@
 import { writeMidi } from '@geomitron/midi-file'
 import { describe, expect, it } from 'vitest'
 
+import { calculateCanonicalChartDuration, calculateLegacyChartFallbackDurationMs } from 'src/chart/chart-duration'
 import { canonical20260801, type ChartSource } from 'src/chart/identity/public'
 import { roundBpm } from 'src/chart/identity/btrack-20260801'
+import { parseChartFile } from 'src/chart/parse-chart-file'
 import { defaultMetadata } from 'src/ini/metadata'
 
 const resolution = 192
@@ -15,9 +17,9 @@ function chartSource(chartTempo: number) {
 	return { format: 'chart' as const, bytes: new TextEncoder().encode(text) }
 }
 
-function midiSource(microsecondsPerBeat: number) {
+function midiSource(microsecondsPerBeat: number, ticks = noteTicks) {
 	let previous = 0
-	const guitar = [{ deltaTime: 0, type: 'trackName' as const, text: 'PART GUITAR' }, ...noteTicks.flatMap(tick => {
+	const guitar = [{ deltaTime: 0, type: 'trackName' as const, text: 'PART GUITAR' }, ...ticks.flatMap(tick => {
 		const events = [
 			{ deltaTime: tick - previous, type: 'noteOn' as const, channel: 0, noteNumber: 96, velocity: 100 },
 			{ deltaTime: 0, type: 'noteOff' as const, channel: 0, noteNumber: 96, velocity: 0 },
@@ -64,5 +66,12 @@ describe('tempo rounding in the TrackHash', () => {
 	// .chart tempos are whole thousandths of a BPM, so rounding leaves them, and their TrackHashes, unchanged
 	it.each([1, 3576, 120000, 143587, 999999, 2400000])('keeps the .chart tempo B %i', chartTempo => {
 		expect(roundBpm(chartTempo / 1000)).toBe(chartTempo / 1000)
+	})
+
+	it('leaves the chart-length fallback of the frozen legacy SongHash on exact tempos', () => {
+		// The content ends 2400 beats in: 1,028,571.43 ms at 140 BPM, 1,028,570.4 ms at 428571 microseconds per beat
+		const chart = parseChartFile(midiSource(428571, [0, 2399 * resolution]).bytes, 'mid')
+		expect(calculateCanonicalChartDuration(chart).durationMs).toBe(BigInt(1028572))
+		expect(calculateLegacyChartFallbackDurationMs(chart)).toBe(BigInt(1028571))
 	})
 })
