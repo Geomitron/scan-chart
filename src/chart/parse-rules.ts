@@ -33,6 +33,11 @@ export interface ParseRules {
 	 * kick dynamics are not supported, so later builds ignore them.
 	 */
 	readonly midiKickDynamics: 'applied' | 'ignored'
+	/**
+	 * Whether `N 109` in a `.chart` drum section is a flam marker on the drum notes of its tick. Clone Hero
+	 * 1.1.0.6142 ignores it; `.chart` gained flam in 2026, mirroring MIDI's flam note.
+	 */
+	readonly chartFlam: 'read' | 'ignored'
 }
 
 const scanner: ParseRules = Object.freeze({
@@ -43,6 +48,7 @@ const scanner: ParseRules = Object.freeze({
 	midiDuplicateInstrumentTracks: 'keepAll',
 	midiChartDynamics: 'fromEvent',
 	midiKickDynamics: 'ignored',
+	chartFlam: 'read',
 })
 
 const frozenLegacy6142: ParseRules = Object.freeze({
@@ -53,6 +59,7 @@ const frozenLegacy6142: ParseRules = Object.freeze({
 	midiDuplicateInstrumentTracks: 'keepAll',
 	midiChartDynamics: 'leaksAcrossDifficulties',
 	midiKickDynamics: 'applied',
+	chartFlam: 'ignored',
 })
 
 const canonical20260801: ParseRules = Object.freeze({
@@ -63,6 +70,7 @@ const canonical20260801: ParseRules = Object.freeze({
 	midiDuplicateInstrumentTracks: 'firstWins',
 	midiChartDynamics: 'fromEvent',
 	midiKickDynamics: 'ignored',
+	chartFlam: 'read',
 })
 
 export const parseRules = Object.freeze({ scanner, frozenLegacy6142, canonical20260801 })

@@ -60,7 +60,7 @@ function parseChartFileWithRules(
 	rules: ParseRules,
 ) {
 	const iniChartModifiers = Object.assign({}, defaultMetadata, partialIniChartModifiers) as IniChartModifiers
-	const rawChartData = format === 'mid' ? parseNotesFromMidi(data, iniChartModifiers, rules) : parseNotesFromChart(data)
+	const rawChartData = format === 'mid' ? parseNotesFromMidi(data, iniChartModifiers, rules) : applyChartRules(parseNotesFromChart(data), rules)
 	const timedTempos = getTimedTempos(rawChartData.tempos, rawChartData.chartTicksPerBeat)
 	const drumTracks = rawChartData.trackData.filter(track => track.instrument === 'drums')
 	// Both flags are invalid together but remain preserved for diagnostics and round-tripping.
@@ -119,6 +119,16 @@ function parseChartFileWithRules(
 			syncTrackEvents: rawChartData.unrecognizedSyncTrackEvents,
 		},
 	}
+}
+
+/** Applies the profile's `.chart` rules to classified data: without `chartFlam`, `N 109` markers are dropped. */
+function applyChartRules(rawChartData: RawChartData, rules: ParseRules): RawChartData {
+	if (rules.chartFlam === 'ignored') {
+		for (const track of rawChartData.trackData) {
+			track.trackEvents = track.trackEvents.filter(event => event.type !== eventTypes.forceFlam)
+		}
+	}
+	return rawChartData
 }
 
 /** Applies the profile's track-allocation rule after notes have been resolved. */
