@@ -156,6 +156,18 @@ describe('MIDI track edits', () => {
 		expect(view(editMidiTrack(tokens, 1, midiEventEdits(discoFlip, { tick: 5 })))).toContainEqual([5, eventTypes.discoFlipOn, 0])
 	})
 
+	it('read and edit a file whose conductor track can\'t be parsed, so it can be fixed', () => {
+		const tokens = readMidiTokens(new Uint8Array(writeMidi({
+			header: { format: 1, numTracks: 2, ticksPerBeat: 480 },
+			tracks: [
+				[{ deltaTime: 0, type: 'timeSignature', numerator: 0, denominator: 4, metronome: 24, thirtyseconds: 8 }, { deltaTime: 0, type: 'endOfTrack' }],
+				[{ deltaTime: 0, type: 'trackName', text: 'PART GUITAR' }, on(0, 96), off(10, 96), { deltaTime: 0, type: 'endOfTrack' }],
+			],
+		})))
+		const [green] = midiAuthoredTracks(tokens)[0].events
+		expect(view(editMidiTrack(tokens, 1, midiEventEdits(green, { length: 240 })))).toEqual([[0, eventTypes.green, 240]])
+	})
+
 	it('insert a note and delete one', () => {
 		const tokens = guitar([on(0, 96), off(10, 96)])
 		const edited = editMidiTrack(tokens, 1, [

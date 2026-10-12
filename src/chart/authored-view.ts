@@ -1,6 +1,6 @@
 import { difficulties, type Difficulty, type Instrument } from '../types'
 import { ChartFileTokens, chartSectionLines, chartSectionTrack, parseTrackLine } from './chart-file-parser'
-import { classifyMidiFile, compareTickAscTypeDesc, findMidiEventsTrack, isTextLikeEvent, pairEventEnds, TrackEventEnd } from './midi-file-parser'
+import { classifyMidiInstrumentTracks, compareTickAscTypeDesc, findMidiEventsTrack, isTextLikeEvent, pairEventEnds, TrackEventEnd } from './midi-file-parser'
 import { midiTokensToMidiData, MidiTokens } from './midi-tokens'
 import type { EventType } from './raw-types'
 
@@ -119,7 +119,7 @@ export interface MidiAuthoredTrack {
 export function midiAuthoredTracks(tokens: MidiTokens): MidiAuthoredTrack[] {
 	const trackChunks = tokens.chunks.flatMap((chunk, index) => chunk.kind === 'track' ? [index] : [])
 	const seen = new Set<Instrument>()
-	return classifyMidiFile(midiTokensToMidiData(tokens)).instrumentTracks.map(({ instrument, trackIndex, scan }) => {
+	return classifyMidiInstrumentTracks(midiTokensToMidiData(tokens)).map(({ instrument, trackIndex, scan }) => {
 		const chunk = trackChunks[trackIndex]
 		const isFirst = !seen.has(instrument)
 		seen.add(instrument)
