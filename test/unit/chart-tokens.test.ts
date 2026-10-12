@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { chartFileSections, tokenizeChartFile } from 'src/chart/chart-file-parser'
+import { chartFileSections, chartSectionLines, tokenizeChartFile } from 'src/chart/chart-file-parser'
 
 const encode = (text: string) => new TextEncoder().encode(text)
 
@@ -36,6 +36,15 @@ describe('.chart tokens', () => {
 		const tokens = tokenizeChartFile(utf16le(twoSongSections))
 		expect(tokens.encoding).toBe('utf-16le')
 		expect(chartFileSections(tokens)).toEqual({ Song: ['Resolution = 480'] })
+	})
+
+	it('split each section into every line with its span, the nonblank ones being the lines classification reads', () => {
+		const tokens = tokenizeChartFile(encode('[ExpertSingle]\r\n{\r\n  0 = N 0 0\r\n\r\n\t192 = N 1 0 \r\n}\r\n'))
+		const [section] = tokens.sections
+		const lines = chartSectionLines(tokens, section)
+		expect(lines.map(line => line.text)).toEqual(['', '0 = N 0 0', '', '192 = N 1 0', ''])
+		expect(lines.map(line => tokens.text.slice(line.start, line.end))).toEqual(['\r', '  0 = N 0 0\r', '\r', '\t192 = N 1 0 \r', ''])
+		expect(lines.map(line => line.text).filter(text => text !== '')).toEqual(chartFileSections(tokens).ExpertSingle)
 	})
 
 	it('tokenize a malformed file and report its error when its sections are read', () => {

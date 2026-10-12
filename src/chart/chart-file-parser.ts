@@ -452,6 +452,42 @@ function findChartSections(chartText: string): { sections: ChartSectionToken[]; 
  * Slice `source` from `start` to `end`, split on '\n', trim each line, and
  * drop empty results — in one pass with no intermediate arrays.
  */
+/** One line of a `.chart` section body. `start` and `end` are offsets in the decoded text; `end` is before the line feed. */
+export interface ChartLineToken {
+	readonly start: number
+	readonly end: number
+	/** The line without surrounding spaces, tabs and carriage returns, as classification reads it; empty when blank. */
+	readonly text: string
+}
+
+/**
+ * Splits a section body into every line, blank lines included, in file order. Its nonblank lines are exactly the
+ * lines classification reads from the section.
+ */
+export function chartSectionLines(tokens: ChartFileTokens, section: ChartSectionToken): ChartLineToken[] {
+	const source = tokens.text
+	const out: ChartLineToken[] = []
+	let lineStart = section.bodyStart
+	for (let i = section.bodyStart; i <= section.bodyEnd; i++) {
+		if (i === section.bodyEnd || source.charCodeAt(i) === 10) {
+			let a = lineStart, b = i
+			while (a < b) {
+				const cc = source.charCodeAt(a)
+				if (cc !== 32 && cc !== 9 && cc !== 13) break
+				a++
+			}
+			while (b > a) {
+				const cc = source.charCodeAt(b - 1)
+				if (cc !== 32 && cc !== 9 && cc !== 13) break
+				b--
+			}
+			out.push({ start: lineStart, end: i, text: source.slice(a, b) })
+			lineStart = i + 1
+		}
+	}
+	return out
+}
+
 function splitTrimmedNonEmptyLines(source: string, start: number, end: number): string[] {
 	const out: string[] = []
 	let lineStart = start
