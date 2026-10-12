@@ -258,14 +258,7 @@ export function classifyMidiFile(midiFile: MidiData): ClassifiedMidi {
 	// Non-text events (noteOn/Off, sysEx, channel events, etc.) go to
 	// unrecognizedMidiEvents.
 	const eventsScan = scanEventsTrack(tracks)
-
-	const instrumentTracks: ClassifiedMidi['instrumentTracks'] = []
-	for (const t of tracks) {
-		const instrument = instrumentNameMap[t.trackName as InstrumentTrackName]
-		if (instrument === undefined) continue // vocal/EVENTS tracks handled elsewhere
-		const instrumentType = getInstrumentType(instrument)
-		instrumentTracks.push({ instrument, instrumentType, trackIndex: t.trackIndex, scan: scanInstrumentTrack(t.trackEvents, instrumentType, t.sourceName) })
-	}
+	const instrumentTracks = scanInstrumentTracks(tracks)
 
 	return {
 		ticksPerBeat: midiFile.header.ticksPerBeat!,
@@ -276,6 +269,25 @@ export function classifyMidiFile(midiFile: MidiData): ClassifiedMidi {
 		instrumentTracks,
 		unrecognizedMidiTracks,
 	}
+}
+
+/**
+ * Scans each instrument track of a read `.mid` file, as classification does, without reading the conductor track. A
+ * malformed tempo or time signature, which makes classification throw, doesn't stop it.
+ */
+export function classifyMidiInstrumentTracks(midiFile: MidiData): ClassifiedMidi['instrumentTracks'] {
+	return scanInstrumentTracks(getTracks(midiFile).tracks)
+}
+
+function scanInstrumentTracks(tracks: MidiSourceTrack[]): ClassifiedMidi['instrumentTracks'] {
+	const instrumentTracks: ClassifiedMidi['instrumentTracks'] = []
+	for (const t of tracks) {
+		const instrument = instrumentNameMap[t.trackName as InstrumentTrackName]
+		if (instrument === undefined) continue // vocal/EVENTS tracks handled elsewhere
+		const instrumentType = getInstrumentType(instrument)
+		instrumentTracks.push({ instrument, instrumentType, trackIndex: t.trackIndex, scan: scanInstrumentTrack(t.trackEvents, instrumentType, t.sourceName) })
+	}
+	return instrumentTracks
 }
 
 /**
