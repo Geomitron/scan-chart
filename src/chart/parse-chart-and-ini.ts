@@ -4,7 +4,7 @@ import { File, FolderIssueType, MetadataIssueType } from '../types'
 import { findChartData, parseSong } from '../song-document'
 import { parseRules } from './parse-rules'
 import { IniChartModifiers } from './types'
-import { ParsedChartFile, parseChartSource } from './parse-chart-file'
+import { ChartSource, ParsedChartFile, parseChartSource } from './parse-chart-file'
 import { readChartSongMetadata } from './chart-file-parser'
 import { selectSongHashMetadata } from './identity/song-metadata'
 import type { SongHashMetadata } from './identity/song-hash-20251010'
@@ -80,6 +80,9 @@ export interface ParseChartAndIniResult {
  * `ParsedChart`, with no hashing or audio/image scanning. Pair with
  * `scanChart` if you need hashes, chart issues, or asset scanning.
  */
+/** The tokenized chart each parsed chart came from, so a second parse of it doesn't tokenize the file again. */
+export const parsedChartSources = new WeakMap<ParsedChart, ChartSource>()
+
 export function parseChartAndIni(files: File[]): ParseChartAndIniResult {
 	const iniData = scanIni(files)
 	const iniChartModifiers: IniChartModifiers = iniData.metadata
@@ -116,6 +119,7 @@ export function parseChartAndIni(files: File[]): ParseChartAndIniResult {
 				iniChartModifiers,
 				songHashMetadata: selectSongHashMetadata(iniData.songSection, format === 'chart' ? readChartSongMetadata(chartData) : {}),
 			}) as ParsedChart
+			parsedChartSources.set(parsedChart, chart)
 		} catch (err) {
 			chartFolderIssues.push({
 				folderIssue: 'badChart',
