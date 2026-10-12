@@ -1,5 +1,5 @@
-import { spliceChartText } from './chart-edit'
-import { ChartFileTokens, chartSectionLines, chartSectionTrack } from './chart-file-parser'
+import { chartTextRoundTrips, spliceChartText } from './chart-edit'
+import { ChartFileTokens, chartSectionLines, chartSectionTrack, tokenizeChartFile } from './chart-file-parser'
 
 /**
  * A kind of nonstandard `.chart` spelling. The standard is what the `.chart` encoder writes and nearly every library
@@ -39,7 +39,9 @@ export function chartNormalizations(tokens: ChartFileTokens): ChartNormalization
 		})
 	}
 
-	add('lineEndings', null, lineEndingSplices)
+	if (lineFeedsWithoutReturn(tokens).length > 0) {
+		normalizations.push({ kind: 'lineEndings', section: null, apply: withCarriageReturns })
+	}
 	const lastOfName = new Map<string, number>()
 	tokens.sections.forEach((section, index) => lastOfName.set(section.name, index))
 	for (const name of lastOfName.keys()) {
@@ -57,13 +59,41 @@ export function chartNormalizations(tokens: ChartFileTokens): ChartNormalization
 	return normalizations
 }
 
-/** A carriage return before each bare line feed. */
-function lineEndingSplices(tokens: ChartFileTokens): Splice[] {
-	const splices: Splice[] = []
-	for (let i = tokens.text.indexOf('\n'); i !== -1; i = tokens.text.indexOf('\n', i + 1)) {
-		if (tokens.text.charCodeAt(i - 1) !== 13) splices.push({ start: i, end: i, text: '\r' })
+/**
+ * The byte offsets of the line feeds with no carriage return before them. A line feed is never part of a multi-byte
+ * UTF-8 character, and in UTF-16 it is its own code unit, so the bytes can be read directly, valid or not.
+ */
+function lineFeedsWithoutReturn(tokens: ChartFileTokens): number[] {
+	const { bytes, encoding } = tokens
+	const offsets: number[] = []
+	if (encoding === 'utf-8') {
+		for (let i = bytes.indexOf(0x0a); i !== -1; i = bytes.indexOf(0x0a, i + 1)) if (bytes[i - 1] !== 0x0d) offsets.push(i)
+	} else {
+		const low = encoding === 'utf-16le' ? 0 : 1
+		for (let i = 2; i + 1 < bytes.length; i += 2) {
+			const isUnit = (at: number, value: number) => at >= 2 && bytes[at + low] === value && bytes[at + 1 - low] === 0
+			if (isUnit(i, 0x0a) && !isUnit(i - 2, 0x0d)) offsets.push(i)
+		}
 	}
-	return splices
+	return offsets
+}
+
+/** A carriage return before each bare line feed, inserted into the bytes. */
+function withCarriageReturns(tokens: ChartFileTokens): ChartFileTokens {
+	const offsets = lineFeedsWithoutReturn(tokens)
+	if (offsets.length === 0) return tokens
+	const carriageReturn = tokens.encoding === 'utf-8' ? [0x0d] : tokens.encoding === 'utf-16le' ? [0x0d, 0x00] : [0x00, 0x0d]
+	const bytes = new Uint8Array(tokens.bytes.length + offsets.length * carriageReturn.length)
+	let from = 0, to = 0
+	for (const offset of offsets) {
+		bytes.set(tokens.bytes.subarray(from, offset), to)
+		to += offset - from
+		bytes.set(carriageReturn, to)
+		to += carriageReturn.length
+		from = offset
+	}
+	bytes.set(tokens.bytes.subarray(from), to)
+	return tokenizeChartFile(bytes)
 }
 
 /**
@@ -75,6 +105,9 @@ function sectionSplices(tokens: ChartFileTokens, name: string, rewrite: (lines: 
 	tokens.sections.forEach((section, i) => { if (section.name === name) index = i })
 	const lines = chartSectionLines(tokens, tokens.sections[index])
 	if (lines.length < 3) return [] // No content lines between the brace lines
+	// A section with bytes that aren't valid in the file's encoding is left as written: its decoded text can't be
+	// written back without changing them.
+	if (!chartTextRoundTrips(tokens, lines[1].start, lines[lines.length - 1].start)) return []
 	const content = lines.slice(1, -1).map(line => tokens.text.slice(line.start, line.end))
 	const rewritten = rewrite(content)
 	if (rewritten.length === content.length && rewritten.every((line, i) => line === content[i])) return []

@@ -337,73 +337,85 @@ function buildChartTrackData(
 	for (const trackName of Object.keys(trackNameMap) as TrackName[]) {
 		const lines = fileSections[trackName]
 		if (!lines) continue
-		const { instrument, difficulty } = trackNameMap[trackName]
-
-		// Single parsing pass that produces note-shaped events ({tick, type, length})
-		// plus data-carrying events (text, versus).
-		const parsedEvents: ParsedTrackLine[] = []
-		for (const line of lines) {
-			const parsed = parseTrackLine(line, instrument, difficulty)
-			if (parsed !== null) parsedEvents.push(parsed)
-		}
-		// Most parsers reject charts that aren't already sorted, but sort here for safety.
-		parsedEvents.sort((a, b) => a.tick - b.tick)
-
-		// Merge solo/soloend pairs in place (note-shaped events only)
-		const trackEvents = mergeSoloEvents(
-			parsedEvents.filter((e): e is ParsedNoteEvent => e.kind === 'note'),
-		)
-
-		const result: RawChartData['trackData'][number] = {
-			instrument,
-			difficulty,
-			starPowerSections: [],
-			rejectedStarPowerSections: [],
-			soloSections: [],
-			flexLanes: [],
-			drumFreestyleSections: [],
-			trackEvents: [],
-			textEvents: [],
-			versusPhrases: [],
-			animations: [],
-			unrecognizedMidiEvents: [],
-		}
-
-		for (const event of trackEvents) {
-			if (event.type === eventTypes.starPower) {
-				result.starPowerSections.push(event)
-			} else if (event.type === eventTypes.rejectedStarPower) {
-				result.rejectedStarPowerSections.push(event)
-			} else if (event.type === eventTypes.soloSection) {
-				result.soloSections.push(event)
-			} else if (event.type === eventTypes.flexLaneSingle || event.type === eventTypes.flexLaneDouble) {
-				result.flexLanes.push({
-					tick: event.tick,
-					length: event.length,
-					isDouble: event.type === eventTypes.flexLaneDouble,
-				})
-			} else if (event.type === eventTypes.freestyleSection) {
-				result.drumFreestyleSections.push({
-					tick: event.tick,
-					length: event.length,
-					isCoda: firstCodaTick === null ? false : event.tick >= firstCodaTick,
-				})
-			} else {
-				result.trackEvents.push(event)
-			}
-		}
-
-		for (const event of parsedEvents) {
-			if (event.kind === 'text') {
-				result.textEvents.push({ tick: event.tick, text: event.text })
-			} else if (event.kind === 'versus') {
-				result.versusPhrases.push({ tick: event.tick, length: event.length, isPlayer2: event.isPlayer2 })
-			}
-		}
-
-		out.push(result)
+		out.push(classifyChartTrackSection(trackName, lines, firstCodaTick))
 	}
 	return out
+}
+
+/**
+ * Classifies one instrument section from its nonblank lines. It reads nothing else but the tick of the first coda
+ * event in `[Events]`, which marks the drum fills from there on as the Big Rock Ending.
+ */
+export function classifyChartTrackSection(
+	sectionName: string,
+	lines: readonly string[],
+	firstCodaTick: number | null,
+): RawChartData['trackData'][number] {
+	const { instrument, difficulty } = trackNameMap[sectionName as TrackName]
+
+	// Single parsing pass that produces note-shaped events ({tick, type, length})
+	// plus data-carrying events (text, versus).
+	const parsedEvents: ParsedTrackLine[] = []
+	for (const line of lines) {
+		const parsed = parseTrackLine(line, instrument, difficulty)
+		if (parsed !== null) parsedEvents.push(parsed)
+	}
+	// Most parsers reject charts that aren't already sorted, but sort here for safety.
+	parsedEvents.sort((a, b) => a.tick - b.tick)
+
+	// Merge solo/soloend pairs in place (note-shaped events only)
+	const trackEvents = mergeSoloEvents(
+		parsedEvents.filter((e): e is ParsedNoteEvent => e.kind === 'note'),
+	)
+
+	const result: RawChartData['trackData'][number] = {
+		instrument,
+		difficulty,
+		starPowerSections: [],
+		rejectedStarPowerSections: [],
+		soloSections: [],
+		flexLanes: [],
+		drumFreestyleSections: [],
+		trackEvents: [],
+		textEvents: [],
+		versusPhrases: [],
+		animations: [],
+		unrecognizedMidiEvents: [],
+	}
+
+	for (const event of trackEvents) {
+		if (event.type === eventTypes.starPower) {
+			result.starPowerSections.push(event)
+		} else if (event.type === eventTypes.rejectedStarPower) {
+			result.rejectedStarPowerSections.push(event)
+		} else if (event.type === eventTypes.soloSection) {
+			result.soloSections.push(event)
+		} else if (event.type === eventTypes.flexLaneSingle || event.type === eventTypes.flexLaneDouble) {
+			result.flexLanes.push({
+				tick: event.tick,
+				length: event.length,
+				isDouble: event.type === eventTypes.flexLaneDouble,
+			})
+		} else if (event.type === eventTypes.freestyleSection) {
+			result.drumFreestyleSections.push({
+				tick: event.tick,
+				length: event.length,
+				isCoda: firstCodaTick === null ? false : event.tick >= firstCodaTick,
+			})
+		} else {
+			result.trackEvents.push(event)
+		}
+	}
+
+	for (const event of parsedEvents) {
+		if (event.kind === 'text') {
+			result.textEvents.push({ tick: event.tick, text: event.text })
+		} else if (event.kind === 'versus') {
+			result.versusPhrases.push({ tick: event.tick, length: event.length, isPlayer2: event.isPlayer2 })
+		}
+	}
+
+	return result
 }
 
 /**
