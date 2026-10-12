@@ -25,16 +25,12 @@ export type MidiTrackEdit =
 	| { readonly kind: 'insert'; readonly tick: number; readonly event: NewMidiEvent }
 	| { readonly kind: 'replace'; readonly event: number; readonly with: NewMidiEvent & { readonly type: 'meta' } }
 
-type Item =
-	| {
-		readonly kind: 'original'
-		readonly index: number
-		readonly token: MidiEventToken
-		readonly tick: number
-		readonly moved: boolean
-		readonly replacement?: NewMidiEvent
-	}
-	| { readonly kind: 'new'; readonly order: number; readonly event: NewMidiEvent; readonly tick: number }
+type NewItem = { readonly kind: 'new'; readonly order: number; readonly event: NewMidiEvent; readonly tick: number }
+
+/** An event placed by rank: an edited event, an end an edit can give its start's tick, or the end of the track. */
+type Placed =
+	| { readonly kind: 'original'; readonly index: number; readonly tick: number; readonly rank: number; readonly replacement?: NewMidiEvent }
+	| NewItem & { readonly rank: number }
 
 /**
  * Applies edits to one MIDI track chunk and returns the edited file, tokenized. Every other chunk is copied unchanged.
@@ -50,7 +46,7 @@ export function editMidiTrack(tokens: MidiTokens, chunkIndex: number, edits: rea
 	const deleted = new Set<number>()
 	const moves = new Map<number, number>()
 	const replacements = new Map<number, NewMidiEvent>()
-	const inserted: Item[] = []
+	const inserted: NewItem[] = []
 	edits.forEach((edit, order) => {
 		if (edit.kind === 'delete') deleted.add(edit.event)
 		else if (edit.kind === 'move') moves.set(edit.event, edit.tick)
@@ -59,72 +55,205 @@ export function editMidiTrack(tokens: MidiTokens, chunkIndex: number, edits: rea
 			replacements.set(edit.event, edit.with)
 		} else inserted.push({ kind: 'new', order, event: edit.event, tick: edit.tick })
 	})
-	const items: Item[] = chunk.events.flatMap((token, index): Item[] => deleted.has(index) ? [] : [{
-		kind: 'original', index, token, tick: moves.get(index) ?? token.tick, moved: moves.has(index), replacement: replacements.get(index),
-	}])
-	for (const item of inserted) items.push(item)
+	const events = chunk.events
+	const tickOf = (index: number) => moves.get(index) ?? events[index].tick
 
 	// Unchanged events keep their order. At a shared tick, moved and new ends go first and moved and new starts after
 	// them, so a note ending where another starts pairs as before. An edited note or phrase of zero length has its end
-	// after its start, and the end of the track stays last.
-	const partners = pairStartsAndEnds(items)
-	const isEndOfTrack = (item: Item) => item.kind === 'original' && item.token.event.type === 'endOfTrack'
-	const isEdited = (item: Item) => item.kind === 'new' || item.moved
-	const rank = (item: Item) => {
-		if (isEndOfTrack(item)) return 4
-		const end = endpointOf(item)
-		const start = end?.isStart === false ? partners.get(item) : undefined
-		if (start && start.tick === item.tick && (isEdited(item) || isEdited(start))) return 3
-		if (!isEdited(item)) return 1
-		return end?.isStart === false ? 0 : 2
+	// after its start, and the end of the track stays last. Only edited events, their partners and the end of the
+	// track are placed by rank; every other event stays in its run of unchanged events, which is already in order.
+	const placed: Placed[] = []
+	const taken = new Set<number>()
+	const place = (index: number, rank: number, tick = tickOf(index)) => {
+		if (deleted.has(index) || taken.has(index)) return
+		taken.add(index)
+		placed.push({ kind: 'original', index, tick, rank, replacement: replacements.get(index) })
 	}
-	const endOfTrack = items.find(isEndOfTrack)
-	if (endOfTrack?.kind === 'original') {
-		const lastTick = items.reduce((last, item) => item === endOfTrack ? last : Math.max(last, item.tick), 0)
-		if (lastTick > endOfTrack.tick) items[items.indexOf(endOfTrack)] = { ...endOfTrack, tick: lastTick, moved: true }
+	const endsOfTrack: number[] = []
+	for (let index = 0; index < events.length; index++) {
+		if (events[index].event.type === 'endOfTrack' && !deleted.has(index)) endsOfTrack.push(index)
 	}
-	const ranks = new Map(items.map(item => [item, rank(item)]))
-	items.sort((a, b) => a.tick - b.tick || ranks.get(a)! - ranks.get(b)! || sequence(a) - sequence(b))
+	if (endsOfTrack.length) {
+		// The first end of the track moves to the last event's tick when an edit puts an event after it.
+		let lastTick = 0
+		for (let index = 0; index < events.length; index++) {
+			if (index !== endsOfTrack[0] && !deleted.has(index)) lastTick = Math.max(lastTick, tickOf(index))
+		}
+		for (const item of inserted) lastTick = Math.max(lastTick, item.tick)
+		place(endsOfTrack[0], 4, Math.max(tickOf(endsOfTrack[0]), lastTick))
+		for (const index of endsOfTrack.slice(1)) place(index, 4)
+	}
+	for (const index of moves.keys()) {
+		if (deleted.has(index)) continue
+		const end = endpoint(events[index].event)
+		if (!end) {
+			place(index, 2)
+			continue
+		}
+		// The start and end are paired as before the edit.
+		const [startIndex, endIndex] = end.isStart ? [index, partnerEnd(events, index, deleted)] : [partnerStart(events, index, deleted), index]
+		if (endIndex !== undefined) {
+			const sharesTick = startIndex !== undefined && tickOf(startIndex) === tickOf(endIndex)
+			place(endIndex, sharesTick ? 3 : moves.has(endIndex) ? 0 : 1)
+		}
+		if (startIndex !== undefined && moves.has(startIndex)) place(startIndex, 2)
+	}
+	// A malformed chunk can read with ticks that go back, from a delta time too long for 32 bits. Its unchanged events
+	// aren't in order then, so every event is placed by rank, which puts them in order.
+	if (events.some((token, index) => index > 0 && token.tick < events[index - 1].tick)) {
+		for (let index = 0; index < events.length; index++) place(index, 1)
+	}
+	const newPartners = pairNewEvents(inserted)
+	for (const item of inserted) {
+		const end = endpoint(item.event)
+		const start = end?.isStart === false ? newPartners.get(item) : undefined
+		placed.push({ ...item, rank: start?.tick === item.tick ? 3 : end?.isStart === false ? 0 : 2 })
+	}
+	placed.sort(comparePlaced)
 
-	const body: number[] = []
+	const writer = new ChunkWriter(data)
 	let previousTick = 0
 	let lastStatus: number | null = null
-	for (const item of items) {
-		const delta = item.tick - previousTick
-		previousTick = item.tick
-		if (item.kind === 'new') {
-			for (const byte of variableLength(delta)) body.push(byte)
-			for (const byte of encodeNewEvent(item.event)) body.push(byte)
-			// A note event sets running status. Some readers end it at a sysex or meta event, so the next channel event
-			// after one of those writes its own status byte.
-			lastStatus = item.event.type === 'noteOn' || item.event.type === 'noteOff' ? body[body.length - 3] : null
-			continue
-		}
-		if (item.replacement) {
+	const writeOriginal = (index: number, tick: number, replacement: NewMidiEvent | undefined) => {
+		const delta = tick - previousTick
+		previousTick = tick
+		if (replacement) {
 			// A meta event replaced by a meta event: running status is as it was.
-			for (const byte of variableLength(delta)) body.push(byte)
-			for (const byte of encodeNewEvent(item.replacement)) body.push(byte)
-			continue
+			writer.write([...variableLength(delta), ...encodeNewEvent(replacement)])
+			return
 		}
-		const { token } = item
-		const eventStatus = status.of[item.index]
-		const statusIsWritten = status.written[item.index]
-		const runningHolds = statusIsWritten || eventStatus === null || lastStatus === eventStatus
+		const token = events[index]
+		const eventStatus = status.of[index]
+		const runningHolds = status.written[index] || eventStatus === null || lastStatus === eventStatus
 		if (token.event.deltaTime === delta && runningHolds) {
-			for (let i = token.start; i < token.end; i++) body.push(data[i])
+			writer.copy(token.start, token.end)
 		} else {
-			for (const byte of variableLength(delta)) body.push(byte)
-			if (!runningHolds) body.push(eventStatus!)
-			for (let i = status.bodyStart[item.index]; i < token.end; i++) body.push(data[i])
+			writer.write([...variableLength(delta), ...(runningHolds ? [] : [eventStatus!])])
+			writer.copy(status.bodyStart[index], token.end)
 		}
 		if (eventStatus !== null) lastStatus = eventStatus
 	}
+	let next = 0
+	const writePlacedBefore = (tick: number, index: number) => {
+		while (next < placed.length && comparePlaced(placed[next], { kind: 'original', index, tick, rank: 1 }) < 0) {
+			const item = placed[next++]
+			if (item.kind === 'original') {
+				writeOriginal(item.index, item.tick, item.replacement)
+				continue
+			}
+			const delta = item.tick - previousTick
+			previousTick = item.tick
+			const encoded = encodeNewEvent(item.event)
+			writer.write([...variableLength(delta), ...encoded])
+			// A note event sets running status. Some readers end it at a sysex or meta event, so the next channel event
+			// after one of those writes its own status byte.
+			lastStatus = item.event.type === 'noteOn' || item.event.type === 'noteOff' ? encoded[0] : null
+		}
+	}
+	for (let index = 0; index < events.length; index++) {
+		if (deleted.has(index) || taken.has(index)) continue
+		writePlacedBefore(events[index].tick, index)
+		writeOriginal(index, events[index].tick, replacements.get(index))
+	}
+	writePlacedBefore(Infinity, Infinity)
 
+	const body = writer.bytes()
 	const chunkBytes = new Uint8Array(8 + body.length)
 	chunkBytes.set([0x4d, 0x54, 0x72, 0x6b]) // MTrk
 	new DataView(chunkBytes.buffer).setUint32(4, body.length)
 	chunkBytes.set(body, 8)
 	return replaceMidiTrackChunk(tokens, chunkIndex, chunkBytes)
+}
+
+/** Events in written order: by tick, then rank, then file order, with new events after the file's in edit order. */
+function comparePlaced(a: Placed, b: Placed): number {
+	return a.tick - b.tick || a.rank - b.rank || (a.kind === 'original' ? a.index : 1e9 + a.order) - (b.kind === 'original' ? b.index : 1e9 + b.order)
+}
+
+/** Collects a chunk body from runs of the file's bytes and newly written bytes. */
+class ChunkWriter {
+	private readonly parts: Uint8Array[] = []
+	private runStart = -1
+	private runEnd = -1
+
+	constructor(private readonly data: Uint8Array) {}
+
+	copy(start: number, end: number): void {
+		if (this.runStart >= 0 && this.runEnd === start) {
+			this.runEnd = end
+			return
+		}
+		this.endRun()
+		this.runStart = start
+		this.runEnd = end
+	}
+
+	write(bytes: readonly number[]): void {
+		this.endRun()
+		this.parts.push(Uint8Array.from(bytes))
+	}
+
+	bytes(): Uint8Array {
+		this.endRun()
+		const out = new Uint8Array(this.parts.reduce((total, part) => total + part.length, 0))
+		let at = 0
+		for (const part of this.parts) {
+			out.set(part, at)
+			at += part.length
+		}
+		return out
+	}
+
+	private endRun(): void {
+		if (this.runStart >= 0) this.parts.push(this.data.subarray(this.runStart, this.runEnd))
+		this.runStart = -1
+	}
+}
+
+/**
+ * The end paired with the start at `index`, as parsing pairs them: each end takes the most recent unpaired start of its
+ * key. Deleted events don't take part.
+ */
+function partnerEnd(events: readonly MidiEventToken[], index: number, deleted: ReadonlySet<number>): number | undefined {
+	const key = endpoint(events[index].event)!.key
+	let depth = 0
+	for (let i = index + 1; i < events.length; i++) {
+		const other = deleted.has(i) ? null : endpoint(events[i].event)
+		if (other?.key !== key) continue
+		if (other.isStart) depth++
+		else if (depth === 0) return i
+		else depth--
+	}
+	return undefined
+}
+
+/** The start paired with the end at `index`, as parsing pairs them. Deleted events don't take part. */
+function partnerStart(events: readonly MidiEventToken[], index: number, deleted: ReadonlySet<number>): number | undefined {
+	const key = endpoint(events[index].event)!.key
+	let depth = 0
+	for (let i = index - 1; i >= 0; i--) {
+		const other = deleted.has(i) ? null : endpoint(events[i].event)
+		if (other?.key !== key) continue
+		if (!other.isStart) depth++
+		else if (depth === 0) return i
+		else depth--
+	}
+	return undefined
+}
+
+/** Each new end's start among the new events, pairing them in edit order as parsing would. */
+function pairNewEvents(inserted: readonly NewItem[]): Map<NewItem, NewItem> {
+	const partners = new Map<NewItem, NewItem>()
+	const unpaired = new Map<string, NewItem[]>()
+	for (const item of inserted) {
+		const end = endpoint(item.event)
+		if (!end) continue
+		let starts = unpaired.get(end.key)
+		if (!starts) unpaired.set(end.key, starts = [])
+		if (end.isStart) starts.push(item)
+		else if (starts.length) partners.set(item, starts.pop()!)
+	}
+	return partners
 }
 
 /**
@@ -275,37 +404,6 @@ function endpoint(event: MidiEvent | NewMidiEvent): { readonly key: string; read
 		return { key: `s${difficulty}:${event.data[5]}`, isStart: event.data[6] === 0x01 }
 	}
 	return null
-}
-
-function endpointOf(item: Item) {
-	return endpoint(item.kind === 'new' ? item.event : item.token.event)
-}
-
-/**
- * Each end item's start, paired as parsing pairs them: with the most recent unpaired start of its key. Unedited events
- * pair in file order; an edited end pairs with its start from before the edit, and a new end with the new start
- * inserted before it.
- */
-function pairStartsAndEnds(items: readonly Item[]): Map<Item, Item> {
-	const partners = new Map<Item, Item>()
-	const pair = (ordered: readonly Item[]) => {
-		const unpaired = new Map<string, Item[]>()
-		for (const item of ordered) {
-			const end = endpointOf(item)
-			if (!end) continue
-			let starts = unpaired.get(end.key)
-			if (!starts) unpaired.set(end.key, starts = [])
-			if (end.isStart) starts.push(item)
-			else if (starts.length) partners.set(item, starts.pop()!)
-		}
-	}
-	pair(items.filter(item => item.kind === 'original').sort((a, b) => sequence(a) - sequence(b)))
-	pair(items.filter(item => item.kind === 'new').sort((a, b) => sequence(a) - sequence(b)))
-	return partners
-}
-
-function sequence(item: Item): number {
-	return item.kind === 'original' ? item.index : 1e9 + item.order
 }
 
 /**

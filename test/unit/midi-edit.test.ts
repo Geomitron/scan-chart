@@ -195,4 +195,18 @@ describe('MIDI track edits', () => {
 		])
 		expect(view(edited)).toEqual([[480, eventTypes.yellow, 120]])
 	})
+
+	it('put the events of a track whose ticks go back in order, as an edit of any other track does', () => {
+		const text = (value: string) => [0xff, 0x01, value.length, ...new TextEncoder().encode(value)]
+		// A delta time of five bytes reads as -128: past 32 bits it wraps, as in parseMidi (seen in a real chart).
+		const body = [0x00, 0xff, 0x03, 0x06, ...new TextEncoder().encode('EVENTS'), 0x81, 0x48, ...text('a'), 0x8f, 0xff, 0xff, 0xff, 0x00, ...text('b'), 0x00, 0xff, 0x2f, 0x00]
+		const header = [0x4d, 0x54, 0x68, 0x64, 0, 0, 0, 6, 0, 1, 0, 1, 0x01, 0xe0]
+		const tokens = readMidiTokens(new Uint8Array([...header, 0x4d, 0x54, 0x72, 0x6b, 0, 0, 0, body.length, ...body]))
+		expect(tokens.chunks[0].kind === 'track' && tokens.chunks[0].events.map(token => token.tick)).toEqual([0, 200, 72, 72])
+		const edited = editMidiTrack(tokens, 0, [{ kind: 'insert', tick: 300, event: { type: 'meta', metaType: 0x01, data: new TextEncoder().encode('c') } }])
+		const events = edited.chunks[0].kind === 'track' ? edited.chunks[0].events : []
+		expect(events.map(({ tick, event }) => [tick, event.type === 'text' ? event.text : event.type])).toEqual([
+			[0, 'trackName'], [72, 'b'], [200, 'a'], [300, 'c'], [300, 'endOfTrack'],
+		])
+	})
 })
