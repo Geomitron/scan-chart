@@ -149,6 +149,29 @@ export function chartFileSections(tokens: ChartFileTokens): ChartFileSections {
 }
 
 /**
+ * Reads a tokenized `.chart` file's sections by name like `chartFileSections`, with the same keys in the same order,
+ * but splits a section into lines only when it is first read. `bodies` gets each name's body text.
+ *
+ * Throws an exception if the file is malformed or has no sections.
+ */
+export function lazyChartFileSections(tokens: ChartFileTokens, bodies?: Map<string, string>): ChartFileSections {
+	if (tokens.structureError !== null) throw tokens.structureError
+	const lastOfName = new Map<string, ChartSectionToken>()
+	for (const section of tokens.sections) lastOfName.set(section.name, section)
+	if (lastOfName.size === 0) throw 'Invalid .chart file: no sections were found.'
+	const fileSections: ChartFileSections = {}
+	for (const [name, section] of lastOfName) {
+		bodies?.set(name, tokens.text.slice(section.bodyStart, section.bodyEnd))
+		let lines: string[] | undefined
+		Object.defineProperty(fileSections, name, {
+			enumerable: true,
+			get: () => lines ??= splitTrimmedNonEmptyLines(tokens.text, section.bodyStart, section.bodyEnd),
+		})
+	}
+	return fileSections
+}
+
+/**
  * Reads a `.chart` file into its sections.
  *
  * Throws an exception if the file is malformed or has no sections.
@@ -163,7 +186,7 @@ export function readChartFile(data: Uint8Array): ChartFileSections {
  *
  * Throws an exception if the resolution is missing.
  */
-export function classifyChartFile(fileSections: ChartFileSections): RawChartData {
+export function classifyChartFile(fileSections: ChartFileSections, classifySection: ChartSectionClassifier = (_name, _coda, classify) => classify()): RawChartData {
 	const fileSectionKeys = Object.keys(fileSections)
 	const metadata: { [key: string]: string } = {}
 	const songLines = fileSections['Song']
@@ -236,7 +259,7 @@ export function classifyChartFile(fileSections: ChartFileSections): RawChartData
 		unrecognizedMidiTracks: [], // MIDI-only
 		unrecognizedEventsTrackMidiEvents: [], // MIDI-only
 		unrecognizedChartSections: buildUnrecognizedChartSections(fileSections, fileSectionKeys),
-		trackData: buildChartTrackData(fileSections, firstCodaTick),
+		trackData: buildChartTrackData(fileSections, firstCodaTick, classifySection),
 	}
 }
 
@@ -327,17 +350,27 @@ function buildUnrecognizedChartSections(
 	return out
 }
 
+/**
+ * Classifies one instrument section, by calling `classify` or by giving back an earlier classification of the same
+ * section text and first coda tick. The track it returns may be changed by the caller.
+ */
+export type ChartSectionClassifier = (
+	sectionName: string,
+	firstCodaTick: number | null,
+	classify: () => RawChartData['trackData'][number],
+) => RawChartData['trackData'][number]
+
 function buildChartTrackData(
 	fileSections: { [k: string]: string[] },
 	firstCodaTick: number | null,
+	classifySection: ChartSectionClassifier,
 ): RawChartData['trackData'] {
 	const out: RawChartData['trackData'] = []
 	// Iterate in `trackNameMap` order (matches lodash's `_.pick(fileSections, _.keys(trackNameMap))`)
 	// so `trackData` output order is deterministic regardless of how the chart file orders sections.
 	for (const trackName of Object.keys(trackNameMap) as TrackName[]) {
-		const lines = fileSections[trackName]
-		if (!lines) continue
-		out.push(classifyChartTrackSection(trackName, lines, firstCodaTick))
+		if (!(trackName in fileSections)) continue
+		out.push(classifySection(trackName, firstCodaTick, () => classifyChartTrackSection(trackName, fileSections[trackName], firstCodaTick)))
 	}
 	return out
 }
