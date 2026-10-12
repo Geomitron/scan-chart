@@ -1,6 +1,7 @@
-import { MidiData, MidiEvent, MidiSetTempoEvent, MidiTextEvent, MidiTimeSignatureEvent, parseMidi } from '@geomitron/midi-file'
+import { MidiData, MidiEvent, MidiSetTempoEvent, MidiTextEvent, MidiTimeSignatureEvent } from '@geomitron/midi-file'
 
 import { difficulties, Difficulty, getInstrumentType, Instrument, InstrumentType, instrumentTypes } from '../types'
+import { midiTokensToMidiData, MidiTokens, readMidiTokens } from './midi-tokens'
 import { EventType, eventTypes, RawChartData, VocalTrackData } from './raw-types'
 import { IniChartModifiers } from './types'
 import { parseRules, ParseRules } from './parse-rules'
@@ -131,24 +132,34 @@ export function parseNotesFromMidi(data: Uint8Array, iniChartModifiers: IniChart
 /**
  * Reads a `.mid` file, with each event's `deltaTime` converted to its absolute tick.
  *
- * Throws an exception if the file isn't a format-1 MIDI file with ticks per beat and at least one track.
+ * Throws an exception as `readMidiFileTokens` does.
  */
 export function readMidiFile(data: Uint8Array): MidiData {
-	const midiFile = parseMidi(data)
-	if (midiFile.header.format !== 1) {
-		throw `Invavlid .mid file: unsupported header format "${midiFile.header.format}"`
+	return midiTokensToMidiData(readMidiFileTokens(data))
+}
+
+/**
+ * Reads a `.mid` file as tokens that keep every byte of it.
+ *
+ * Throws an exception if the file isn't a format-1 MIDI file with ticks per beat and at least one track. A chunk
+ * type other than `MTrk` among the tracks is rejected too, as it was when `.mid` files were read with `parseMidi`.
+ */
+export function readMidiFileTokens(data: Uint8Array): MidiTokens {
+	const tokens = readMidiTokens(data, 'reject')
+	const { header } = tokens.header
+	if (header.format !== 1) {
+		throw `Invavlid .mid file: unsupported header format "${header.format}"`
 	}
 
-	if (!midiFile.header.ticksPerBeat) {
+	if (!header.ticksPerBeat) {
 		throw 'Invalid .mid file: resolution in ticks per SMPTE frame is not supported'
 	}
 
-	if (midiFile.tracks.length === 0) {
+	if (!tokens.chunks.some(chunk => chunk.kind === 'track')) {
 		throw 'Invalid .mid file: no tracks detected'
 	}
 
-	convertToAbsoluteTime(midiFile)
-	return midiFile
+	return tokens
 }
 
 /** A `.mid` file's tracks and events, classified without a rule profile. */
@@ -408,16 +419,6 @@ function extractTimeSignatures(conductorTrack: MidiEvent[]): { tick: number; num
 		result.unshift({ tick: 0, numerator: 4, denominator: 4 })
 	}
 	return result
-}
-
-function convertToAbsoluteTime(midiData: MidiData) {
-	for (const track of midiData.tracks) {
-		let currentTick = 0
-		for (const event of track) {
-			currentTick += event.deltaTime
-			event.deltaTime = currentTick
-		}
-	}
 }
 
 interface MidiSourceTrack {
