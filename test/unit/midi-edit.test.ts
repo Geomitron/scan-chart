@@ -50,6 +50,14 @@ describe('MIDI track edits', () => {
 		expect((editedRedOff!.event as { running?: boolean }).running).toBeUndefined() // its status byte is written again
 	})
 
+	it('edit a track with more events than a function call can take as arguments', () => {
+		const notes = Array.from({ length: 100_000 }, (_, i) => [on(i === 0 ? 0 : 470, 96 + (i % 5)), off(10, 96 + (i % 5))]).flat()
+		const tokens = guitar(notes)
+		const [first] = midiAuthoredTracks(tokens)[0].events
+		const edited = editMidiTrack(tokens, 1, midiEventEdits(first, { length: 20 }))
+		expect(midiAuthoredTracks(edited)[0].events[0].length).toBe(20)
+	})
+
 	it('insert a note and delete one', () => {
 		const tokens = guitar([on(0, 96), off(10, 96)])
 		const edited = editMidiTrack(tokens, 1, [

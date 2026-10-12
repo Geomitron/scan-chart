@@ -73,6 +73,32 @@ describe('song documents', () => {
 		expect(reread.chart?.format === 'mid' && reread.chart.tokens ? midiAuthoredTracks(reread.chart.tokens)[0].events.map(event => event.length) : []).toEqual([240])
 	})
 
+	it('apply a tick and a length set on one event in one batch, in either format', () => {
+		const chart = '[Song]\n{\n  Resolution = 192\n}\n[ExpertSingle]\n{\n  0 = N 0 0\n}\n'
+		const chartSong = parseSong([file('notes.chart', chart)])
+		const [note] = chartSong.chart?.format === 'chart' ? chartAuthoredTracks(chartSong.chart.tokens)[0].events : []
+		const editedChart = editSong(chartSong, batch => { batch.setTick(note, 96); batch.setLength(note, 48) })
+		expect(new TextDecoder().decode(serializeSong(editedChart)[0].data)).toBe('[Song]\n{\n  Resolution = 192\n}\n[ExpertSingle]\n{\n  96 = N 0 48\n}\n')
+
+		const midi = writeMidi({
+			header: { format: 1, numTracks: 2, ticksPerBeat: 480 },
+			tracks: [
+				[{ deltaTime: 0, type: 'setTempo', microsecondsPerBeat: 500000 }, { deltaTime: 0, type: 'endOfTrack' }],
+				[
+					{ deltaTime: 0, type: 'trackName', text: 'PART GUITAR' },
+					{ deltaTime: 0, type: 'noteOn', channel: 0, noteNumber: 96, velocity: 100 },
+					{ deltaTime: 10, type: 'noteOff', channel: 0, noteNumber: 96, velocity: 0 },
+					{ deltaTime: 0, type: 'endOfTrack' },
+				],
+			],
+		})
+		const midSong = parseSong([{ fileName: 'notes.mid', data: new Uint8Array(midi) }])
+		const [green] = midSong.chart?.format === 'mid' && midSong.chart.tokens ? midiAuthoredTracks(midSong.chart.tokens)[0].events : []
+		const editedMid = parseSong(serializeSong(editSong(midSong, batch => { batch.setTick(green, 480); batch.setLength(green, 240) })))
+		expect(editedMid.chart?.format === 'mid' && editedMid.chart.tokens
+			? midiAuthoredTracks(editedMid.chart.tokens)[0].events.map(event => [event.tick, event.length]) : []).toEqual([[480, 240]])
+	})
+
 	it('have no chart or song.ini when the folder has none', () => {
 		const song = parseSong([file('readme.txt', 'hi')])
 		expect(song.chart).toBeNull()

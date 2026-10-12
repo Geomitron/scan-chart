@@ -41,7 +41,7 @@ export function editMidiTrack(tokens: MidiTokens, chunkIndex: number, edits: rea
 	const items: Item[] = chunk.events.flatMap((token, index): Item[] => deleted.has(index) ? [] : [{
 		kind: 'original', index, token, tick: moves.get(index) ?? token.tick, moved: moves.has(index),
 	}])
-	items.push(...inserted)
+	for (const item of inserted) items.push(item)
 
 	// Unchanged events keep their order. At a shared tick, moved and new note-offs go first and note-ons last, so a
 	// note ending where another starts pairs as before; the end of the track stays last.
@@ -51,7 +51,7 @@ export function editMidiTrack(tokens: MidiTokens, chunkIndex: number, edits: rea
 		: isNoteOff(item) ? 0 : 2
 	const endOfTrack = items.find(isEndOfTrack)
 	if (endOfTrack?.kind === 'original') {
-		const lastTick = Math.max(...items.filter(item => item !== endOfTrack).map(item => item.tick))
+		const lastTick = items.reduce((last, item) => item === endOfTrack ? last : Math.max(last, item.tick), 0)
 		if (lastTick > endOfTrack.tick) items[items.indexOf(endOfTrack)] = { ...endOfTrack, tick: lastTick, moved: true }
 	}
 	items.sort((a, b) => a.tick - b.tick || rank(a) - rank(b) || sequence(a) - sequence(b))
