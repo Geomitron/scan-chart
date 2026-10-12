@@ -362,6 +362,20 @@ describe('writeMidiFile round-trip: 5-fret tracks', () => {
 		expect(group.map(n => n.type).sort()).toEqual([noteTypes.open, noteTypes.red].sort())
 	})
 
+	it('writes star power on note 103 when song.ini says multiplier_note = 103, and rejected star power on 116', () => {
+		const chart = createEmptyChart({ format: 'mid' })
+		chart.iniChartModifiers = { ...chart.iniChartModifiers, multiplier_note: 103 }
+		const td = emptyFretTrack('guitar', 'expert')
+		td.noteEventGroups.push([note(0, noteTypes.green)], [note(960, noteTypes.red)])
+		td.starPowerSections.push({ tick: 0, length: 480, msTime: 0, msLength: 0 })
+		td.rejectedStarPowerSections.push({ tick: 960, length: 480, msTime: 0, msLength: 0 })
+		chart.trackData.push(td)
+		const track = findTrack(roundTrip(chart, '[song]\nmultiplier_note = 103\n'), 'guitar')
+		expect(track.starPowerSections.map(sp => [sp.tick, sp.length])).toEqual([[0, 480]])
+		expect(track.rejectedStarPowerSections.map(sp => [sp.tick, sp.length])).toEqual([[960, 480]])
+		expect(track.soloSections).toEqual([])
+	})
+
 	it('preserves a sustained open in a chord at tick 0: [ENHANCED_OPENS] comes before it', () => {
 		const chart = createEmptyChart({ format: 'mid' })
 		const td = emptyFretTrack('guitar', 'expert')
