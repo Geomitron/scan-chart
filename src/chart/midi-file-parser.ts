@@ -444,6 +444,15 @@ interface MidiSourceTrack {
 	trackEvents: MidiEvent[]
 }
 
+/** The index of the track Clone Hero reads as the events track, or `null` when the file has none. */
+export function findMidiEventsTrack(midiData: MidiData): number | null {
+	return getTracks(midiData).tracks.find(track => track.trackName === 'EVENTS')?.trackIndex ?? null
+}
+
+export function isTextLikeEvent(event: MidiEvent): event is MidiTextEvent {
+	return event.type === 'text' || event.type === 'lyrics' || event.type === 'marker' || event.type === 'cuePoint'
+}
+
 function getTracks(midiData: MidiData) {
 	const tracks: MidiSourceTrack[] = []
 	const unrecognizedMidiTracks: { trackName: string; events: MidiEvent[] }[] = []
@@ -1141,10 +1150,6 @@ function filterFlexLaneVelocity(arr: MidiTrackEvent[], maxVelocity: number): voi
  * text (FF 01), lyrics (FF 05), marker (FF 06), cuePoint (FF 07).
  * trackName (FF 03) and instrumentName (FF 04) are excluded.
  */
-function isTextLikeEvent(event: MidiEvent): event is MidiTextEvent {
-	return event.type === 'text' || event.type === 'lyrics' || event.type === 'marker' || event.type === 'cuePoint'
-}
-
 interface EventsScanResult {
 	sections: { tick: number; name: string }[]
 	endEvents: { tick: number }[]

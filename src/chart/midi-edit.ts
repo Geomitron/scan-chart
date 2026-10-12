@@ -1,24 +1,39 @@
 import type { MidiEvent } from '@geomitron/midi-file'
 
 import { type Difficulty, type InstrumentType, instrumentTypes } from '../types'
-import type { AuthoredEvent, MidiAuthoredSource } from './authored-view'
+import type { MidiAuthoredSource } from './authored-view'
 import { get5FretNoteType, get6FretNoteType, getDrumsNoteType, getInstrumentEventType } from './midi-file-parser'
 import { MidiEventToken, MidiTokens, readMidiTokens } from './midi-tokens'
 import { type EventType, eventTypes } from './raw-types'
 
-/** A new event for an edited MIDI track: a note-on or note-off, or a Phase Shift sysex such as an open or tap marker. */
+/**
+ * A new event for an edited MIDI track: a note-on or note-off, a Phase Shift sysex such as an open or tap marker, or a
+ * meta event such as a tempo, time signature or text event.
+ */
 export type NewMidiEvent =
 	| { readonly type: 'noteOn' | 'noteOff'; readonly channel: number; readonly noteNumber: number; readonly velocity: number }
 	| { readonly type: 'sysEx'; readonly data: Uint8Array }
+	| { readonly type: 'meta'; readonly metaType: number; readonly data: Uint8Array }
 
-/** One edit of a MIDI track chunk's events. Event indices are positions in the chunk's original events. */
+/**
+ * One edit of a MIDI track chunk's events. Event indices are positions in the chunk's original events. A replaced
+ * event keeps its place; only a meta event can be replaced.
+ */
 export type MidiTrackEdit =
 	| { readonly kind: 'move'; readonly event: number; readonly tick: number }
 	| { readonly kind: 'delete'; readonly event: number }
 	| { readonly kind: 'insert'; readonly tick: number; readonly event: NewMidiEvent }
+	| { readonly kind: 'replace'; readonly event: number; readonly with: NewMidiEvent & { readonly type: 'meta' } }
 
 type Item =
-	| { readonly kind: 'original'; readonly index: number; readonly token: MidiEventToken; readonly tick: number; readonly moved: boolean }
+	| {
+		readonly kind: 'original'
+		readonly index: number
+		readonly token: MidiEventToken
+		readonly tick: number
+		readonly moved: boolean
+		readonly replacement?: NewMidiEvent
+	}
 	| { readonly kind: 'new'; readonly order: number; readonly event: NewMidiEvent; readonly tick: number }
 
 /**
@@ -34,14 +49,18 @@ export function editMidiTrack(tokens: MidiTokens, chunkIndex: number, edits: rea
 
 	const deleted = new Set<number>()
 	const moves = new Map<number, number>()
+	const replacements = new Map<number, NewMidiEvent>()
 	const inserted: Item[] = []
 	edits.forEach((edit, order) => {
 		if (edit.kind === 'delete') deleted.add(edit.event)
 		else if (edit.kind === 'move') moves.set(edit.event, edit.tick)
-		else inserted.push({ kind: 'new', order, event: edit.event, tick: edit.tick })
+		else if (edit.kind === 'replace') {
+			if (data[status.bodyStart[edit.event]] !== 0xff) throw new RangeError('Only a meta event can be replaced')
+			replacements.set(edit.event, edit.with)
+		} else inserted.push({ kind: 'new', order, event: edit.event, tick: edit.tick })
 	})
 	const items: Item[] = chunk.events.flatMap((token, index): Item[] => deleted.has(index) ? [] : [{
-		kind: 'original', index, token, tick: moves.get(index) ?? token.tick, moved: moves.has(index),
+		kind: 'original', index, token, tick: moves.get(index) ?? token.tick, moved: moves.has(index), replacement: replacements.get(index),
 	}])
 	for (const item of inserted) items.push(item)
 
@@ -75,16 +94,16 @@ export function editMidiTrack(tokens: MidiTokens, chunkIndex: number, edits: rea
 		previousTick = item.tick
 		if (item.kind === 'new') {
 			for (const byte of variableLength(delta)) body.push(byte)
-			if (item.event.type === 'sysEx') {
-				body.push(0xf0)
-				for (const byte of variableLength(item.event.data.length)) body.push(byte)
-				for (const byte of item.event.data) body.push(byte)
-				lastStatus = null // Some readers end running status at a sysex, so the next channel event writes its own
-			} else {
-				const statusByte = (item.event.type === 'noteOn' ? 0x90 : 0x80) | item.event.channel
-				body.push(statusByte, item.event.noteNumber, item.event.velocity)
-				lastStatus = statusByte
-			}
+			for (const byte of encodeNewEvent(item.event)) body.push(byte)
+			// A note event sets running status. Some readers end it at a sysex or meta event, so the next channel event
+			// after one of those writes its own status byte.
+			lastStatus = item.event.type === 'noteOn' || item.event.type === 'noteOff' ? body[body.length - 3] : null
+			continue
+		}
+		if (item.replacement) {
+			// A meta event replaced by a meta event: running status is as it was.
+			for (const byte of variableLength(delta)) body.push(byte)
+			for (const byte of encodeNewEvent(item.replacement)) body.push(byte)
 			continue
 		}
 		const { token } = item
@@ -112,19 +131,68 @@ export function editMidiTrack(tokens: MidiTokens, chunkIndex: number, edits: rea
 	return readMidiTokens(edited, 'skip')
 }
 
-/** The track edits that change an authored MIDI event's tick or length: its start and end events move. */
+/**
+ * The track edits that change an authored MIDI element's tick or length: its start and end events move. An element
+ * written as one event, such as a tempo, has no length.
+ */
 export function midiEventEdits(
-	event: AuthoredEvent & { readonly source: MidiAuthoredSource },
+	event: { readonly tick: number; readonly length?: number; readonly source: MidiAuthoredSource },
 	change: { readonly tick?: number; readonly length?: number },
 ): MidiTrackEdit[] {
 	const tick = change.tick ?? event.tick
-	const length = change.length ?? event.length
+	const length = change.length ?? event.length ?? 0
+	if (event.length === undefined && length !== 0) throw new RangeError('The event has no length')
 	if (length < 0) throw new RangeError('A length can\'t be negative')
 	const [start, end] = event.source.events
 	return [
 		...(tick === event.tick ? [] : [{ kind: 'move' as const, event: start, tick }]),
-		...(tick + length === event.tick + event.length ? [] : [{ kind: 'move' as const, event: end, tick: tick + length }]),
+		...(end === start || tick + length === event.tick + (event.length ?? 0) ? [] : [{ kind: 'move' as const, event: end, tick: tick + length }]),
 	]
+}
+
+/** A tempo meta event. Throws if the tempo can't be written as whole microseconds per beat in three bytes. */
+export function midiTempoEvent(beatsPerMinute: number): NewMidiEvent & { readonly type: 'meta' } {
+	const microsecondsPerBeat = Math.round(60000000 / beatsPerMinute)
+	if (!(microsecondsPerBeat >= 1 && microsecondsPerBeat <= 0xffffff)) throw new RangeError('A .mid tempo must be between 3.58 and 60,000,000 BPM')
+	return { type: 'meta', metaType: 0x51, data: new Uint8Array([microsecondsPerBeat >> 16, (microsecondsPerBeat >> 8) & 0xff, microsecondsPerBeat & 0xff]) }
+}
+
+/**
+ * A time signature meta event. Its metronome fields are copied from `original` when it replaces one, or are the usual
+ * 24 clocks per click and 8 thirty-second notes per quarter note.
+ */
+export function midiTimeSignatureEvent(
+	numerator: number,
+	denominator: number,
+	original?: { readonly metronome: number; readonly thirtyseconds: number },
+): NewMidiEvent & { readonly type: 'meta' } {
+	const exponent = Math.log2(denominator)
+	if (!Number.isInteger(numerator) || numerator < 1 || numerator > 255 || !Number.isInteger(exponent) || exponent < 0 || exponent > 31) {
+		throw new RangeError('A time signature needs a numerator from 1 to 255 and a power-of-two denominator')
+	}
+	return { type: 'meta', metaType: 0x58, data: new Uint8Array([numerator, exponent, original?.metronome ?? 24, original?.thirtyseconds ?? 8]) }
+}
+
+/** A text meta event, of the original's kind (text, lyric, marker or cue point) when it replaces one. */
+export function midiTextEvent(text: string, original?: MidiEvent): NewMidiEvent & { readonly type: 'meta' } {
+	const metaType = original?.type === 'lyrics' ? 0x05 : original?.type === 'marker' ? 0x06 : original?.type === 'cuePoint' ? 0x07 : 0x01
+	const data = new TextEncoder().encode(text)
+	// Readers decode MIDI text as UTF-8 when that gives fewer characters than bytes, and byte by byte otherwise; both
+	// give back text written as UTF-8, except a lone surrogate, which UTF-8 can't hold.
+	if (new TextDecoder().decode(data) !== text) throw new RangeError('The text can\'t be written to a .mid file')
+	return { type: 'meta', metaType, data }
+}
+
+function encodeNewEvent(event: NewMidiEvent): number[] {
+	switch (event.type) {
+		case 'noteOn':
+		case 'noteOff':
+			return [(event.type === 'noteOn' ? 0x90 : 0x80) | event.channel, event.noteNumber, event.velocity]
+		case 'sysEx':
+			return [0xf0, ...variableLength(event.data.length), ...event.data]
+		case 'meta':
+			return [0xff, event.metaType, ...variableLength(event.data.length), ...event.data]
+	}
 }
 
 /** How a `.mid` instrument track writes an event type: a note number, or a Phase Shift sysex for open and tap markers. */

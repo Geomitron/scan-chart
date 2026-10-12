@@ -1,7 +1,7 @@
 import { writeMidi } from '@geomitron/midi-file'
 import { describe, expect, it } from 'vitest'
 
-import { chartAuthoredTracks, midiAuthoredTracks } from 'src/chart/authored-view'
+import { authoredSongEvents, chartAuthoredTracks, midiAuthoredTracks } from 'src/chart/authored-view'
 import { eventTypes } from 'src/chart/raw-types'
 import { editSong, parseSong, serializeSong } from 'src/song-document'
 
@@ -127,6 +127,78 @@ describe('song documents', () => {
 		])
 		expect(() => editSong(song, batch => batch.addToMidiTrack(1, 'expert', 0, eventTypes.open, 0)))
 			.toThrow('A .mid guitar track can\'t hold a open event on expert')
+	})
+
+	it('edit a .chart file\'s tempo map, time signatures and practice sections, keeping their written form', () => {
+		const chart = '[Song]\n{\n  Resolution = 192\n}\n[SyncTrack]\n{\n  0 = TS 4 2\n  0 = B 120000\n  768 = B 140000\n}\n'
+			+ '[Events]\n{\n  0 = E "section Intro"\n  768 = E "section Verse"\n}\n[ExpertSingle]\n{\n  0 = N 0 0\n}\n'
+		const song = parseSong([file('notes.chart', chart)])
+		const view = song.chart?.format === 'chart' ? authoredSongEvents(song.chart) : null
+		expect(view?.tempos.map(tempo => [tempo.tick, tempo.beatsPerMinute])).toEqual([[0, 120], [768, 140]])
+		expect(view?.timeSignatures.map(ts => [ts.tick, ts.numerator, ts.denominator])).toEqual([[0, 4, 4]])
+		expect(view?.textEvents?.map(event => [event.tick, event.text])).toEqual([[0, 'section Intro'], [768, 'section Verse']])
+
+		const edited = editSong(song, batch => {
+			batch.setTempo(view!.tempos[1], 150)
+			batch.setTick(view!.tempos[1], 384)
+			batch.setTimeSignature(view!.timeSignatures[0], 3, 4)
+			batch.setText(view!.textEvents![1], 'section Chorus')
+			batch.remove(view!.textEvents![0])
+			batch.addTempo(1536, 100.5)
+			batch.addTimeSignature(768, 7, 8)
+			batch.addTextEvent(384, 'section Bridge')
+		})
+		expect(new TextDecoder().decode(serializeSong(edited)[0].data)).toBe('[Song]\n{\n  Resolution = 192\n}\n'
+			+ '[SyncTrack]\n{\n  0 = TS 3 2\n  0 = B 120000\n  384 = B 150000\n  768 = TS 7 3\n  1536 = B 100500\n}\n'
+			+ '[Events]\n{\n  384 = E "section Bridge"\n  768 = E "section Chorus"\n}\n[ExpertSingle]\n{\n  0 = N 0 0\n}\n')
+	})
+
+	it('edit a .mid file\'s tempo map, time signatures and practice sections', () => {
+		const midi = writeMidi({
+			header: { format: 1, numTracks: 3, ticksPerBeat: 480 },
+			tracks: [
+				[
+					{ deltaTime: 0, type: 'timeSignature', numerator: 4, denominator: 4, metronome: 24, thirtyseconds: 8 },
+					{ deltaTime: 0, type: 'setTempo', microsecondsPerBeat: 500000 },
+					{ deltaTime: 1920, type: 'setTempo', microsecondsPerBeat: 400000 },
+					{ deltaTime: 0, type: 'endOfTrack' },
+				],
+				[
+					{ deltaTime: 0, type: 'trackName', text: 'EVENTS' },
+					{ deltaTime: 0, type: 'text', text: '[section Intro]' },
+					{ deltaTime: 1920, type: 'text', text: '[section Verse]' },
+					{ deltaTime: 0, type: 'endOfTrack' },
+				],
+				[
+					{ deltaTime: 0, type: 'trackName', text: 'PART GUITAR' },
+					{ deltaTime: 0, type: 'noteOn', channel: 0, noteNumber: 96, velocity: 100 },
+					{ deltaTime: 10, type: 'noteOff', channel: 0, noteNumber: 96, velocity: 0 },
+					{ deltaTime: 0, type: 'endOfTrack' },
+				],
+			],
+		})
+		const song = parseSong([{ fileName: 'notes.mid', data: new Uint8Array(midi) }])
+		const view = song.chart?.format === 'mid' && song.chart.tokens ? authoredSongEvents({ format: 'mid', tokens: song.chart.tokens }) : null
+		expect(view?.tempos.map(tempo => [tempo.tick, tempo.beatsPerMinute])).toEqual([[0, 120], [1920, 150]])
+		expect(view?.textEvents?.map(event => [event.tick, event.text])).toEqual([[0, '[section Intro]'], [1920, '[section Verse]']])
+
+		const edited = parseSong(serializeSong(editSong(song, batch => {
+			batch.setTempo(view!.tempos[1], 160)
+			batch.setTick(view!.tempos[1], 960)
+			batch.setTimeSignature(view!.timeSignatures[0], 6, 8)
+			batch.setText(view!.textEvents![1], '[section Chorus]')
+			batch.remove(view!.textEvents![0])
+			batch.addTempo(3840, 96)
+			batch.addTextEvent(960, '[section Brücke]')
+		})))
+		const after = edited.chart?.format === 'mid' && edited.chart.tokens ? authoredSongEvents({ format: 'mid', tokens: edited.chart.tokens }) : null
+		expect(after?.tempos.map(tempo => [tempo.tick, tempo.beatsPerMinute])).toEqual([[0, 120], [960, 160], [3840, 96]])
+		expect(after?.timeSignatures.map(ts => [ts.tick, ts.numerator, ts.denominator])).toEqual([[0, 6, 8]])
+		expect(after?.textEvents?.map(event => [event.tick, event.text])).toEqual([[960, '[section Brücke]'], [1920, '[section Chorus]']])
+		// The guitar track is copied unchanged.
+		const guitar = (doc: typeof song) => doc.chart?.format === 'mid' && doc.chart.tokens ? doc.chart.tokens.chunks[2] : null
+		const bytesOf = (doc: typeof song) => doc.chart?.format === 'mid' ? doc.chart.bytes.subarray(guitar(doc)!.start, guitar(doc)!.end) : null
+		expect(bytesOf(edited)).toEqual(bytesOf(song))
 	})
 
 	it('have no chart or song.ini when the folder has none', () => {

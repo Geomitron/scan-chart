@@ -1,6 +1,6 @@
 import { difficulties, type Difficulty, type Instrument } from '../types'
 import { ChartFileTokens, chartSectionLines, chartSectionTrack, parseTrackLine } from './chart-file-parser'
-import { classifyMidiFile, compareTickAscTypeDesc, pairEventEnds, TrackEventEnd } from './midi-file-parser'
+import { classifyMidiFile, compareTickAscTypeDesc, findMidiEventsTrack, isTextLikeEvent, pairEventEnds, TrackEventEnd } from './midi-file-parser'
 import { midiTokensToMidiData, MidiTokens } from './midi-tokens'
 import type { EventType } from './raw-types'
 
@@ -144,6 +144,83 @@ export function midiAuthoredTracks(tokens: MidiTokens): MidiAuthoredTrack[] {
 		const enhancedOpens = chunkEvents.find(({ event }) => event.type === 'text' && (event.text === 'ENHANCED_OPENS' || event.text === '[ENHANCED_OPENS]'))
 		return { instrument, chunk, isFirst, enhancedOpensFrom: enhancedOpens?.tick ?? null, events }
 	})
+}
+
+/** A tempo marker as written: a `.chart` `B` line, or a MIDI tempo event on the conductor track. */
+export interface AuthoredTempo {
+	readonly tick: number
+	readonly beatsPerMinute: number
+	readonly source: AuthoredSource
+}
+
+/** A time signature as written: a `.chart` `TS` line, or a MIDI time signature event on the conductor track. */
+export interface AuthoredTimeSignature {
+	readonly tick: number
+	readonly numerator: number
+	readonly denominator: number
+	readonly source: AuthoredSource
+}
+
+/** What a chart stores for the whole song rather than for one instrument, as written. */
+export interface AuthoredSongEvents {
+	readonly tempos: readonly AuthoredTempo[]
+	readonly timeSignatures: readonly AuthoredTimeSignature[]
+	/**
+	 * The text events of the `[Events]` section or the MIDI events track: practice sections, the end event, and any
+	 * other text, such as `.chart` lyrics. `null` when the file has no such section or track.
+	 */
+	readonly textEvents: readonly AuthoredTextEvent[] | null
+}
+
+/**
+ * Reads the tempo map, time signatures and song text events of a chart, from the section or track Clone Hero reads
+ * for each: the last `[SyncTrack]` and `[Events]` section, or the conductor track and the first events track.
+ */
+export function authoredSongEvents(
+	chart: { readonly format: 'chart'; readonly tokens: ChartFileTokens } | { readonly format: 'mid'; readonly tokens: MidiTokens },
+): AuthoredSongEvents {
+	const tempos: AuthoredTempo[] = []
+	const timeSignatures: AuthoredTimeSignature[] = []
+	if (chart.format === 'chart') {
+		const { tokens } = chart
+		const lastSection = (name: string) => tokens.sections.reduce((last, section, index) => section.name === name ? index : last, -1)
+		const lines = (section: number) => section === -1 ? [] : chartSectionLines(tokens, tokens.sections[section])
+		const syncTrack = lastSection('SyncTrack')
+		lines(syncTrack).forEach((line, lineIndex) => {
+			const source: ChartAuthoredSource = { format: 'chart', section: syncTrack, line: lineIndex }
+			const tempo = /^(\d+) = B (\d+)$/.exec(line.text)
+			const timeSignature = /^(\d+) = TS (\d+)(?: (\d+))?$/.exec(line.text)
+			if (tempo) tempos.push({ tick: Number(tempo[1]), beatsPerMinute: Number(tempo[2]) / 1000, source })
+			if (timeSignature) {
+				const denominator = timeSignature[3] ? Math.pow(2, Number(timeSignature[3])) : 4
+				timeSignatures.push({ tick: Number(timeSignature[1]), numerator: Number(timeSignature[2]), denominator, source })
+			}
+		})
+		const events = lastSection('Events')
+		const textEvents = lines(events).flatMap((line, lineIndex): AuthoredTextEvent[] => {
+			const match = /^(\d+) = E "([^\r\n]*?)"$/.exec(line.text)
+			return match ? [{ tick: Number(match[1]), text: match[2], source: { format: 'chart', section: events, line: lineIndex } }] : []
+		})
+		return { tempos, timeSignatures, textEvents: events === -1 ? null : textEvents }
+	}
+
+	const { tokens } = chart
+	const trackChunks = tokens.chunks.flatMap((chunk, index) => chunk.kind === 'track' ? [index] : [])
+	const eventsOf = (chunk: number | undefined) => {
+		const found = chunk === undefined ? undefined : tokens.chunks[chunk]
+		return found?.kind === 'track' ? found.events : []
+	}
+	const conductor = trackChunks[0]
+	eventsOf(conductor).forEach(({ tick, event }, eventIndex) => {
+		const source: MidiAuthoredSource = { format: 'mid', chunk: conductor, events: [eventIndex, eventIndex] }
+		if (event.type === 'setTempo') tempos.push({ tick, beatsPerMinute: 60000000 / event.microsecondsPerBeat, source })
+		if (event.type === 'timeSignature') timeSignatures.push({ tick, numerator: event.numerator, denominator: event.denominator, source })
+	})
+	const eventsTrack = findMidiEventsTrack(midiTokensToMidiData(tokens))
+	const eventsChunk = eventsTrack === null ? undefined : trackChunks[eventsTrack]
+	const textEvents = eventsOf(eventsChunk).flatMap(({ tick, event }, eventIndex): AuthoredTextEvent[] =>
+		isTextLikeEvent(event) ? [{ tick, text: event.text, source: { format: 'mid', chunk: eventsChunk!, events: [eventIndex, eventIndex] } }] : [])
+	return { tempos, timeSignatures, textEvents: eventsChunk === undefined ? null : textEvents }
 }
 
 /** An authored event of one track, in either format. */
