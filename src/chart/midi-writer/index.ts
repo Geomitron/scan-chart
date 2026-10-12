@@ -11,6 +11,7 @@
 import type { MidiData, MidiEvent } from '@geomitron/midi-file'
 import { writeMidi } from '@geomitron/midi-file'
 
+import type { Instrument } from '../../types'
 import type { ParsedChart } from '../parse-chart-and-ini'
 import { buildDrumTrack } from './drums'
 import { buildEventsTrack, buildTempoTrack, buildUnrecognizedTrack } from './events'
@@ -116,7 +117,7 @@ export function writeMidiFile(chart: ParsedChart): Uint8Array {
 // Instrument → track name mapping
 // ---------------------------------------------------------------------------
 
-const instrumentTrackNames: Record<string, string> = {
+const instrumentTrackNames: Record<Instrument, string> = {
 	drums: 'PART DRUMS',
 	guitar: 'PART GUITAR',
 	guitarcoop: 'PART GUITAR COOP',
@@ -127,6 +128,7 @@ const instrumentTrackNames: Record<string, string> = {
 	guitarcoopghl: 'PART GUITAR COOP GHL',
 	rhythmghl: 'PART RHYTHM GHL',
 	bassghl: 'PART BASS GHL',
+	keysghl: 'PART KEYS GHL',
 }
 
 // HARM1/2/3 (not PART HARM1/2/3) — matches the convention used by most MIDI

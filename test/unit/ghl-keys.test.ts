@@ -1,6 +1,9 @@
 import { MidiData, writeMidi } from '@geomitron/midi-file'
 import { describe, expect, it } from 'vitest'
 
+import { writeChartFile } from 'src/chart/chart-writer'
+import { writeMidiFile } from 'src/chart/midi-writer'
+import { parseChartAndIni } from 'src/chart/parse-chart-and-ini'
 import { parseChartFile } from 'src/chart/parse-chart-file'
 import { scanIni } from 'src/ini/scan-ini'
 import { getInstrumentType, instrumentTypes } from 'src/types'
@@ -57,6 +60,18 @@ describe('GHL keys', () => {
 		expect(parsed.trackData.map(track => [track.instrument, track.difficulty])).toEqual([
 			['keysghl', 'expert'],
 		])
+	})
+
+	it('is written by both writers and read back', () => {
+		for (const [fileName, data] of [['notes.chart', chart()], ['notes.mid', midi()]] as const) {
+			const parsed = parseChartAndIni([{ fileName, data }]).parsedChart!
+			const asChart = parseChartFile(new TextEncoder().encode(writeChartFile(parsed)), 'chart')
+			const asMidi = parseChartFile(writeMidiFile(parsed), 'mid')
+			for (const written of [asChart, asMidi]) {
+				expect(written.trackData.map(track => [track.instrument, track.difficulty, track.noteEventGroups.length]), fileName)
+					.toEqual([['keysghl', 'expert', 1]])
+			}
+		}
 	})
 
 	it('parses diff_keys_ghl as known metadata', () => {

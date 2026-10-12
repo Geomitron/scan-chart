@@ -7,7 +7,7 @@
  */
 
 import type { DrumType, Instrument } from '../types'
-import { drumTypes } from '../types'
+import { drumTypes, getInstrumentType, instrumentTypes } from '../types'
 import { codaTicksFromFreestyle, unwrapEventBrackets } from './writer-shared'
 import { computeHopoThresholdTicks, isNaturalHopo } from './natural-hopo'
 import type { NoteEvent, NoteType } from './types'
@@ -289,7 +289,7 @@ type TrackLineEvent =
 	| { tick: number; sortKey: 0; kind: 'N'; value: number; length: number }
 	| { tick: number; sortKey: 2; kind: 'E'; text: string }
 
-const instrumentSectionSuffix: Record<string, string> = {
+const instrumentSectionSuffix: Record<Instrument, string> = {
 	guitar: 'Single',
 	guitarcoop: 'DoubleGuitar',
 	rhythm: 'DoubleRhythm',
@@ -300,6 +300,7 @@ const instrumentSectionSuffix: Record<string, string> = {
 	guitarcoopghl: 'GHLCoop',
 	rhythmghl: 'GHLRhythm',
 	bassghl: 'GHLBass',
+	keysghl: 'GHLKeys',
 }
 
 const difficultyPrefix: Record<string, string> = {
@@ -344,10 +345,6 @@ const ghlNoteTypeToNoteNumber: Partial<Record<NoteType, number>> = {
 	[noteTypes.black3]: 8,
 }
 
-const ghlInstrumentSet = new Set<string>([
-	'guitarghl', 'guitarcoopghl', 'rhythmghl', 'bassghl',
-])
-
 function getNoteNumberMap(
 	instrument: Instrument,
 	drumType: DrumType | null | undefined,
@@ -355,7 +352,7 @@ function getNoteNumberMap(
 	if (instrument === 'drums') {
 		return drumType === drumTypes.fiveLane ? drumNoteTypeToNoteNumberFiveLane : drumNoteTypeToNoteNumber
 	}
-	if (ghlInstrumentSet.has(instrument)) return ghlNoteTypeToNoteNumber
+	if (getInstrumentType(instrument) === instrumentTypes.sixFret) return ghlNoteTypeToNoteNumber
 	return fiveFretNoteTypeToNoteNumber
 }
 
