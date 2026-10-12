@@ -4,7 +4,7 @@ import { authoredSongEvents, chartAuthoredTracks } from 'src/chart/authored-view
 import { calculateCompetitiveHashes } from 'src/competitive'
 import { parseChartAndIni } from 'src/chart/parse-chart-and-ini'
 import { scanChart } from 'src/scan-chart'
-import { editSong, parseSongFiles, serializeSong, SongDocument } from 'src/song-document'
+import { editSong, parseSongFiles, documentFiles, SongDocument } from 'src/song-document'
 import { fileBytes } from 'src/song-files'
 
 const encode = (text: string) => new TextEncoder().encode(text)
@@ -19,7 +19,7 @@ const files = [
 	{ fileName: 'song.ini', data: encode('[song]\r\nname = Song\r\nartist = Artist\r\ncharter = Charter\r\n') },
 ]
 const scanned = (song: SongDocument) => {
-	const songFiles = serializeSong(song).map(file => ({ fileName: file.fileName, data: fileBytes(file) }))
+	const songFiles = documentFiles(song).map(file => ({ fileName: file.fileName, data: fileBytes(file) }))
 	return scanChart(songFiles, parseChartAndIni(songFiles))
 }
 
@@ -47,7 +47,7 @@ describe('competitive hashes from a song document', () => {
 			batch.setTempo(tempo, 150)
 		})
 		const hashes = calculateCompetitiveHashes(edited, { btracks: true })
-		expect(hashes).toEqual(calculateCompetitiveHashes(parseSongFiles(serializeSong(edited)), { btracks: true }))
+		expect(hashes).toEqual(calculateCompetitiveHashes(parseSongFiles(documentFiles(edited)), { btracks: true }))
 		expect(hashes).not.toEqual(calculateCompetitiveHashes(song, { btracks: true }))
 	})
 

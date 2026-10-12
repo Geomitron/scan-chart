@@ -5,7 +5,8 @@ import { resolveHistoricalDuration } from './chart/identity/historical-duration'
 import { songBundle20251010 } from './chart/identity/public'
 import { parseChartAndIni } from './chart/parse-chart-and-ini'
 import { parseChartFileFrozenLegacyIdentity } from './chart/parse-chart-file'
-import { ChartDocument, IniDocument, SongDocument, serializeSong } from './song-document'
+import { ChartDocument, IniDocument, SongDocument, documentFiles } from './song-document'
+import { songSectionAgreement } from './song-section'
 import { fileBytes, type SongFile } from './song-files'
 import type { File } from './types'
 
@@ -69,9 +70,12 @@ function calculateSongHashes(song: SongDocument, chart: ChartDocument, songIni: 
 	return hashes
 }
 
-/** One normalization of a song: of its chart file, in either format, or of its song.ini. */
+/**
+ * One normalization of a song: of its chart file, in either format, of its song.ini, or of a `.chart` `[Song]` section
+ * that disagrees with song.ini (`songSection`).
+ */
 export interface SongNormalization {
-	readonly kind: ChartNormalizationKind | MidiNormalizationKind | IniNormalizationKind
+	readonly kind: ChartNormalizationKind | MidiNormalizationKind | IniNormalizationKind | 'songSection'
 	/** The section or MIDI track it rewrites, `song.ini`, or `null` for the whole chart file. */
 	readonly section: string | null
 	readonly apply: (song: SongDocument) => SongDocument
@@ -111,6 +115,10 @@ export function songNormalizations(song: SongDocument): SongNormalization[] {
 			})
 		}
 	}
+	// Last, so it compares the other normalizations' output.
+	if (songSectionAgreement(song) !== null) {
+		normalizations.push({ kind: 'songSection', section: 'Song', apply: current => songSectionAgreement(current) ?? current })
+	}
 	return normalizations
 }
 
@@ -122,6 +130,8 @@ export interface SaveReport {
 	/** Normalizations left out because each would change a hash the edits didn't, listed with those hashes. */
 	readonly withheld: readonly { readonly kind: SongNormalization['kind']; readonly section: string | null; readonly hashes: readonly string[] }[]
 }
+
+const unchangedReport: SaveReport = { spentHashes: null, normalized: [], withheld: [] }
 
 /**
  * Saves `edited`, a song edited from `original` (E7). An unedited song comes back byte for byte. An edited one is
@@ -138,13 +148,23 @@ export function saveSong(
 	edited: SongDocument,
 	normalizationsOf: (song: SongDocument) => readonly SongNormalization[] = songNormalizations,
 ): { files: SongFile[]; report: SaveReport } {
-	const unchanged = { spentHashes: null, normalized: [], withheld: [] }
-	if (edited.chart === null || (edited.chart === original.chart && edited.ini === original.ini)) return { files: serializeSong(edited), report: unchanged }
+	if (edited.chart === original.chart && edited.ini === original.ini) return { files: documentFiles(edited), report: unchangedReport }
+	return saveEdited(edited, () => songHashes(original), normalizationsOf)
+}
+
+/** `saveSong` for an edited song, given the original's hashes, which are asked for only if there's something to normalize. */
+export function saveEdited(
+	edited: SongDocument,
+	originalHashes: () => ReadonlyMap<string, string> | null,
+	normalizationsOf: (song: SongDocument) => readonly SongNormalization[] = songNormalizations,
+): { files: SongFile[]; report: SaveReport } {
+	const unchanged = unchangedReport
+	if (edited.chart === null) return { files: documentFiles(edited), report: unchanged }
 	const normalizations = normalizationsOf(edited)
-	if (normalizations.length === 0) return { files: serializeSong(edited), report: unchanged }
-	const before = songHashes(original)
+	if (normalizations.length === 0) return { files: documentFiles(edited), report: unchanged }
+	const before = originalHashes()
 	const after = songHashes(edited)
-	if (before === null || after === null) return { files: serializeSong(edited), report: unchanged }
+	if (before === null || after === null) return { files: documentFiles(edited), report: unchanged }
 
 	const spent = new Set([...before.keys(), ...after.keys()].filter(key => before.get(key) !== after.get(key)))
 	/** The unspent hashes a version of the chart changes. */
@@ -173,5 +193,5 @@ export function saveSong(
 			}
 		}
 	}
-	return { files: serializeSong(song), report: { spentHashes: [...spent].sort(), normalized, withheld } }
+	return { files: documentFiles(song), report: { spentHashes: [...spent].sort(), normalized, withheld } }
 }

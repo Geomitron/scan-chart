@@ -1,9 +1,10 @@
 import { writeMidi } from '@geomitron/midi-file'
 import { describe, expect, it } from 'vitest'
 
+import { authoredTracks } from 'src/authored'
 import { authoredSongEvents, chartAuthoredTracks, midiAuthoredTracks } from 'src/chart/authored-view'
 import { eventTypes } from 'src/chart/raw-types'
-import { editSong, parseSongFiles, serializeSong } from 'src/song-document'
+import { editSong, parseSongFiles, documentFiles } from 'src/song-document'
 import { fileBytes } from 'src/song-files'
 
 const encode = (text: string) => new TextEncoder().encode(text)
@@ -22,7 +23,7 @@ describe('song documents', () => {
 		const files = [file('notes.chart', '}\n[Song'), file('song.ini', '+/v8'), file('guitar.ogg', 'ogg')]
 		const song = parseSongFiles(files)
 		expect(song.chart).toMatchObject({ format: 'chart', fileName: 'notes.chart' })
-		expect(serializeSong(song)).toEqual(files)
+		expect(documentFiles(song)).toEqual(files)
 	})
 
 	it('keep a .mid file\'s unknown chunks and trailing bytes, and give it back byte for byte', () => {
@@ -36,7 +37,7 @@ describe('song documents', () => {
 		const song = parseSongFiles(files)
 		expect(song.chart).toMatchObject({ format: 'mid', readError: null })
 		expect(song.chart?.format === 'mid' && song.chart.tokens?.chunks.map(chunk => chunk.id)).toEqual(['MTrk', 'XTRA'])
-		expect(serializeSong(song)).toEqual(files)
+		expect(documentFiles(song)).toEqual(files)
 	})
 
 	it('apply a batch of edits as one new document, leaving the earlier one as it was', () => {
@@ -49,9 +50,9 @@ describe('song documents', () => {
 			batch.addToChartSection(1, 192, eventTypes.redDrum, 0)
 		})
 		const decode = (bytes: Uint8Array) => new TextDecoder().decode(bytes)
-		expect(decode(fileBytes(serializeSong(edited)[0]))).toBe('[Song]\r\n{\r\n  Resolution = 192\r\n}\r\n[ExpertDrums]\r\n{\r\n  0 = N 0 96\r\n  192 = N 1 0\r\n  384 = N 2 0\r\n}\r\n')
-		expect(serializeSong(edited)[1]).toEqual(files[1])
-		expect(serializeSong(song)).toEqual(files)
+		expect(decode(fileBytes(documentFiles(edited)[0]))).toBe('[Song]\r\n{\r\n  Resolution = 192\r\n}\r\n[ExpertDrums]\r\n{\r\n  0 = N 0 96\r\n  192 = N 1 0\r\n  384 = N 2 0\r\n}\r\n')
+		expect(documentFiles(edited)[1]).toEqual(files[1])
+		expect(documentFiles(song)).toEqual(files)
 	})
 
 	it('edit a .mid chart through the same batch', () => {
@@ -70,7 +71,7 @@ describe('song documents', () => {
 		const song = parseSongFiles([{ fileName: 'notes.mid', data: new Uint8Array(midi) }])
 		const [green] = song.chart?.format === 'mid' && song.chart.tokens ? midiAuthoredTracks(song.chart.tokens)[0].events : []
 		const edited = editSong(song, batch => batch.setLength(green, 240))
-		const reread = parseSongFiles(serializeSong(edited))
+		const reread = parseSongFiles(documentFiles(edited))
 		expect(reread.chart?.format === 'mid' && reread.chart.tokens ? midiAuthoredTracks(reread.chart.tokens)[0].events.map(event => event.length) : []).toEqual([240])
 	})
 
@@ -79,7 +80,7 @@ describe('song documents', () => {
 		const chartSong = parseSongFiles([file('notes.chart', chart)])
 		const [note] = chartSong.chart?.format === 'chart' ? chartAuthoredTracks(chartSong.chart.tokens)[0].events : []
 		const editedChart = editSong(chartSong, batch => { batch.setTick(note, 96); batch.setLength(note, 48) })
-		expect(new TextDecoder().decode(fileBytes(serializeSong(editedChart)[0]))).toBe('[Song]\n{\n  Resolution = 192\n}\n[ExpertSingle]\n{\n  96 = N 0 48\n}\n')
+		expect(new TextDecoder().decode(fileBytes(documentFiles(editedChart)[0]))).toBe('[Song]\n{\n  Resolution = 192\n}\n[ExpertSingle]\n{\n  96 = N 0 48\n}\n')
 
 		const midi = writeMidi({
 			header: { format: 1, numTracks: 2, ticksPerBeat: 480 },
@@ -95,7 +96,7 @@ describe('song documents', () => {
 		})
 		const midSong = parseSongFiles([{ fileName: 'notes.mid', data: new Uint8Array(midi) }])
 		const [green] = midSong.chart?.format === 'mid' && midSong.chart.tokens ? midiAuthoredTracks(midSong.chart.tokens)[0].events : []
-		const editedMid = parseSongFiles(serializeSong(editSong(midSong, batch => { batch.setTick(green, 480); batch.setLength(green, 240) })))
+		const editedMid = parseSongFiles(documentFiles(editSong(midSong, batch => { batch.setTick(green, 480); batch.setLength(green, 240) })))
 		expect(editedMid.chart?.format === 'mid' && editedMid.chart.tokens
 			? midiAuthoredTracks(editedMid.chart.tokens)[0].events.map(event => [event.tick, event.length]) : []).toEqual([[480, 240]])
 	})
@@ -114,7 +115,7 @@ describe('song documents', () => {
 			],
 		})
 		const song = parseSongFiles([{ fileName: 'notes.mid', data: new Uint8Array(midi) }])
-		const edited = parseSongFiles(serializeSong(editSong(song, batch => {
+		const edited = parseSongFiles(documentFiles(editSong(song, batch => {
 			batch.addToMidiTrack(1, 'expert', 480, eventTypes.red, 0)
 			batch.addToMidiTrack(1, 'expert', 0, eventTypes.starPower, 960)
 			batch.addToMidiTrack(1, 'hard', 480, eventTypes.forceTap, 10)
@@ -149,7 +150,7 @@ describe('song documents', () => {
 			batch.addTimeSignature(768, 7, 8)
 			batch.addTextEvent(384, 'section Bridge')
 		})
-		expect(new TextDecoder().decode(fileBytes(serializeSong(edited)[0]))).toBe('[Song]\n{\n  Resolution = 192\n}\n'
+		expect(new TextDecoder().decode(fileBytes(documentFiles(edited)[0]))).toBe('[Song]\n{\n  Resolution = 192\n}\n'
 			+ '[SyncTrack]\n{\n  0 = TS 3 2\n  0 = B 120000\n  384 = B 150000\n  768 = TS 7 3\n  1536 = B 100500\n}\n'
 			+ '[Events]\n{\n  384 = E "section Bridge"\n  768 = E "section Chorus"\n}\n[ExpertSingle]\n{\n  0 = N 0 0\n}\n')
 	})
@@ -183,7 +184,7 @@ describe('song documents', () => {
 		expect(view?.tempos.map(tempo => [tempo.tick, tempo.beatsPerMinute])).toEqual([[0, 120], [1920, 150]])
 		expect(view?.textEvents?.map(event => [event.tick, event.text])).toEqual([[0, '[section Intro]'], [1920, '[section Verse]']])
 
-		const edited = parseSongFiles(serializeSong(editSong(song, batch => {
+		const edited = parseSongFiles(documentFiles(editSong(song, batch => {
 			batch.setTempo(view!.tempos[1], 160)
 			batch.setTick(view!.tempos[1], 960)
 			batch.setTimeSignature(view!.timeSignatures[0], 6, 8)
@@ -200,6 +201,39 @@ describe('song documents', () => {
 		const guitar = (doc: typeof song) => doc.chart?.format === 'mid' && doc.chart.tokens ? doc.chart.tokens.chunks[2] : null
 		const bytesOf = (doc: typeof song) => doc.chart?.format === 'mid' ? doc.chart.bytes.subarray(guitar(doc)!.start, guitar(doc)!.end) : null
 		expect(bytesOf(edited)).toEqual(bytesOf(song))
+	})
+
+	it('add a named event to a track from the authored view, refusing one that means nothing on the instrument', () => {
+		const chart = '[Song]\n{\n  Resolution = 192\n}\n[ExpertDrums]\n{\n  0 = N 0 0\n}\n'
+		const song = parseSongFiles([file('notes.chart', chart)])
+		const [drums] = authoredTracks(song.chart!)
+		expect(drums).toMatchObject({ instrument: 'drums', difficulty: 'expert', isRead: true, location: { format: 'chart', section: 1 } })
+		expect(drums.events.map(event => [event.tick, event.type, event.scope])).toEqual([[0, 'kick', 'expert']])
+		const edited = editSong(song, batch => batch.addEvent(drums, 192, 'yellowDrum', 0))
+		expect(new TextDecoder().decode(fileBytes(documentFiles(edited)[0]))).toBe('[Song]\n{\n  Resolution = 192\n}\n[ExpertDrums]\n{\n  0 = N 0 0\n  192 = N 2 0\n}\n')
+		expect(() => editSong(song, batch => batch.addEvent(drums, 0, 'forceTap', 0))).toThrow('A forceTap event means nothing on drums')
+		const lengthened = editSong(song, batch => batch.setLength(drums.events[0], 96))
+		expect(new TextDecoder().decode(fileBytes(documentFiles(lengthened)[0]))).toBe('[Song]\n{\n  Resolution = 192\n}\n[ExpertDrums]\n{\n  0 = N 0 96\n}\n')
+	})
+
+	it('add a named event to a .mid track for the difficulty asked, with its velocity and channel', () => {
+		const midi = writeMidi({
+			header: { format: 1, numTracks: 2, ticksPerBeat: 480 },
+			tracks: [
+				[{ deltaTime: 0, type: 'setTempo', microsecondsPerBeat: 500000 }, { deltaTime: 0, type: 'endOfTrack' }],
+				[{ deltaTime: 0, type: 'trackName', text: 'PART GUITAR' }, { deltaTime: 0, type: 'endOfTrack' }],
+			],
+		})
+		const song = parseSongFiles([{ fileName: 'notes.mid', data: new Uint8Array(midi) }])
+		const [guitar] = authoredTracks(song.chart!)
+		expect(guitar).toMatchObject({ instrument: 'guitar', difficulty: null, location: { format: 'mid', chunk: 1 } })
+		expect(() => editSong(song, batch => batch.addEvent(guitar, 0, 'green', 0))).toThrow('say which one')
+		const edited = parseSongFiles(documentFiles(editSong(song, batch => {
+			batch.addEvent(guitar, 0, 'green', 120, { scope: 'hard', velocity: 127, channel: 2 })
+			batch.addEvent(guitar, 480, 'starPower', 480, { scope: 'expert' })
+		})))
+		expect(authoredTracks(edited.chart!)[0].events.map(({ tick, type, length, scope, velocity, channel }) => [tick, type, length, scope, velocity, channel]))
+			.toEqual([[0, 'green', 120, 'hard', 127, 2], [480, 'starPower', 480, 'instrument', 100, 0]])
 	})
 
 	it('have no chart or song.ini when the folder has none', () => {

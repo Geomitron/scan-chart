@@ -3,7 +3,6 @@ import * as _ from 'lodash'
 import type { MidiEvent } from '@geomitron/midi-file'
 
 import {
-	type AuthoredEvent,
 	type AuthoredSource,
 	type AuthoredTempo,
 	type AuthoredTextEvent,
@@ -11,7 +10,7 @@ import {
 	midiAuthoredTracks,
 } from './chart/authored-view'
 import { chartEventEdits, chartEventInsertEdit, chartLineInsertEdit, ChartValueChange, chartValueText, editChartLines } from './chart/chart-edit'
-import { ChartFileTokens, tokenizeChartFile } from './chart/chart-file-parser'
+import { ChartFileTokens, readChartSongEntries, tokenizeChartFile } from './chart/chart-file-parser'
 import { recordEdit } from './chart/edit-history'
 import {
 	editMidiTrack,
@@ -25,10 +24,15 @@ import {
 } from './chart/midi-edit'
 import { findMidiEventsTrack, isTextLikeEvent } from './chart/midi-file-parser'
 import { MidiTokens, midiTokensToMidiData, readMidiTokens, serializeMidiTokens } from './chart/midi-tokens'
+import { chartSongIniEntries } from './ini/chart-song-entries'
+import { appendSongIniSection, setSongIniValue } from './ini/ini-edit'
+import { defaultMetadata } from './ini/metadata'
 import { IniTokens, tokenizeIni } from './ini/parse-ini'
 import { findIniData } from './ini/scan-ini'
 import { getBasename, getExtension, hasChartExtension, hasChartName, hasIniExtension } from './shared/file-names'
 import { type EventType, eventTypes } from './chart/raw-types'
+import { assertMeaningful, type AuthoredEventType, type AuthoredTrack, eventTypeOf } from './authored'
+import { ObjectCache } from './shared/object-cache'
 import { fileBytes, isByteSource, readFileBytes, type SongFile } from './song-files'
 import { type Difficulty, type FolderIssueType, getInstrumentType } from './types'
 
@@ -89,7 +93,7 @@ export function parseSongFiles(files: readonly SongFile[]): SongDocument {
 }
 
 /** Writes a song document back to files: an unedited document gives back every file byte for byte. */
-export function serializeSong(song: SongDocument): SongFile[] {
+export function documentFiles(song: SongDocument): SongFile[] {
 	return song.files.map(file =>
 		file.fileName === song.chart?.fileName ? { fileName: file.fileName, data: chartBytes(song.chart) }
 		: file.fileName === song.ini?.fileName ? { fileName: file.fileName, data: song.ini.tokens.bytes }
@@ -161,7 +165,7 @@ export interface SongEditBatch {
 	/** Moves an authored element, keeping its length. */
 	setTick(element: AuthoredElement, tick: number): void
 	/** Changes an authored event's length. */
-	setLength(event: AuthoredEvent, length: number): void
+	setLength(event: AuthoredElement & { readonly length: number }, length: number): void
 	/** Removes an authored element. */
 	remove(element: AuthoredElement): void
 	/**
@@ -179,6 +183,20 @@ export interface SongEditBatch {
 	addTimeSignature(tick: number, numerator: number, denominator: number): void
 	/** Adds a text event, such as a practice section, to the `[Events]` section or the events track. */
 	addTextEvent(tick: number, text: string): void
+	/**
+	 * Adds a note, note modifier or phrase to a track from `authoredTracks`. It's refused, with the reason, when it
+	 * means nothing on the track's instrument or the format can't write it. A `.mid` track holds every difficulty, so
+	 * `scope` says which one, or `instrument`; an event the format stores once for the instrument, such as star power,
+	 * is added for the instrument whichever difficulty asks. A `.mid` note's velocity defaults to 100 and its channel
+	 * to 0.
+	 */
+	addEvent(
+		track: AuthoredTrack,
+		tick: number,
+		type: AuthoredEventType,
+		length: number,
+		options?: { readonly scope?: Difficulty | 'instrument'; readonly velocity?: number; readonly channel?: number },
+	): void
 	/** Adds an event to a `.chart` instrument section, by the section's index in the file's tokens. */
 	addToChartSection(section: number, tick: number, type: EventType, length: number): void
 	/**
@@ -194,21 +212,33 @@ export interface SongEditBatch {
 		length: number,
 		note?: { readonly velocity: number; readonly channel: number },
 	): void
+	/**
+	 * Sets a song.ini value, as song.ini's text (a time in milliseconds, a difficulty as a whole number), or removes it
+	 * with `null`. A song without song.ini gets one, holding the `.chart` `[Song]` values Clone Hero read, so only the
+	 * edited value reads differently. A value song.ini can't hold as written, such as one with a line break, is refused.
+	 */
+	setMetadata(key: SongMetadataKey, value: string | null): void
 }
 
+/** A song.ini key scan-chart reads. */
+export type SongMetadataKey = keyof typeof defaultMetadata
+
 type ElementChange = { tick?: number; length?: number; value?: ChartValueChange }
+type ChartChange = { element: AuthoredElement; change: ElementChange | 'remove' }
+type ChartAddition = { section: number; tick: number; type: EventType; length: number }
+type MidiAddition = Parameters<SongEditBatch['addToMidiTrack']>
+type SongEventAddition = { tick: number; value: ChartValueChange }
 
 /**
- * Applies a batch of edits to a song's chart and returns the edited song, leaving `song` unchanged: the earlier
- * document is the undo step. Every byte the edits don't touch is kept.
+ * Applies a batch of edits to a song's chart and song.ini and returns the edited song, leaving `song` unchanged: the
+ * earlier document is the undo step. Every byte the edits don't touch is kept, and an empty batch returns `song`.
  *
  * Throws if an edit doesn't fit the chart's format, such as a length on a `.chart` text event.
  */
 export function editSong(song: SongDocument, collect: (batch: SongEditBatch) => void): SongDocument {
 	const { chart } = song
-	if (chart === null) throw new RangeError('The song has no chart to edit')
 	// Changes to one element merge, so setting its tick and its length or value in one batch does both.
-	const changesBySource = new Map<string, { element: AuthoredElement; change: ElementChange | 'remove' }>()
+	const changesBySource = new Map<string, ChartChange>()
 	const change = (element: AuthoredElement, update: ElementChange | 'remove') => {
 		const { source } = element
 		const key = source.format === 'chart' ? `${source.section}:${source.line}` : `${source.chunk}:${source.events[0]}`
@@ -216,9 +246,10 @@ export function editSong(song: SongDocument, collect: (batch: SongEditBatch) => 
 		if (earlier === 'remove') throw new RangeError('The element is already removed in this batch')
 		changesBySource.set(key, { element, change: update === 'remove' ? update : { ...earlier, ...update } })
 	}
-	const additions: { section: number; tick: number; type: EventType; length: number }[] = []
-	const midiAdditions: Parameters<SongEditBatch['addToMidiTrack']>[] = []
-	const songAdditions: { tick: number; value: ChartValueChange }[] = []
+	const additions: ChartAddition[] = []
+	const midiAdditions: MidiAddition[] = []
+	const songAdditions: SongEventAddition[] = []
+	const metadataEdits = new Map<string, string | null>()
 	collect({
 		setTick: (element, tick) => change(element, { tick }),
 		setLength: (event, length) => change(event, { length }),
@@ -229,11 +260,60 @@ export function editSong(song: SongDocument, collect: (batch: SongEditBatch) => 
 		addTempo: (tick, beatsPerMinute) => songAdditions.push({ tick, value: { beatsPerMinute } }),
 		addTimeSignature: (tick, numerator, denominator) => songAdditions.push({ tick, value: { numerator, denominator } }),
 		addTextEvent: (tick, text) => songAdditions.push({ tick, value: { text } }),
+		addEvent: (track, tick, type, length, options = {}) => {
+			const eventType = eventTypeOf(type)
+			assertMeaningful(track.instrument, eventType)
+			if (track.location.format === 'chart') {
+				additions.push({ section: track.location.section, tick, type: eventType, length })
+				return
+			}
+			const scope = options.scope ?? track.difficulty
+			if (scope === null) throw new RangeError('A .mid track holds every difficulty, so say which one the event is for')
+			const note = { velocity: options.velocity ?? 100, channel: options.channel ?? 0 }
+			midiAdditions.push([track.location.chunk, scope, tick, eventType, length, note])
+		},
 		addToChartSection: (section, tick, type, length) => additions.push({ section, tick, type, length }),
 		addToMidiTrack: (...addition) => midiAdditions.push(addition),
+		setMetadata: (key, value) => {
+			if (!Object.prototype.hasOwnProperty.call(defaultMetadata, key)) throw new RangeError(`"${key}" isn't a song.ini key scan-chart reads`)
+			metadataEdits.set(key, value)
+		},
 	})
 	const changes = [...changesBySource.values()]
 
+	let edited = song
+	if (changes.length || additions.length || midiAdditions.length || songAdditions.length) {
+		if (chart === null) throw new RangeError('The song has no chart to edit')
+		edited = { ...song, chart: editChart(chart, changes, additions, midiAdditions, songAdditions) }
+	}
+	if (metadataEdits.size) edited = editMetadata(edited, metadataEdits)
+	if (edited !== song) origins.set(edited, origins.get(song) ?? { song, hashes: undefined })
+	return edited
+}
+
+/**
+ * Where a chain of edits started: the song `parseSong` returned, until saving has calculated its hashes, which every
+ * edit of it shares. Then the song is let go, so a chain of edits keeps one earlier version alive at most.
+ */
+export interface SongOrigin {
+	song: SongDocument | null
+	hashes: ReadonlyMap<string, string> | null | undefined
+}
+
+const origins = new ObjectCache<SongDocument, SongOrigin>('songOrigin')
+
+/** Where `song`'s chain of edits started, or `undefined` for a song no edit made. */
+export function songOrigin(song: SongDocument): SongOrigin | undefined {
+	return origins.get(song)
+}
+
+function editChart(
+	chart: ChartDocument,
+	changes: readonly ChartChange[],
+	additions: readonly ChartAddition[],
+	midiAdditions: readonly MidiAddition[],
+	songAdditions: readonly SongEventAddition[],
+): ChartDocument {
 	if (chart.format === 'chart') {
 		if (midiAdditions.length) throw new RangeError('A .chart file has no MIDI tracks to add to')
 		const tokens = chart.tokens
@@ -257,7 +337,7 @@ export function editSong(song: SongDocument, collect: (batch: SongEditBatch) => 
 		]
 		const edited = editChartLines(tokens, edits)
 		recordEdit(tokens, edited)
-		return { ...song, chart: { ...chart, tokens: edited } }
+		return { ...chart, tokens: edited }
 	}
 
 	if (additions.length) throw new RangeError('A .mid file has no .chart sections to add to')
@@ -310,7 +390,23 @@ export function editSong(song: SongDocument, collect: (batch: SongEditBatch) => 
 	let tokens = midiTokens
 	for (const [chunk, edits] of byChunk) tokens = editMidiTrack(tokens, chunk, edits)
 	recordEdit(midiTokens, tokens)
-	return { ...song, chart: { ...chart, bytes: tokens.data, tokens } }
+	return { ...chart, bytes: tokens.data, tokens }
+}
+
+/**
+ * Applies song.ini edits to the song.ini Clone Hero reads. A song without one gets `song.ini`, and a song.ini without
+ * a `[song]` section gets one, holding the `[Song]` values Clone Hero read before the edits.
+ */
+function editMetadata(song: SongDocument, edits: ReadonlyMap<string, string | null>): SongDocument {
+	const { chart } = song
+	const ini = song.ini !== null && song.ini.fileName.toLowerCase() === 'song.ini' ? song.ini : null
+	const copied = () => chart?.format === 'chart' ? chartSongIniEntries(readChartSongEntries(chart.tokens.bytes)) : []
+	let tokens = ini?.tokens ?? tokenizeIni(new Uint8Array(0))
+	for (const [key, value] of edits) {
+		tokens = setSongIniValue(tokens, key, value) ?? setSongIniValue(appendSongIniSection(tokens, copied()), key, value)!
+	}
+	if (ini !== null) return { ...song, ini: { ...ini, tokens } }
+	return { ...song, files: [...song.files, { fileName: 'song.ini', data: tokens.bytes }], ini: { fileName: 'song.ini', tokens } }
 }
 
 /** The MIDI meta event for a tempo, time signature or text, replacing `original` when given, which must be of its kind. */

@@ -1,3 +1,5 @@
+import { ObjectCache } from './shared/object-cache'
+
 /** A file read on demand, such as a browser `File` or Node's `fs.openAsBlob`, so large files never have to be loaded. */
 export interface ByteSource {
 	readonly size: number
@@ -12,10 +14,20 @@ export interface SongFile {
 
 /** A byte source over a `Blob`, which includes a browser `File` and the result of Node's `fs.openAsBlob`. */
 export function byteSourceFromBlob(blob: Blob): ByteSource {
-	return {
+	const source: ByteSource = {
 		size: blob.size,
 		read: async (offset, length) => new Uint8Array(await blob.slice(offset, offset + length).arrayBuffer()),
 	}
+	sourceBlobs.set(source, blob)
+	return source
+}
+
+/** The `Blob` each `byteSourceFromBlob` source reads, so saving can copy it without reading it. */
+const sourceBlobs = new ObjectCache<ByteSource, Blob>('blob')
+
+/** The `Blob` a byte source reads, or `undefined` for a source `byteSourceFromBlob` didn't make. */
+export function byteSourceBlob(source: ByteSource): Blob | undefined {
+	return sourceBlobs.get(source)
 }
 
 export function isByteSource(data: Uint8Array | ByteSource): data is ByteSource {
@@ -28,7 +40,7 @@ export function fileBytes(file: SongFile): Uint8Array {
 	return file.data
 }
 
-const CHUNK_SIZE = 16 * 1024 * 1024
+export const CHUNK_SIZE = 16 * 1024 * 1024
 
 /** A file's bytes, read in chunks from a byte source. */
 export async function readFileBytes(file: SongFile): Promise<Uint8Array> {
