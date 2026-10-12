@@ -672,7 +672,7 @@ function getEEventType(value: string, difficulty: Difficulty): EventType | null 
 	return null
 }
 
-function getSEventType(value: string): EventType | null {
+export function getSEventType(value: string): EventType | null {
 	switch (value) {
 		case '2':
 			return eventTypes.starPower
@@ -687,7 +687,7 @@ function getSEventType(value: string): EventType | null {
 	}
 }
 
-function getNEventType(value: string, instrument: Instrument): EventType | null {
+export function getNEventType(value: string, instrument: Instrument): EventType | null {
 	switch (instrument) {
 		case 'drums': {
 			switch (value) {
