@@ -125,6 +125,15 @@ type MidiTrackEvent = RawChartData['trackData'][number]['trackEvents'][number] &
  * Real Drums (Phase Shift)
  */
 export function parseNotesFromMidi(data: Uint8Array, iniChartModifiers: IniChartModifiers, rules: ParseRules = parseRules.scanner): RawChartData {
+	return applyMidiRules(classifyMidiFile(readMidiFile(data)), iniChartModifiers, rules)
+}
+
+/**
+ * Reads a `.mid` file, with each event's `deltaTime` converted to its absolute tick.
+ *
+ * Throws an exception if the file isn't a format-1 MIDI file with ticks per beat and at least one track.
+ */
+export function readMidiFile(data: Uint8Array): MidiData {
 	const midiFile = parseMidi(data)
 	if (midiFile.header.format !== 1) {
 		throw `Invavlid .mid file: unsupported header format "${midiFile.header.format}"`
@@ -138,11 +147,24 @@ export function parseNotesFromMidi(data: Uint8Array, iniChartModifiers: IniChart
 		throw 'Invalid .mid file: no tracks detected'
 	}
 
-	// Sets event.deltaTime to the number of ticks since the start of the track
 	convertToAbsoluteTime(midiFile)
+	return midiFile
+}
 
+/** A `.mid` file's tracks and events, classified without a rule profile. */
+export interface ClassifiedMidi {
+	ticksPerBeat: number
+	tempos: { tick: number; beatsPerMinute: number }[]
+	timeSignatures: { tick: number; numerator: number; denominator: number }[]
+	vocalTracks: { [part: string]: VocalTrackData }
+	eventsScan: EventsScanResult
+	instrumentTracks: { instrument: Instrument; instrumentType: InstrumentType; scan: TrackScanResult }[]
+	unrecognizedMidiTracks: RawChartData['unrecognizedMidiTracks']
+}
+
+/** Classifies a read `.mid` file's tracks and events. No rule profile is involved. */
+export function classifyMidiFile(midiFile: MidiData): ClassifiedMidi {
 	const { tracks, unrecognizedMidiTracks } = getTracks(midiFile)
-	const parseIssues: RawChartData['parseIssues'] = []
 
 	// Build vocalTracks from PART VOCALS and HARM1/HARM2/HARM3.
 	// Separate note 105 (scoring phrases) from note 106 (static lyric / player-2
@@ -211,29 +233,55 @@ export function parseNotesFromMidi(data: Uint8Array, iniChartModifiers: IniChart
 	// Non-text events (noteOn/Off, sysEx, channel events, etc.) go to
 	// unrecognizedMidiEvents.
 	const eventsScan = scanEventsTrack(tracks)
+
+	const instrumentTracks: ClassifiedMidi['instrumentTracks'] = []
+	for (const t of tracks) {
+		const instrument = instrumentNameMap[t.trackName as InstrumentTrackName]
+		if (instrument === undefined) continue // vocal/EVENTS tracks handled elsewhere
+		const instrumentType = getInstrumentType(instrument)
+		instrumentTracks.push({ instrument, instrumentType, scan: scanInstrumentTrack(t.trackEvents, instrumentType, t.sourceName) })
+	}
+
+	return {
+		ticksPerBeat: midiFile.header.ticksPerBeat!,
+		tempos: extractTempos(midiFile.tracks[0]),
+		timeSignatures: extractTimeSignatures(midiFile.tracks[0]),
+		vocalTracks,
+		eventsScan,
+		instrumentTracks,
+		unrecognizedMidiTracks,
+	}
+}
+
+/**
+ * Applies a rule profile to a classified `.mid` file. Returns all the note data in `RawChartData`; the rules
+ * shared with .chart are applied when the notes are resolved. Leaves `classified` unchanged.
+ */
+export function applyMidiRules(classified: ClassifiedMidi, iniChartModifiers: IniChartModifiers, rules: ParseRules): RawChartData {
+	const { eventsScan } = classified
 	const firstCodaTick = eventsScan.codaEvents[0]?.tick ?? null
 
 	return {
-		chartTicksPerBeat: midiFile.header.ticksPerBeat,
+		chartTicksPerBeat: classified.ticksPerBeat,
 		metadata: {}, // .mid does not have a mechanism for storing song metadata
-		vocalTracks,
-		tempos: extractTempos(midiFile.tracks[0]),
-		timeSignatures: extractTimeSignatures(midiFile.tracks[0]),
+		vocalTracks: classified.vocalTracks,
+		tempos: classified.tempos,
+		timeSignatures: classified.timeSignatures,
 		unrecognizedSyncTrackEvents: [], // .chart-only
 
 		sections: eventsScan.sections,
 		endEvents: eventsScan.endEvents,
 		unrecognizedEventsTrackTextEvents: eventsScan.unrecognizedTextEvents,
 		unrecognizedEventsTrackMidiEvents: eventsScan.unrecognizedMidiEvents,
-		unrecognizedMidiTracks,
+		unrecognizedMidiTracks: classified.unrecognizedMidiTracks,
 		unrecognizedChartSections: [],
-		trackData: buildMidiTrackData(tracks, iniChartModifiers, firstCodaTick, rules),
-		parseIssues: [...parseIssues, ...eventsScan.parseIssues],
+		trackData: buildMidiTrackData(classified.instrumentTracks, iniChartModifiers, firstCodaTick, rules),
+		parseIssues: [...eventsScan.parseIssues],
 	}
 }
 
 function buildMidiTrackData(
-	tracks: MidiSourceTrack[],
+	instrumentTracks: ClassifiedMidi['instrumentTracks'],
 	iniChartModifiers: IniChartModifiers,
 	firstCodaTick: number | null,
 	rules: ParseRules,
@@ -242,16 +290,19 @@ function buildMidiTrackData(
 	const allocatesEmptyExpert = rules.midiTrackAllocation === 'difficultiesWithNotesAndExpert'
 	const seenInstruments = new Set<Instrument>()
 
-	for (const t of tracks) {
-		const instrument = instrumentNameMap[t.trackName as InstrumentTrackName]
-		if (instrument === undefined) continue // vocal/EVENTS tracks handled elsewhere
+	for (const { instrument, instrumentType, scan } of instrumentTracks) {
 		// Clone Hero marks the instrument as seen even when its first track has no notes.
 		if (rules.midiDuplicateInstrumentTracks === 'firstWins' && seenInstruments.has(instrument)) continue
 		seenInstruments.add(instrument)
-		const instrumentType = getInstrumentType(instrument)
-		const { eventEnds, textEvents, versusPhrases, animations, unrecognizedEvents: trackUnrecognized } =
-			scanInstrumentTrack(t.trackEvents, instrumentType, t.sourceName)
-		const distributed = distributeInstrumentEvents(eventEnds, allocatesEmptyExpert)
+		const { eventEnds, textEvents, versusPhrases, animations, unrecognizedEvents: trackUnrecognized } = scan
+		// distributeInstrumentEvents adds to and sorts these lists, and a classification can be shared by profiles
+		const distributed = distributeInstrumentEvents({
+			all: [...eventEnds.all],
+			expert: [...eventEnds.expert],
+			hard: [...eventEnds.hard],
+			medium: [...eventEnds.medium],
+			easy: [...eventEnds.easy],
+		}, allocatesEmptyExpert)
 		const pairedEvents = getTrackEvents(distributed)
 		const step1 = splitMidiModifierSustains(pairedEvents, instrumentType, rules)
 		const step2 = fixLegacyGhStarPower(step1, instrumentType, iniChartModifiers)
