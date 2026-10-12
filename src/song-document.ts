@@ -1,9 +1,11 @@
+import * as _ from 'lodash'
+
 import { ChartFileTokens, tokenizeChartFile } from './chart/chart-file-parser'
 import { MidiTokens, readMidiTokens, serializeMidiTokens } from './chart/midi-tokens'
-import { findChartData } from './chart/parse-chart-and-ini'
 import { IniTokens, tokenizeIni } from './ini/parse-ini'
 import { findIniData } from './ini/scan-ini'
-import type { File } from './types'
+import { getBasename, getExtension, hasChartExtension, hasChartName } from './shared/file-names'
+import type { File, FolderIssueType } from './types'
 
 /** The chart file of a song, tokenized in its format. */
 export type ChartDocument =
@@ -67,5 +69,45 @@ function tokenizeMidi(bytes: Uint8Array): { tokens: MidiTokens | null; readError
 		return { tokens: readMidiTokens(bytes, 'skip'), readError: null }
 	} catch (error) {
 		return { tokens: null, readError: error instanceof Error ? error.message : String(error) }
+	}
+}
+
+/** Chooses the chart file Clone Hero reads from a song folder, and reports problems with the folder's chart files. */
+export function findChartData(files: readonly File[]) {
+	const folderIssues: { folderIssue: FolderIssueType; description: string }[] = []
+
+	// Like Clone Hero, prefer a file named "notes" in any letter case, and .mid over .chart when both exist.
+	const chartFiles = _.chain(files)
+		.filter(f => hasChartExtension(f.fileName))
+		.orderBy([
+			f => getBasename(f.fileName).toLowerCase() === 'notes',
+			f => getExtension(f.fileName).toLowerCase() === 'mid',
+			f => hasChartName(f.fileName),
+		], ['desc', 'desc', 'desc'])
+		.value()
+
+	for (const file of chartFiles) {
+		if (!hasChartName(file.fileName)) {
+			folderIssues.push({
+				folderIssue: 'invalidChart',
+				description: `"${file.fileName}" is not named "notes.${getExtension(file.fileName).toLowerCase()}".`,
+			})
+		}
+	}
+
+	if (chartFiles.length > 1) {
+		folderIssues.push({ folderIssue: 'multipleChart', description: 'This chart has multiple .chart/.mid files.' })
+	}
+
+	if (chartFiles.length === 0) {
+		folderIssues.push({ folderIssue: 'noChart', description: 'This chart doesn\'t have "notes.chart"/"notes.mid".' })
+		return { chartFile: null, chartData: null, format: null, folderIssues }
+	} else {
+		return {
+			chartFile: chartFiles[0],
+			chartData: chartFiles[0].data,
+			format: (getExtension(chartFiles[0].fileName).toLowerCase() === 'mid' ? 'mid' : 'chart') as 'mid' | 'chart',
+			folderIssues,
+		}
 	}
 }

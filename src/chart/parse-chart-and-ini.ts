@@ -1,11 +1,10 @@
-import * as _ from 'lodash'
-
 import { defaultMetadata } from '../ini/metadata'
 import { scanIni } from '../ini/scan-ini'
 import { File, FolderIssueType, MetadataIssueType } from '../types'
-import { getBasename, getExtension, hasChartExtension, hasChartName } from '../shared/file-names'
+import { findChartData, parseSong } from '../song-document'
+import { parseRules } from './parse-rules'
 import { IniChartModifiers } from './types'
-import { parseChartFile, ParsedChartFile } from './parse-chart-file'
+import { ParsedChartFile, parseChartSource } from './parse-chart-file'
 import { readChartSongMetadata } from './chart-file-parser'
 import { selectSongHashMetadata } from './identity/song-metadata'
 import type { SongHashMetadata } from './identity/song-hash-20251010'
@@ -87,12 +86,15 @@ export function parseChartAndIni(files: File[]): ParseChartAndIniResult {
 		? { ...defaultMetadata, ...iniData.metadata }
 		: defaultMetadata
 
-	const { chartData, format, folderIssues: chartFolderIssues } = findChartData(files)
+	const { folderIssues: chartFolderIssues } = findChartData(files)
+	const { chart } = parseSong(files)
 
 	let parsedChart: ParsedChart | null = null
-	if (chartData) {
+	if (chart) {
+		const chartData = chart.format === 'mid' ? chart.bytes : chart.tokens.bytes
+		const format = chart.format
 		try {
-			const inner = parseChartFile(chartData, format!, iniChartModifiers)
+			const inner = parseChartSource(chart, iniChartModifiers, parseRules.scanner)
 
 			// Merge [Song]-section metadata with song.ini metadata onto a single
 			// `parsedChart.metadata`. song.ini wins where both provide a value —
@@ -110,7 +112,7 @@ export function parseChartAndIni(files: File[]): ParseChartAndIniResult {
 			parsedChart = Object.assign({}, inner, {
 				metadata: mergedMetadata,
 				chartBytes: chartData,
-				format: format!,
+				format,
 				iniChartModifiers,
 				songHashMetadata: selectSongHashMetadata(iniData.songSection, format === 'chart' ? readChartSongMetadata(chartData) : {}),
 			}) as ParsedChart
@@ -129,44 +131,5 @@ export function parseChartAndIni(files: File[]): ParseChartAndIniResult {
 		chartFolderIssues,
 		iniFolderIssues: iniData.folderIssues,
 		iniMetadataIssues: iniData.metadataIssues,
-	}
-}
-
-export function findChartData(files: readonly File[]) {
-	const folderIssues: { folderIssue: FolderIssueType; description: string }[] = []
-
-	// Like Clone Hero, prefer a file named "notes" in any letter case, and .mid over .chart when both exist.
-	const chartFiles = _.chain(files)
-		.filter(f => hasChartExtension(f.fileName))
-		.orderBy([
-			f => getBasename(f.fileName).toLowerCase() === 'notes',
-			f => getExtension(f.fileName).toLowerCase() === 'mid',
-			f => hasChartName(f.fileName),
-		], ['desc', 'desc', 'desc'])
-		.value()
-
-	for (const file of chartFiles) {
-		if (!hasChartName(file.fileName)) {
-			folderIssues.push({
-				folderIssue: 'invalidChart',
-				description: `"${file.fileName}" is not named "notes.${getExtension(file.fileName).toLowerCase()}".`,
-			})
-		}
-	}
-
-	if (chartFiles.length > 1) {
-		folderIssues.push({ folderIssue: 'multipleChart', description: 'This chart has multiple .chart/.mid files.' })
-	}
-
-	if (chartFiles.length === 0) {
-		folderIssues.push({ folderIssue: 'noChart', description: 'This chart doesn\'t have "notes.chart"/"notes.mid".' })
-		return { chartFile: null, chartData: null, format: null, folderIssues }
-	} else {
-		return {
-			chartFile: chartFiles[0],
-			chartData: chartFiles[0].data,
-			format: (getExtension(chartFiles[0].fileName).toLowerCase() === 'mid' ? 'mid' : 'chart') as 'mid' | 'chart',
-			folderIssues,
-		}
 	}
 }
