@@ -5,6 +5,7 @@ import { parseRules } from '../parse-rules'
 import type { IniChartModifiers } from '../types'
 import type { SourceParseError, SourceParseRequest } from './public'
 import { CanonicalTrackSemantics, createFiveFretRange } from './btrack-20260801'
+import type { CanonicalTempoMap } from './tempo-map-hash'
 import { identityTrackKey, IdentityTrackKey } from './track-key'
 
 const canonicalParsedTrackToken: unique symbol = Symbol('canonicalParsedTrack')
@@ -65,6 +66,8 @@ export interface CanonicalParsedChart {
 	readonly profile: 'canonical-20260801'
 	readonly sourceFormat: 'chart' | 'mid'
 	readonly duration: CanonicalChartDuration
+	/** The tempo map every track's semantics holds; Clone Hero's tempo map hash is calculated from it. */
+	readonly tempoMap: CanonicalTempoMap
 	readonly tracks: readonly CanonicalParsedTrack[]
 }
 
@@ -200,20 +203,26 @@ function collectRangeShifts(
 	return { byTrack: canonical, notices }
 }
 
+function buildTempoMap(parsed: ReturnType<typeof parseChartFileCanonicalIdentity>): CanonicalTempoMap {
+	return {
+		tempos: lastAtEachTick(parsed.tempos).map(tempo => ({
+			tick: toBigInt(tempo.tick, 'tempo tick'),
+			beatsPerMinute: tempo.beatsPerMinute,
+		})),
+		timeSignatures: lastAtEachTick(parsed.timeSignatures).map(signature => ({
+			tick: toBigInt(signature.tick, 'time signature tick'),
+			numerator: signature.numerator,
+			denominator: signature.denominator,
+		})),
+	}
+}
+
 function buildSemantics(
 	parsed: ReturnType<typeof parseChartFileCanonicalIdentity>,
+	{ tempos, timeSignatures }: CanonicalTempoMap,
 	track: ReturnType<typeof parseChartFileCanonicalIdentity>['trackData'][number],
 	rangeShifts: readonly SourceRangeShiftMarker[],
 ): CanonicalTrackSemantics {
-	const tempos = lastAtEachTick(parsed.tempos).map(tempo => ({
-		tick: toBigInt(tempo.tick, 'tempo tick'),
-		beatsPerMinute: tempo.beatsPerMinute,
-	}))
-	const timeSignatures = lastAtEachTick(parsed.timeSignatures).map(signature => ({
-		tick: toBigInt(signature.tick, 'time signature tick'),
-		numerator: signature.numerator,
-		denominator: signature.denominator,
-	}))
 	const notes = track.noteEventGroups.flat()
 	const containsNote = (range: { tick: number; length: number }, inclusiveEnd: boolean) => notes.some(note =>
 		note.tick >= range.tick && (inclusiveEnd
@@ -273,10 +282,11 @@ function canonicalOutcome(format: 'chart' | 'mid', parse: () => ReturnType<typeo
 	try {
 		const parsed = parse()
 		const ranges = collectRangeShifts(format, parsed.trackData)
+		const tempoMap = buildTempoMap(parsed)
 		const tracks = parsed.trackData.map(track => ({
 			profile: 'canonical-20260801' as const,
 			key: { instrument: track.instrument, difficulty: track.difficulty },
-			semantics: buildSemantics(parsed, track, ranges.byTrack.get(identityTrackKey(track.instrument, track.difficulty)) ?? []),
+			semantics: buildSemantics(parsed, tempoMap, track, ranges.byTrack.get(identityTrackKey(track.instrument, track.difficulty)) ?? []),
 			[canonicalParsedTrackToken]: true as const,
 		}))
 		return {
@@ -285,6 +295,7 @@ function canonicalOutcome(format: 'chart' | 'mid', parse: () => ReturnType<typeo
 				profile: 'canonical-20260801',
 				sourceFormat: format,
 				duration: calculateCanonicalChartDuration(parsed),
+				tempoMap,
 				tracks,
 			},
 			notices: ranges.notices,
