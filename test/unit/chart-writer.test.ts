@@ -8,9 +8,11 @@
  * the parser is the source of truth for observable behavior.
  */
 
+import { writeMidi } from '@geomitron/midi-file'
 import { describe, expect, it } from 'vitest'
 
 import { writeChartFile } from 'src/chart/chart-writer'
+import { canonical20260801 } from 'src/chart/identity/public'
 import { createEmptyChart } from 'src/chart/create-chart'
 import { NoteEvent, noteFlags, type NoteType, noteTypes } from 'src/chart/types'
 import { parseChartAndIni, type ParsedChart } from 'src/chart/parse-chart-and-ini'
@@ -380,5 +382,37 @@ describe('writeChartFile round-trip: 5-fret tracks', () => {
 		const reTrack = findTrack(re, 'guitar')
 		expect(reTrack.starPowerSections.map(s => ({ t: s.tick, l: s.length }))).toEqual([{ t: 0, l: 960 }])
 		expect(reTrack.soloSections.map(s => ({ t: s.tick, l: s.length }))).toEqual([{ t: 480, l: 480 }])
+	})
+})
+
+describe('converting .mid flam to .chart (C18)', () => {
+	it('writes N 109 for flammed notes, so the canonical TrackHash is kept', () => {
+		const flamMidi = new Uint8Array(writeMidi({
+			header: { format: 1, numTracks: 2, ticksPerBeat: 480 },
+			tracks: [
+				[{ deltaTime: 0, type: 'setTempo', microsecondsPerBeat: 500000 }, { deltaTime: 0, type: 'endOfTrack' }],
+				[
+					{ deltaTime: 0, type: 'trackName', text: 'PART DRUMS' },
+					{ deltaTime: 0, type: 'noteOn', channel: 0, noteNumber: 96, velocity: 100 },
+					{ deltaTime: 0, type: 'noteOn', channel: 0, noteNumber: 98, velocity: 100 },
+					{ deltaTime: 0, type: 'noteOn', channel: 0, noteNumber: 109, velocity: 100 },
+					{ deltaTime: 10, type: 'noteOff', channel: 0, noteNumber: 96, velocity: 0 },
+					{ deltaTime: 0, type: 'noteOff', channel: 0, noteNumber: 98, velocity: 0 },
+					{ deltaTime: 0, type: 'noteOff', channel: 0, noteNumber: 109, velocity: 0 },
+					{ deltaTime: 470, type: 'noteOn', channel: 0, noteNumber: 98, velocity: 100 },
+					{ deltaTime: 10, type: 'noteOff', channel: 0, noteNumber: 98, velocity: 0 },
+					{ deltaTime: 0, type: 'endOfTrack' },
+				],
+			],
+		}))
+		const parsed = parseChartAndIni([{ fileName: 'notes.mid', data: flamMidi }]).parsedChart!
+		const chartText = writeChartFile({ ...parsed, format: 'chart' })
+		expect(chartText).toContain('0 = N 109 0')
+		const trackHash = (format: 'chart' | 'mid', bytes: Uint8Array) => {
+			const source = canonical20260801.parseSource({ source: { format, bytes }, modifiers: {} })
+			if (source.kind !== 'accepted') throw new Error(source.errors[0].message)
+			return canonical20260801.calculateTrackIdentity(source.chart.tracks[0]).trackHash.value
+		}
+		expect(trackHash('chart', new TextEncoder().encode(chartText))).toBe(trackHash('mid', flamMidi))
 	})
 })
