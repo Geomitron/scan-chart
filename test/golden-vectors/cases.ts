@@ -247,6 +247,7 @@ export const sourceCases: readonly AuthoredSourceCase[] = [
 	...flexLaneCases(),
 	...chartDynamicsCases(),
 	...drumMarkerCases(),
+	...chartFlamCases(),
 	...discoCases(),
 	...syncTrackAndInstrumentCases(),
 ]
@@ -463,6 +464,25 @@ function drumMarkerCases(): AuthoredSourceCase[] {
 			purpose: 'A tom marker covering a yellow note makes the chart pro drums: the covered yellow is a tom and the next is a cymbal.',
 			format: 'mid',
 			bytes: drums([[0, 98], [480, 98]], [0, 240]),
+			target: { instrument: 'drums', difficulty: 'expert' },
+		},
+	]
+}
+
+/** C18: `N 109` in a `.chart` drum section flams the drum notes of its tick, on that difficulty only, whatever its length. */
+function chartFlamCases(): AuthoredSourceCase[] {
+	return [
+		{
+			id: 'source-chart-flam',
+			purpose: 'C18: N 109 flams the kick and yellow at 0 on Expert. The 480-tick length of the marker is ignored, so the red at 240 isn\'t flammed, and Hard\'s notes at 0 aren\'t either.',
+			format: 'chart',
+			bytes: chart({
+				Song: ['Resolution = 480'],
+				SyncTrack: ['0 = B 120000'],
+				Events: [],
+				ExpertDrums: ['0 = N 0 0', '0 = N 2 0', '0 = N 109 480', '240 = N 1 0'],
+				HardDrums: ['0 = N 0 0', '0 = N 2 0'],
+			}),
 			target: { instrument: 'drums', difficulty: 'expert' },
 		},
 	]
@@ -1286,10 +1306,43 @@ function tempoRoundingCases(): AuthoredSongCase[] {
 	]
 }
 
+/**
+ * C18: a flammed kick and yellow, then an unflammed yellow, written with `N 109` in `.chart` and with MIDI's flam note
+ * in `.mid`. The two folders have equal TrackHashes.
+ */
+function flamConversionCases(): AuthoredSongCase[] {
+	return [
+		{
+			id: 'song-flam-chart',
+			purpose: 'C18: .chart flam as N 109 on the tick; its TrackHash equals song-flam-mid.',
+			files: [
+				{
+					name: 'notes.chart',
+					bytes: chart({
+						Song: ['Resolution = 480'],
+						SyncTrack: ['0 = B 120000', '0 = TS 4'],
+						Events: [],
+						ExpertDrums: ['0 = N 0 0', '0 = N 2 0', '0 = N 109 0', '480 = N 2 0'],
+					}),
+				},
+				{ name: 'song.ini', bytes: songIni(songIniBase) },
+			],
+		},
+		midiWithIni('song-flam-mid',
+			'C18: .mid flam as note 109 over the same notes; its TrackHash equals song-flam-chart.',
+			midi([midiTrack('PART DRUMS', [...note(0, 96, 10), ...note(0, 98, 10), ...note(0, 109, 10), ...note(480, 98, 10)])], 480, midiTrack('', [
+				{ tick: 0, event: { deltaTime: 0, type: 'setTempo', microsecondsPerBeat: 500000 } },
+				{ tick: 0, event: { deltaTime: 0, type: 'timeSignature', numerator: 4, denominator: 4, metronome: 24, thirtyseconds: 8 } },
+			])),
+			songIni(songIniBase)),
+	]
+}
+
 export const songCases: readonly AuthoredSongCase[] = [
 	...metadataCases(),
 	...membershipCases(),
 	...modifierCases(),
 	...durationCases(),
 	...tempoRoundingCases(),
+	...flamConversionCases(),
 ]

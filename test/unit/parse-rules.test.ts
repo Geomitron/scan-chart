@@ -7,6 +7,7 @@ describe('parse profiles', () => {
 		expect(parseRules).toMatchInlineSnapshot(`
 			{
 			  "canonical20260801": {
+			    "chartFlam": "read",
 			    "chartTrackAllocation": "sectionsWithNotes",
 			    "midiChartDynamics": "fromEvent",
 			    "midiDuplicateInstrumentTracks": "firstWins",
@@ -16,6 +17,7 @@ describe('parse profiles', () => {
 			    "profile": "canonical20260801",
 			  },
 			  "frozenLegacy6142": {
+			    "chartFlam": "ignored",
 			    "chartTrackAllocation": "everySection",
 			    "midiChartDynamics": "leaksAcrossDifficulties",
 			    "midiDuplicateInstrumentTracks": "keepAll",
@@ -25,6 +27,7 @@ describe('parse profiles', () => {
 			    "profile": "frozenLegacy6142",
 			  },
 			  "scanner": {
+			    "chartFlam": "read",
 			    "chartTrackAllocation": "everySection",
 			    "midiChartDynamics": "fromEvent",
 			    "midiDuplicateInstrumentTracks": "keepAll",
