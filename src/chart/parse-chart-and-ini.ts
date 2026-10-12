@@ -1,12 +1,9 @@
 import { defaultMetadata } from '../ini/metadata'
-import { scanIni } from '../ini/scan-ini'
+import { songContext } from '../song-context'
 import { File, FolderIssueType, MetadataIssueType } from '../types'
 import { findChartData, parseSong } from '../song-document'
-import { parseRules } from './parse-rules'
 import { IniChartModifiers } from './types'
-import { ChartSource, ParsedChartFile, parseChartSource } from './parse-chart-file'
-import { readChartSongMetadata } from './chart-file-parser'
-import { selectSongHashMetadata } from './identity/song-metadata'
+import { ChartSource, ParsedChartFile } from './parse-chart-file'
 import type { SongHashMetadata } from './identity/song-hash-20251010'
 
 /**
@@ -75,8 +72,11 @@ export interface ParseChartAndIniResult {
 	iniMetadataIssues: { metadataIssue: MetadataIssueType; description: string }[]
 }
 
-/** The tokenized chart each parsed chart came from, so a second parse of it doesn't tokenize the file again. */
-export const parsedChartSources = new WeakMap<ParsedChart, ChartSource>()
+/**
+ * The tokenized chart each parsed chart came from, and the canonical parse it extends, which the competitive hashes
+ * reuse instead of parsing the chart again.
+ */
+export const parsedCharts = new WeakMap<ParsedChart, { readonly source: ChartSource; readonly parsed: ParsedChartFile }>()
 
 /**
  * Parse a chart folder's `notes.{mid,chart}` and `song.ini` into a
@@ -88,48 +88,35 @@ export const parsedChartSources = new WeakMap<ParsedChart, ChartSource>()
  * of an instrument is read, and a `.mid` tap phrase includes its end tick.
  */
 export function parseChartAndIni(files: File[]): ParseChartAndIniResult {
-	const iniData = scanIni(files)
-	const iniChartModifiers: IniChartModifiers = iniData.metadata
-		? { ...defaultMetadata, ...iniData.metadata }
-		: defaultMetadata
-
 	const { folderIssues: chartFolderIssues } = findChartData(files)
-	const { chart } = parseSong(files)
+	const { ini: iniData, settings: iniChartModifiers, songHashMetadata, chart } = songContext(parseSong(files))
 
 	let parsedChart: ParsedChart | null = null
-	if (chart) {
-		const chartData = chart.format === 'mid' ? chart.bytes : chart.tokens.bytes
-		const format = chart.format
-		try {
-			const inner = parseChartSource(chart, iniChartModifiers, parseRules.canonical20260801)
-
-			// Merge [Song]-section metadata with song.ini metadata onto a single
-			// `parsedChart.metadata`. song.ini wins where both provide a value —
-			// the ini file is authoritative and the chart file's [Song] block is
-			// a legacy overlap. Unknown ini keys are preserved in `extraIniFields`
-			// for round-trip writing.
-			const mergedMetadata: ParsedChart['metadata'] = {
-				...inner.metadata,
-				...(iniData.metadata ?? {}),
-			}
-			if (Object.keys(iniData.unknownIniValues).length > 0) {
-				mergedMetadata.extraIniFields = { ...iniData.unknownIniValues }
-			}
-
-			parsedChart = Object.assign({}, inner, {
-				metadata: mergedMetadata,
-				chartBytes: chartData,
-				format,
-				iniChartModifiers,
-				songHashMetadata: selectSongHashMetadata(iniData.songSection, format === 'chart' ? readChartSongMetadata(chartData) : {}),
-			}) as ParsedChart
-			parsedChartSources.set(parsedChart, chart)
-		} catch (err) {
-			chartFolderIssues.push({
-				folderIssue: 'badChart',
-				description: typeof err === 'string' ? err : ((err as Error)?.message ?? JSON.stringify(err)),
-			})
+	if (chart.kind === 'parsed') {
+		const inner = chart.parsed
+		// Merge [Song]-section metadata with song.ini metadata onto a single
+		// `parsedChart.metadata`. song.ini wins where both provide a value —
+		// the ini file is authoritative and the chart file's [Song] block is
+		// a legacy overlap. Unknown ini keys are preserved in `extraIniFields`
+		// for round-trip writing.
+		const mergedMetadata: ParsedChart['metadata'] = {
+			...inner.metadata,
+			...(iniData.metadata ?? {}),
 		}
+		if (Object.keys(iniData.unknownIniValues).length > 0) {
+			mergedMetadata.extraIniFields = { ...iniData.unknownIniValues }
+		}
+
+		parsedChart = Object.assign({}, inner, {
+			metadata: mergedMetadata,
+			chartBytes: chart.bytes,
+			format: chart.source.format,
+			iniChartModifiers,
+			songHashMetadata,
+		}) as ParsedChart
+		parsedCharts.set(parsedChart, { source: chart.source, parsed: inner })
+	} else if (chart.kind === 'failed') {
+		chartFolderIssues.push({ folderIssue: 'badChart', description: chart.error })
 	}
 
 	return {

@@ -9,10 +9,10 @@ import { ChartIssueType, Difficulty, getInstrumentType, Instrument, instrumentTy
 import { msToExactTime } from '../shared/time'
 import { computeHopoThresholdTicks, isNaturalHopo } from './natural-hopo'
 import { IniChartModifiers, NoteEvent, noteFlags, NoteType, noteTypes } from './types'
-import { ParsedChart, parsedChartSources } from './parse-chart-and-ini'
+import { ParsedChart, parsedCharts } from './parse-chart-and-ini'
 import { pruneEmptyPhrases } from './track-hasher'
 import { canonical20260801, CanonicalSongBundle } from './identity/public'
-import { parseCanonicalChartSource } from './identity/canonical-source'
+import { canonicalChartFromParse } from './identity/canonical-source'
 
 const LEADING_SILENCE_THRESHOLD_MS = 1000
 const MIN_SUSTAIN_GAP_MS = 40
@@ -165,9 +165,10 @@ export function scanParsedChart(parsedChart: ParsedChart, includeBTrack = false)
 function calculateCanonicalIdentity(parsedChart: ParsedChart):
 	| { readonly kind: 'accepted'; readonly bundle: CanonicalSongBundle }
 	| { readonly kind: 'rejected'; readonly error: string } {
-	const source = parsedChartSources.get(parsedChart)
-	const parsed = source
-		? parseCanonicalChartSource(source, parsedChart.iniChartModifiers)
+	// The scanner's parse uses the canonical rules (E2) and the same settings, so the identity reuses it.
+	const reusable = parsedCharts.get(parsedChart)
+	const parsed = reusable
+		? canonicalChartFromParse(parsedChart.format, reusable.parsed)
 		: canonical20260801.parseSource({
 			source: { format: parsedChart.format, bytes: parsedChart.chartBytes },
 			modifiers: parsedChart.iniChartModifiers,
