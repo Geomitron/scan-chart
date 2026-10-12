@@ -1,6 +1,8 @@
 import { Difficulty, difficulties, Instrument } from '../../types'
 import { calculateCanonicalChartDuration, CanonicalChartDuration } from '../chart-duration'
-import { parseChartFileCanonicalIdentity } from '../parse-chart-file'
+import { ChartSource, parseChartFileCanonicalIdentity, parseChartSource } from '../parse-chart-file'
+import { parseRules } from '../parse-rules'
+import type { IniChartModifiers } from '../types'
 import type { SourceParseError, SourceParseRequest } from './public'
 import { CanonicalTrackSemantics, createFiveFretRange } from './btrack-20260801'
 import { identityTrackKey, IdentityTrackKey } from './track-key'
@@ -255,13 +257,22 @@ function buildSemantics(
 }
 
 export function parseCanonicalSource(request: SourceParseRequest): CanonicalParseOutcome {
+	return canonicalOutcome(request.source.format, () => parseChartFileCanonicalIdentity(
+		request.source.bytes.slice(),
+		request.source.format,
+		request.modifiers,
+	))
+}
+
+/** Parses an already tokenized chart, such as a song document's, with the canonical rules. */
+export function parseCanonicalChartSource(source: ChartSource, modifiers: Partial<IniChartModifiers>): CanonicalParseOutcome {
+	return canonicalOutcome(source.format, () => parseChartSource(source, modifiers, parseRules.canonical20260801))
+}
+
+function canonicalOutcome(format: 'chart' | 'mid', parse: () => ReturnType<typeof parseChartFileCanonicalIdentity>): CanonicalParseOutcome {
 	try {
-		const parsed = parseChartFileCanonicalIdentity(
-			request.source.bytes.slice(),
-			request.source.format,
-			request.modifiers,
-		)
-		const ranges = collectRangeShifts(request.source.format, parsed.trackData)
+		const parsed = parse()
+		const ranges = collectRangeShifts(format, parsed.trackData)
 		const tracks = parsed.trackData.map(track => ({
 			profile: 'canonical-20260801' as const,
 			key: { instrument: track.instrument, difficulty: track.difficulty },
@@ -272,7 +283,7 @@ export function parseCanonicalSource(request: SourceParseRequest): CanonicalPars
 			kind: 'accepted',
 			chart: {
 				profile: 'canonical-20260801',
-				sourceFormat: request.source.format,
+				sourceFormat: format,
 				duration: calculateCanonicalChartDuration(parsed),
 				tracks,
 			},

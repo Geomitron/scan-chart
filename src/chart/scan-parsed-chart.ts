@@ -9,9 +9,10 @@ import { ChartIssueType, Difficulty, getInstrumentType, Instrument, instrumentTy
 import { msToExactTime } from '../shared/time'
 import { computeHopoThresholdTicks, isNaturalHopo } from './natural-hopo'
 import { IniChartModifiers, NoteEvent, noteFlags, NoteType, noteTypes } from './types'
-import { ParsedChart } from './parse-chart-and-ini'
+import { ParsedChart, parsedChartSources } from './parse-chart-and-ini'
 import { pruneEmptyPhrases } from './track-hasher'
 import { canonical20260801, CanonicalSongBundle } from './identity/public'
+import { parseCanonicalChartSource } from './identity/canonical-source'
 
 const LEADING_SILENCE_THRESHOLD_MS = 1000
 const MIN_SUSTAIN_GAP_MS = 40
@@ -164,10 +165,13 @@ export function scanParsedChart(parsedChart: ParsedChart, includeBTrack = false)
 function calculateCanonicalIdentity(parsedChart: ParsedChart):
 	| { readonly kind: 'accepted'; readonly bundle: CanonicalSongBundle }
 	| { readonly kind: 'rejected'; readonly error: string } {
-	const parsed = canonical20260801.parseSource({
-		source: { format: parsedChart.format, bytes: parsedChart.chartBytes },
-		modifiers: parsedChart.iniChartModifiers,
-	})
+	const source = parsedChartSources.get(parsedChart)
+	const parsed = source
+		? parseCanonicalChartSource(source, parsedChart.iniChartModifiers)
+		: canonical20260801.parseSource({
+			source: { format: parsedChart.format, bytes: parsedChart.chartBytes },
+			modifiers: parsedChart.iniChartModifiers,
+		})
 	if (parsed.kind === 'rejected') return { kind: 'rejected', error: parsed.errors.map(error => error.message).join(' ') }
 	try {
 		return { kind: 'accepted', bundle: canonical20260801.calculateSongBundle({ chart: parsed.chart, metadata: parsedChart.songHashMetadata }) }
