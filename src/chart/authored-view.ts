@@ -138,3 +138,67 @@ export function midiAuthoredTracks(tokens: MidiTokens): MidiAuthoredTrack[] {
 		return { instrument, chunk, isFirst, events }
 	})
 }
+
+/** An authored event of one track, in either format. */
+export interface AuthoredTrackEvent extends AuthoredEvent {
+	/** The track's difficulty when the file stores the event for it alone, or `instrument` when stored once for all. */
+	readonly scope: Difficulty | 'instrument'
+}
+
+/**
+ * The authored events of one track, in either format: everything the file stores for that instrument and difficulty,
+ * including events stored once for the whole instrument. Reads the section or MIDI track Clone Hero reads. Returns
+ * `null` when the file has no such track.
+ */
+export function authoredTrack(
+	chart: { readonly format: 'chart'; readonly tokens: ChartFileTokens } | { readonly format: 'mid'; readonly tokens: MidiTokens },
+	instrument: Instrument,
+	difficulty: Difficulty,
+): readonly AuthoredTrackEvent[] | null {
+	if (chart.format === 'chart') {
+		const section = chartAuthoredTracks(chart.tokens).find(track => track.isRead && track.instrument === instrument && track.difficulty === difficulty)
+		return section?.events.map(event => ({ ...event, scope: difficulty })) ?? null
+	}
+	const track = midiAuthoredTracks(chart.tokens).find(candidate => candidate.isFirst && candidate.instrument === instrument)
+	if (!track) return null
+	const events = track.events.filter(event => event.scope === difficulty || event.scope === 'instrument')
+	return events.some(event => event.scope === difficulty) ? events : null
+}
+
+/** How a format stores a feature: for each difficulty, once for the instrument, on each note, or not at all. */
+export type FormatSupport = 'perDifficulty' | 'perInstrument' | 'perNote' | 'kept' | 'unsupported'
+
+/**
+ * What each chart format can express. An editor targeting a format offers only what it supports; converting to a
+ * format reports what it can't hold.
+ */
+export const chartFormatCapabilities = {
+	chart: {
+		starPower: 'perDifficulty',
+		solos: 'perDifficulty',
+		drumFills: 'perDifficulty',
+		cymbalsAndToms: 'perNote',
+		rollLanes: 'perDifficulty',
+		flam: 'unsupported',
+		accentsAndGhosts: 'perNote',
+		kickDynamics: 'unsupported',
+		lyrics: 'perInstrument',
+		vocalNotes: 'unsupported',
+		harmonies: 'unsupported',
+		venue: 'unsupported',
+	},
+	mid: {
+		starPower: 'perInstrument',
+		solos: 'perInstrument',
+		drumFills: 'perInstrument',
+		cymbalsAndToms: 'perInstrument',
+		rollLanes: 'perInstrument',
+		flam: 'perInstrument',
+		accentsAndGhosts: 'perNote',
+		kickDynamics: 'unsupported',
+		lyrics: 'perInstrument',
+		vocalNotes: 'perInstrument',
+		harmonies: 'perInstrument',
+		venue: 'kept',
+	},
+} as const satisfies Record<'chart' | 'mid', Record<string, FormatSupport>>
