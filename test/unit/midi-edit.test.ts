@@ -138,6 +138,24 @@ describe('MIDI track edits', () => {
 		})
 	})
 
+	it('refuse a length for an element written as one event, such as a disco flip', () => {
+		const tokens = readMidiTokens(new Uint8Array(writeMidi({
+			header: { format: 1, numTracks: 2, ticksPerBeat: 480 },
+			tracks: [
+				[{ deltaTime: 0, type: 'setTempo', microsecondsPerBeat: 500000 }, { deltaTime: 0, type: 'endOfTrack' }],
+				[
+					{ deltaTime: 0, type: 'trackName', text: 'PART DRUMS' },
+					{ deltaTime: 0, type: 'text', text: '[mix 3 drums0d]' },
+					on(0, 96), off(10, 96),
+					{ deltaTime: 0, type: 'endOfTrack' },
+				],
+			],
+		})))
+		const discoFlip = midiAuthoredTracks(tokens)[0].events.find(event => event.type === eventTypes.discoFlipOn)!
+		expect(() => midiEventEdits(discoFlip, { length: 7 })).toThrow('The event has no length')
+		expect(view(editMidiTrack(tokens, 1, midiEventEdits(discoFlip, { tick: 5 })))).toContainEqual([5, eventTypes.discoFlipOn, 0])
+	})
+
 	it('insert a note and delete one', () => {
 		const tokens = guitar([on(0, 96), off(10, 96)])
 		const edited = editMidiTrack(tokens, 1, [
