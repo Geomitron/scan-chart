@@ -94,16 +94,34 @@ const CLAIMED_SONG_KEYS = new Set<string>([
  * Audio file paths in metadata
  */
 export function parseNotesFromChart(data: Uint8Array): RawChartData {
-	const encoding = getEncoding(data)
-	const decoder = new TextDecoder(encoding)
-	const chartText = decoder.decode(data)
+	return classifyChartFile(readChartFile(data))
+}
 
+/** A `.chart` file's sections by name, each as its trimmed, nonblank lines. */
+export type ChartFileSections = { [sectionName: string]: string[] }
+
+/**
+ * Reads a `.chart` file into its sections.
+ *
+ * Throws an exception if the file has no sections.
+ */
+export function readChartFile(data: Uint8Array): ChartFileSections {
+	const chartText = new TextDecoder(getEncoding(data)).decode(data)
 	const fileSections = getFileSections(chartText)
-	const fileSectionKeys = Object.keys(fileSections)
-	if (fileSectionKeys.length === 0) {
+	if (Object.keys(fileSections).length === 0) {
 		throw 'Invalid .chart file: no sections were found.'
 	}
+	return fileSections
+}
 
+/**
+ * Classifies a `.chart` file's sections into chart data. No rule profile is involved: .chart has no rules that
+ * differ between profiles until the notes are resolved.
+ *
+ * Throws an exception if the resolution is missing.
+ */
+export function classifyChartFile(fileSections: ChartFileSections): RawChartData {
+	const fileSectionKeys = Object.keys(fileSections)
 	const metadata: { [key: string]: string } = {}
 	const songLines = fileSections['Song']
 	if (songLines) {
