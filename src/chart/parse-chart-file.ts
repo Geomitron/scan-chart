@@ -1,8 +1,8 @@
 
 import { defaultMetadata } from '../ini/metadata'
 import { Difficulty, DrumType, drumTypes, getInstrumentType, Instrument, instrumentTypes } from '../types'
-import { parseNotesFromChart } from './chart-file-parser'
-import { parseNotesFromMidi } from './midi-file-parser'
+import { classifyChartFile, readChartFile } from './chart-file-parser'
+import { applyMidiRules, classifyMidiFile, readMidiFile } from './midi-file-parser'
 import { parseRules, ParseRules } from './parse-rules'
 import {
 	IniChartModifiers,
@@ -60,7 +60,17 @@ function parseChartFileWithRules(
 	rules: ParseRules,
 ) {
 	const iniChartModifiers = Object.assign({}, defaultMetadata, partialIniChartModifiers) as IniChartModifiers
-	const rawChartData = format === 'mid' ? parseNotesFromMidi(data, iniChartModifiers, rules) : parseNotesFromChart(data)
+	const rawChartData = format === 'mid'
+		? applyMidiRules(classifyMidiFile(readMidiFile(data)), iniChartModifiers, rules)
+		: classifyChartFile(readChartFile(data))
+	return resolveChartData(rawChartData, format, iniChartModifiers, rules)
+}
+
+/**
+ * Resolves classified chart data with a rule profile: the drum type, sustain trimming, note modifiers, chord snapping,
+ * times in milliseconds, and the profile's track allocation. Consumes `rawChartData`: its events become the result's.
+ */
+function resolveChartData(rawChartData: RawChartData, format: 'chart' | 'mid', iniChartModifiers: IniChartModifiers, rules: ParseRules) {
 	const timedTempos = getTimedTempos(rawChartData.tempos, rawChartData.chartTicksPerBeat)
 	const drumTracks = rawChartData.trackData.filter(track => track.instrument === 'drums')
 	// Both flags are invalid together but remain preserved for diagnostics and round-tripping.
