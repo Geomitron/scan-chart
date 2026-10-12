@@ -88,30 +88,12 @@ export function parseChartSource(source: ChartSource, partialIniChartModifiers: 
  */
 function resolveChartData(rawChartData: RawChartData, format: 'chart' | 'mid', iniChartModifiers: IniChartModifiers, rules: ParseRules) {
 	const timedTempos = getTimedTempos(rawChartData.tempos, rawChartData.chartTicksPerBeat)
-	const drumTracks = rawChartData.trackData.filter(track => track.instrument === 'drums')
-	// Both flags are invalid together but remain preserved for diagnostics and round-tripping.
-	// Five-lane takes semantic precedence, per the Clone Hero developer consensus of 2026-04-07.
-	const drumType =
-		drumTracks.length === 0 ? null
-		: iniChartModifiers.five_lane_drums ? drumTypes.fiveLane
-		: iniChartModifiers.pro_drums ? drumTypes.fourLanePro
-		: drumTracks.find(track => track.trackEvents.find(e => isCymbalOrTomMarker(e.type))) ? drumTypes.fourLanePro
-		: drumTracks.find(track => track.trackEvents.find(e => e.type === eventTypes.fiveGreenDrum)) ? drumTypes.fiveLane
-		: drumTypes.fourLane
+	const drumType = chartDrumType(rawChartData.trackData, iniChartModifiers)
 
 	const normalizedVocalTracks = normalizeVocalTracks(rawChartData.vocalTracks, timedTempos, rawChartData.chartTicksPerBeat)
 	// Evaluate trackData first — normalizedVocalTracks is used below for phrase-level hasLyrics check.
-	const tpb = rawChartData.chartTicksPerBeat
-	const noteEventGroupsByTrack = rawChartData.trackData.map(track => {
-		const trimmed = trimSustains(track.trackEvents, iniChartModifiers.sustain_cutoff_threshold, tpb, format)
-		const grouped = groupByTick(trimmed)
-		const resolved = track.instrument === 'drums'
-			? resolveDrumModifiers(grouped, drumType!, format)
-			: resolveFretModifiers(grouped, iniChartModifiers, tpb, format)
-		const snapped = snapChords(resolved, iniChartModifiers.chord_snap_threshold, track.instrument)
-		sortAndFixInvalidNoteOverlaps(snapped)
-		return setEventGroupMsTimes(snapped, timedTempos, tpb)
-	})
+	const context: TrackResolutionContext = { timedTempos, drumType, iniChartModifiers, resolution: rawChartData.chartTicksPerBeat, format }
+	const resolvedTracks = rawChartData.trackData.map(track => resolveTrack(track, context))
 
 	return {
 		resolution: rawChartData.chartTicksPerBeat,
@@ -123,20 +105,7 @@ function resolveChartData(rawChartData: RawChartData, format: 'chart' | 'mid', i
 		tempos: timedTempos,
 		timeSignatures: setEventMsTimes(rawChartData.timeSignatures, timedTempos, rawChartData.chartTicksPerBeat),
 		sections: setEventMsTimes(rawChartData.sections, timedTempos, rawChartData.chartTicksPerBeat),
-		trackData: rawChartData.trackData.map((track, index) => ({
-			instrument: track.instrument,
-			difficulty: track.difficulty,
-			starPowerSections: sortAndFixInvalidEventOverlaps(setEventMsTimes(track.starPowerSections, timedTempos, tpb)),
-			rejectedStarPowerSections: setEventMsTimes(track.rejectedStarPowerSections, timedTempos, tpb),
-			soloSections: sortAndFixInvalidEventOverlaps(setEventMsTimes(track.soloSections, timedTempos, tpb)),
-			flexLanes: sortAndFixInvalidFlexLaneOverlaps(setEventMsTimes(track.flexLanes, timedTempos, tpb)),
-			drumFreestyleSections: setEventMsTimes(track.drumFreestyleSections, timedTempos, tpb),
-			textEvents: setEventMsTimes(track.textEvents, timedTempos, tpb),
-			versusPhrases: setEventMsTimes(track.versusPhrases, timedTempos, tpb),
-			animations: setEventMsTimes(track.animations, timedTempos, tpb),
-			unrecognizedMidiEvents: track.unrecognizedMidiEvents,
-			noteEventGroups: noteEventGroupsByTrack[index],
-		})).filter(track => isTrackAllocated(track.noteEventGroups, format, rules)),
+		trackData: resolvedTracks.filter(track => isTrackAllocated(track.noteEventGroups, format, rules)),
 		unrecognized: {
 			eventsTrackTextEvents: setEventMsTimes(rawChartData.unrecognizedEventsTrackTextEvents, timedTempos, rawChartData.chartTicksPerBeat),
 			eventsTrackMidiEvents: rawChartData.unrecognizedEventsTrackMidiEvents,
@@ -144,6 +113,57 @@ function resolveChartData(rawChartData: RawChartData, format: 'chart' | 'mid', i
 			chartSections: rawChartData.unrecognizedChartSections,
 			syncTrackEvents: rawChartData.unrecognizedSyncTrackEvents,
 		},
+	}
+}
+
+/** What resolving one track reads besides its own events. A drum marker edit can change the drum type. */
+export interface TrackResolutionContext {
+	readonly timedTempos: ReturnType<typeof getTimedTempos>
+	readonly drumType: DrumType | null
+	readonly iniChartModifiers: IniChartModifiers
+	readonly resolution: number
+	readonly format: 'chart' | 'mid'
+}
+
+/**
+ * The drum type of a chart's drum tracks: song.ini's setting, or else what the tracks' markers imply. `null` when the
+ * chart has no drum track.
+ */
+export function chartDrumType(trackData: RawChartData['trackData'], iniChartModifiers: IniChartModifiers): DrumType | null {
+	const drumTracks = trackData.filter(track => track.instrument === 'drums')
+	// Both flags are invalid together but remain preserved for diagnostics and round-tripping.
+	// Five-lane takes semantic precedence, per the Clone Hero developer consensus of 2026-04-07.
+	return drumTracks.length === 0 ? null
+		: iniChartModifiers.five_lane_drums ? drumTypes.fiveLane
+		: iniChartModifiers.pro_drums ? drumTypes.fourLanePro
+		: drumTracks.find(track => track.trackEvents.find(e => isCymbalOrTomMarker(e.type))) ? drumTypes.fourLanePro
+		: drumTracks.find(track => track.trackEvents.find(e => e.type === eventTypes.fiveGreenDrum)) ? drumTypes.fiveLane
+		: drumTypes.fourLane
+}
+
+/** Resolves one classified track: its notes and phrases, with times in milliseconds. Consumes the track's events. */
+export function resolveTrack(track: RawChartData['trackData'][number], context: TrackResolutionContext) {
+	const { timedTempos, drumType, iniChartModifiers, resolution: tpb, format } = context
+	const trimmed = trimSustains(track.trackEvents, iniChartModifiers.sustain_cutoff_threshold, tpb, format)
+	const grouped = groupByTick(trimmed)
+	const resolved = track.instrument === 'drums'
+		? resolveDrumModifiers(grouped, drumType!, format)
+		: resolveFretModifiers(grouped, iniChartModifiers, tpb, format)
+	const snapped = snapChords(resolved, iniChartModifiers.chord_snap_threshold, track.instrument)
+	sortAndFixInvalidNoteOverlaps(snapped)
+	return {
+		instrument: track.instrument,
+		difficulty: track.difficulty,
+		starPowerSections: sortAndFixInvalidEventOverlaps(setEventMsTimes(track.starPowerSections, timedTempos, tpb)),
+		rejectedStarPowerSections: setEventMsTimes(track.rejectedStarPowerSections, timedTempos, tpb),
+		soloSections: sortAndFixInvalidEventOverlaps(setEventMsTimes(track.soloSections, timedTempos, tpb)),
+		flexLanes: sortAndFixInvalidFlexLaneOverlaps(setEventMsTimes(track.flexLanes, timedTempos, tpb)),
+		drumFreestyleSections: setEventMsTimes(track.drumFreestyleSections, timedTempos, tpb),
+		textEvents: setEventMsTimes(track.textEvents, timedTempos, tpb),
+		versusPhrases: setEventMsTimes(track.versusPhrases, timedTempos, tpb),
+		animations: setEventMsTimes(track.animations, timedTempos, tpb),
+		unrecognizedMidiEvents: track.unrecognizedMidiEvents,
+		noteEventGroups: setEventGroupMsTimes(snapped, timedTempos, tpb),
 	}
 }
 
