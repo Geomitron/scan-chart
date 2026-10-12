@@ -1,10 +1,14 @@
 import * as _ from 'lodash'
 
+import type { AuthoredEvent } from './chart/authored-view'
+import { chartEventEdits, chartEventInsertEdit, editChartLines } from './chart/chart-edit'
 import { ChartFileTokens, tokenizeChartFile } from './chart/chart-file-parser'
+import { editMidiTrack, midiEventEdits, MidiTrackEdit } from './chart/midi-edit'
 import { MidiTokens, readMidiTokens, serializeMidiTokens } from './chart/midi-tokens'
 import { IniTokens, tokenizeIni } from './ini/parse-ini'
 import { findIniData } from './ini/scan-ini'
 import { getBasename, getExtension, hasChartExtension, hasChartName } from './shared/file-names'
+import type { EventType } from './chart/raw-types'
 import type { File, FolderIssueType } from './types'
 
 /** The chart file of a song, tokenized in its format. */
@@ -110,4 +114,65 @@ export function findChartData(files: readonly File[]) {
 			folderIssues,
 		}
 	}
+}
+
+/** The edits one call of `editSong` collects; they apply together, as one change. */
+export interface SongEditBatch {
+	/** Moves an authored event, keeping its length. */
+	setTick(event: AuthoredEvent, tick: number): void
+	/** Changes an authored event's length. */
+	setLength(event: AuthoredEvent, length: number): void
+	/** Removes an authored event. */
+	remove(event: AuthoredEvent): void
+	/** Adds an event to a `.chart` instrument section, by the section's index in the file's tokens. */
+	addToChartSection(section: number, tick: number, type: EventType, length: number): void
+}
+
+/**
+ * Applies a batch of edits to a song's chart and returns the edited song, leaving `song` unchanged: the earlier
+ * document is the undo step. Every byte the edits don't touch is kept.
+ *
+ * Throws if an edit doesn't fit the chart's format, such as a length on a `.chart` text event.
+ */
+export function editSong(song: SongDocument, collect: (batch: SongEditBatch) => void): SongDocument {
+	const { chart } = song
+	if (chart === null) throw new RangeError('The song has no chart to edit')
+	const changes: { event: AuthoredEvent; change: { tick?: number; length?: number } | 'remove' }[] = []
+	const additions: { section: number; tick: number; type: EventType; length: number }[] = []
+	collect({
+		setTick: (event, tick) => changes.push({ event, change: { tick } }),
+		setLength: (event, length) => changes.push({ event, change: { length } }),
+		remove: event => changes.push({ event, change: 'remove' }),
+		addToChartSection: (section, tick, type, length) => additions.push({ section, tick, type, length }),
+	})
+
+	if (chart.format === 'chart') {
+		const tokens = chart.tokens
+		const edits = [
+			...changes.flatMap(({ event, change }) => {
+				if (event.source.format !== 'chart') throw new RangeError('The event isn\'t from this chart')
+				const source = event.source
+				return change === 'remove'
+					? [{ kind: 'delete' as const, section: source.section, line: source.line }]
+					: chartEventEdits(tokens, { ...event, source }, change)
+			}),
+			...additions.map(({ section, tick, type, length }) => chartEventInsertEdit(tokens, section, tick, type, length)),
+		]
+		return { ...song, chart: { ...chart, tokens: editChartLines(tokens, edits) } }
+	}
+
+	if (additions.length) throw new RangeError('Adding events to a .mid chart isn\'t supported yet')
+	if (chart.tokens === null) throw new RangeError('The .mid file can\'t be read, so it can\'t be edited')
+	const byChunk = new Map<number, MidiTrackEdit[]>()
+	for (const { event, change } of changes) {
+		if (event.source.format !== 'mid') throw new RangeError('The event isn\'t from this chart')
+		const source = event.source
+		const edits = change === 'remove'
+			? source.events.map(index => ({ kind: 'delete' as const, event: index }))
+			: midiEventEdits({ ...event, source }, change)
+		byChunk.set(source.chunk, [...(byChunk.get(source.chunk) ?? []), ...edits])
+	}
+	let tokens = chart.tokens
+	for (const [chunk, edits] of byChunk) tokens = editMidiTrack(tokens, chunk, edits)
+	return { ...song, chart: { ...chart, bytes: tokens.data, tokens } }
 }
