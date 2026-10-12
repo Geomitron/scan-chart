@@ -3,8 +3,6 @@ import * as _ from 'lodash'
 import { File, FolderIssueType } from '../types'
 import { getBasename, hasAudioExtension, hasAudioName } from '../shared/file-names'
 
-// TODO: use _max_threads
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export function scanAudio(files: File[]) {
 	const folderIssues: { folderIssue: FolderIssueType; description: string }[] = []
 
@@ -13,17 +11,6 @@ export function scanAudio(files: File[]) {
 	if (findAudioDataResult.audioData.length === 0) {
 		return { audioHash: null, audioLength: null, folderIssues }
 	}
-
-	// TODO: Implement this when determining the best audio fingerprint algorithm
-	// const audioParser = new AudioParser(max_threads)
-	// const { audioHash, audioLength, errors } = await audioParser.getAudioFingerprint(audioFiles)
-
-	// if (errors.length) {
-	// 	this.addFolderIssue('badAudio', `This chart's audio couldn't be parsed:\n${errors.join('\n')}`)
-	// } else {
-	// 	this.audioHash = audioHash
-	// 	this.audioLength = audioLength
-	// }
 
 	return { audioHash: null, audioLength: null, folderIssues }
 }
