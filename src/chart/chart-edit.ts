@@ -68,7 +68,29 @@ export function editChartLines(tokens: ChartFileTokens, edits: readonly ChartLin
  */
 export function spliceChartText(tokens: ChartFileTokens, splices: readonly { start: number; end: number; text: string }[]): ChartFileTokens {
 	const offsets = byteOffsets(tokens)
-	return spliceBytes(tokens, splices.map(splice => ({ start: offsets(splice.start), end: offsets(splice.end), text: splice.text })))
+	return spliceBytes(tokens, splices.map(splice => {
+		const start = offsets(splice.start), end = offsets(splice.end)
+		// Text decoded from invalid bytes holds replacement characters; writing it back would change those bytes.
+		if (splice.text !== '' && !sameBytes(encodeText(tokens.text.slice(splice.start, splice.end), tokens.encoding), tokens.bytes.subarray(start, end))) {
+			throw new RangeError('The text being replaced holds bytes that aren\'t valid in the file\'s encoding')
+		}
+		return { start, end, text: splice.text }
+	}))
+}
+
+/**
+ * Whether a range of whole lines of a `.chart` file is exactly its decoded text, encoded again: no invalid bytes that
+ * decoding replaced. `start` and `end` are offsets of line starts in the text, or the text's end.
+ */
+export function chartTextRoundTrips(tokens: ChartFileTokens, start: number, end: number): boolean {
+	const offsets = byteOffsets(tokens)
+	return sameBytes(encodeText(tokens.text.slice(start, end), tokens.encoding), tokens.bytes.subarray(offsets(start), offsets(end)))
+}
+
+function sameBytes(a: Uint8Array, b: Uint8Array): boolean {
+	if (a.length !== b.length) return false
+	for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false
+	return true
 }
 
 /** Splices text into the file's bytes, in its encoding. `start` and `end` are byte offsets, in order. */
@@ -120,6 +142,10 @@ export function chartEventEdits(
 	const lines = chartSectionLines(tokens, tokens.sections[section])
 	const match = /^(\d+) = (.*)$/.exec(lines[line].text)
 	if (match === null) throw new RangeError('The event\'s line isn\'t a tick = value line')
+	const lineEnd = line + 1 < lines.length ? lines[line + 1].start : lines[line].end
+	if (!chartTextRoundTrips(tokens, lines[line].start, lineEnd)) {
+		throw new RangeError('The event\'s line holds bytes that aren\'t valid in the file\'s encoding, so it can only be removed')
+	}
 	const writtenTick = Number(match[1])
 	const tick = change.tick ?? writtenTick
 	let value = change.value ? chartValueText(match[2], change.value) : match[2]
