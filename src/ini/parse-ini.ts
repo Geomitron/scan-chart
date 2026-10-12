@@ -9,11 +9,38 @@ export interface IniObject {
 	[section: string]: { [key: string]: string }
 }
 
+/** A song.ini file as read, kept whole so an unedited file is written back byte for byte. */
+export interface IniTokens {
+	readonly bytes: Uint8Array
+	/** The decoded text, or `null` when the file can't be decoded; `decodeError` then says why. */
+	readonly text: string | null
+	readonly decodeError: Error | null
+}
+
+/** Tokenizes a song.ini file. Never throws: a file that can't be decoded keeps its error for parsing to report. */
+export function tokenizeIni(bytes: Uint8Array): IniTokens {
+	try {
+		return { bytes, text: decodeCloneHeroText(bytes), decodeError: null }
+	} catch (error) {
+		return { bytes, text: null, decodeError: error instanceof Error ? error : new Error(String(error)) }
+	}
+}
+
 /**
  * @returns the `IniObject` parsed from `file`.
  */
 export function parseIni(file: Uint8Array): { iniObject: IniObject; folderIssues: { folderIssue: 'badIniLine'; description: string }[] } {
-	const iniLines = decodeCloneHeroText(file)
+	return parseIniTokens(tokenizeIni(file))
+}
+
+/**
+ * @returns the `IniObject` parsed from a tokenized song.ini.
+ *
+ * Throws the decoding error if the file couldn't be decoded.
+ */
+export function parseIniTokens(tokens: IniTokens): { iniObject: IniObject; folderIssues: { folderIssue: 'badIniLine'; description: string }[] } {
+	if (tokens.text === null) throw tokens.decodeError
+	const iniLines = tokens.text
 		.replace(/^\uFEFF/, '') // CH IniFile.Load removes one leading byte order mark
 		.split(/\r?\n/g)
 		.map(trimDotnet)
