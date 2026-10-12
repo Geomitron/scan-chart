@@ -9,6 +9,7 @@ import { parseRules } from './chart/parse-rules'
 import type { IniChartModifiers } from './chart/types'
 import { defaultMetadata } from './ini/metadata'
 import { scanIni } from './ini/scan-ini'
+import { ObjectCache } from './shared/object-cache'
 import type { SongDocument } from './song-document'
 import type { SongFile } from './song-files'
 
@@ -28,7 +29,7 @@ export type ChartParseOutcome =
 	| { readonly kind: 'failed'; readonly error: string }
 	| { readonly kind: 'parsed'; readonly source: ChartSource; readonly bytes: Uint8Array; readonly parsed: ParsedChartFile }
 
-const contexts = new WeakMap<SongDocument, SongContext>()
+const contexts = new ObjectCache<SongDocument, SongContext>('songContext')
 
 /**
  * The song's context, calculated once per document. The chart is parsed with Clone Hero's rules (E2), which the

@@ -1,5 +1,6 @@
 import type { ParsedChartFile } from './chart/parse-chart-file'
 import type { IniChartModifiers, NoteType, VocalTrack } from './chart/types'
+import { ObjectCache } from './shared/object-cache'
 import { songContext } from './song-context'
 import type { SongDocument } from './song-document'
 import type { Difficulty, DrumType, Instrument } from './types'
@@ -119,8 +120,8 @@ export interface GameplayChartSource {
 	readonly format: ChartFormat
 }
 
-const sources = new WeakMap<GameplayChart, GameplayChartSource>()
-const charts = new WeakMap<ParsedChartFile, GameplayChart>()
+const sources = new ObjectCache<GameplayChart, GameplayChartSource>('gameplayChartSource')
+const charts = new ObjectCache<ParsedChartFile, GameplayChart>('gameplayChart')
 
 /** The chart of a song as Clone Hero plays it. Throws `ChartReadError` if the song has no chart or it can't be read. */
 export function resolveChart(song: SongDocument): GameplayChart {
