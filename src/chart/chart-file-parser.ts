@@ -100,18 +100,56 @@ export function parseNotesFromChart(data: Uint8Array): RawChartData {
 /** A `.chart` file's sections by name, each as its trimmed, nonblank lines. */
 export type ChartFileSections = { [sectionName: string]: string[] }
 
+/** One `[name] { ... }` section of a `.chart` file. `bodyStart` and `bodyEnd` are offsets in the decoded text. */
+export interface ChartSectionToken {
+	readonly name: string
+	readonly bodyStart: number
+	readonly bodyEnd: number
+}
+
+/** A `.chart` file as read, kept whole so an unedited file is written back byte for byte. */
+export interface ChartFileTokens {
+	readonly bytes: Uint8Array
+	readonly encoding: 'utf-8' | 'utf-16le' | 'utf-16be'
+	/** The decoded text, without the byte-order mark. */
+	readonly text: string
+	/** Every section in file order, duplicates included. */
+	readonly sections: readonly ChartSectionToken[]
+	/** Why the file isn't a valid `.chart`, found while finding its sections; reported when it is classified. */
+	readonly structureError: string | null
+}
+
+/** Tokenizes a `.chart` file. Never throws: a malformed file keeps its error for classification to report. */
+export function tokenizeChartFile(bytes: Uint8Array): ChartFileTokens {
+	const encoding = getEncoding(bytes)
+	const text = new TextDecoder(encoding).decode(bytes)
+	return { bytes, encoding, text, ...findChartSections(text) }
+}
+
 /**
- * Reads a `.chart` file into its sections.
+ * Reads a tokenized `.chart` file's sections by name. A repeated name takes its last body.
  *
- * Throws an exception if the file has no sections.
+ * Throws an exception if the file is malformed or has no sections.
  */
-export function readChartFile(data: Uint8Array): ChartFileSections {
-	const chartText = new TextDecoder(getEncoding(data)).decode(data)
-	const fileSections = getFileSections(chartText)
+export function chartFileSections(tokens: ChartFileTokens): ChartFileSections {
+	if (tokens.structureError !== null) throw tokens.structureError
+	const fileSections: ChartFileSections = {}
+	for (const section of tokens.sections) {
+		fileSections[section.name] = splitTrimmedNonEmptyLines(tokens.text, section.bodyStart, section.bodyEnd)
+	}
 	if (Object.keys(fileSections).length === 0) {
 		throw 'Invalid .chart file: no sections were found.'
 	}
 	return fileSections
+}
+
+/**
+ * Reads a `.chart` file into its sections.
+ *
+ * Throws an exception if the file is malformed or has no sections.
+ */
+export function readChartFile(data: Uint8Array): ChartFileSections {
+	return chartFileSections(tokenizeChartFile(data))
 }
 
 /**
@@ -363,8 +401,12 @@ function buildChartTrackData(
 	return out
 }
 
-function getFileSections(chartText: string) {
-	const sections: { [sectionName: string]: string[] } = {}
+/**
+ * Finds each section body in file order, duplicates included. A body that repeats an earlier name replaces it when
+ * the sections are read by name. A malformed file gets an error instead of throwing, so it can still be tokenized.
+ */
+function findChartSections(chartText: string): { sections: ChartSectionToken[]; structureError: string | null } {
+	const sections: ChartSectionToken[] = []
 	let skipLine = false
 	let readStartIndex = 0
 	let readingSection = false
@@ -377,7 +419,7 @@ function getFileSections(chartText: string) {
 				readingSection = false
 				thisSection = chartText.slice(readStartIndex, i)
 			} else if (c === 10) { // '\n'
-				throw `Invalid .chart file: unexpected new line when parsing section at index ${i}`
+				return { sections, structureError: `Invalid .chart file: unexpected new line when parsing section at index ${i}` }
 			}
 			continue // Keep reading section until it ends
 		}
@@ -394,16 +436,16 @@ function getFileSections(chartText: string) {
 			readStartIndex = i + 1
 		} else if (c === 125) { // '}'
 			if (!thisSection) {
-				throw `Invalid .chart file: end of section reached before a section name was found at index ${i}`
+				return { sections, structureError: `Invalid .chart file: end of section reached before a section name was found at index ${i}` }
 			}
-			sections[thisSection] = splitTrimmedNonEmptyLines(chartText, readStartIndex, i)
+			sections.push({ name: thisSection, bodyStart: readStartIndex, bodyEnd: i })
 		} else if (c === 91) { // '['
 			readStartIndex = i + 1
 			readingSection = true
 		}
 	}
 
-	return sections
+	return { sections, structureError: null }
 }
 
 /**
