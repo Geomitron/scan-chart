@@ -1,7 +1,7 @@
 import { writeMidi } from '@geomitron/midi-file'
 import { describe, expect, it } from 'vitest'
 
-import { chartAuthoredTracks, midiAuthoredTracks } from 'src/chart/authored-view'
+import { authoredTrack, chartAuthoredTracks, midiAuthoredTracks } from 'src/chart/authored-view'
 import { tokenizeChartFile } from 'src/chart/chart-file-parser'
 import { readMidiTokens } from 'src/chart/midi-tokens'
 import { eventTypes } from 'src/chart/raw-types'
@@ -70,5 +70,19 @@ describe('.mid authored view', () => {
 			[0, eventTypes.green, 10, 'expert', [3, 4]],
 			[480, eventTypes.red, 10, 'hard', [6, 7]],
 		])
+
+		const tokens = readMidiTokens(new Uint8Array(bytes))
+		expect(authoredTrack({ format: 'mid', tokens }, 'guitar', 'hard')?.map(event => [event.type, event.scope]))
+			.toEqual([[eventTypes.starPower, 'instrument'], [eventTypes.red, 'hard']])
+		expect(authoredTrack({ format: 'mid', tokens }, 'guitar', 'easy')).toBeNull()
+	})
+})
+
+describe('authored tracks in either format', () => {
+	it('give a .chart section\'s events in its difficulty\'s scope, reading the section Clone Hero reads', () => {
+		const tokens = chart('[ExpertDrums]\n{\n  0 = N 0 0\n}\n[ExpertDrums]\n{\n  0 = N 1 0\n}\n')
+		expect(authoredTrack({ format: 'chart', tokens }, 'drums', 'expert')?.map(event => [event.type, event.scope, event.source]))
+			.toEqual([[eventTypes.redDrum, 'expert', { format: 'chart', section: 1, line: 1 }]])
+		expect(authoredTrack({ format: 'chart', tokens }, 'drums', 'hard')).toBeNull()
 	})
 })
