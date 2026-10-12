@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { authoredSongEvents, chartAuthoredTracks } from 'src/chart/authored-view'
+import { tokenizeChartFile } from 'src/chart/chart-file-parser'
 import { parseChartTokens } from 'src/chart/chart-reparse'
 import { parseChartSource } from 'src/chart/parse-chart-file'
 import { parseRules } from 'src/chart/parse-rules'
@@ -64,6 +65,16 @@ describe('reparsing an edited .chart', () => {
 		expect(after.drumType).not.toBe(before.drumType)
 		expect(trackOf(after, 'drums', 'hard')).not.toBe(trackOf(before, 'drums', 'hard'))
 		expect(trackOf(after, 'guitar', 'hard')).toBe(trackOf(before, 'guitar', 'hard'))
+	})
+
+	it('reuses the authored tracks of unchanged sections, equal to reading the edited file afresh', () => {
+		const before = chartAuthoredTracks(tokensOf(song))
+		const edited = lengthenFirst(song, 'ExpertSingle')
+		const after = chartAuthoredTracks(tokensOf(edited))
+		expect(after).toEqual(chartAuthoredTracks(tokenizeChartFile(tokensOf(edited).bytes)))
+		const named = (tracks: typeof before, name: string) => tracks.find(track => track.sectionName === name)
+		expect(named(after, 'HardSingle')).toBe(named(before, 'HardSingle'))
+		expect(named(after, 'ExpertSingle')).not.toBe(named(before, 'ExpertSingle'))
 	})
 
 	it('gives back the same result for the same tokens, and parses again with other settings', () => {

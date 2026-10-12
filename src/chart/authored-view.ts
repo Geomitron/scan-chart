@@ -1,6 +1,7 @@
 import { difficulties, type Difficulty, type Instrument } from '../types'
 import { ChartFileTokens, chartSectionLines, chartSectionTrack, parseTrackLine } from './chart-file-parser'
 import { classifyMidiInstrumentTracks, compareTickAscTypeDesc, findMidiEventsTrack, isTextLikeEvent, pairEventEnds, TrackEventEnd } from './midi-file-parser'
+import { TokensCache } from './edit-history'
 import { midiTokensToMidiData, MidiTokens } from './midi-tokens'
 import type { EventType } from './raw-types'
 
@@ -56,11 +57,25 @@ export interface ChartAuthoredTrack {
  * element is a line the classifier reads, parsed by the classifier's own line parser, with that line as its source.
  */
 export function chartAuthoredTracks(tokens: ChartFileTokens): ChartAuthoredTrack[] {
+	const cached = chartAuthoredCache.get(tokens)
+	if (cached !== undefined) return [...cached.tracks]
 	const lastIndexOfName = new Map<string, number>()
 	tokens.sections.forEach((section, index) => lastIndexOfName.set(section.name, index))
+	const names = tokens.sections.map(section => section.name)
+	const bodies = tokens.sections.map(section => tokens.text.slice(section.bodyStart, section.bodyEnd))
+	// After an edit that kept the same sections, an unchanged section keeps its earlier track: its sources still point at
+	// the right section and lines.
+	const earlier = chartAuthoredCache.original(tokens)
+	const sameSections = earlier !== undefined && earlier.names.length === names.length && earlier.names.every((name, i) => name === names[i])
+	const earlierTracks = new Map(sameSections ? earlier.tracks.map(track => [track.section, track]) : [])
 
 	const tracks: ChartAuthoredTrack[] = []
 	tokens.sections.forEach((section, sectionIndex) => {
+		const kept = earlierTracks.get(sectionIndex)
+		if (kept !== undefined && earlier!.bodies[sectionIndex] === bodies[sectionIndex]) {
+			tracks.push(kept)
+			return
+		}
 		const track = chartSectionTrack(section.name)
 		if (track === null) return
 		const events: (AuthoredEvent & { source: ChartAuthoredSource })[] = []
@@ -84,8 +99,16 @@ export function chartAuthoredTracks(tokens: ChartFileTokens): ChartAuthoredTrack
 			versusPhrases,
 		})
 	})
-	return tracks
+	chartAuthoredCache.set(tokens, { names, bodies, tracks })
+	return [...tracks]
 }
+
+/** Each tokens' authored tracks, with the section names and bodies they were read from. Tracks are shared: read-only. */
+const chartAuthoredCache = new TokensCache<{
+	readonly names: readonly string[]
+	readonly bodies: readonly string[]
+	readonly tracks: readonly ChartAuthoredTrack[]
+}>()
 
 /** A MIDI note, note modifier or phrase, as written. */
 export interface MidiAuthoredEvent extends AuthoredEvent {

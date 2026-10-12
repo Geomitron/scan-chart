@@ -1,5 +1,6 @@
 import { defaultMetadata } from '../ini/metadata'
 import { ChartFileTokens, classifyChartFile, lazyChartFileSections } from './chart-file-parser'
+import { TokensCache } from './edit-history'
 import { applyChartRules, ParsedChartFile, resolveChartData, ResolvedTrack, resolveTrack } from './parse-chart-file'
 import type { ParseRules } from './parse-rules'
 import type { RawChartData } from './raw-types'
@@ -20,19 +21,7 @@ interface ChartParseMemo {
 	readonly parsed: ParsedChartFile
 }
 
-const memos = new WeakMap<ChartFileTokens, ChartParseMemo>()
-// The earlier parse, not the earlier tokens: a parse doesn't refer to its own origin, so a document doesn't keep every
-// earlier version of it alive through this map.
-const originMemos = new WeakMap<ChartFileTokens, ChartParseMemo>()
-
-/**
- * Records that `edited` was made by editing `original`, so parsing it can reuse the parse of `original`, if `original`
- * was parsed.
- */
-export function recordChartEdit(original: ChartFileTokens, edited: ChartFileTokens): void {
-	const memo = memos.get(original)
-	if (memo !== undefined) originMemos.set(edited, memo)
-}
+const memos = new TokensCache<ChartParseMemo>()
 
 /**
  * Parses a tokenized `.chart` file with a rule profile, exactly as `parseChartSource` does. When the tokens were made
@@ -47,7 +36,7 @@ export function parseChartTokens(tokens: ChartFileTokens, partialIniChartModifie
 	const key = `${rules.profile}|${JSON.stringify(iniChartModifiers)}`
 	const own = memos.get(tokens)
 	if (own?.key === key) return own.parsed
-	const earlier = originMemos.get(tokens)
+	const earlier = memos.original(tokens)
 	const memo = parseReusing(tokens, iniChartModifiers, rules, key, earlier?.key === key ? earlier : undefined)
 	memos.set(tokens, memo)
 	return memo.parsed
