@@ -11,6 +11,7 @@ import { calculateCompetitiveHashes, CompetitiveHashes } from './competitive'
 import { resolveChart } from './gameplay-chart'
 import { defaultMetadata } from './ini/metadata'
 import { folderIssue, Issue, metadataIssue } from './issues'
+import { songIniSpellingIssues } from './spelling-issues'
 import { songContext } from './song-context'
 import { findChartData, parseSong } from './song-document'
 import { forEachChunk, readFileBytes, SongFile } from './song-files'
@@ -26,6 +27,8 @@ export interface ScanOptions {
 	readonly fileHashes?: boolean
 	/** The album art, and the issues found decoding it. Default: `false`. */
 	readonly albumArt?: boolean
+	/** Nonstandard spellings every reader reads alike, such as a repeated `.chart` line. Default: `false`. */
+	readonly styleNotes?: boolean
 }
 
 /** A song folder, scanned. What wasn't asked for is `null`. */
@@ -74,7 +77,7 @@ export async function scanSongFolder(files: readonly SongFile[], options: ScanOp
 
 	if (context.chart.kind === 'failed') folderIssues.push({ folderIssue: 'badChart', description: context.chart.error })
 	if (context.chart.kind === 'parsed') {
-		const analysis = analyzeChart(resolveChart(song))
+		const analysis = analyzeChart(resolveChart(song), { styleNotes: options.styleNotes })
 		stats = analysis.stats
 		chartIssues = analysis.issues
 		if (options.competitiveHashes) {
@@ -107,7 +110,7 @@ export async function scanSongFolder(files: readonly SongFile[], options: ScanOp
 
 	return {
 		metadata,
-		issues: [...folderIssues.map(folderIssue), ...metadataIssues.map(metadataIssue), ...chartIssues],
+		issues: [...folderIssues.map(folderIssue), ...metadataIssues.map(metadataIssue), ...songIniSpellingIssues(song.ini), ...chartIssues],
 		playable: context.chart.kind === 'parsed' && !audio.folderIssues.some(issue => issue.folderIssue === 'noAudio'),
 		hasVideoBackground: video.hasVideoBackground,
 		stats,

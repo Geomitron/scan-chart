@@ -1,8 +1,9 @@
+import type { SpellingIssueType } from './spelling-issues'
 import type { ChartIssueType, Difficulty, FolderIssueType, Instrument, MetadataIssueType } from './types'
 
 /** Where an issue is: the song folder's files, the song's metadata, or its chart. */
 export type IssueScope = 'folder' | 'metadata' | 'chart'
-export type IssueCode = FolderIssueType | MetadataIssueType | ChartIssueType
+export type IssueCode = FolderIssueType | MetadataIssueType | ChartIssueType | SpellingIssueType
 
 /** A problem found in a song folder. Every issue has this shape, whatever its scope. */
 export interface Issue {
