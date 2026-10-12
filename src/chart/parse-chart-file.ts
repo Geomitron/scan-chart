@@ -70,7 +70,7 @@ export type ChartSource =
 	| { readonly format: 'mid'; readonly bytes: Uint8Array; readonly tokens: MidiTokens | null }
 
 /**
- * Parses a tokenized chart file with a rule profile: classification, the profile's MIDI rules, then resolution.
+ * Parses a tokenized chart file with a rule profile: classification, the profile's rules for the format, then resolution.
  *
  * Throws an exception exactly as parsing the file's bytes would.
  */
@@ -78,7 +78,7 @@ export function parseChartSource(source: ChartSource, partialIniChartModifiers: 
 	const iniChartModifiers = Object.assign({}, defaultMetadata, partialIniChartModifiers) as IniChartModifiers
 	const rawChartData = source.format === 'mid'
 		? applyMidiRules(classifyMidiFile(midiTokensToMidiData(midiTokensForParsing(source.tokens, source.bytes))), iniChartModifiers, rules)
-		: classifyChartFile(chartFileSections(source.tokens))
+		: applyChartRules(classifyChartFile(chartFileSections(source.tokens)), rules)
 	return resolveChartData(rawChartData, source.format, iniChartModifiers, rules)
 }
 
@@ -165,6 +165,16 @@ export function resolveTrack(track: RawChartData['trackData'][number], context: 
 		unrecognizedMidiEvents: track.unrecognizedMidiEvents,
 		noteEventGroups: setEventGroupMsTimes(snapped, timedTempos, tpb),
 	}
+}
+
+/** Applies the profile's `.chart` rules to classified data: without `chartFlam`, `N 109` markers are dropped. */
+function applyChartRules(rawChartData: RawChartData, rules: ParseRules): RawChartData {
+	if (rules.chartFlam === 'ignored') {
+		for (const track of rawChartData.trackData) {
+			track.trackEvents = track.trackEvents.filter(event => event.type !== eventTypes.forceFlam)
+		}
+	}
+	return rawChartData
 }
 
 /** Applies the profile's track-allocation rule after notes have been resolved. */

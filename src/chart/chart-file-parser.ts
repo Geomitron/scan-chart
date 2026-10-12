@@ -743,6 +743,8 @@ export function getNEventType(value: string, instrument: Instrument): EventType 
 					return eventTypes.blueCymbalMarker
 				case '68':
 					return eventTypes.greenCymbalMarker
+				case '109':
+					return eventTypes.forceFlam // MIDI's flam note; the frozen legacy profile ignores it (parse rule `chartFlam`)
 				default:
 					return null
 			}

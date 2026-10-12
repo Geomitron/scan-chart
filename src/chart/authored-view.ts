@@ -263,7 +263,7 @@ export const chartFormatCapabilities = {
 		drumFills: 'perDifficulty',
 		cymbalsAndToms: 'perNote',
 		rollLanes: 'perDifficulty',
-		flam: 'unsupported',
+		flam: 'perDifficulty',
 		accentsAndGhosts: 'perNote',
 		kickDynamics: 'unsupported',
 		lyrics: 'perInstrument',
