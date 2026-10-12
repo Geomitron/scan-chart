@@ -12,7 +12,7 @@ import {
 } from './chart/authored-view'
 import { chartEventEdits, chartEventInsertEdit, chartLineInsertEdit, ChartValueChange, chartValueText, editChartLines } from './chart/chart-edit'
 import { ChartFileTokens, tokenizeChartFile } from './chart/chart-file-parser'
-import { recordChartEdit } from './chart/chart-reparse'
+import { recordChartEdit } from './chart/edit-history'
 import {
 	editMidiTrack,
 	midiEventEdits,
