@@ -33,6 +33,13 @@ describe('.chart line edits', () => {
 		expect(drumEvents(edited).map(event => [event.tick, event.type])).toEqual([[0, eventTypes.kick], [192, eventTypes.redDrum], [384, eventTypes.yellowDrum]])
 	})
 
+	it('move an event in front of a line that is edited too', () => {
+		const file = tokens(drums(['0 = N 0 0', '192 = N 1 0', '384 = N 2 0']))
+		const [kick, red] = drumEvents(file)
+		const edited = editChartLines(file, [...chartEventEdits(file, red, { length: 96 }), ...chartEventEdits(file, kick, { tick: 96 })])
+		expect(decode(edited.bytes)).toBe(drums(['96 = N 0 0', '192 = N 1 96', '384 = N 2 0']))
+	})
+
 	it('delete a line with its line ending', () => {
 		const file = tokens(drums(['0 = N 0 0', '192 = N 1 0']))
 		const edited = editChartLines(file, [{ kind: 'delete', section: 2, line: drumEvents(file)[0].source.line }])
