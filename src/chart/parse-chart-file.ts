@@ -498,7 +498,8 @@ function groupIntoPhrases(
 	return result
 }
 
-function getTimedTempos(
+/** The tempo map with each tempo's time in milliseconds, which `resolveTrack` times notes with. */
+export function getTimedTempos(
 	tempos: { tick: number; beatsPerMinute: number }[],
 	chartTicksPerBeat: number,
 ): { tick: number; beatsPerMinute: number; msTime: number }[] {
