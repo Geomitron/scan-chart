@@ -103,6 +103,11 @@ export interface MidiAuthoredTrack {
 	readonly chunk: number
 	/** `false` for a later track of an instrument with an earlier one; Clone Hero reads only the first. */
 	readonly isFirst: boolean
+	/**
+	 * The tick of the track's `ENHANCED_OPENS` event, from which each difficulty's lowest note is an open note; `null`
+	 * when the track has none.
+	 */
+	readonly enhancedOpensFrom: number | null
 	/** Notes, note modifiers and phrases by start tick, each with the events it came from. */
 	readonly events: readonly MidiAuthoredEvent[]
 }
@@ -135,7 +140,9 @@ export function midiAuthoredTracks(tokens: MidiTokens): MidiAuthoredTrack[] {
 		read(scan.eventEnds.all, 'instrument')
 		for (const difficulty of difficulties) read(scan.eventEnds[difficulty], difficulty)
 		events.sort((a, b) => a.tick - b.tick)
-		return { instrument, chunk, isFirst, events }
+		const chunkEvents = tokens.chunks[chunk].kind === 'track' ? tokens.chunks[chunk].events : []
+		const enhancedOpens = chunkEvents.find(({ event }) => event.type === 'text' && (event.text === 'ENHANCED_OPENS' || event.text === '[ENHANCED_OPENS]'))
+		return { instrument, chunk, isFirst, enhancedOpensFrom: enhancedOpens?.tick ?? null, events }
 	})
 }
 
