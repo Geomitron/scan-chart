@@ -3,7 +3,7 @@
  */
 import type { MidiEvent } from '@geomitron/midi-file'
 
-import type { Difficulty } from '../../types'
+import { type Difficulty, getInstrumentType, instrumentTypes, instruments } from '../../types'
 import type { NoteEvent, NoteType } from '../types'
 import { noteFlags, noteTypes } from '../types'
 import { fiveFretDiffStarts, fiveFretLaneOffsets, sixFretDiffStarts, sixFretLaneOffsets } from '../midi-note-numbers'
@@ -39,8 +39,8 @@ const sixFretNoteTypeToOffset: Partial<Record<NoteType, number>> = {
 	[noteTypes.black3]: sixFretLaneOffsets.black3,
 }
 
-export const fiveFretInstruments = new Set<string>(['guitar', 'guitarcoop', 'rhythm', 'bass', 'keys'])
-export const sixFretInstruments = new Set<string>(['guitarghl', 'guitarcoopghl', 'rhythmghl', 'bassghl'])
+export const fiveFretInstruments = new Set<string>(instruments.filter(instrument => getInstrumentType(instrument) === instrumentTypes.fiveFret))
+export const sixFretInstruments = new Set<string>(instruments.filter(instrument => getInstrumentType(instrument) === instrumentTypes.sixFret))
 
 /** SysEx diff byte for Phase Shift modifier encoding. */
 const sysExDiffMap: Record<Difficulty, number> = {
