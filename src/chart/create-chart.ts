@@ -1,3 +1,4 @@
+import { selectSongHashMetadata } from './identity/song-metadata'
 import { defaultIniChartModifiers } from './types'
 import type { ParsedChart } from './parse-chart-and-ini'
 
@@ -53,5 +54,6 @@ export function createEmptyChart(options?: {
 		chartBytes: new Uint8Array(0),
 		format,
 		iniChartModifiers: defaultIniChartModifiers,
+		songHashMetadata: selectSongHashMetadata(null, {}),
 	}
 }
