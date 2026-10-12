@@ -3,13 +3,25 @@ import { describe, expect, it } from 'vitest'
 import { chartAuthoredTracks } from 'src/chart/authored-view'
 import { chartEventEdits, chartEventInsertEdit, editChartLines } from 'src/chart/chart-edit'
 import { tokenizeChartFile } from 'src/chart/chart-file-parser'
+import { parseChartFileCanonicalIdentity } from 'src/chart/parse-chart-file'
 import { eventTypes } from 'src/chart/raw-types'
+import { noteFlags } from 'src/chart/types'
 
 const head = '[Song]\r\n{\r\n  Resolution = 192\r\n}\r\n[SyncTrack]\r\n{\r\n  0 = B 120000\r\n}\r\n'
 const drums = (lines: string[]) => `${head}[ExpertDrums]\r\n{\r\n${lines.map(line => `  ${line}\r\n`).join('')}}\r\n`
 const tokens = (text: string) => tokenizeChartFile(new TextEncoder().encode(text))
 const decode = (bytes: Uint8Array) => new TextDecoder().decode(bytes)
 const drumEvents = (file: ReturnType<typeof tokens>) => chartAuthoredTracks(file)[0].events
+
+describe('a .chart flam marker', () => {
+	it('is added as N 109 on its tick, and reads back as the flam of the notes there', () => {
+		const file = tokens(drums(['0 = N 0 0', '0 = N 2 0']))
+		const edited = editChartLines(file, [chartEventInsertEdit(file, 2, 0, eventTypes.forceFlam, 0)])
+		expect(new TextDecoder().decode(edited.bytes)).toBe(drums(['0 = N 0 0', '0 = N 2 0', '0 = N 109 0']))
+		const notes = parseChartFileCanonicalIdentity(edited.bytes, 'chart').trackData[0].noteEventGroups[0]
+		expect(notes.every(note => (note.flags & noteFlags.flam) !== 0)).toBe(true)
+	})
+})
 
 describe('.chart line edits', () => {
 	it('change an event\'s length in place, keeping every other byte', () => {
