@@ -91,7 +91,7 @@ const eventsLyricRegex = /^\[?\s*lyric[ \t]/
 const eventsPhraseStartRegex = /^\[?phrase_start\]?$/
 const eventsPhraseEndRegex = /^\[?phrase_end\]?$/
 
-interface TrackEventEnd {
+export interface TrackEventEnd {
 	tick: number
 	type: EventType
 	// Necessary because .mid stores some additional modifiers and information using velocity
@@ -101,6 +101,8 @@ interface TrackEventEnd {
 	isStart: boolean
 	/** On difficulty notes: `true` if an `[ENABLE_CHART_DYNAMICS]` event came earlier in the MIDI track. */
 	chartDynamics?: boolean
+	/** The index in its MIDI track of the event this came from. */
+	eventIndex: number
 }
 
 // Necessary because .mid stores some additional modifiers and information using velocity
@@ -181,7 +183,7 @@ export interface ClassifiedMidi {
 	timeSignatures: { tick: number; numerator: number; denominator: number }[]
 	vocalTracks: { [part: string]: VocalTrackData }
 	eventsScan: EventsScanResult
-	instrumentTracks: { instrument: Instrument; instrumentType: InstrumentType; scan: TrackScanResult }[]
+	instrumentTracks: { instrument: Instrument; instrumentType: InstrumentType; trackIndex: number; scan: TrackScanResult }[]
 	unrecognizedMidiTracks: RawChartData['unrecognizedMidiTracks']
 }
 
@@ -262,7 +264,7 @@ export function classifyMidiFile(midiFile: MidiData): ClassifiedMidi {
 		const instrument = instrumentNameMap[t.trackName as InstrumentTrackName]
 		if (instrument === undefined) continue // vocal/EVENTS tracks handled elsewhere
 		const instrumentType = getInstrumentType(instrument)
-		instrumentTracks.push({ instrument, instrumentType, scan: scanInstrumentTrack(t.trackEvents, instrumentType, t.sourceName) })
+		instrumentTracks.push({ instrument, instrumentType, trackIndex: t.trackIndex, scan: scanInstrumentTrack(t.trackEvents, instrumentType, t.sourceName) })
 	}
 
 	return {
@@ -434,6 +436,8 @@ function extractTimeSignatures(conductorTrack: MidiEvent[]): { tick: number; num
 }
 
 interface MidiSourceTrack {
+	/** The index of the track in the file's MIDI tracks. */
+	trackIndex: number
 	trackName: TrackName
 	/** The recognized track name as written in the file. */
 	sourceName: string
@@ -471,6 +475,7 @@ function getTracks(midiData: MidiData) {
 		// Clone Hero reads track 0 only as the conductor track and, if it is named so, the events track.
 		if (sourceName !== null && trackName !== undefined && (i !== 0 || trackName === 'EVENTS')) {
 			tracks.push({
+				trackIndex: i,
 				trackName,
 				sourceName,
 				trackEvents: track,
@@ -540,7 +545,8 @@ function scanInstrumentTrack(
 	// Events the typed parser doesn't consume — preserved verbatim for round-trip.
 	const unrecognizedEvents: MidiEvent[] = []
 
-	for (const event of events) {
+	for (let eventIndex = 0; eventIndex < events.length; eventIndex++) {
+		const event = events[eventIndex]
 		const eventType = event.type
 		// Hot path: note events are ~90% of a typical instrument track. Dispatch them
 		// first so we don't fall through sysEx/text checks for every note event.
@@ -611,6 +617,7 @@ function scanInstrumentTrack(
 						velocity,
 						channel,
 						isStart,
+						eventIndex,
 					})
 					consumed = true
 				}
@@ -628,6 +635,7 @@ function scanInstrumentTrack(
 						channel,
 						isStart,
 						chartDynamics,
+						eventIndex,
 					})
 					consumed = true
 				}
@@ -664,6 +672,7 @@ function scanInstrumentTrack(
 					channel: 1,
 					velocity: 127,
 					isStart: event.data[6] === 0x01,
+					eventIndex,
 				})
 			} else {
 				unrecognizedEvents.push(event)
@@ -682,8 +691,8 @@ function scanInstrumentTrack(
 						: null
 					if (eventType) {
 						// Treat this like the other events that have a start and end, so it can be processed the same way later
-						eventEnds[difficulty].push({ tick: event.deltaTime, type: eventType, velocity: 127, channel: 1, isStart: true })
-						eventEnds[difficulty].push({ tick: event.deltaTime, type: eventType, velocity: 127, channel: 1, isStart: false })
+						eventEnds[difficulty].push({ tick: event.deltaTime, type: eventType, velocity: 127, channel: 1, isStart: true, eventIndex })
+						eventEnds[difficulty].push({ tick: event.deltaTime, type: eventType, velocity: 127, channel: 1, isStart: false, eventIndex })
 						consumedAsNote = true
 					}
 				}
@@ -694,8 +703,8 @@ function scanInstrumentTrack(
 				consumedAsNote = true
 			} else if (event.text === 'ENABLE_CHART_DYNAMICS' || event.text === '[ENABLE_CHART_DYNAMICS]') {
 				// Treat this like the other events that have a start and end, so it can be processed the same way later
-				eventEnds['all'].push({ tick: event.deltaTime, type: eventTypes.enableChartDynamics, channel: 1, isStart: true, velocity: 127 })
-				eventEnds['all'].push({ tick: event.deltaTime, type: eventTypes.enableChartDynamics, channel: 1, isStart: false, velocity: 127 })
+				eventEnds['all'].push({ tick: event.deltaTime, type: eventTypes.enableChartDynamics, channel: 1, isStart: true, velocity: 127, eventIndex })
+				eventEnds['all'].push({ tick: event.deltaTime, type: eventTypes.enableChartDynamics, channel: 1, isStart: false, velocity: 127, eventIndex })
 				chartDynamics = true
 				consumedAsNote = true
 			}
@@ -846,6 +855,7 @@ function distributeInstrumentEvents(eventEnds: { [difficulty in Difficulty | 'al
 				velocity: instrumentEvent.velocity,
 				channel: instrumentEvent.channel,
 				isStart: instrumentEvent.isStart,
+				eventIndex: instrumentEvent.eventIndex,
 			})
 		}
 	}
@@ -858,11 +868,49 @@ function distributeInstrumentEvents(eventEnds: { [difficulty in Difficulty | 'al
 	}
 }
 
-function compareTickAscTypeDesc(a: TrackEventEnd, b: TrackEventEnd): number {
+export function compareTickAscTypeDesc(a: TrackEventEnd, b: TrackEventEnd): number {
 	if (a.tick !== b.tick) return a.tick - b.tick
 	if (a.type < b.type) return 1
 	if (a.type > b.type) return -1
 	return 0
+}
+
+/** A start event and the end event it was paired with. */
+export interface PairedEventEnds {
+	readonly start: TrackEventEnd
+	readonly end: TrackEventEnd
+}
+
+/**
+ * Pairs each start event with an end event of its type, the most recent unpaired start on the same channel, in start
+ * order. A start with no end is left out.
+ */
+export function pairEventEnds(ends: readonly TrackEventEnd[]): PairedEventEnds[] {
+	const pairs: { start: TrackEventEnd; end: TrackEventEnd | null }[] = []
+	// Lazy lists of unpaired starts keyed by event type. Most types never appear, so only allocate one when seen.
+	const unpairedByType: { [key: string]: { start: TrackEventEnd; end: TrackEventEnd | null }[] | undefined } = {}
+	for (const end of ends) {
+		let unpaired = unpairedByType[end.type]
+		if (end.isStart) {
+			const pair = { start: end, end: null }
+			if (unpaired === undefined) {
+				unpaired = []
+				unpairedByType[end.type] = unpaired
+			}
+			unpaired.push(pair)
+			pairs.push(pair)
+		} else if (unpaired !== undefined && unpaired.length) {
+			let index = unpaired.length - 1
+			while (index >= 0 && unpaired[index].start.channel !== end.channel) {
+				index-- // Find the most recent unpaired start on the same channel
+			}
+			if (index >= 0) {
+				unpaired[index].end = end
+				unpaired.splice(index, 1)
+			}
+		}
+	}
+	return pairs.filter((pair): pair is PairedEventEnds => pair.end !== null)
 }
 
 /**
@@ -870,53 +918,16 @@ function compareTickAscTypeDesc(a: TrackEventEnd, b: TrackEventEnd): number {
  */
 function getTrackEvents(trackEventEnds: { [key in Difficulty]: TrackEventEnd[] }) {
 	const trackEvents: { [key in Difficulty]: MidiTrackEvent[] } = { expert: [], hard: [], medium: [], easy: [] }
-
 	for (const difficulty of difficulties) {
-		// Lazy partial-event lists keyed by event type. Most types never appear on a
-		// given difficulty, so only allocate a list when we see one.
-		const partialTrackEventsMap: { [key: string]: MidiTrackEvent[] | undefined } = {}
-		const out = trackEvents[difficulty]
-
-		for (const trackEventEnd of trackEventEnds[difficulty]) {
-			let partialTrackEvents = partialTrackEventsMap[trackEventEnd.type]
-			if (trackEventEnd.isStart) {
-				const partialTrackEvent: MidiTrackEvent = {
-					tick: trackEventEnd.tick,
-					length: -1, // Represents that this is a partial track event (an end event has not been found for this yet)
-					type: trackEventEnd.type,
-					velocity: trackEventEnd.velocity,
-					channel: trackEventEnd.channel,
-					chartDynamics: trackEventEnd.chartDynamics,
-				}
-				if (partialTrackEvents === undefined) {
-					partialTrackEvents = []
-					partialTrackEventsMap[trackEventEnd.type] = partialTrackEvents
-				}
-				partialTrackEvents.push(partialTrackEvent)
-				out.push(partialTrackEvent)
-			} else if (partialTrackEvents !== undefined && partialTrackEvents.length) {
-				let partialTrackEventIndex = partialTrackEvents.length - 1
-				while (partialTrackEventIndex >= 0 && partialTrackEvents[partialTrackEventIndex].channel !== trackEventEnd.channel) {
-					partialTrackEventIndex-- // Find the most recent partial event on the same channel
-				}
-				if (partialTrackEventIndex >= 0) {
-					const partialTrackEvent = partialTrackEvents[partialTrackEventIndex]
-					partialTrackEvents.splice(partialTrackEventIndex, 1)
-					partialTrackEvent.length = trackEventEnd.tick - partialTrackEvent.tick
-				}
-			}
-		}
-
-		// In-place filter: remove any remaining partial events whose length was never set.
-		let write = 0
-		for (let read = 0; read < out.length; read++) {
-			if (out[read].length !== -1) {
-				out[write++] = out[read]
-			}
-		}
-		out.length = write
+		trackEvents[difficulty] = pairEventEnds(trackEventEnds[difficulty]).map(({ start, end }) => ({
+			tick: start.tick,
+			length: end.tick - start.tick,
+			type: start.type,
+			velocity: start.velocity,
+			channel: start.channel,
+			chartDynamics: start.chartDynamics,
+		}))
 	}
-
 	return trackEvents
 }
 
