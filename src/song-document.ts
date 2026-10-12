@@ -1,4 +1,5 @@
 import { ChartFileTokens, tokenizeChartFile } from './chart/chart-file-parser'
+import { MidiTokens, readMidiTokens, serializeMidiTokens } from './chart/midi-tokens'
 import { findChartData } from './chart/parse-chart-and-ini'
 import { IniTokens, tokenizeIni } from './ini/parse-ini'
 import { findIniData } from './ini/scan-ini'
@@ -7,7 +8,14 @@ import type { File } from './types'
 /** The chart file of a song, tokenized in its format. */
 export type ChartDocument =
 	| { readonly format: 'chart'; readonly fileName: string; readonly tokens: ChartFileTokens }
-	| { readonly format: 'mid'; readonly fileName: string; readonly bytes: Uint8Array }
+	| {
+		readonly format: 'mid'
+		readonly fileName: string
+		readonly bytes: Uint8Array
+		/** Every chunk of the file, unknown types included, or `null` when the file can't be read as MIDI. */
+		readonly tokens: MidiTokens | null
+		readonly readError: string | null
+	}
 
 /** The song.ini of a song, tokenized. */
 export interface IniDocument {
@@ -35,7 +43,7 @@ export function parseSong(files: readonly File[]): SongDocument {
 	return {
 		files,
 		chart: chartFile === null ? null
-			: format === 'mid' ? { format, fileName: chartFile.fileName, bytes: chartFile.data }
+			: format === 'mid' ? { format, fileName: chartFile.fileName, bytes: chartFile.data, ...tokenizeMidi(chartFile.data) }
 			: { format: 'chart', fileName: chartFile.fileName, tokens: tokenizeChartFile(chartFile.data) },
 		ini: iniFile === null ? null : { fileName: iniFile.fileName, tokens: tokenizeIni(iniFile.data) },
 	}
@@ -50,5 +58,14 @@ export function serializeSong(song: SongDocument): File[] {
 }
 
 function chartBytes(chart: ChartDocument): Uint8Array {
-	return chart.format === 'mid' ? chart.bytes : chart.tokens.bytes
+	if (chart.format === 'chart') return chart.tokens.bytes
+	return chart.tokens === null ? chart.bytes : serializeMidiTokens(chart.tokens)
+}
+
+function tokenizeMidi(bytes: Uint8Array): { tokens: MidiTokens | null; readError: string | null } {
+	try {
+		return { tokens: readMidiTokens(bytes, 'skip'), readError: null }
+	} catch (error) {
+		return { tokens: null, readError: error instanceof Error ? error.message : String(error) }
+	}
 }
