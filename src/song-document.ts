@@ -12,7 +12,7 @@ import {
 } from './chart/authored-view'
 import { chartEventEdits, chartEventInsertEdit, chartLineInsertEdit, ChartValueChange, chartValueText, editChartLines } from './chart/chart-edit'
 import { ChartFileTokens, tokenizeChartFile } from './chart/chart-file-parser'
-import { recordChartEdit } from './chart/edit-history'
+import { recordEdit } from './chart/edit-history'
 import {
 	editMidiTrack,
 	midiEventEdits,
@@ -244,7 +244,7 @@ export function editSong(song: SongDocument, collect: (batch: SongEditBatch) => 
 				chartLineInsertEdit(tokens, lastSection('text' in value ? 'Events' : 'SyncTrack'), tick, chartValueText(null, value))),
 		]
 		const edited = editChartLines(tokens, edits)
-		recordChartEdit(tokens, edited)
+		recordEdit(tokens, edited)
 		return { ...song, chart: { ...chart, tokens: edited } }
 	}
 
@@ -297,6 +297,7 @@ export function editSong(song: SongDocument, collect: (batch: SongEditBatch) => 
 	}
 	let tokens = midiTokens
 	for (const [chunk, edits] of byChunk) tokens = editMidiTrack(tokens, chunk, edits)
+	recordEdit(midiTokens, tokens)
 	return { ...song, chart: { ...chart, bytes: tokens.data, tokens } }
 }
 

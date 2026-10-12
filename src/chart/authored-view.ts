@@ -1,8 +1,24 @@
 import { difficulties, type Difficulty, type Instrument } from '../types'
 import { ChartFileTokens, chartSectionLines, chartSectionTrack, parseTrackLine } from './chart-file-parser'
-import { classifyMidiInstrumentTracks, compareTickAscTypeDesc, findMidiEventsTrack, isTextLikeEvent, pairEventEnds, TrackEventEnd } from './midi-file-parser'
+import {
+	classifyMidiInstrumentTrack,
+	classifyMidiInstrumentTracks,
+	compareTickAscTypeDesc,
+	findMidiEventsTrack,
+	isTextLikeEvent,
+	pairEventEnds,
+	TrackEventEnd,
+} from './midi-file-parser'
 import { TokensCache } from './edit-history'
-import { midiTokensToMidiData, MidiTokens } from './midi-tokens'
+import {
+	changedTrackChunks,
+	midiTokensToMidiData,
+	MidiTokens,
+	midiTrackBodies,
+	MidiTrackChunk,
+	midiTrackEvents,
+	midiTrackIndex,
+} from './midi-tokens'
 import type { EventType } from './raw-types'
 
 /**
@@ -140,33 +156,76 @@ export interface MidiAuthoredTrack {
  * and phrases are paired from their start and end events exactly as parsing pairs them.
  */
 export function midiAuthoredTracks(tokens: MidiTokens): MidiAuthoredTrack[] {
+	const cached = midiAuthoredCache.get(tokens)
+	if (cached !== undefined) return [...cached.tracks]
+	const bodies = midiTrackBodies(tokens)
+	const earlier = midiAuthoredCache.original(tokens)
+	const changed = earlier && changedTrackChunks(earlier.bodies, bodies)
+	const tracks = (changed && rereadChangedChunks(tokens, changed, earlier!.tracks)) ?? readMidiAuthoredTracks(tokens)
+	midiAuthoredCache.set(tokens, { bodies, tracks })
+	return [...tracks]
+}
+
+/** Each tokens' MIDI authored tracks, with the track chunk bodies they were read from. Tracks are shared: read-only. */
+const midiAuthoredCache = new TokensCache<{
+	readonly bodies: readonly (Uint8Array | null)[]
+	readonly tracks: readonly MidiAuthoredTrack[]
+}, MidiTokens>()
+
+function readMidiAuthoredTracks(tokens: MidiTokens): MidiAuthoredTrack[] {
 	const trackChunks = tokens.chunks.flatMap((chunk, index) => chunk.kind === 'track' ? [index] : [])
 	const seen = new Set<Instrument>()
 	return classifyMidiInstrumentTracks(midiTokensToMidiData(tokens)).map(({ instrument, trackIndex, scan }) => {
-		const chunk = trackChunks[trackIndex]
 		const isFirst = !seen.has(instrument)
 		seen.add(instrument)
-		const events: MidiAuthoredEvent[] = []
-		const read = (ends: readonly TrackEventEnd[], scope: Difficulty | 'instrument') => {
-			for (const { start, end } of pairEventEnds([...ends].sort(compareTickAscTypeDesc))) {
-				events.push({
-					tick: start.tick,
-					length: end.tick - start.tick,
-					type: start.type,
-					scope,
-					velocity: start.velocity,
-					channel: start.channel,
-					source: { format: 'mid', chunk, events: [start.eventIndex, end.eventIndex] },
-				})
-			}
-		}
-		read(scan.eventEnds.all, 'instrument')
-		for (const difficulty of difficulties) read(scan.eventEnds[difficulty], difficulty)
-		events.sort((a, b) => a.tick - b.tick)
-		const chunkEvents = tokens.chunks[chunk].kind === 'track' ? tokens.chunks[chunk].events : []
-		const enhancedOpens = chunkEvents.find(({ event }) => event.type === 'text' && (event.text === 'ENHANCED_OPENS' || event.text === '[ENHANCED_OPENS]'))
-		return { instrument, chunk, isFirst, enhancedOpensFrom: enhancedOpens?.tick ?? null, events }
+		return midiAuthoredTrack(tokens, trackChunks[trackIndex], instrument, scan, isFirst)
 	})
+}
+
+/**
+ * After an edit, an unchanged chunk keeps its earlier track: its sources still point at the right chunk and events. A
+ * changed chunk is read again on its own. Returns `null` when the chunks changed in a way that can change which chunk
+ * is read as which instrument.
+ */
+function rereadChangedChunks(tokens: MidiTokens, changed: ReadonlySet<number>, earlierTracks: readonly MidiAuthoredTrack[]): MidiAuthoredTrack[] | null {
+	const byChunk = new Map(earlierTracks.map(track => [track.chunk, track]))
+	const reread = new Map<number, MidiAuthoredTrack>()
+	for (const chunk of changed) {
+		const scanned = classifyMidiInstrumentTrack(midiTrackIndex(tokens, chunk), midiTrackEvents(tokens.chunks[chunk] as MidiTrackChunk))
+		const kept = byChunk.get(chunk)
+		if (scanned?.instrument !== kept?.instrument) return null
+		if (scanned && kept) reread.set(chunk, midiAuthoredTrack(tokens, chunk, scanned.instrument, scanned.scan, kept.isFirst))
+	}
+	return earlierTracks.map(track => reread.get(track.chunk) ?? track)
+}
+
+function midiAuthoredTrack(
+	tokens: MidiTokens,
+	chunk: number,
+	instrument: Instrument,
+	scan: ReturnType<typeof classifyMidiInstrumentTracks>[number]['scan'],
+	isFirst: boolean,
+): MidiAuthoredTrack {
+	const events: MidiAuthoredEvent[] = []
+	const read = (ends: readonly TrackEventEnd[], scope: Difficulty | 'instrument') => {
+		for (const { start, end } of pairEventEnds([...ends].sort(compareTickAscTypeDesc))) {
+			events.push({
+				tick: start.tick,
+				length: end.tick - start.tick,
+				type: start.type,
+				scope,
+				velocity: start.velocity,
+				channel: start.channel,
+				source: { format: 'mid', chunk, events: [start.eventIndex, end.eventIndex] },
+			})
+		}
+	}
+	read(scan.eventEnds.all, 'instrument')
+	for (const difficulty of difficulties) read(scan.eventEnds[difficulty], difficulty)
+	events.sort((a, b) => a.tick - b.tick)
+	const chunkEvents = tokens.chunks[chunk].kind === 'track' ? tokens.chunks[chunk].events : []
+	const enhancedOpens = chunkEvents.find(({ event }) => event.type === 'text' && (event.text === 'ENHANCED_OPENS' || event.text === '[ENHANCED_OPENS]'))
+	return { instrument, chunk, isFirst, enhancedOpensFrom: enhancedOpens?.tick ?? null, events }
 }
 
 /** A tempo marker as written: a `.chart` `B` line, or a MIDI tempo event on the conductor track. */

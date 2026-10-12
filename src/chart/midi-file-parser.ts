@@ -279,6 +279,15 @@ export function classifyMidiInstrumentTracks(midiFile: MidiData): ClassifiedMidi
 	return scanInstrumentTracks(getTracks(midiFile).tracks)
 }
 
+/**
+ * Scans the track at `trackIndex` of a read `.mid` file as `classifyMidiInstrumentTracks` does, or returns `null` when
+ * it isn't read as an instrument track. `events` are the track's events with each `deltaTime` replaced by its tick.
+ */
+export function classifyMidiInstrumentTrack(trackIndex: number, events: MidiEvent[]): ClassifiedMidi['instrumentTracks'][number] | null {
+	const track = recognizedTrack(trackIndex, events, trackSourceName(events))
+	return track === null ? null : scanInstrumentTracks([track])[0] ?? null
+}
+
 function scanInstrumentTracks(tracks: MidiSourceTrack[]): ClassifiedMidi['instrumentTracks'] {
 	const instrumentTracks: ClassifiedMidi['instrumentTracks'] = []
 	for (const t of tracks) {
@@ -293,10 +302,18 @@ function scanInstrumentTracks(tracks: MidiSourceTrack[]): ClassifiedMidi['instru
 /**
  * Applies a rule profile to a classified `.mid` file. Returns all the note data in `RawChartData`; the rules
  * shared with .chart are applied when the notes are resolved. Leaves `classified` unchanged.
+ *
+ * `buildTrack` builds each instrument track that is read by calling `build`; a reparse can give back the tracks it built
+ * before from the same track instead.
  */
-export function applyMidiRules(classified: ClassifiedMidi, iniChartModifiers: IniChartModifiers, rules: ParseRules): RawChartData {
+export function applyMidiRules(
+	classified: ClassifiedMidi,
+	iniChartModifiers: IniChartModifiers,
+	rules: ParseRules,
+	buildTrack: MidiTrackBuilder = (_instrumentTrack, build) => build(),
+): RawChartData {
 	const { eventsScan } = classified
-	const firstCodaTick = eventsScan.codaEvents[0]?.tick ?? null
+	const firstCodaTick = midiFirstCodaTick(eventsScan)
 
 	return {
 		chartTicksPerBeat: classified.ticksPerBeat,
@@ -312,9 +329,20 @@ export function applyMidiRules(classified: ClassifiedMidi, iniChartModifiers: In
 		unrecognizedEventsTrackMidiEvents: eventsScan.unrecognizedMidiEvents,
 		unrecognizedMidiTracks: classified.unrecognizedMidiTracks,
 		unrecognizedChartSections: [],
-		trackData: buildMidiTrackData(classified.instrumentTracks, iniChartModifiers, firstCodaTick, rules),
+		trackData: buildMidiTrackData(classified.instrumentTracks, iniChartModifiers, firstCodaTick, rules, buildTrack),
 		parseIssues: [...eventsScan.parseIssues],
 	}
+}
+
+/** Builds one instrument track's classified tracks, one for each difficulty it allocates, as `build` does. */
+export type MidiTrackBuilder = (
+	instrumentTrack: ClassifiedMidi['instrumentTracks'][number],
+	build: () => RawChartData['trackData'],
+) => RawChartData['trackData']
+
+/** The tick of the events track's first coda event, which a drum freestyle section's `isCoda` is read against. */
+export function midiFirstCodaTick(eventsScan: EventsScanResult): number | null {
+	return eventsScan.codaEvents[0]?.tick ?? null
 }
 
 function buildMidiTrackData(
@@ -322,82 +350,98 @@ function buildMidiTrackData(
 	iniChartModifiers: IniChartModifiers,
 	firstCodaTick: number | null,
 	rules: ParseRules,
+	buildTrack: MidiTrackBuilder,
 ): RawChartData['trackData'] {
 	const out: RawChartData['trackData'] = []
-	const allocatesEmptyExpert = rules.midiTrackAllocation === 'difficultiesWithNotesAndExpert'
 	const seenInstruments = new Set<Instrument>()
 
-	for (const { instrument, instrumentType, scan } of instrumentTracks) {
+	for (const instrumentTrack of instrumentTracks) {
+		const { instrument } = instrumentTrack
 		// Clone Hero marks the instrument as seen even when its first track has no notes.
 		if (rules.midiDuplicateInstrumentTracks === 'firstWins' && seenInstruments.has(instrument)) continue
 		seenInstruments.add(instrument)
-		const { eventEnds, textEvents, versusPhrases, animations, unrecognizedEvents: trackUnrecognized } = scan
-		// distributeInstrumentEvents adds to and sorts these lists, and a classification can be shared by profiles
-		const distributed = distributeInstrumentEvents({
-			all: [...eventEnds.all],
-			expert: [...eventEnds.expert],
-			hard: [...eventEnds.hard],
-			medium: [...eventEnds.medium],
-			easy: [...eventEnds.easy],
-		}, allocatesEmptyExpert)
-		const pairedEvents = getTrackEvents(distributed)
-		const step1 = splitMidiModifierSustains(pairedEvents, instrumentType, rules)
-		const step2 = fixLegacyGhStarPower(step1, instrumentType, iniChartModifiers)
-		const trackDifficulties = fixFlexLaneLds(step2)
+		const build = () => buildMidiInstrumentTrackData(instrumentTrack, iniChartModifiers, firstCodaTick, rules)
+		for (const track of buildTrack(instrumentTrack, build)) out.push(track)
+	}
 
-		for (const difficulty of difficulties) {
-			const diffEvents = trackDifficulties[difficulty]
-			if (diffEvents.length === 0 && !(allocatesEmptyExpert && difficulty === 'expert')) continue
+	return out
+}
 
-			const result: RawChartData['trackData'][number] = {
-				instrument,
-				difficulty,
-				starPowerSections: [],
-				rejectedStarPowerSections: [],
-				soloSections: [],
-				flexLanes: [],
-				drumFreestyleSections: [],
-				trackEvents: [],
-				textEvents,
-				versusPhrases,
-				animations,
-				unrecognizedMidiEvents: trackUnrecognized,
+/** The classified tracks of one instrument track that is read, one for each difficulty it allocates, in difficulty order. */
+export function buildMidiInstrumentTrackData(
+	{ instrument, instrumentType, scan }: ClassifiedMidi['instrumentTracks'][number],
+	iniChartModifiers: IniChartModifiers,
+	firstCodaTick: number | null,
+	rules: ParseRules,
+): RawChartData['trackData'] {
+	const out: RawChartData['trackData'] = []
+	const allocatesEmptyExpert = rules.midiTrackAllocation === 'difficultiesWithNotesAndExpert'
+	const { eventEnds, textEvents, versusPhrases, animations, unrecognizedEvents: trackUnrecognized } = scan
+	// distributeInstrumentEvents adds to and sorts these lists, and a classification can be shared by profiles
+	const distributed = distributeInstrumentEvents({
+		all: [...eventEnds.all],
+		expert: [...eventEnds.expert],
+		hard: [...eventEnds.hard],
+		medium: [...eventEnds.medium],
+		easy: [...eventEnds.easy],
+	}, allocatesEmptyExpert)
+	const pairedEvents = getTrackEvents(distributed)
+	const step1 = splitMidiModifierSustains(pairedEvents, instrumentType, rules)
+	const step2 = fixLegacyGhStarPower(step1, instrumentType, iniChartModifiers)
+	const trackDifficulties = fixFlexLaneLds(step2)
+
+	for (const difficulty of difficulties) {
+		const diffEvents = trackDifficulties[difficulty]
+		if (diffEvents.length === 0 && !(allocatesEmptyExpert && difficulty === 'expert')) continue
+
+		const result: RawChartData['trackData'][number] = {
+			instrument,
+			difficulty,
+			starPowerSections: [],
+			rejectedStarPowerSections: [],
+			soloSections: [],
+			flexLanes: [],
+			drumFreestyleSections: [],
+			trackEvents: [],
+			textEvents,
+			versusPhrases,
+			animations,
+			unrecognizedMidiEvents: trackUnrecognized,
+		}
+
+		// Track "real content" flag inline so we don't need a second pass over
+		// result.trackEvents to decide whether to keep this difficulty result.
+		let hasRealTrackEvents = false
+		for (const event of diffEvents) {
+			switch (event.type) {
+				case eventTypes.starPower:
+					result.starPowerSections.push(event); break
+				case eventTypes.rejectedStarPower:
+					result.rejectedStarPowerSections.push(event); break
+				case eventTypes.soloSection:
+					result.soloSections.push(event); break
+				case eventTypes.flexLaneSingle:
+					result.flexLanes.push({ tick: event.tick, length: event.length, isDouble: false }); break
+				case eventTypes.flexLaneDouble:
+					result.flexLanes.push({ tick: event.tick, length: event.length, isDouble: true }); break
+				case eventTypes.freestyleSection:
+					result.drumFreestyleSections.push({
+						tick: event.tick,
+						length: event.length,
+						isCoda: firstCodaTick === null ? false : event.tick >= firstCodaTick,
+					}); break
+				default:
+					result.trackEvents.push(event)
+					if (!hasRealTrackEvents && event.type !== eventTypes.enableChartDynamics) {
+						hasRealTrackEvents = true
+					}
 			}
+		}
 
-			// Track "real content" flag inline so we don't need a second pass over
-			// result.trackEvents to decide whether to keep this difficulty result.
-			let hasRealTrackEvents = false
-			for (const event of diffEvents) {
-				switch (event.type) {
-					case eventTypes.starPower:
-						result.starPowerSections.push(event); break
-					case eventTypes.rejectedStarPower:
-						result.rejectedStarPowerSections.push(event); break
-					case eventTypes.soloSection:
-						result.soloSections.push(event); break
-					case eventTypes.flexLaneSingle:
-						result.flexLanes.push({ tick: event.tick, length: event.length, isDouble: false }); break
-					case eventTypes.flexLaneDouble:
-						result.flexLanes.push({ tick: event.tick, length: event.length, isDouble: true }); break
-					case eventTypes.freestyleSection:
-						result.drumFreestyleSections.push({
-							tick: event.tick,
-							length: event.length,
-							isCoda: firstCodaTick === null ? false : event.tick >= firstCodaTick,
-						}); break
-					default:
-						result.trackEvents.push(event)
-						if (!hasRealTrackEvents && event.type !== eventTypes.enableChartDynamics) {
-							hasRealTrackEvents = true
-						}
-				}
-			}
-
-			// Tracks with only global modifier events (e.g. [ENABLE_CHART_DYNAMICS])
-			// and no notes are dropped so writer round-trip stays stable.
-			if (allocatesEmptyExpert || hasRealTrackEvents || result.starPowerSections.length > 0 || result.soloSections.length > 0) {
-				out.push(result)
-			}
+		// Tracks with only global modifier events (e.g. [ENABLE_CHART_DYNAMICS])
+		// and no notes are dropped so writer round-trip stays stable.
+		if (allocatesEmptyExpert || hasRealTrackEvents || result.starPowerSections.length > 0 || result.soloSections.length > 0) {
+			out.push(result)
 		}
 	}
 
@@ -470,37 +514,10 @@ function getTracks(midiData: MidiData) {
 	const unrecognizedMidiTracks: { trackName: string; events: MidiEvent[] }[] = []
 
 	for (const [i, track] of midiData.tracks.entries()) {
-		// A track is named by its LAST tick-0 trackName, as in Clone Hero,
-		// where each one replaces the previous (DryWetMidi TrackChunk). Some
-		// real charts emit a bogus trackName before the real one, and keep
-		// their instrument:
-		//
-		//   [ENHANCED_OPENS] → PART BASS    (Culture Killer - Blindfolded Death)
-		//   TEMPO TRACK      → PART DRUMS   (Periphery - Ji)
-		//   <song title>     → PART DRUMS   (school food punishment)
-		//
-		// A real name followed by another one is lost, as it is in Clone Hero:
-		// "PART DRUMS" then "[ENABLE_CHART_DYNAMICS]" (HEALTH - Isn't Everyone)
-		// is not a drums track. Names are matched in any letter case.
-		let sourceName: string | null = null
-		for (const event of track) {
-			if (event.deltaTime !== 0) {
-				break
-			}
-			if (event.type === 'trackName') {
-				sourceName = event.text
-			}
-		}
-		const trackName = sourceName === null ? undefined : trackNamesByLowercase.get(toLowerInvariant(sourceName))
-
-		// Clone Hero reads track 0 only as the conductor track and, if it is named so, the events track.
-		if (sourceName !== null && trackName !== undefined && (i !== 0 || trackName === 'EVENTS')) {
-			tracks.push({
-				trackIndex: i,
-				trackName,
-				sourceName,
-				trackEvents: track,
-			})
+		const sourceName = trackSourceName(track)
+		const recognized = recognizedTrack(i, track, sourceName)
+		if (recognized !== null) {
+			tracks.push(recognized)
 		} else if (i !== 0) {
 			// Track 0 is the conductor track (tempo/timeSignature) and isn't a
 			// musical track — skip it from unrecognized capture.
@@ -512,6 +529,38 @@ function getTracks(midiData: MidiData) {
 	}
 
 	return { tracks, unrecognizedMidiTracks }
+}
+
+/**
+ * A track is named by its LAST tick-0 trackName, as in Clone Hero, where each one replaces the previous (DryWetMidi
+ * TrackChunk). Some real charts emit a bogus trackName before the real one, and keep their instrument:
+ *
+ *   [ENHANCED_OPENS] → PART BASS    (Culture Killer - Blindfolded Death)
+ *   TEMPO TRACK      → PART DRUMS   (Periphery - Ji)
+ *   <song title>     → PART DRUMS   (school food punishment)
+ *
+ * A real name followed by another one is lost, as it is in Clone Hero: "PART DRUMS" then "[ENABLE_CHART_DYNAMICS]"
+ * (HEALTH - Isn't Everyone) is not a drums track.
+ */
+function trackSourceName(track: MidiEvent[]): string | null {
+	let sourceName: string | null = null
+	for (const event of track) {
+		if (event.deltaTime !== 0) {
+			break
+		}
+		if (event.type === 'trackName') {
+			sourceName = event.text
+		}
+	}
+	return sourceName
+}
+
+/** The track at index `i` as a recognized track, or `null` when it isn't one. Names are matched in any letter case. */
+function recognizedTrack(i: number, track: MidiEvent[], sourceName: string | null): MidiSourceTrack | null {
+	const trackName = sourceName === null ? undefined : trackNamesByLowercase.get(toLowerInvariant(sourceName))
+	// Clone Hero reads track 0 only as the conductor track and, if it is named so, the events track.
+	if (sourceName === null || trackName === undefined || (i === 0 && trackName !== 'EVENTS')) return null
+	return { trackIndex: i, trackName, sourceName, trackEvents: track }
 }
 
 interface TrackScanResult {
