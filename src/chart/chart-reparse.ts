@@ -139,7 +139,7 @@ function songSectionsUnchanged(earlier: ReadonlyMap<string, string>, now: Readon
  * A copy of a classified track that resolution can consume without changing the original: resolution sorts its arrays
  * and sets times and lengths on their events. Every array field is copied with copies of its events.
  */
-function cloneClassifiedTrack(track: ClassifiedTrack): ClassifiedTrack {
+export function cloneClassifiedTrack(track: ClassifiedTrack): ClassifiedTrack {
 	const copy: Record<string, unknown> = { ...track }
 	for (const [field, value] of Object.entries(track)) {
 		if (Array.isArray(value)) copy[field] = value.map(event => ({ ...event }))

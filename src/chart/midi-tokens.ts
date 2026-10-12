@@ -186,10 +186,48 @@ export function midiTokensToMidiData(tokens: MidiTokens): MidiData {
 	const tracks: MidiEvent[][] = []
 	for (const chunk of tokens.chunks) {
 		if (chunk.kind === 'track') {
-			tracks.push(chunk.events.map(token => eventAtTick(token.event, token.tick)))
+			tracks.push(midiTrackEvents(chunk))
 		}
 	}
 	return { header: { ...tokens.header.header }, tracks }
+}
+
+/** One track of `midiTokensToMidiData`: copies of the chunk's events, each `deltaTime` replaced by its tick. */
+export function midiTrackEvents(chunk: MidiTrackChunk): MidiEvent[] {
+	return chunk.events.map(token => eventAtTick(token.event, token.tick))
+}
+
+/** The index among the file's tracks of the track chunk at `chunk`, as `midiTokensToMidiData` numbers the tracks. */
+export function midiTrackIndex(tokens: MidiTokens, chunk: number): number {
+	let index = 0
+	for (let i = 0; i < chunk; i++) if (tokens.chunks[i].kind === 'track') index++
+	return index
+}
+
+/** Each chunk's body, by chunk index, or `null` for a skipped chunk. */
+export function midiTrackBodies(tokens: MidiTokens): (Uint8Array | null)[] {
+	return tokens.chunks.map(chunk => chunk.kind === 'track' ? tokens.data.subarray(chunk.bodyStart, chunk.end) : null)
+}
+
+/**
+ * The track chunks whose bodies differ between two versions of a file, given each version's `midiTrackBodies`, or `null`
+ * when the versions don't have the same kinds of chunk in the same order.
+ */
+export function changedTrackChunks(earlier: readonly (Uint8Array | null)[], now: readonly (Uint8Array | null)[]): Set<number> | null {
+	if (earlier.length !== now.length) return null
+	const changed = new Set<number>()
+	for (let chunk = 0; chunk < now.length; chunk++) {
+		const [before, after] = [earlier[chunk], now[chunk]]
+		if ((before === null) !== (after === null)) return null
+		if (before !== null && !sameBytes(before, after!)) changed.add(chunk)
+	}
+	return changed
+}
+
+function sameBytes(a: Uint8Array, b: Uint8Array): boolean {
+	if (a.length !== b.length) return false
+	for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false
+	return true
 }
 
 /**
