@@ -28,15 +28,17 @@ export function editChartLines(tokens: ChartFileTokens, edits: readonly ChartLin
 		return lines
 	}
 
-	const splices: { start: number; end: number; text: string; tick: number; order: number }[] = []
+	const splices: LineSplice[] = []
 	edits.forEach((edit, order) => {
 		const lines = linesOf(edit.section)
 		if (edit.kind === 'insert') {
 			if (edit.beforeLine < 1 || edit.beforeLine >= lines.length) throw new RangeError('A line can be inserted only between a section\'s braces')
-			const at = offsets(lines[edit.beforeLine].start)
+			const textAt = lines[edit.beforeLine].start
+			const at = offsets(textAt)
 			const { indent, ending } = lineStyle(tokens, lines)
 			const tick = Number(/^(\d+) =/.exec(edit.text)?.[1] ?? 0)
-			splices.push({ start: at, end: at, text: `${indent}${edit.text}${ending}\n`, tick, order })
+			const text = `${indent}${edit.text}${ending}\n`
+			splices.push({ start: at, end: at, textStart: textAt, textEnd: textAt, text, tick, order, keepsStructure: isTickLine(edit.text) })
 			return
 		}
 		const line = lines[edit.line]
@@ -44,10 +46,17 @@ export function editChartLines(tokens: ChartFileTokens, edits: readonly ChartLin
 		if (edit.kind === 'replace') {
 			const indent = /^[ \t]*/.exec(raw)![0]
 			const trailing = /[ \t\r]*$/.exec(raw.slice(indent.length))![0]
-			splices.push({ start: offsets(line.start), end: offsets(line.end), text: `${indent}${edit.text}${trailing}`, tick: 0, order })
+			splices.push({
+				start: offsets(line.start), end: offsets(line.end), textStart: line.start, textEnd: line.end,
+				text: `${indent}${edit.text}${trailing}`, tick: 0, order, keepsStructure: isTickLine(edit.text) && isTickLine(line.text),
+			})
 		} else {
 			const isLast = edit.line === lines.length - 1
-			splices.push({ start: offsets(line.start), end: isLast ? offsets(line.end) : offsets(line.end + 1), text: '', tick: 0, order })
+			const textEnd = isLast ? line.end : line.end + 1
+			splices.push({
+				start: offsets(line.start), end: offsets(textEnd), textStart: line.start, textEnd,
+				text: '', tick: 0, order, keepsStructure: !isLast && isTickLine(line.text),
+			})
 		}
 	})
 
@@ -57,7 +66,85 @@ export function editChartLines(tokens: ChartFileTokens, edits: readonly ChartLin
 	for (let i = 1; i < splices.length; i++) {
 		if (splices[i].start < splices[i - 1].end) throw new RangeError('Two edits touch the same line')
 	}
-	return spliceBytes(tokens, splices)
+	const encoded = splices.map(splice => encodeText(splice.text, tokens.encoding))
+	const bytes = splicedBytes(tokens, splices, encoded)
+	// Tick lines can't change where sections start or end, since the section reader skips each line after its `=`.
+	// So the edited file's tokens follow from these, without reading the file again.
+	if (tokens.structureError === null && splices.every(splice => splice.keepsStructure)) return withSplicedLines(tokens, bytes, splices, encoded)
+	return tokenizeChartFile(bytes)
+}
+
+/** One edit of a whole line or a line boundary, in byte offsets (`start`, `end`) and in text offsets. */
+interface LineSplice {
+	readonly start: number
+	readonly end: number
+	readonly textStart: number
+	readonly textEnd: number
+	readonly text: string
+	readonly tick: number
+	readonly order: number
+	/** Whether the lines it removes and writes are all tick lines, which can't change the file's sections. */
+	readonly keepsStructure: boolean
+}
+
+/** A section line of the form `tick = value`, without line breaks. */
+function isTickLine(text: string): boolean {
+	return /^\d+ = [^\r\n]*$/.test(text)
+}
+
+/**
+ * The tokens of `bytes`, which are `tokens`' bytes with `splices` applied, made from `tokens` instead of decoding and
+ * reading the sections again: the text is spliced the same way, each section's offsets shift by the splices before
+ * them, and the line index shifts with them.
+ */
+function withSplicedLines(tokens: ChartFileTokens, bytes: Uint8Array, splices: readonly LineSplice[], encoded: readonly Uint8Array[]): ChartFileTokens {
+	const textParts: string[] = []
+	let copied = 0
+	for (const splice of splices) {
+		textParts.push(tokens.text.slice(copied, splice.textStart), splice.text)
+		copied = splice.textEnd
+	}
+	textParts.push(tokens.text.slice(copied))
+
+	let next = 0, shift = 0
+	const sections = tokens.sections.map(section => {
+		const bodyStart = section.bodyStart + shift
+		while (next < splices.length && splices[next].textStart <= section.bodyEnd) {
+			shift += splices[next].text.length - (splices[next].textEnd - splices[next].textStart)
+			next++
+		}
+		return { name: section.name, bodyStart, bodyEnd: section.bodyEnd + shift }
+	})
+
+	const edited: ChartFileTokens = { bytes, encoding: tokens.encoding, text: textParts.join(''), sections, structureError: null }
+	lineIndexes.set(edited, splicedLineIndex(lineIndexOf(tokens), splices, encoded, tokens.encoding))
+	return edited
+}
+
+/** The line index after `splices`: starts inside a replaced range go, the inserted text's starts come in, and later ones shift. */
+function splicedLineIndex(index: LineIndex, splices: readonly LineSplice[], encoded: readonly Uint8Array[], encoding: ChartFileTokens['encoding']): LineIndex {
+	const { textLineStarts, byteLineStarts } = index
+	const unit = encoding === 'utf-8' ? 1 : 2
+	const textStarts: number[] = [], byteStarts: number[] = []
+	let line = 0, textShift = 0, byteShift = 0
+	splices.forEach((splice, k) => {
+		for (; line < textLineStarts.length && textLineStarts[line] <= splice.textStart; line++) {
+			textStarts.push(textLineStarts[line] + textShift)
+			byteStarts.push(byteLineStarts[line] + byteShift)
+		}
+		while (line < textLineStarts.length && textLineStarts[line] <= splice.textEnd) line++
+		for (let i = splice.text.indexOf('\n'); i !== -1; i = splice.text.indexOf('\n', i + 1)) textStarts.push(splice.textStart + textShift + i + 1)
+		for (let i = 0; i + unit <= encoded[k].length; i += unit) {
+			if (isLineFeedAt(encoded[k], i, encoding)) byteStarts.push(splice.start + byteShift + i + unit)
+		}
+		textShift += splice.text.length - (splice.textEnd - splice.textStart)
+		byteShift += encoded[k].length - (splice.end - splice.start)
+	})
+	for (; line < textLineStarts.length; line++) {
+		textStarts.push(textLineStarts[line] + textShift)
+		byteStarts.push(byteLineStarts[line] + byteShift)
+	}
+	return { textLineStarts: textStarts, byteLineStarts: byteStarts }
 }
 
 /**
@@ -93,14 +180,19 @@ function sameBytes(a: Uint8Array, b: Uint8Array): boolean {
 	return true
 }
 
-/** Splices text into the file's bytes, in its encoding. `start` and `end` are byte offsets, in order. */
+/** Splices text into the file's bytes and tokenizes the result. `start` and `end` are byte offsets, in order. */
 function spliceBytes(tokens: ChartFileTokens, splices: readonly { start: number; end: number; text: string }[]): ChartFileTokens {
+	return tokenizeChartFile(splicedBytes(tokens, splices, splices.map(splice => encodeText(splice.text, tokens.encoding))))
+}
+
+/** The file's bytes with each splice's range replaced by its encoded text. `start` and `end` are byte offsets, in order. */
+function splicedBytes(tokens: ChartFileTokens, splices: readonly { start: number; end: number }[], encoded: readonly Uint8Array[]): Uint8Array {
 	const parts: Uint8Array[] = []
 	let copied = 0
-	for (const splice of splices) {
-		parts.push(tokens.bytes.subarray(copied, splice.start), encodeText(splice.text, tokens.encoding))
+	splices.forEach((splice, k) => {
+		parts.push(tokens.bytes.subarray(copied, splice.start), encoded[k])
 		copied = splice.end
-	}
+	})
 	parts.push(tokens.bytes.subarray(copied))
 	const edited = new Uint8Array(parts.reduce((total, part) => total + part.length, 0))
 	let at = 0
@@ -108,7 +200,7 @@ function spliceBytes(tokens: ChartFileTokens, splices: readonly { start: number;
 		edited.set(part, at)
 		at += part.length
 	}
-	return tokenizeChartFile(edited)
+	return edited
 }
 
 /** The `.chart` line content for an authored event of an instrument, or `null` if `.chart` can't write that event. */
@@ -220,11 +312,21 @@ function lineStyle(tokens: ChartFileTokens, lines: readonly ChartLineToken[]): {
 	return { indent: /^[ \t]*/.exec(raw)![0], ending: raw.endsWith('\r') ? '\r' : '' }
 }
 
+/** Where each line starts, in the decoded text and in the file's bytes. */
+interface LineIndex {
+	readonly textLineStarts: readonly number[]
+	readonly byteLineStarts: readonly number[]
+}
+
+const lineIndexes = new WeakMap<ChartFileTokens, LineIndex>()
+
 /**
- * Maps offsets in the decoded text to offsets in the file's bytes. Lines align: a line feed is never part of a
- * multi-byte UTF-8 sequence and is its own UTF-16 code unit. Within a line, the prefix is re-encoded and checked.
+ * The line index of a tokenized `.chart` file, built once per tokens. Lines align: a line feed is never part of a
+ * multi-byte UTF-8 sequence and is its own UTF-16 code unit.
  */
-function byteOffsets(tokens: ChartFileTokens): (textOffset: number) => number {
+function lineIndexOf(tokens: ChartFileTokens): LineIndex {
+	const cached = lineIndexes.get(tokens)
+	if (cached !== undefined) return cached
 	const { bytes, text, encoding } = tokens
 	const unit = encoding === 'utf-8' ? 1 : 2
 	const bom = encoding === 'utf-8' ? (bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf ? 3 : 0) : 2
@@ -232,11 +334,26 @@ function byteOffsets(tokens: ChartFileTokens): (textOffset: number) => number {
 	for (let i = text.indexOf('\n'); i !== -1; i = text.indexOf('\n', i + 1)) textLineStarts.push(i + 1)
 	const byteLineStarts = [bom]
 	for (let i = bom; i + unit <= bytes.length; i += unit) {
-		const isLineFeed = encoding === 'utf-8' ? bytes[i] === 0x0a
-			: encoding === 'utf-16le' ? bytes[i] === 0x0a && bytes[i + 1] === 0 : bytes[i] === 0 && bytes[i + 1] === 0x0a
-		if (isLineFeed) byteLineStarts.push(i + unit)
+		if (isLineFeedAt(bytes, i, encoding)) byteLineStarts.push(i + unit)
 	}
 	if (textLineStarts.length !== byteLineStarts.length) throw new RangeError('The file\'s lines don\'t match its decoded text')
+	const index = { textLineStarts, byteLineStarts }
+	lineIndexes.set(tokens, index)
+	return index
+}
+
+function isLineFeedAt(bytes: Uint8Array, i: number, encoding: ChartFileTokens['encoding']): boolean {
+	return encoding === 'utf-8' ? bytes[i] === 0x0a
+		: encoding === 'utf-16le' ? bytes[i] === 0x0a && bytes[i + 1] === 0 : bytes[i] === 0 && bytes[i + 1] === 0x0a
+}
+
+/**
+ * Maps offsets in the decoded text to offsets in the file's bytes, through the line index. Within a line, the prefix
+ * is re-encoded and checked.
+ */
+function byteOffsets(tokens: ChartFileTokens): (textOffset: number) => number {
+	const { bytes, text, encoding } = tokens
+	const { textLineStarts, byteLineStarts } = lineIndexOf(tokens)
 
 	return textOffset => {
 		let low = 0, high = textLineStarts.length - 1

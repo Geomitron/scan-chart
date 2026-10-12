@@ -13,6 +13,42 @@ const tokens = (text: string) => tokenizeChartFile(new TextEncoder().encode(text
 const decode = (bytes: Uint8Array) => new TextDecoder().decode(bytes)
 const drumEvents = (file: ReturnType<typeof tokens>) => chartAuthoredTracks(file)[0].events
 
+describe('tokens of an edited .chart', () => {
+	const sample = '[Song]\r\n{\r\n  Resolution = 192\r\n  Name = "Café"\r\n}\r\n[SyncTrack]\r\n{\r\n  0 = B 120000\r\n}\r\n'
+		+ '[Events]\r\n{\r\n  0 = E "section Café"\r\n}\r\n[ExpertSingle]\r\n{\r\n  0 = N 0 0\r\n  192 = N 1 0\r\n  384 = N 2 0\r\n}\r\n'
+		+ '[HardSingle]\r\n{\r\n  0 = N 0 0\r\n}\r\n'
+	const encodings: [string, (text: string) => Uint8Array][] = [
+		['UTF-8 with a byte-order mark', text => new Uint8Array([0xef, 0xbb, 0xbf, ...new TextEncoder().encode(text)])],
+		['UTF-16 LE', text => Uint8Array.from([0xff, 0xfe, ...[...text].flatMap(char => [char.charCodeAt(0) & 0xff, char.charCodeAt(0) >> 8])])],
+	]
+	for (const [name, encode] of encodings) {
+		it(`equal the edited bytes read again, in ${name}, and edit on correctly`, () => {
+			const file = tokenizeChartFile(encode(sample))
+			const [expert, hard] = chartAuthoredTracks(file)
+			const once = editChartLines(file, [
+				...chartEventEdits(file, expert.events[1], { tick: 300 }),
+				{ kind: 'delete', section: expert.section, line: 1 },
+				chartEventInsertEdit(file, hard.section, 96, eventTypes.red, 48),
+			])
+			const reread = tokenizeChartFile(once.bytes)
+			expect(once).toEqual(reread)
+			// A second edit maps text to bytes through the line index the first one derived, including after every
+			// line the first one inserted.
+			const secondEdit = (tokens: typeof once) => {
+				const [expertAfter, hardAfter] = chartAuthoredTracks(tokens)
+				return editChartLines(tokens, [
+					...chartEventEdits(tokens, expertAfter.events[0], { length: 77 }),
+					...chartEventEdits(tokens, hardAfter.events[hardAfter.events.length - 1], { length: 33 }),
+				])
+			}
+			const twice = secondEdit(once)
+			const fromReread = secondEdit(reread)
+			expect(twice.bytes).toEqual(fromReread.bytes)
+			expect(twice).toEqual(tokenizeChartFile(twice.bytes))
+		})
+	}
+})
+
 describe('a .chart flam marker', () => {
 	it('is added as N 109 on its tick, and reads back as the flam of the notes there', () => {
 		const file = tokens(drums(['0 = N 0 0', '0 = N 2 0']))
