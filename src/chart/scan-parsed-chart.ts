@@ -5,19 +5,13 @@ import * as _ from 'lodash'
 import { base64url } from 'rfc4648'
 
 import { defaultMetadata } from '../ini/metadata'
-import { ChartIssueType, Difficulty, getInstrumentType, Instrument, instrumentTypes, NotesData } from '../types'
 import { msToExactTime } from '../shared/time'
-import { computeHopoThresholdTicks, isNaturalHopo } from './natural-hopo'
-import { IniChartModifiers, NoteEvent, noteFlags, NoteType, noteTypes } from './types'
-import { ParsedChart, parsedCharts } from './parse-chart-and-ini'
-import { pruneEmptyPhrases } from './track-hasher'
+import { NotesData } from '../types'
+import { chartIssueMessages, chartStats, findChartIssues, sameAsExpert } from './chart-analysis'
+import { canonicalChartFromParse, CanonicalParsedChart } from './identity/canonical-source'
 import { canonical20260801, CanonicalSongBundle } from './identity/public'
-import { canonicalChartFromParse } from './identity/canonical-source'
-
-const LEADING_SILENCE_THRESHOLD_MS = 1000
-const MIN_SUSTAIN_GAP_MS = 40
-const MIN_SUSTAIN_MS = 100
-const NPS_GROUP_SIZE_MS = 1000
+import { ParsedChart, parsedCharts } from './parse-chart-and-ini'
+import { IniChartModifiers } from './types'
 
 /**
  * Compute the chart-derived hashes and `notesData` from an already-parsed
@@ -25,8 +19,8 @@ const NPS_GROUP_SIZE_MS = 1000
  * the previous `scanChart(files, …)` returned; this version takes a
  * `ParsedChart` so callers can reuse a parse result without redoing it.
  *
- * `trackHashes` and `songHash` come from the canonical 20260801 identity profile, which parses the source again
- * with its own rules. `identityError` is set when that profile rejects the chart.
+ * `trackHashes` and `songHash` come from the canonical 20260801 identity profile, which reuses the scanner's parse
+ * when it can. `identityError` is set when that profile rejects the chart.
  */
 export function scanParsedChart(parsedChart: ParsedChart, includeBTrack = false) {
 	const result = parsedChart
@@ -40,71 +34,14 @@ export function scanParsedChart(parsedChart: ParsedChart, includeBTrack = false)
 		hash: track.identity.trackHash.value,
 		btrack: includeBTrack ? track.identity.physicalBTrack.bytes : null,
 	}))
-
-	// Walk every noteEventGroup once to derive all state-dependent flags.
-	// `hasForcedNotes` mirrors the old source-derived semantics: true iff the
-	// chart contains a note whose resolved `hopo`/`strum` flag disagrees with
-	// the natural HOPO state the parser would have picked without force events.
-	// Notes that carry ONLY the `tap` flag are intentionally NOT counted —
-	// matching the pre-consolidation definition that walked raw trackEvents for
-	// `forceHopo` / `forceStrum` / `forceUnnatural` (tap was excluded even
-	// though `forceTap` is a force event, per the original definition). That
-	// decision keeps 78K-chart parity with the old flag for 94%+ of charts; the
-	// remaining divergence is ~300 charts where the source had redundantly-
-	// applied force events on naturally-matching notes (the force was a no-op,
-	// so the state-derived flag correctly reports false).
-	const hopoThreshold = computeHopoThresholdTicks(
-		result.resolution,
-		iniChartModifiers.hopo_frequency,
-		iniChartModifiers.eighthnote_hopo,
-		result.format,
-	)
-	let [hasTapNotes, hasOpenNotes, has2xKick, hasForcedNotes] = [false, false, false, false]
-	outer: for (const track of result.trackData) {
-		const isFretInstrument = track.instrument !== 'drums'
-		let lastGroup: NoteEvent[] | null = null
-		for (const noteGroup of track.noteEventGroups) {
-			for (const note of noteGroup) {
-				if (note.flags & noteFlags.tap) hasTapNotes = true
-				if (note.flags & noteFlags.doubleKick) has2xKick = true
-				if (note.type === noteTypes.open) hasOpenNotes = true
-			}
-			if (isFretInstrument && !hasForcedNotes && noteGroup.length > 0) {
-				const first = noteGroup[0]
-				const natural = isNaturalHopo(noteGroup, lastGroup, hopoThreshold, result.format)
-				const isHopo = (first.flags & noteFlags.hopo) !== 0
-				const isStrum = (first.flags & noteFlags.strum) !== 0
-				if ((isHopo && !natural) || (isStrum && natural)) hasForcedNotes = true
-			}
-			lastGroup = noteGroup.length > 0 ? noteGroup : lastGroup
-			// Early-exit once all four flags are true.
-			if (hasTapNotes && hasOpenNotes && has2xKick && hasForcedNotes) break outer
-		}
-	}
-
-	// `hasLyrics` / `hasVocals` are derived from the normalized vocal tracks
-	// rather than snapshotted at parse time — keeps them state-accurate if
-	// downstream code adds or removes vocal data.
-	//
-	// `hasVocals` means "there is a singable vocals part", so it requires a
-	// vocal note inside a phrase. A phrase on its own is only a range marker: a
-	// lyrics-only chart carries its lyrics inside phrases that hold no notes,
-	// and that is a chart with lyrics, not a chart with vocals. The .chart
-	// format cannot encode a vocal note at all, so `hasVocals` is always
-	// false there.
-	//
-	// `phrase.notes` is the playable projection, not every note in the source:
-	// the parser drops hidden percussion and notes that fall outside their
-	// phrase range. A vocals chart built only from such notes reports false.
-	let hasLyrics = false
-	let hasVocals = false
-	vocals: for (const part of Object.values(result.vocalTracks.parts)) {
-		for (const phrase of part.notePhrases) {
-			if (phrase.notes.length > 0) hasVocals = true
-			if (phrase.lyrics.length > 0) hasLyrics = true
-			if (hasLyrics && hasVocals) break vocals
-		}
-	}
+	const stats = chartStats(result, iniChartModifiers, result.format)
+	const chartIssues: NotesData['chartIssues'] = findChartIssues(result, sameAsExpert(identity.kind === 'accepted' ? identity.chart : null))
+		.map(({ code, instrument, difficulty, msTime }) => ({
+			instrument,
+			difficulty,
+			noteIssue: code,
+			description: msTime !== null ? `[${msToExactTime(msTime)}]: ${chartIssueMessages[code]}` : chartIssueMessages[code],
+		}))
 
 	return {
 		chartHash: getChartHash(result.chartBytes, iniChartModifiers),
@@ -112,58 +49,33 @@ export function scanParsedChart(parsedChart: ParsedChart, includeBTrack = false)
 		songDurationMs: bundle === null ? null : Number(bundle.duration.durationMs),
 		identityError: identity.kind === 'rejected' ? identity.error : null,
 		notesData: {
-			instruments: _.chain(result.trackData)
-				.map(t => t.instrument)
-				.uniq()
-				.value(),
-			drumType: result.drumType,
-			hasSoloSections:
-				_.chain(result.trackData)
-					.map(t => t.soloSections.length)
-					.max()
-					.value() > 0,
-			hasLyrics,
-			hasVocals,
-			hasForcedNotes,
-			hasTapNotes,
-			hasOpenNotes,
-			has2xKick,
-			hasFlexLanes:
-				_.chain(result.trackData)
-					.map(t => t.flexLanes.length)
-					.max()
-					.value() > 0,
-			chartIssues: findChartIssues(result, iniChartModifiers.song_length, trackHashes),
-			noteCounts: result.trackData.map(t => ({
-				instrument: t.instrument,
-				difficulty: t.difficulty,
-				count: t.instrument === 'drums' ? _.sumBy(t.noteEventGroups, 'length') : t.noteEventGroups.length,
-			})),
-			maxNps: result.trackData.map(t => ({
-				instrument: t.instrument,
-				difficulty: t.difficulty,
-				...findMaxNps(t.noteEventGroups),
-			})),
+			instruments: [...stats.instruments],
+			drumType: stats.drumType,
+			hasSoloSections: stats.hasSolos,
+			hasLyrics: stats.hasLyrics,
+			hasVocals: stats.hasVocals,
+			hasForcedNotes: stats.hasForcedNotes,
+			hasTapNotes: stats.hasTapNotes,
+			hasOpenNotes: stats.hasOpenNotes,
+			has2xKick: stats.has2xKick,
+			hasFlexLanes: stats.hasFlexLanes,
+			chartIssues,
+			noteCounts: [...stats.noteCounts],
+			maxNps: stats.maxNps.map(({ instrument, difficulty, msTime, nps }) => ({ instrument, difficulty, nps, time: msTime })),
 			trackHashes,
 			tempoMapHash: md5
 				.create()
 				.update(result.tempos.map(t => `${t.tick}_${t.beatsPerMinute * 1000}`).join(':'))
 				.update(result.timeSignatures.map(t => `${t.tick}_${t.numerator}_${t.denominator}`).join(':'))
 				.hex(),
-			tempoMarkerCount: result.tempos.length,
-			effectiveLength: _.chain(result.trackData)
-				.thru(tracks => ({
-					min: _.min(tracks.map(track => _.first(track.noteEventGroups)?.[0]?.msTime)),
-					max: _.max(tracks.map(track => _.last(track.noteEventGroups)?.[0]?.msTime)),
-				}))
-				.thru(({ min, max }) => (min !== undefined && max !== undefined ? _.round(max - min, 3) : iniChartModifiers.song_length))
-				.value(),
+			tempoMarkerCount: stats.tempoMarkerCount,
+			effectiveLength: stats.noteSpanMs,
 		},
 	}
 }
 
 function calculateCanonicalIdentity(parsedChart: ParsedChart):
-	| { readonly kind: 'accepted'; readonly bundle: CanonicalSongBundle }
+	| { readonly kind: 'accepted'; readonly chart: CanonicalParsedChart; readonly bundle: CanonicalSongBundle }
 	| { readonly kind: 'rejected'; readonly error: string } {
 	// The scanner's parse uses the canonical rules (E2) and the same settings, so the identity reuses it.
 	const reusable = parsedCharts.get(parsedChart)
@@ -175,414 +87,10 @@ function calculateCanonicalIdentity(parsedChart: ParsedChart):
 		})
 	if (parsed.kind === 'rejected') return { kind: 'rejected', error: parsed.errors.map(error => error.message).join(' ') }
 	try {
-		return { kind: 'accepted', bundle: canonical20260801.calculateSongBundle({ chart: parsed.chart, metadata: parsedChart.songHashMetadata }) }
+		return { kind: 'accepted', chart: parsed.chart, bundle: canonical20260801.calculateSongBundle({ chart: parsed.chart, metadata: parsedChart.songHashMetadata }) }
 	} catch (error) {
 		return { kind: 'rejected', error: error instanceof Error ? error.message : String(error) }
 	}
-}
-
-function findMaxNps(notes: NoteEvent[][]) {
-	if (notes.length === 0) {
-		return { nps: 0, time: 0 }
-	}
-	let notesInWindow = 0
-	let maxNotesInWindow = 0
-	let windowStartIndex = 0
-	let maxWindowStartIndex = 0
-
-	for (const noteGroup of notes) {
-		notesInWindow++
-		const windowStartTime = noteGroup[0].msTime - NPS_GROUP_SIZE_MS
-		while (notes[windowStartIndex][0].msTime < windowStartTime) {
-			windowStartIndex++
-			notesInWindow--
-		}
-
-		if (notesInWindow > maxNotesInWindow) {
-			maxNotesInWindow = notesInWindow
-			maxWindowStartIndex = windowStartIndex
-		}
-	}
-
-	return { nps: (1000 * maxNotesInWindow) / NPS_GROUP_SIZE_MS, time: _.round(notes[maxWindowStartIndex][0].msTime, 3) }
-}
-
-const chartIssueDescriptions: { [issue in ChartIssueType]: string } = {
-	misalignedTimeSignature:
-		"This chart has a time signature marker that doesn't appear at the start of a measure. This can't be interpreted correctly in Clone Hero.",
-	noNotes: 'This chart has no notes.',
-	noExpert: 'This instrument has Easy, Medium, or Hard charted but not Expert.',
-	difficultyNotReduced: 'The notes of this difficulty are identical to the notes of the expert chart.',
-	isDefaultBPM:
-		'This chart has only one 120 BPM marker and only one 4/4 time signature. This usually means the chart ' +
-		"wasn't tempo-mapped, but you can ignore this if the song is a constant 120 BPM.",
-	noSections: 'This chart has no sections.',
-	badEndEvent: 'This end event is in an invalid location and will be ignored by most games.',
-	smallLeadingSilence: 'This track has a note that is less than 2000ms after the start of the track.',
-	noStarPower: 'This track has no star power.',
-	emptyStarPower: 'This star power phrase contains no notes.',
-	badStarPower: 'This star power is being ignored due to the .ini "multiplier_note" setting.',
-	emptySoloSection: 'This solo section contains no notes.',
-	noDrumActivationLanes: 'This drums track has no activation lanes.',
-	emptyFlexLane: 'This flex lane contains no notes.',
-	difficultyForbiddenNote: "This is a note that isn't allowed on the track's difficulty.",
-	invalidChord: 'The use of this type of chord is strongly discouraged.',
-	brokenNote: 'This note is so close to the previous note that this was likely a charting mistake.',
-	badSustainGap: 'This note is not far enough ahead of the previous sustain.',
-	babySustain: 'The sustain on this note is too short.',
-	invalidLyric: 'This lyric is on the EVENTS track instead of PART VOCALS and will not be displayed.',
-	invalidPhraseStart: 'This phrase_start is on the EVENTS track. Vocal phrase boundaries in .mid charts must be MIDI note 105 (player 1) or 106 (player 2) on PART VOCALS.',
-	invalidPhraseEnd: 'This phrase_end is on the EVENTS track. Vocal phrase boundaries in .mid charts must be MIDI note 105 (player 1) or 106 (player 2) on PART VOCALS.',
-} as const
-
-function findChartIssues(
-	chartData: ParsedChart,
-	songLength: number,
-	trackHashes: { instrument: Instrument; difficulty: Difficulty; hash: string }[],
-): { instrument: Instrument | null; difficulty: Difficulty | null; noteIssue: ChartIssueType; description: string }[] {
-	const chartIssues: NotesData['chartIssues'] = []
-	const addIssue = (instrument: Instrument | null, difficulty: Difficulty | null, issue: ChartIssueType, msTime?: number) =>
-		chartIssues.push({
-			instrument,
-			difficulty,
-			noteIssue: issue,
-			description: msTime !== undefined ? `[${msToExactTime(msTime)}]: ${chartIssueDescriptions[issue]}` : chartIssueDescriptions[issue],
-		})
-
-	// Parser-emitted issues (dedup, malformed events, etc.) run first so their
-	// descriptions appear at the top of the issue list for consumers.
-	for (const issue of chartData.parseIssues) {
-		addIssue(issue.instrument, issue.difficulty, issue.noteIssue)
-	}
-
-	// misalignedTimeSignature
-	{
-		const timeSignatures = _.clone(chartData.timeSignatures)
-		let lastBeatlineTick = 0
-		for (let i = 0; i < timeSignatures.length; i++) {
-			if (lastBeatlineTick !== timeSignatures[i].tick) {
-				addIssue(null, null, 'misalignedTimeSignature', timeSignatures[i].msTime)
-				_.pullAt(timeSignatures, i) // Treat misaligned time signature like it was removed to discover future misaligned time signatures
-				i--
-			}
-			while (timeSignatures[i + 1] && lastBeatlineTick < timeSignatures[i + 1].tick) {
-				lastBeatlineTick += chartData.resolution * 4 * (timeSignatures[i].numerator / timeSignatures[i].denominator)
-			}
-		}
-	}
-
-	// noNotes
-	{
-		// Deliberately broader than `notesData.hasVocals`: any vocal phrase is
-		// enough content to keep a chart out of `noNotes`, even a lyrics-only
-		// phrase that carries no vocal note.
-		const hasVocalContent = Object.values(chartData.vocalTracks.parts).some(p => p.notePhrases.length > 0)
-		if (chartData.trackData.every(track => track.noteEventGroups.length === 0) && !hasVocalContent) {
-			addIssue(null, null, 'noNotes')
-		}
-	}
-
-	// noExpert, difficultyNotReduced
-	{
-		for (const instrumentGroup of _.chain(chartData.trackData)
-			.groupBy(track => track.instrument)
-			.values()
-			.value()) {
-			if (instrumentGroup.every(track => track.difficulty !== 'expert')) {
-				addIssue(instrumentGroup[0].instrument, null, 'noExpert')
-			} else {
-				// Canonical hashes omit noteless tracks, and every hash is absent if the canonical profile rejected the chart.
-				const expertHash = trackHashes.find(t => t.instrument === instrumentGroup[0].instrument && t.difficulty === 'expert')?.hash
-				for (const track of instrumentGroup.filter(t => t.difficulty !== 'expert')) {
-					if (
-						expertHash !== undefined &&
-						expertHash === trackHashes.find(t => t.instrument === track.instrument && t.difficulty === track.difficulty)?.hash &&
-						track.noteEventGroups.length > 20
-					) {
-						addIssue(track.instrument, track.difficulty, 'difficultyNotReduced')
-					}
-				}
-			}
-		}
-	}
-
-	// isDefaultBPM
-	{
-		const isDefaultTempo = chartData.tempos.length === 1 && _.round(chartData.tempos[0].beatsPerMinute, 12) === 120
-		const isDefaultTimeSignature =
-			chartData.timeSignatures.length === 1 && chartData.timeSignatures[0].numerator === 4 && chartData.timeSignatures[0].denominator === 4
-		if (isDefaultTempo && isDefaultTimeSignature) {
-			addIssue(null, null, 'isDefaultBPM')
-		}
-	}
-
-	// noSections
-	{
-		if (chartData.sections.length === 0) {
-			addIssue(null, null, 'noSections')
-		}
-	}
-
-	// badEndEvent
-	{
-		if (chartData.endEvents.length > 1) {
-			for (const endEvent of chartData.endEvents.slice(1)) {
-				addIssue(null, null, 'badEndEvent', endEvent.msTime)
-			}
-		}
-		const lastNoteTick = _.max(chartData.trackData.map(track => _.last(track.noteEventGroups)?.[0]?.tick))
-		if (lastNoteTick && chartData.endEvents[0] && chartData.endEvents[0].tick < lastNoteTick) {
-			addIssue(null, null, 'badEndEvent', chartData.endEvents[0].msTime)
-		}
-	}
-
-	for (const track of chartData.trackData) {
-		const instrumentType = getInstrumentType(track.instrument)
-		const addIssue = (issue: ChartIssueType, msTime?: number) =>
-			chartIssues.push({
-				instrument: track.instrument,
-				difficulty: track.difficulty,
-				noteIssue: issue,
-				description: msTime !== undefined ? `[${msToExactTime(msTime)}]: ${chartIssueDescriptions[issue]}` : chartIssueDescriptions[issue],
-			})
-
-		// smallLeadingSilence
-		{
-			if (track.noteEventGroups[0]?.[0]?.msTime !== undefined && track.noteEventGroups[0][0].msTime < LEADING_SILENCE_THRESHOLD_MS) {
-				addIssue('smallLeadingSilence')
-			}
-		}
-
-		// noStarPower
-		{
-			if (
-				track.starPowerSections.length === 0 &&
-				track.instrument !== 'drums' &&
-				track.noteEventGroups.length > 50 &&
-				_.last(track.noteEventGroups)![0].msTime - _.first(track.noteEventGroups)![0].msTime > 60000
-			) {
-				addIssue('noStarPower')
-			}
-		}
-
-		// emptyStarPower
-		{
-			const emptyStarPowerSections = _.difference(track.starPowerSections, pruneEmptyPhrases(track.starPowerSections, track.noteEventGroups))
-			for (const emptyStarPowerSection of emptyStarPowerSections) {
-				addIssue('emptyStarPower', emptyStarPowerSection.msTime)
-			}
-		}
-
-		// badStarPower
-		{
-			for (const rejectedStarPower of track.rejectedStarPowerSections) {
-				addIssue('badStarPower', rejectedStarPower.msTime)
-			}
-		}
-
-		// emptySoloSection
-		{
-			const emptySoloSections = _.difference(track.soloSections, pruneEmptyPhrases(track.soloSections, track.noteEventGroups))
-			for (const emptySoloSection of emptySoloSections) {
-				addIssue('emptySoloSection', emptySoloSection.msTime)
-			}
-		}
-
-		// noDrumActivationLanes
-		{
-			if (
-				track.instrument === 'drums' &&
-				track.drumFreestyleSections.length === 0 &&
-				track.starPowerSections.length > 0 &&
-				track.noteEventGroups.length > 50 &&
-				_.last(track.noteEventGroups)![0].msTime - _.first(track.noteEventGroups)![0].msTime > 60000
-			) {
-				addIssue('noDrumActivationLanes')
-			}
-		}
-
-		// emptyFlexLane
-		{
-			const emptyFlexLanes = _.difference(track.flexLanes, pruneEmptyPhrases(track.flexLanes, track.noteEventGroups))
-			for (const emptyFlexLane of emptyFlexLanes) {
-				addIssue('emptyFlexLane', emptyFlexLane.msTime)
-			}
-		}
-
-		if (instrumentType === instrumentTypes.drums) {
-			const nonKickDrumNoteTypes = [noteTypes.greenDrum, noteTypes.redDrum, noteTypes.yellowDrum, noteTypes.blueDrum]
-			const kickDrumNoteTypes = [noteTypes.kick]
-			for (const noteGroup of track.noteEventGroups) {
-				// difficultyForbiddenNote
-				{
-					if (track.difficulty !== 'expert') {
-						for (const note of noteGroup) {
-							if (note.flags & noteFlags.doubleKick) {
-								addIssue('difficultyForbiddenNote', noteGroup[0].msTime)
-							}
-						}
-					}
-					if (track.difficulty === 'easy') {
-						if (typeCount(noteGroup, nonKickDrumNoteTypes) === 2 && typeCount(noteGroup, kickDrumNoteTypes) > 0) {
-							addIssue('difficultyForbiddenNote', noteGroup[0].msTime)
-						}
-					}
-				}
-
-				// invalidChord
-				{
-					if (typeCount(noteGroup, nonKickDrumNoteTypes) >= 3) {
-						addIssue('invalidChord', noteGroup[0].msTime)
-					}
-				}
-			}
-		} else if (instrumentType === instrumentTypes.fiveFret) {
-			const fiveNoteChordTypes = [noteTypes.green, noteTypes.red, noteTypes.yellow, noteTypes.blue, noteTypes.orange]
-			const greenBlueChordTypes = [noteTypes.green, noteTypes.blue]
-			const greenOrangeChordTypes = [noteTypes.green, noteTypes.orange]
-			const orangeType = [noteTypes.orange]
-			const orangeBlueTypes = [noteTypes.orange, noteTypes.blue]
-			for (const noteGroup of track.noteEventGroups) {
-				// difficultyForbiddenNote
-				{
-					if (track.difficulty === 'hard') {
-						if (typeCount(noteGroup, greenOrangeChordTypes) === 2) {
-							addIssue('difficultyForbiddenNote', noteGroup[0].msTime)
-						}
-					} else if (track.difficulty === 'medium') {
-						if (typeCount(noteGroup, orangeType) > 0) {
-							addIssue('difficultyForbiddenNote', noteGroup[0].msTime)
-						} else if (typeCount(noteGroup, greenBlueChordTypes) === 2) {
-							addIssue('difficultyForbiddenNote', noteGroup[0].msTime)
-						}
-					} else if (track.difficulty === 'easy') {
-						if (typeCount(noteGroup, orangeBlueTypes) > 0) {
-							addIssue('difficultyForbiddenNote', noteGroup[0].msTime)
-						}
-					}
-				}
-
-				// invalidChord
-				{
-					if (typeCount(noteGroup, fiveNoteChordTypes) === 5) {
-						addIssue('invalidChord', noteGroup[0].msTime)
-					}
-				}
-			}
-		} else if (instrumentType === instrumentTypes.sixFret) {
-			const blackTypes = [noteTypes.black1, noteTypes.black2, noteTypes.black3]
-			const whiteTypes = [noteTypes.white1, noteTypes.white2, noteTypes.white3]
-			const white12Type = [noteTypes.white1, noteTypes.white2]
-			const white23Type = [noteTypes.white2, noteTypes.white3]
-			const oneTypes = [noteTypes.black1, noteTypes.white1]
-			const twoTypes = [noteTypes.black2, noteTypes.white2]
-			const threeTypes = [noteTypes.black3, noteTypes.white3]
-			for (const noteGroup of track.noteEventGroups) {
-				// difficultyForbiddenNote
-				{
-					if (track.difficulty === 'hard') {
-						if (noteGroup.length === 3 && (typeCount(noteGroup, blackTypes) < 3 || typeCount(noteGroup, whiteTypes) < 3)) {
-							addIssue('difficultyForbiddenNote', noteGroup[0].msTime) // No 3-note chords that mix white/black
-						}
-					} else if (track.difficulty === 'medium') {
-						if (noteGroup.length === 3) {
-							addIssue('difficultyForbiddenNote', noteGroup[0].msTime)
-						} else if (noteGroup.length === 2 && typeCount(noteGroup, blackTypes) > 0 && typeCount(noteGroup, whiteTypes) > 0) {
-							if (typeCount(noteGroup, oneTypes) < 2 && typeCount(noteGroup, twoTypes) < 2 && typeCount(noteGroup, threeTypes) < 2) {
-								addIssue('difficultyForbiddenNote', noteGroup[0].msTime) // No chords that mix white/black, except barre chords are ok
-							}
-						}
-					} else if (track.difficulty === 'easy') {
-						if (noteGroup.length === 3) {
-							addIssue('difficultyForbiddenNote', noteGroup[0].msTime)
-						} else if (noteGroup.length === 2 && !(typeCount(noteGroup, white12Type) === 2 || typeCount(noteGroup, white23Type) === 2)) {
-							addIssue('difficultyForbiddenNote', noteGroup[0].msTime)
-						}
-					}
-				}
-
-				// invalidChord
-				{
-					if (noteGroup.length > 3) {
-						addIssue('invalidChord', noteGroup[0].msTime)
-					} else if (typeCount(noteGroup, twoTypes) === 2 && typeCount(noteGroup, oneTypes) > 0) {
-						addIssue('invalidChord', noteGroup[0].msTime)
-					} else if (typeCount(noteGroup, threeTypes) === 2 && typeCount(noteGroup, oneTypes) + typeCount(noteGroup, twoTypes) > 0) {
-						addIssue('invalidChord', noteGroup[0].msTime)
-					}
-				}
-			}
-		}
-
-		// brokenNote
-		{
-			for (let i = 1; i < track.noteEventGroups.length; i++) {
-				const note = track.noteEventGroups[i]
-				const previousNote = track.noteEventGroups[i - 1]
-				const distance = note[0].msTime - previousNote[0].msTime
-				if (distance > 0 && distance <= 15) {
-					if (
-						(typeCount(note, [noteTypes.open]) > 0 && typeCount(previousNote, [noteTypes.open]) === 0) ||
-						(typeCount(note, [noteTypes.open]) === 0 && typeCount(previousNote, [noteTypes.open]) > 0)
-					) {
-						continue // Skip if non-open is next to an open
-					}
-					addIssue('brokenNote', track.noteEventGroups[i][0].msTime)
-				}
-			}
-		}
-
-		if (instrumentType !== instrumentTypes.drums) {
-			// badSustainGap, babySustain
-			{
-				/** Sustain gaps at the end of notes already checked in the for loop. `startTime` is inclusive, `endTime` is exclusive. */
-				const futureSustainGaps: { startTime: number; endTime: number }[] = []
-				for (let i = 0; i < track.noteEventGroups.length; i++) {
-					const noteGroup = track.noteEventGroups[i]
-
-					_.remove(futureSustainGaps, r => r.endTime <= noteGroup[0].msTime)
-					if (futureSustainGaps.some(r => noteGroup[0].msTime >= r.startTime && noteGroup[0].msTime < r.endTime)) {
-						addIssue('badSustainGap', noteGroup[0].msTime)
-					}
-
-					for (const note of noteGroup) {
-						if (note.msLength > 0 && note.type !== noteTypes.open) {
-							// ignore gaps of open sustains
-							futureSustainGaps.push({
-								startTime: note.msTime + note.msLength,
-								endTime: note.msTime + note.msLength + MIN_SUSTAIN_GAP_MS,
-							})
-						}
-
-						if (note.msLength > 0 && note.msLength < MIN_SUSTAIN_MS) {
-							const nextNoteGroupOpen = track.noteEventGroups[i + 1]?.find(n => n.type === noteTypes.open)
-							if (
-								nextNoteGroupOpen &&
-								nextNoteGroupOpen.tick < note.tick + note.length &&
-								nextNoteGroupOpen.flags & (noteFlags.hopo | noteFlags.tap)
-							) {
-								continue // Ignore baby sustains before hopo opens and tap opens
-							}
-
-							addIssue('babySustain', note.msTime)
-						}
-					}
-				}
-			}
-		}
-	}
-
-	return chartIssues
-}
-
-function typeCount(noteGroup: NoteEvent[], types: NoteType[]) {
-	let count = 0
-	for (const note of noteGroup) {
-		if (types.includes(note.type)) {
-			count++
-		}
-	}
-	return count
 }
 
 function getChartHash(chartBytes: Uint8Array, iniChartModifiers: IniChartModifiers) {
