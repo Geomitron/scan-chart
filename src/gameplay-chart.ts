@@ -1,4 +1,4 @@
-import type { ParsedChartFile } from './chart/parse-chart-file'
+import type { ChartSource, ParsedChartFile } from './chart/parse-chart-file'
 import type { IniChartModifiers, NoteType, VocalTrack } from './chart/types'
 import { ObjectCache } from './shared/object-cache'
 import { songContext } from './song-context'
@@ -118,6 +118,8 @@ export interface GameplayChartSource {
 	readonly parsed: ParsedChartFile
 	readonly settings: IniChartModifiers
 	readonly format: ChartFormat
+	/** The chart file as read, for the issues its spelling raises. */
+	readonly source: ChartSource
 }
 
 const sources = new ObjectCache<GameplayChart, GameplayChartSource>('gameplayChartSource')
@@ -132,7 +134,7 @@ export function resolveChart(song: SongDocument): GameplayChart {
 	if (gameplay === undefined) {
 		gameplay = gameplayChart(chart.parsed, settings, chart.source.format)
 		charts.set(chart.parsed, gameplay)
-		sources.set(gameplay, { parsed: chart.parsed, settings, format: chart.source.format })
+		sources.set(gameplay, { parsed: chart.parsed, settings, format: chart.source.format, source: chart.source })
 	}
 	return gameplay
 }

@@ -1,12 +1,14 @@
 import { readChartSongEntries } from './chart/chart-file-parser'
 import { chartSongIniEntries, secondsToMs } from './ini/chart-song-entries'
 import { defaultMetadata } from './ini/metadata'
-import { extractSongMetadata, scanIni } from './ini/scan-ini'
+import { tokenizeIni } from './ini/parse-ini'
+import { extractSongMetadata, findIniData, scanIni } from './ini/scan-ini'
 import { folderIssue, Issue, metadataIssue } from './issues'
 import { findChartData, SongDocument } from './song-document'
-import { isByteSource, readFileBytes, SongFile } from './song-files'
+import { fileBytes, isByteSource, readFileBytes, SongFile } from './song-files'
 import { hasIniExtension } from './shared/file-names'
 import { ObjectCache } from './shared/object-cache'
+import { songIniSpellingIssues } from './spelling-issues'
 
 /**
  * A song's metadata as Clone Hero reads it: song.ini when the song has one, and the `.chart` `[Song]` section only
@@ -28,10 +30,16 @@ export async function parseSongMetadata(files: readonly SongFile[]): Promise<{ r
 	const read = await Promise.all(files.map(async file =>
 		hasIniExtension(file.fileName) && isByteSource(file.data) ? { fileName: file.fileName, data: await readFileBytes(file) } : file))
 	const ini = scanIni(read)
+	const { iniFile } = findIniData(read)
 	const chartSong = format === 'chart' && chartFile !== null ? readChartSongEntries(await readFileBytes(chartFile)) : null
 	return {
 		metadata: songMetadataFrom(ini, chartSong),
-		issues: [...ini.folderIssues.map(folderIssue), ...chartFolderIssues.map(folderIssue), ...ini.metadataIssues.map(metadataIssue)],
+		issues: [
+			...ini.folderIssues.map(folderIssue),
+			...chartFolderIssues.map(folderIssue),
+			...ini.metadataIssues.map(metadataIssue),
+			...songIniSpellingIssues(iniFile === null ? null : { fileName: iniFile.fileName, tokens: tokenizeIni(fileBytes(iniFile)) }),
+		],
 	}
 }
 

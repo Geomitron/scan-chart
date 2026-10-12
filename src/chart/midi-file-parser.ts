@@ -76,6 +76,10 @@ const instrumentNameMap: { [key in InstrumentTrackName]: Instrument } = {
 } as const
 /* eslint-enable @typescript-eslint/naming-convention */
 
+/** The instrument a MIDI track name stands for, or `null` for a track that isn't an instrument's. */
+export function midiTrackInstrument(trackName: string): Instrument | null {
+	return Object.prototype.hasOwnProperty.call(instrumentNameMap, trackName) ? instrumentNameMap[trackName as InstrumentTrackName] : null
+}
 
 const sysExDifficultyMap = ['easy', 'medium', 'hard', 'expert'] as const
 const discoFlipDifficultyMap = ['easy', 'medium', 'hard', 'expert'] as const
