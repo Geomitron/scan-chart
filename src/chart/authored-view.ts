@@ -1,9 +1,19 @@
-import type { Difficulty, Instrument } from '../types'
+import { difficulties, type Difficulty, type Instrument } from '../types'
 import { ChartFileTokens, chartSectionLines, chartSectionTrack, parseTrackLine } from './chart-file-parser'
+import { classifyMidiFile, compareTickAscTypeDesc, pairEventEnds, TrackEventEnd } from './midi-file-parser'
+import { midiTokensToMidiData, MidiTokens } from './midi-tokens'
 import type { EventType } from './raw-types'
 
-/** Where an authored element is in its file, so an edit can rewrite exactly that source. */
-export type AuthoredSource = { readonly format: 'chart'; readonly section: number; readonly line: number }
+/**
+ * Where an authored element is in its file, so an edit can rewrite exactly that source: a `.chart` line, or the start
+ * and end events of a MIDI note or phrase (indices in the track chunk's events).
+ */
+export type AuthoredSource =
+	| { readonly format: 'chart'; readonly section: number; readonly line: number }
+	| { readonly format: 'mid'; readonly chunk: number; readonly events: readonly [start: number, end: number] }
+
+export type ChartAuthoredSource = Extract<AuthoredSource, { format: 'chart' }>
+export type MidiAuthoredSource = Extract<AuthoredSource, { format: 'mid' }>
 
 /** A note, note modifier or phrase, as the file writes it. */
 export interface AuthoredEvent {
@@ -36,7 +46,7 @@ export interface ChartAuthoredTrack {
 	/** `false` for an earlier section whose name repeats later: classification reads only the last one. */
 	readonly isRead: boolean
 	/** Notes, note modifiers and phrases in file order. A solo is its `solo` and `soloend` events, as written. */
-	readonly events: readonly AuthoredEvent[]
+	readonly events: readonly (AuthoredEvent & { readonly source: ChartAuthoredSource })[]
 	readonly textEvents: readonly AuthoredTextEvent[]
 	readonly versusPhrases: readonly AuthoredVersusPhrase[]
 }
@@ -53,13 +63,13 @@ export function chartAuthoredTracks(tokens: ChartFileTokens): ChartAuthoredTrack
 	tokens.sections.forEach((section, sectionIndex) => {
 		const track = chartSectionTrack(section.name)
 		if (track === null) return
-		const events: AuthoredEvent[] = []
+		const events: (AuthoredEvent & { source: ChartAuthoredSource })[] = []
 		const textEvents: AuthoredTextEvent[] = []
 		const versusPhrases: AuthoredVersusPhrase[] = []
 		chartSectionLines(tokens, section).forEach((line, lineIndex) => {
 			if (line.text === '') return
 			const parsed = parseTrackLine(line.text, track.instrument, track.difficulty)
-			const source: AuthoredSource = { format: 'chart', section: sectionIndex, line: lineIndex }
+			const source: ChartAuthoredSource = { format: 'chart', section: sectionIndex, line: lineIndex }
 			if (parsed?.kind === 'note') events.push({ tick: parsed.tick, length: parsed.length, type: parsed.type, source })
 			else if (parsed?.kind === 'text') textEvents.push({ tick: parsed.tick, text: parsed.text, source })
 			else if (parsed?.kind === 'versus') versusPhrases.push({ tick: parsed.tick, length: parsed.length, isPlayer2: parsed.isPlayer2, source })
@@ -75,4 +85,56 @@ export function chartAuthoredTracks(tokens: ChartFileTokens): ChartAuthoredTrack
 		})
 	})
 	return tracks
+}
+
+/** A MIDI note, note modifier or phrase, as written. */
+export interface MidiAuthoredEvent extends AuthoredEvent {
+	/** The difficulty whose notes hold it, or `instrument` for an event stored once for every difficulty, such as star power. */
+	readonly scope: Difficulty | 'instrument'
+	readonly velocity: number
+	readonly channel: number
+	readonly source: MidiAuthoredSource
+}
+
+/** One MIDI instrument track, as written: every difficulty's notes and the events stored once for the instrument. */
+export interface MidiAuthoredTrack {
+	readonly instrument: Instrument
+	/** Index of the track chunk in the file's tokens. */
+	readonly chunk: number
+	/** `false` for a later track of an instrument with an earlier one; Clone Hero reads only the first. */
+	readonly isFirst: boolean
+	/** Notes, note modifiers and phrases by start tick, each with the events it came from. */
+	readonly events: readonly MidiAuthoredEvent[]
+}
+
+/**
+ * Reads every MIDI instrument track of a tokenized `.mid` file, including a later track of the same instrument. Notes
+ * and phrases are paired from their start and end events exactly as parsing pairs them.
+ */
+export function midiAuthoredTracks(tokens: MidiTokens): MidiAuthoredTrack[] {
+	const trackChunks = tokens.chunks.flatMap((chunk, index) => chunk.kind === 'track' ? [index] : [])
+	const seen = new Set<Instrument>()
+	return classifyMidiFile(midiTokensToMidiData(tokens)).instrumentTracks.map(({ instrument, trackIndex, scan }) => {
+		const chunk = trackChunks[trackIndex]
+		const isFirst = !seen.has(instrument)
+		seen.add(instrument)
+		const events: MidiAuthoredEvent[] = []
+		const read = (ends: readonly TrackEventEnd[], scope: Difficulty | 'instrument') => {
+			for (const { start, end } of pairEventEnds([...ends].sort(compareTickAscTypeDesc))) {
+				events.push({
+					tick: start.tick,
+					length: end.tick - start.tick,
+					type: start.type,
+					scope,
+					velocity: start.velocity,
+					channel: start.channel,
+					source: { format: 'mid', chunk, events: [start.eventIndex, end.eventIndex] },
+				})
+			}
+		}
+		read(scan.eventEnds.all, 'instrument')
+		for (const difficulty of difficulties) read(scan.eventEnds[difficulty], difficulty)
+		events.sort((a, b) => a.tick - b.tick)
+		return { instrument, chunk, isFirst, events }
+	})
 }
