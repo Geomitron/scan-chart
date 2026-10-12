@@ -50,6 +50,11 @@ describe('.chart line edits', () => {
 		expect(edited.text).toBe(drums(['0 = N 0 48']))
 	})
 
+	it('refuse a length for a text event, which .chart can\'t store', () => {
+		const file = tokens(drums(['0 = E solo', '0 = N 0 0', '192 = E soloend']))
+		expect(() => chartEventEdits(file, drumEvents(file)[0], { length: 96 })).toThrow('A .chart text event has no length')
+	})
+
 	it('refuse two edits of the same line', () => {
 		const file = tokens(drums(['0 = N 0 0']))
 		const line = drumEvents(file)[0].source.line

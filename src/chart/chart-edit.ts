@@ -98,6 +98,7 @@ export function chartEventEdits(
 	const match = /^(\d+) = ([NSE]) (.*?)( \d+)?$/.exec(lines[line].text)
 	if (match === null) throw new RangeError('The event\'s line isn\'t a tick = N, S or E line')
 	const [, , letter, value, lengthPart] = match
+	if (letter === 'E' && length !== event.length) throw new RangeError('A .chart text event has no length')
 	const text = letter === 'E' ? `${tick} = E ${value}${lengthPart ?? ''}`
 		: `${tick} = ${letter} ${value}${lengthPart === undefined && length === 0 ? '' : ` ${length}`}`
 	if (tick === event.tick) return [{ kind: 'replace', section, line, text }]
