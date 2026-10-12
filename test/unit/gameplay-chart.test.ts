@@ -5,7 +5,7 @@ import { parseChartAndIni } from 'src/chart/parse-chart-and-ini'
 import { ChartReadError, resolveChart } from 'src/gameplay-chart'
 import { msToExactTime } from 'src/shared/time'
 import { scanChart } from 'src/scan-chart'
-import { parseSong } from 'src/song-document'
+import { parseSongFiles } from 'src/song-document'
 
 const encode = (text: string) => new TextEncoder().encode(text)
 const chart = (sections: Record<string, readonly string[]>) => {
@@ -27,7 +27,7 @@ const files = [
 
 describe('the gameplay chart', () => {
 	it('is resolved once per document, with the glossary\'s names', () => {
-		const song = parseSong(files)
+		const song = parseSongFiles(files)
 		const gameplay = resolveChart(song)
 		expect(resolveChart(song)).toBe(gameplay)
 		expect(gameplay.format).toBe('chart')
@@ -39,14 +39,14 @@ describe('the gameplay chart', () => {
 	})
 
 	it('throws ChartReadError when the song has no readable chart', () => {
-		expect(() => resolveChart(parseSong([files[1]]))).toThrow(ChartReadError)
-		expect(() => resolveChart(parseSong([{ fileName: 'notes.chart', data: encode('[Song]\r\n{\r\n}\r\n') }]))).toThrow('resolution not found')
+		expect(() => resolveChart(parseSongFiles([files[1]]))).toThrow(ChartReadError)
+		expect(() => resolveChart(parseSongFiles([{ fileName: 'notes.chart', data: encode('[Song]\r\n{\r\n}\r\n') }]))).toThrow('resolution not found')
 	})
 })
 
 describe('analyzing a gameplay chart', () => {
 	it('finds the issues and statistics the 8.x scanner found, with times as data', () => {
-		const { issues, stats } = analyzeChart(resolveChart(parseSong(files)))
+		const { issues, stats } = analyzeChart(resolveChart(parseSongFiles(files)))
 		const scanned = scanChart(files, parseChartAndIni(files))
 		expect(issues.map(({ instrument, difficulty, code, msTime, message }) => ({
 			instrument,
@@ -76,7 +76,7 @@ describe('analyzing a gameplay chart', () => {
 	})
 
 	it('needs a chart that resolveChart returned', () => {
-		const gameplay = resolveChart(parseSong(files))
+		const gameplay = resolveChart(parseSongFiles(files))
 		expect(() => analyzeChart({ ...gameplay })).toThrow(TypeError)
 	})
 })

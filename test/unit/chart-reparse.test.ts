@@ -6,7 +6,7 @@ import { parseChartTokens } from 'src/chart/chart-reparse'
 import { parseChartSource } from 'src/chart/parse-chart-file'
 import { parseRules } from 'src/chart/parse-rules'
 import { eventTypes } from 'src/chart/raw-types'
-import { editSong, parseSong, SongDocument } from 'src/song-document'
+import { editSong, parseSongFiles, SongDocument } from 'src/song-document'
 import { drumTypes } from 'src/types'
 
 const rules = parseRules.canonical20260801
@@ -28,7 +28,7 @@ function lengthenFirst(song: SongDocument, sectionName: string) {
 }
 
 describe('reparsing an edited .chart', () => {
-	const song = parseSong([{ fileName: 'notes.chart', data: new TextEncoder().encode(chartText({
+	const song = parseSongFiles([{ fileName: 'notes.chart', data: new TextEncoder().encode(chartText({
 		ExpertSingle: ['0 = N 0 0', '192 = N 1 0', '384 = N 2 0'],
 		HardSingle: ['0 = N 0 0', '192 = N 1 0'],
 		ExpertDrums: ['0 = N 0 0', '0 = N 2 0', '192 = N 3 0'],

@@ -4,7 +4,8 @@ import { authoredSongEvents, chartAuthoredTracks } from 'src/chart/authored-view
 import { calculateCompetitiveHashes } from 'src/competitive'
 import { parseChartAndIni } from 'src/chart/parse-chart-and-ini'
 import { scanChart } from 'src/scan-chart'
-import { editSong, parseSong, serializeSong, SongDocument } from 'src/song-document'
+import { editSong, parseSongFiles, serializeSong, SongDocument } from 'src/song-document'
+import { fileBytes } from 'src/song-files'
 
 const encode = (text: string) => new TextEncoder().encode(text)
 const files = [
@@ -18,13 +19,13 @@ const files = [
 	{ fileName: 'song.ini', data: encode('[song]\r\nname = Song\r\nartist = Artist\r\ncharter = Charter\r\n') },
 ]
 const scanned = (song: SongDocument) => {
-	const songFiles = serializeSong(song)
+	const songFiles = serializeSong(song).map(file => ({ fileName: file.fileName, data: fileBytes(file) }))
 	return scanChart(songFiles, parseChartAndIni(songFiles))
 }
 
 describe('competitive hashes from a song document', () => {
 	it('equal the scanner\'s SongHash, duration and TrackHashes', () => {
-		const song = parseSong(files)
+		const song = parseSongFiles(files)
 		const hashes = calculateCompetitiveHashes(song)
 		const scan = scanned(song)
 		if (!hashes.accepted) throw new Error(hashes.reason)
@@ -37,7 +38,7 @@ describe('competitive hashes from a song document', () => {
 	})
 
 	it('give an edited song the hashes of saving it and reading it back', () => {
-		const song = parseSong(files)
+		const song = parseSongFiles(files)
 		calculateCompetitiveHashes(song)
 		const [guitar] = chartAuthoredTracks(song.chart!.format === 'chart' ? song.chart!.tokens : null!)
 		const [tempo] = authoredSongEvents({ format: 'chart', tokens: song.chart!.format === 'chart' ? song.chart!.tokens : null! }).tempos
@@ -46,11 +47,11 @@ describe('competitive hashes from a song document', () => {
 			batch.setTempo(tempo, 150)
 		})
 		const hashes = calculateCompetitiveHashes(edited, { btracks: true })
-		expect(hashes).toEqual(calculateCompetitiveHashes(parseSong(serializeSong(edited)), { btracks: true }))
+		expect(hashes).toEqual(calculateCompetitiveHashes(parseSongFiles(serializeSong(edited)), { btracks: true }))
 		expect(hashes).not.toEqual(calculateCompetitiveHashes(song, { btracks: true }))
 	})
 
 	it('refuse a song without a chart, and give the reason', () => {
-		expect(calculateCompetitiveHashes(parseSong([files[1]]))).toEqual({ accepted: false, reason: 'The song has no chart file.' })
+		expect(calculateCompetitiveHashes(parseSongFiles([files[1]]))).toEqual({ accepted: false, reason: 'The song has no chart file.' })
 	})
 })

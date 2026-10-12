@@ -1,7 +1,8 @@
-import { File, FolderIssueType } from '../types'
+import type { SongFile } from '../song-files'
+import { FolderIssueType } from '../types'
 import { hasBadVideoName, hasVideoName } from '../shared/file-names'
 
-export function scanVideo(files: File[]) {
+export function scanVideo(files: readonly SongFile[]) {
 	const folderIssues: { folderIssue: FolderIssueType; description: string }[] = []
 
 	const findVideoDataResult = findVideoData(files)
@@ -10,11 +11,11 @@ export function scanVideo(files: File[]) {
 	return { hasVideoBackground: !!findVideoDataResult.videoData, folderIssues }
 }
 
-function findVideoData(files: File[]) {
+function findVideoData(files: readonly SongFile[]) {
 	const folderIssues: { folderIssue: FolderIssueType; description: string }[] = []
 	let videoCount = 0
-	let bestVideoData: Uint8Array | null = null
-	let lastVideoData: Uint8Array | null = null
+	let bestVideoData: SongFile['data'] | null = null
+	let lastVideoData: SongFile['data'] | null = null
 
 	for (const file of files) {
 		if (hasVideoName(file.fileName)) {

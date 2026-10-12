@@ -1,7 +1,7 @@
 import { defaultMetadata } from '../ini/metadata'
 import { songContext } from '../song-context'
 import { File, FolderIssueType, MetadataIssueType } from '../types'
-import { findChartData, parseSong } from '../song-document'
+import { findChartData, parseSongFiles } from '../song-document'
 import { IniChartModifiers } from './types'
 import { ChartSource, ParsedChartFile } from './parse-chart-file'
 import type { SongHashMetadata } from './identity/song-hash-20251010'
@@ -89,7 +89,7 @@ export const parsedCharts = new WeakMap<ParsedChart, { readonly source: ChartSou
  */
 export function parseChartAndIni(files: File[]): ParseChartAndIniResult {
 	const { folderIssues: chartFolderIssues } = findChartData(files)
-	const { ini: iniData, settings: iniChartModifiers, songHashMetadata, chart } = songContext(parseSong(files))
+	const { ini: iniData, settings: iniChartModifiers, songHashMetadata, chart } = songContext(parseSongFiles(files))
 
 	let parsedChart: ParsedChart | null = null
 	if (chart.kind === 'parsed') {

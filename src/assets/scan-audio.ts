@@ -1,9 +1,10 @@
 import * as _ from 'lodash'
 
-import { File, FolderIssueType } from '../types'
+import type { SongFile } from '../song-files'
+import { FolderIssueType } from '../types'
 import { getBasename, hasAudioExtension, hasAudioName } from '../shared/file-names'
 
-export function scanAudio(files: File[]) {
+export function scanAudio(files: readonly SongFile[]) {
 	const folderIssues: { folderIssue: FolderIssueType; description: string }[] = []
 
 	const findAudioDataResult = findAudioData(files)
@@ -18,9 +19,9 @@ export function scanAudio(files: File[]) {
 /**
  * @returns the audio file(s) in this chart, or `[]` if none were found.
  */
-function findAudioData(files: File[]) {
+function findAudioData(files: readonly SongFile[]) {
 	const folderIssues: { folderIssue: FolderIssueType; description: string }[] = []
-	const audioData: Uint8Array[] = []
+	const audioData: SongFile['data'][] = []
 	const stemNames: string[] = []
 
 	for (const file of files) {

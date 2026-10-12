@@ -1,4 +1,5 @@
-import { File, FolderIssueType, MetadataIssueType } from '../types'
+import { fileBytes, SongFile } from '../song-files'
+import { FolderIssueType, MetadataIssueType } from '../types'
 import { hasIniExtension, hasIniName } from '../shared/file-names'
 import { removeStyleTags } from '../shared/text'
 import { defaultMetadata } from './metadata'
@@ -66,7 +67,7 @@ const requiredProperties: MetaStringKey[] = ['name', 'artist', 'album', 'genre',
 /** Integer keys that change how notes parse. Clone Hero reads them with `IniFile.GetInt`, so they parse like `int.TryParse`. */
 const chartModifierIntegers = ['hopo_frequency', 'multiplier_note', 'sustain_cutoff_threshold', 'chord_snap_threshold'] as const
 
-export function scanIni(files: File[]): ScanIniResult {
+export function scanIni(files: readonly SongFile[]): ScanIniResult {
 	const folderIssues: { folderIssue: FolderIssueType; description: string }[] = []
 
 	const findIniDataResult = findIniData(files)
@@ -105,8 +106,8 @@ export function scanIni(files: File[]): ScanIniResult {
  * @returns the .ini file data in this chart, or `null` if one wasn't found. Prefers "song.ini", then that name in
  * another letter case, then the last other .ini file.
  */
-export function findIniData(files: readonly File[]): {
-	iniFile: File | null
+export function findIniData(files: readonly SongFile[]): {
+	iniFile: SongFile | null
 	iniData: Uint8Array | null
 	/** `true` if the chosen file is one Clone Hero reads: song.ini in any letter case. */
 	isSongIni: boolean
@@ -114,9 +115,9 @@ export function findIniData(files: readonly File[]): {
 } {
 	const folderIssues: { folderIssue: FolderIssueType; description: string }[] = []
 	let iniCount = 0
-	let bestIni: File | null = null
-	let songIni: File | null = null
-	let lastIni: File | null = null
+	let bestIni: SongFile | null = null
+	let songIni: SongFile | null = null
+	let lastIni: SongFile | null = null
 
 	for (const file of files) {
 		if (hasIniExtension(file.fileName)) {
@@ -139,7 +140,7 @@ export function findIniData(files: readonly File[]): {
 	if (ini === null) {
 		folderIssues.push({ folderIssue: 'noMetadata', description: 'This chart doesn\'t have "song.ini".' })
 	}
-	return { iniFile: ini, iniData: ini?.data ?? null, isSongIni: ini?.fileName.toLowerCase() === 'song.ini', folderIssues }
+	return { iniFile: ini, iniData: ini === null ? null : fileBytes(ini), isSongIni: ini?.fileName.toLowerCase() === 'song.ini', folderIssues }
 }
 
 /** All keys that extractSongMetadata reads (primary + legacy aliases). */
@@ -152,7 +153,7 @@ const knownIniKeys = new Set([
  * @returns the chart metadata found in `songSection`, using default values if not found.
  * Also returns all unrecognized key-value pairs for roundtrip preservation.
  */
-function extractSongMetadata(songSection: { [key: string]: string }): {
+export function extractSongMetadata(songSection: { readonly [key: string]: string }): {
 	metadata: typeof defaultMetadata
 	metadataIssues: { metadataIssue: MetadataIssueType; description: string }[]
 	unknownIniValues: { [key: string]: string }
@@ -259,7 +260,7 @@ function extractSongMetadata(songSection: { [key: string]: string }): {
  * Then falls back to the default value if `legacyKey` is not found or invalid.
  * Any style tags are removed from the string.
  */
-function getIniString(songSection: { [key: string]: string }, key: MetaStringKey, legacyKey?: Exclude<InputMetaStringKey, MetaStringKey>) {
+function getIniString(songSection: { readonly [key: string]: string }, key: MetaStringKey, legacyKey?: Exclude<InputMetaStringKey, MetaStringKey>) {
 	const value = songSection[key]
 	if (value && value !== '0' && value !== '-1') {
 		return removeStyleTags(value)
@@ -278,7 +279,7 @@ function getIniString(songSection: { [key: string]: string }, key: MetaStringKey
  * Falls back to `legacyKey` if not found or invalid.
  * Then falls back to the default value if `legacyKey` is not found or invalid.
  */
-function getIniInteger(songSection: { [key: string]: string }, key: MetaNumberKey, legacyKey?: Exclude<InputMetaNumberKey, MetaNumberKey>) {
+function getIniInteger(songSection: { readonly [key: string]: string }, key: MetaNumberKey, legacyKey?: Exclude<InputMetaNumberKey, MetaNumberKey>) {
 	const value = parseFloat(songSection[key])
 	if (!isNaN(value) && value !== -1) {
 		return value
@@ -295,7 +296,7 @@ function getIniInteger(songSection: { [key: string]: string }, key: MetaNumberKe
 /**
  * @returns the value in `songSection` at `key`, parsed as Clone Hero's `IniFile.GetInt` parses it, or the default.
  */
-function getChartModifierInteger(songSection: { [key: string]: string }, key: (typeof chartModifierIntegers)[number]) {
+function getChartModifierInteger(songSection: { readonly [key: string]: string }, key: (typeof chartModifierIntegers)[number]) {
 	const value = songSection[key]
 	return (value === undefined ? null : parseDotnetInt(value)) ?? defaultMetadata[key]
 }
@@ -318,7 +319,7 @@ function parseDotnetInt(value: string): number | null {
  * Falls back to `legacyKey` if not found or invalid.
  * Then falls back to the default value if `legacyKey` is not found or invalid.
  */
-function getIniBoolean(songSection: { [key: string]: string }, key: MetaBooleanKey, legacyKey?: Exclude<InputMetaBooleanKey, MetaBooleanKey>) {
+function getIniBoolean(songSection: { readonly [key: string]: string }, key: MetaBooleanKey, legacyKey?: Exclude<InputMetaBooleanKey, MetaBooleanKey>) {
 	const parsed = parseBoolean(songSection[key])
 	if (parsed !== null) {
 		return parsed

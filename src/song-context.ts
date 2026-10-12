@@ -1,5 +1,6 @@
 import { readChartSongMetadata } from './chart/chart-file-parser'
 import { parseChartTokens } from './chart/chart-reparse'
+import { wasEdited } from './chart/edit-history'
 import type { SongHashMetadata } from './chart/identity/song-hash-20251010'
 import { selectSongHashMetadata } from './chart/identity/song-metadata'
 import { parseMidiTokens } from './chart/midi-reparse'
@@ -9,7 +10,7 @@ import type { IniChartModifiers } from './chart/types'
 import { defaultMetadata } from './ini/metadata'
 import { scanIni } from './ini/scan-ini'
 import type { SongDocument } from './song-document'
-import type { File } from './types'
+import type { SongFile } from './song-files'
 
 /** What every view of a song reads first: its song.ini, the settings it gives, and one parse of its chart. */
 export interface SongContext {
@@ -57,7 +58,7 @@ function createSongContext(song: SongDocument): SongContext {
 }
 
 /** The song's files with its song.ini as edited. Only song.ini is read from them, so the chart file isn't serialized. */
-function currentFiles(song: SongDocument): File[] {
+function currentFiles(song: SongDocument): SongFile[] {
 	const { ini } = song
 	return song.files.map(file => ini !== null && file.fileName === ini.fileName ? { fileName: file.fileName, data: ini.tokens.bytes } : file)
 }
@@ -65,12 +66,15 @@ function currentFiles(song: SongDocument): File[] {
 function parseChart(chart: NonNullable<SongDocument['chart']>, settings: IniChartModifiers): ChartParseOutcome {
 	const rules = parseRules.canonical20260801
 	try {
+		// A song made by an edit is parsed so that the next edit can reuse the parse; that keeps unresolved copies of
+		// every track, so a song that's only read is parsed plainly. Its first edit then parses the whole chart once.
 		if (chart.format === 'chart') {
 			const source: ChartSource = { format: 'chart', tokens: chart.tokens }
-			return { kind: 'parsed', source, bytes: chart.tokens.bytes, parsed: parseChartTokens(chart.tokens, settings, rules) }
+			const parsed = wasEdited(chart.tokens) ? parseChartTokens(chart.tokens, settings, rules) : parseChartSource(source, settings, rules)
+			return { kind: 'parsed', source, bytes: chart.tokens.bytes, parsed }
 		}
 		const source: ChartSource = { format: 'mid', bytes: chart.bytes, tokens: chart.tokens }
-		const parsed = chart.tokens === null ? parseChartSource(source, settings, rules) : parseMidiTokens(chart.tokens, settings, rules)
+		const parsed = chart.tokens !== null && wasEdited(chart.tokens) ? parseMidiTokens(chart.tokens, settings, rules) : parseChartSource(source, settings, rules)
 		return { kind: 'parsed', source, bytes: source.bytes, parsed }
 	} catch (error) {
 		return { kind: 'failed', error: typeof error === 'string' ? error : ((error as Error)?.message ?? JSON.stringify(error)) }

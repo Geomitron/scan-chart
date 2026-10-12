@@ -279,19 +279,33 @@ const chartSongMetadataFields = new Map<string, keyof ChartSongMetadata>([
  * file, case-sensitive keys, the first nonblank value of each key, outer quotes removed, and .NET trimming. A
  * `Name` of `TEMPO TRACK` or `midi_export` stops the reader. A leading `, ` is removed from `Year`.
  *
- * This feeds the canonical SongHash only. `parseNotesFromChart` keeps its own `[Song]` reading for the scanner's
+ * This feeds the canonical SongHash. `parseNotesFromChart` keeps its own `[Song]` reading for the scanner's
  * metadata, which writers round-trip.
  */
 export function readChartSongMetadata(data: Uint8Array): ChartSongMetadata {
 	const metadata: ChartSongMetadata = {}
+	for (const [key, value] of readChartSongEntries(data)) {
+		const field = chartSongMetadataFields.get(key)
+		if (field !== undefined) metadata[field] = field === 'year' && value.startsWith(', ') ? value.slice(2) : value
+	}
+	return metadata
+}
+
+/**
+ * Every entry of a `.chart` file's first `{}` block, as Clone Hero's `SongEntry.ReadFeedbackChartMetadata` reads it:
+ * case-sensitive keys, the first nonblank value of each key, outer quotes removed, and .NET trimming. A `Name` of
+ * `TEMPO TRACK` or `midi_export` stops the reader. Empty for a file that can't be decoded.
+ */
+export function readChartSongEntries(data: Uint8Array): ReadonlyMap<string, string> {
+	const entries = new Map<string, string>()
 	let text: string
 	try {
 		text = decodeCloneHeroText(data)
 	} catch {
-		return metadata
+		return entries
 	}
 	let position = text.indexOf('{') + 1
-	if (position === 0) return metadata
+	if (position === 0) return entries
 	while (position < text.length) {
 		while (position < text.length && ' \r\n\t'.includes(text[position])) position++
 		if (position === text.length || text[position] === '}') break
@@ -300,14 +314,13 @@ export function readChartSongMetadata(data: Uint8Array): ChartSongMetadata {
 		position = lineEnd + 1
 		const separator = line.indexOf('=')
 		if (separator === -1) continue
-		const field = chartSongMetadataFields.get(trimDotnet(line.slice(0, separator)))
-		let value = trimDotnet(stripOuterQuotes(trimDotnet(line.slice(separator + 1))))
+		const key = trimDotnet(line.slice(0, separator))
+		const value = trimDotnet(stripOuterQuotes(trimDotnet(line.slice(separator + 1))))
 		if (value === '') continue
-		if (field === 'name' && (value === 'TEMPO TRACK' || value === 'midi_export')) break
-		if (field === 'year' && value.startsWith(', ')) value = value.slice(2)
-		if (field !== undefined) metadata[field] ??= value
+		if (key === 'Name' && (value === 'TEMPO TRACK' || value === 'midi_export')) break
+		if (!entries.has(key)) entries.set(key, value)
 	}
-	return metadata
+	return entries
 }
 
 /** Mirrors CH `ParsingTools.FindEndOfLine`: a line ends at LF, or at CR only when LF follows it. */

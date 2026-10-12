@@ -37,7 +37,18 @@ export class TokensCache<T, K extends Tokens = ChartFileTokens> {
 	}
 }
 
+const editedTokens = new WeakSet<Tokens>()
+
 /** Records that `edited` was made by editing `original`, so what each cache derived from `original` can be reused. */
 export function recordEdit<K extends Tokens>(original: K, edited: K): void {
+	editedTokens.add(edited)
 	for (const cache of caches) cache.link(original, edited)
+}
+
+/**
+ * Whether `tokens` were made by an edit. A song being edited is parsed in a way the next edit can reuse, which costs
+ * more than a plain parse; a song that is only read never pays for that.
+ */
+export function wasEdited(tokens: Tokens): boolean {
+	return editedTokens.has(tokens)
 }
