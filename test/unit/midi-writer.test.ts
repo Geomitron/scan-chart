@@ -224,6 +224,15 @@ describe('writeMidiFile round-trip: drum tracks', () => {
 		expect(notes[1].flags & noteFlags.ghost).toBeTruthy()
 	})
 
+	it('preserves the accent of a sustained note at tick 0: [ENABLE_CHART_DYNAMICS] comes before it', () => {
+		const chart = createEmptyChart({ format: 'mid' })
+		const td = emptyDrumTrack('expert')
+		td.noteEventGroups.push([note(0, noteTypes.redDrum, noteFlags.accent, 240)])
+		chart.trackData.push(td)
+		const notes = flatNotes(findTrack(roundTrip(chart), 'drums'))
+		expect(notes[0].flags & noteFlags.accent).toBeTruthy()
+	})
+
 	it('preserves cymbal/tom distinction in fourLanePro', () => {
 		const chart = createEmptyChart({ format: 'mid' })
 		chart.drumType = 1 // fourLanePro
@@ -348,6 +357,15 @@ describe('writeMidiFile round-trip: 5-fret tracks', () => {
 		const chart = createEmptyChart({ format: 'mid' })
 		const td = emptyFretTrack('guitar', 'expert')
 		td.noteEventGroups.push([note(0, noteTypes.open), note(0, noteTypes.red)])
+		chart.trackData.push(td)
+		const group = findTrack(roundTrip(chart), 'guitar').noteEventGroups[0]
+		expect(group.map(n => n.type).sort()).toEqual([noteTypes.open, noteTypes.red].sort())
+	})
+
+	it('preserves a sustained open in a chord at tick 0: [ENHANCED_OPENS] comes before it', () => {
+		const chart = createEmptyChart({ format: 'mid' })
+		const td = emptyFretTrack('guitar', 'expert')
+		td.noteEventGroups.push([note(0, noteTypes.open, 0, 240), note(0, noteTypes.red, 0, 240)])
 		chart.trackData.push(td)
 		const group = findTrack(roundTrip(chart), 'guitar').noteEventGroups[0]
 		expect(group.map(n => n.type).sort()).toEqual([noteTypes.open, noteTypes.red].sort())

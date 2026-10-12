@@ -58,6 +58,8 @@ export interface AbsoluteEvent {
  * sort AFTER untagged events at the same tick (so instrument-track emitters
  * can sequence paired events deterministically via `seq`).
  */
+const modeEvents = new Set(['[ENABLE_CHART_DYNAMICS]', 'ENABLE_CHART_DYNAMICS', '[ENHANCED_OPENS]', 'ENHANCED_OPENS'])
+
 export function finalizeMidiTrack(events: AbsoluteEvent[]): MidiEvent[] {
 	const eventPriority = (e: MidiEvent): number => {
 		switch (e.type) {
@@ -67,7 +69,9 @@ export function finalizeMidiTrack(events: AbsoluteEvent[]): MidiEvent[] {
 			case 'noteOff': return 3
 			case 'sysEx': case 'endSysEx': return 4
 			case 'noteOn': return 5
-			case 'text': case 'lyrics': return 6
+			// A track's mode events apply only to the notes after them, so they follow the track name.
+			case 'text': return modeEvents.has(e.text) ? 0.5 : 6
+			case 'lyrics': return 6
 			case 'endOfTrack': return 8
 			default: return 7
 		}
