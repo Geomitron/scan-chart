@@ -4,7 +4,7 @@ import { resolveHistoricalDuration } from './chart/identity/historical-duration'
 import { songBundle20251010 } from './chart/identity/public'
 import { parseChartAndIni } from './chart/parse-chart-and-ini'
 import { parseChartFileFrozenLegacyIdentity } from './chart/parse-chart-file'
-import { SongDocument, serializeSong } from './song-document'
+import { ChartDocument, IniDocument, SongDocument, serializeSong } from './song-document'
 import type { File } from './types'
 
 /**
@@ -12,12 +12,25 @@ import type { File } from './types'
  * canonical and legacy SongHash, keyed like `canonical:guitar:expert` and `legacy:song`. The hashes are those of the
  * chart file and song.ini alone, as the reference tool calculates them. A legacy SongHash that needs the audio's
  * length is left out. `null` when the chart can't be parsed.
+ *
+ * Documents don't change, so a song's hashes are calculated once and kept with its chart document.
  */
-export function songHashes(song: SongDocument): Map<string, string> | null {
+export function songHashes(song: SongDocument): ReadonlyMap<string, string> | null {
 	const { chart } = song
 	if (chart === null) return null
-	const chartBytes = chart.format === 'mid' ? chart.bytes : chart.tokens.bytes
 	const songIni = song.files.find(file => file.fileName.toLowerCase() === 'song.ini') ?? null
+	const fileNames = song.files.map(file => file.fileName).join('\n')
+	const cached = hashCache.get(chart)
+	if (cached && cached.ini === song.ini && cached.songIni === songIni && cached.fileNames === fileNames) return cached.hashes
+	const hashes = calculateSongHashes(song, chart, songIni)
+	hashCache.set(chart, { ini: song.ini, songIni, fileNames, hashes })
+	return hashes
+}
+
+const hashCache = new WeakMap<ChartDocument, { ini: IniDocument | null; songIni: File | null; fileNames: string; hashes: ReadonlyMap<string, string> | null }>()
+
+function calculateSongHashes(song: SongDocument, chart: ChartDocument, songIni: File | null): ReadonlyMap<string, string> | null {
+	const chartBytes = chart.format === 'mid' ? chart.bytes : chart.tokens.bytes
 	const files: File[] = [{ fileName: chart.format === 'mid' ? 'notes.mid' : 'notes.chart', data: chartBytes }]
 	if (songIni !== null) files.push({ fileName: 'song.ini', data: song.ini?.fileName === songIni.fileName ? song.ini.tokens.bytes : songIni.data })
 	const { parsedChart } = parseChartAndIni(files)
@@ -56,8 +69,8 @@ export function songHashes(song: SongDocument): Map<string, string> | null {
 
 /** What saving did. */
 export interface SaveReport {
-	/** The hashes the edits changed, which normalization may change too. */
-	readonly spentHashes: readonly string[]
+	/** The hashes the edits changed, which normalization may change too; `null` when there was nothing to normalize. */
+	readonly spentHashes: readonly string[] | null
 	readonly normalized: readonly { readonly kind: ChartNormalizationKind; readonly section: string | null }[]
 	/** Normalizations left out because each would change a hash the edits didn't, listed with those hashes. */
 	readonly withheld: readonly { readonly kind: ChartNormalizationKind; readonly section: string | null; readonly hashes: readonly string[] }[]
@@ -79,9 +92,11 @@ export function saveSong(
 	edited: SongDocument,
 	normalizationsOf: (tokens: ChartFileTokens) => readonly ChartNormalization[] = chartNormalizations,
 ): { files: File[]; report: SaveReport } {
-	const unchanged = { spentHashes: [], normalized: [], withheld: [] }
+	const unchanged = { spentHashes: null, normalized: [], withheld: [] }
 	if (edited.chart === original.chart && edited.ini === original.ini) return { files: serializeSong(edited), report: unchanged }
 	if (edited.chart?.format !== 'chart') return { files: serializeSong(edited), report: unchanged }
+	const normalizations = normalizationsOf(edited.chart.tokens)
+	if (normalizations.length === 0) return { files: serializeSong(edited), report: unchanged }
 	const before = songHashes(original)
 	const after = songHashes(edited)
 	if (before === null || after === null) return { files: serializeSong(edited), report: unchanged }
@@ -95,7 +110,6 @@ export function saveSong(
 		return [...new Set([...after.keys(), ...hashes.keys()])].filter(key => !spent.has(key) && hashes.get(key) !== after.get(key)).sort()
 	}
 
-	const normalizations = normalizationsOf(edited.chart.tokens)
 	let tokens = edited.chart.tokens
 	for (const normalization of normalizations) tokens = normalization.apply(tokens)
 	const normalized: SaveReport['normalized'][number][] = []
