@@ -12,7 +12,7 @@ import { describe, expect, it } from 'vitest'
 
 import { writeChartFile } from 'src/chart/chart-writer'
 import { createEmptyChart } from 'src/chart/create-chart'
-import { noteFlags, noteTypes, NoteEvent } from 'src/chart/types'
+import { NoteEvent, noteFlags, type NoteType, noteTypes } from 'src/chart/types'
 import { parseChartAndIni, type ParsedChart } from 'src/chart/parse-chart-and-ini'
 
 function roundTrip(chart: ParsedChart, iniText?: string): ParsedChart {
@@ -67,7 +67,7 @@ function addFretTrack(chart: ParsedChart, instrument: ParsedChart['trackData'][n
 	return track
 }
 
-function note(tick: number, type: number, flags = 0, length = 0): NoteEvent {
+function note(tick: number, type: NoteType, flags = 0, length = 0): NoteEvent {
 	return { tick, type, flags, length, msTime: 0, msLength: 0 }
 }
 

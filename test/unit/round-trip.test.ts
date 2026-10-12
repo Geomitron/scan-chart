@@ -19,7 +19,7 @@ import { createEmptyChart } from 'src/chart/create-chart'
 import { writeChartFile, writeMidiFile } from 'src/index'
 import { parseChartAndIni } from 'src/chart/parse-chart-and-ini'
 import type { ParsedChart } from 'src/chart/parse-chart-and-ini'
-import { noteFlags, noteTypes } from 'src/chart/types'
+import { noteFlags, type NoteType, noteTypes } from 'src/chart/types'
 
 // ---------------------------------------------------------------------------
 // Small helpers — mirror the builders used by midi-writer.test.ts and
@@ -65,7 +65,7 @@ function emptyFretTrack(
 	}
 }
 
-function note(tick: number, type: number, flags = 0, length = 0) {
+function note(tick: number, type: NoteType, flags = 0, length = 0) {
 	return { tick, type, flags, length, msTime: 0, msLength: 0 }
 }
 
