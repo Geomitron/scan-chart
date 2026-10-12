@@ -1,0 +1,98 @@
+{
+  "drumFreestyle": [
+    {
+      "isCoda": false,
+      "length": "100",
+      "tick": "1200"
+    },
+    {
+      "isCoda": false,
+      "length": "100",
+      "tick": "1400"
+    }
+  ],
+  "flexLanes": [
+    {
+      "isDouble": false,
+      "length": "100",
+      "tick": "800"
+    }
+  ],
+  "notes": [
+    {
+      "flags": 16,
+      "length": "0",
+      "tick": "100",
+      "type": 14
+    },
+    {
+      "flags": 16,
+      "length": "0",
+      "tick": "299",
+      "type": 14
+    },
+    {
+      "flags": 16,
+      "length": "0",
+      "tick": "501",
+      "type": 14
+    },
+    {
+      "flags": 16,
+      "length": "0",
+      "tick": "700",
+      "type": 14
+    },
+    {
+      "flags": 16,
+      "length": "0",
+      "tick": "900",
+      "type": 14
+    },
+    {
+      "flags": 16,
+      "length": "0",
+      "tick": "1101",
+      "type": 14
+    },
+    {
+      "flags": 16,
+      "length": "0",
+      "tick": "1300",
+      "type": 14
+    },
+    {
+      "flags": 16,
+      "length": "0",
+      "tick": "1501",
+      "type": 14
+    }
+  ],
+  "rangeShifts": [],
+  "resolution": 192,
+  "solos": [
+    {
+      "length": "101",
+      "tick": "600"
+    }
+  ],
+  "starPower": [
+    {
+      "length": "100",
+      "tick": "200"
+    }
+  ],
+  "tempos": [
+    {
+      "beatsPerMinute": 120,
+      "tick": "0"
+    }
+  ],
+  "timeSignatures": [
+    {
+      "denominator": 4,
+      "numerator": 4,
+      "tick": "0"
+    }
+  ]
+}

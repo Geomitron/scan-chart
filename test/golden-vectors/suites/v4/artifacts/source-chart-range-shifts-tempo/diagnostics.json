@@ -1,0 +1,62 @@
+[
+  {
+    "code": "rangeShiftInstrumentInapplicable",
+    "source": {
+      "containingDifficulty": "expert",
+      "eventIndex": 0,
+      "format": "chart",
+      "instrument": "drums",
+      "text": "ld_range_shift 3 1 5",
+      "tick": 100
+    }
+  },
+  {
+    "code": "rangeShiftMalformed",
+    "source": {
+      "containingDifficulty": "expert",
+      "eventIndex": 0,
+      "format": "chart",
+      "instrument": "keys",
+      "text": "ld_range_shift",
+      "tick": 50
+    }
+  },
+  {
+    "code": "rangeShiftDifficultyInvalid",
+    "declared": 9,
+    "source": {
+      "containingDifficulty": "expert",
+      "eventIndex": 1,
+      "format": "chart",
+      "instrument": "keys",
+      "text": "ld_range_shift 9 1 3",
+      "tick": 60
+    }
+  },
+  {
+    "code": "rangeShiftDifficultyMismatch",
+    "containing": "expert",
+    "declared": "hard",
+    "source": {
+      "containingDifficulty": "expert",
+      "eventIndex": 2,
+      "format": "chart",
+      "instrument": "keys",
+      "text": "ld_range_shift 2 1 3",
+      "tick": 70
+    }
+  },
+  {
+    "code": "rangeShiftOutOfBounds",
+    "position": 3,
+    "size": 0,
+    "source": {
+      "containingDifficulty": "expert",
+      "eventIndex": 6,
+      "format": "chart",
+      "instrument": "keys",
+      "text": "ld_range_shift 3 3 0",
+      "tick": 250
+    }
+  }
+]

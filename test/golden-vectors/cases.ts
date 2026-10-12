@@ -6,7 +6,7 @@ import { defaultMetadata } from 'src/ini/metadata'
 import { Difficulty, Instrument } from 'src/types'
 
 /*
- * The authored cases of the next suite, v4: the canonical `canonical-20260801` profile only. Approved suites are
+ * The authored cases of the next suite, v5: the canonical `canonical-20260801` profile only. Approved suites are
  * frozen in `suites/`; changing a case here changes only drafts generated from now on.
  */
 
