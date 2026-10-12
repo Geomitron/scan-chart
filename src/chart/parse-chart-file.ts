@@ -86,14 +86,20 @@ export function parseChartSource(source: ChartSource, partialIniChartModifiers: 
  * Resolves classified chart data with a rule profile: the drum type, sustain trimming, note modifiers, chord snapping,
  * times in milliseconds, and the profile's track allocation. Consumes `rawChartData`: its events become the result's.
  */
-function resolveChartData(rawChartData: RawChartData, format: 'chart' | 'mid', iniChartModifiers: IniChartModifiers, rules: ParseRules) {
+export function resolveChartData(
+	rawChartData: RawChartData,
+	format: 'chart' | 'mid',
+	iniChartModifiers: IniChartModifiers,
+	rules: ParseRules,
+	resolveOne: (track: RawChartData['trackData'][number], context: TrackResolutionContext) => ResolvedTrack = resolveTrack,
+) {
 	const timedTempos = getTimedTempos(rawChartData.tempos, rawChartData.chartTicksPerBeat)
 	const drumType = chartDrumType(rawChartData.trackData, iniChartModifiers)
 
 	const normalizedVocalTracks = normalizeVocalTracks(rawChartData.vocalTracks, timedTempos, rawChartData.chartTicksPerBeat)
 	// Evaluate trackData first — normalizedVocalTracks is used below for phrase-level hasLyrics check.
 	const context: TrackResolutionContext = { timedTempos, drumType, iniChartModifiers, resolution: rawChartData.chartTicksPerBeat, format }
-	const resolvedTracks = rawChartData.trackData.map(track => resolveTrack(track, context))
+	const resolvedTracks = rawChartData.trackData.map(track => resolveOne(track, context))
 
 	return {
 		resolution: rawChartData.chartTicksPerBeat,
@@ -141,6 +147,8 @@ export function chartDrumType(trackData: RawChartData['trackData'], iniChartModi
 		: drumTypes.fourLane
 }
 
+export type ResolvedTrack = ReturnType<typeof resolveTrack>
+
 /** Resolves one classified track: its notes and phrases, with times in milliseconds. Consumes the track's events. */
 export function resolveTrack(track: RawChartData['trackData'][number], context: TrackResolutionContext) {
 	const { timedTempos, drumType, iniChartModifiers, resolution: tpb, format } = context
@@ -168,7 +176,7 @@ export function resolveTrack(track: RawChartData['trackData'][number], context: 
 }
 
 /** Applies the profile's `.chart` rules to classified data: without `chartFlam`, `N 109` markers are dropped. */
-function applyChartRules(rawChartData: RawChartData, rules: ParseRules): RawChartData {
+export function applyChartRules(rawChartData: RawChartData, rules: ParseRules): RawChartData {
 	if (rules.chartFlam === 'ignored') {
 		for (const track of rawChartData.trackData) {
 			track.trackEvents = track.trackEvents.filter(event => event.type !== eventTypes.forceFlam)

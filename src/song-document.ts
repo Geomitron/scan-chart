@@ -12,6 +12,7 @@ import {
 } from './chart/authored-view'
 import { chartEventEdits, chartEventInsertEdit, chartLineInsertEdit, ChartValueChange, chartValueText, editChartLines } from './chart/chart-edit'
 import { ChartFileTokens, tokenizeChartFile } from './chart/chart-file-parser'
+import { recordChartEdit } from './chart/chart-reparse'
 import {
 	editMidiTrack,
 	midiEventEdits,
@@ -242,7 +243,9 @@ export function editSong(song: SongDocument, collect: (batch: SongEditBatch) => 
 			...songAdditions.map(({ tick, value }) =>
 				chartLineInsertEdit(tokens, lastSection('text' in value ? 'Events' : 'SyncTrack'), tick, chartValueText(null, value))),
 		]
-		return { ...song, chart: { ...chart, tokens: editChartLines(tokens, edits) } }
+		const edited = editChartLines(tokens, edits)
+		recordChartEdit(tokens, edited)
+		return { ...song, chart: { ...chart, tokens: edited } }
 	}
 
 	if (additions.length) throw new RangeError('A .mid file has no .chart sections to add to')
