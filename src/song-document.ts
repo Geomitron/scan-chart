@@ -137,14 +137,22 @@ export interface SongEditBatch {
 export function editSong(song: SongDocument, collect: (batch: SongEditBatch) => void): SongDocument {
 	const { chart } = song
 	if (chart === null) throw new RangeError('The song has no chart to edit')
-	const changes: { event: AuthoredEvent; change: { tick?: number; length?: number } | 'remove' }[] = []
+	// Changes to one event merge, so setting its tick and its length in one batch does both.
+	const changesBySource = new Map<string, { event: AuthoredEvent; change: { tick?: number; length?: number } | 'remove' }>()
+	const change = (event: AuthoredEvent, update: { tick?: number; length?: number } | 'remove') => {
+		const key = event.source.format === 'chart' ? `${event.source.section}:${event.source.line}` : `${event.source.chunk}:${event.source.events[0]}`
+		const earlier = changesBySource.get(key)?.change
+		if (earlier === 'remove') throw new RangeError('The event is already removed in this batch')
+		changesBySource.set(key, { event, change: update === 'remove' ? update : { ...earlier, ...update } })
+	}
 	const additions: { section: number; tick: number; type: EventType; length: number }[] = []
 	collect({
-		setTick: (event, tick) => changes.push({ event, change: { tick } }),
-		setLength: (event, length) => changes.push({ event, change: { length } }),
-		remove: event => changes.push({ event, change: 'remove' }),
+		setTick: (event, tick) => change(event, { tick }),
+		setLength: (event, length) => change(event, { length }),
+		remove: event => change(event, 'remove'),
 		addToChartSection: (section, tick, type, length) => additions.push({ section, tick, type, length }),
 	})
+	const changes = [...changesBySource.values()]
 
 	if (chart.format === 'chart') {
 		const tokens = chart.tokens
@@ -170,7 +178,9 @@ export function editSong(song: SongDocument, collect: (batch: SongEditBatch) => 
 		const edits = change === 'remove'
 			? source.events.map(index => ({ kind: 'delete' as const, event: index }))
 			: midiEventEdits({ ...event, source }, change)
-		byChunk.set(source.chunk, [...(byChunk.get(source.chunk) ?? []), ...edits])
+		let chunkEdits = byChunk.get(source.chunk)
+		if (!chunkEdits) byChunk.set(source.chunk, chunkEdits = [])
+		for (const edit of edits) chunkEdits.push(edit)
 	}
 	let tokens = chart.tokens
 	for (const [chunk, edits] of byChunk) tokens = editMidiTrack(tokens, chunk, edits)
