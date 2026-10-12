@@ -10,7 +10,7 @@ import { noteFlags, noteTypes } from '../types'
 import { drumsDiffStarts } from '../midi-note-numbers'
 import type { ParsedChart } from '../parse-chart-and-ini'
 import { wrapEventBrackets } from '../writer-shared'
-import { addNoteOnOff, addNoteOnOffWithChannel, computeLengthOverrides, deduplicateSections, finalizeMidiTrack, metaTextEvent, noteOffEvent, noteOnEvent, trackNameEvent } from './shared'
+import { addNoteOnOff, addNoteOnOffWithChannel, computeLengthOverrides, mergeDifficultySections, finalizeMidiTrack, metaTextEvent, noteOffEvent, noteOnEvent, trackNameEvent } from './shared'
 import type { AbsoluteEvent, ParsedTrack } from './shared'
 
 
@@ -64,9 +64,9 @@ export function buildDrumTrack(
 	})
 
 	let hasAccentsOrGhosts = false
-	const allStarPower: { tick: number; length: number }[] = []
-	const allSolo: { tick: number; length: number }[] = []
-	const allActivation: { tick: number; length: number }[] = []
+	const allStarPower: { tick: number; length: number }[][] = []
+	const allSolo: { tick: number; length: number }[][] = []
+	const allActivation: { tick: number; length: number }[][] = []
 	const emittedFlexLane = new Map<string, number>()
 	const emittedTomMarker = new Set<string>()
 	const emittedFlam = new Set<string>()
@@ -106,9 +106,9 @@ export function buildDrumTrack(
 		})
 
 		// Collect instrument-wide sections (dedup after loop).
-		for (const sp of td.starPowerSections) allStarPower.push(sp)
-		for (const solo of td.soloSections) allSolo.push(solo)
-		for (const fs of td.drumFreestyleSections) allActivation.push(fs)
+		allStarPower.push(td.starPowerSections)
+		allSolo.push(td.soloSections)
+		allActivation.push(td.drumFreestyleSections)
 
 		// Flex lanes: pick the minimum-velocity entry across difficulties so
 		// scan-chart's fixFlexLaneLds assigns it to the right difficulty.
@@ -149,17 +149,17 @@ export function buildDrumTrack(
 	// Instrument-wide sections. Preserve velocity/channel from source if the
 	// parser attached them (MIDI-parsed sections carry raw MIDI properties).
 	const soloNote = 103
-	for (const sp of deduplicateSections(allStarPower)) {
+	for (const sp of mergeDifficultySections(allStarPower)) {
 		const vel = (sp as { velocity?: number }).velocity ?? 100
 		const ch = (sp as { channel?: number }).channel ?? 0
 		addNoteOnOffWithChannel(events, sp.tick, sp.length, 116, vel, ch)
 	}
-	for (const solo of deduplicateSections(allSolo)) {
+	for (const solo of mergeDifficultySections(allSolo)) {
 		const vel = (solo as { velocity?: number }).velocity ?? 100
 		const ch = (solo as { channel?: number }).channel ?? 0
 		addNoteOnOffWithChannel(events, solo.tick, solo.length, soloNote, vel, ch)
 	}
-	for (const fs of deduplicateSections(allActivation)) {
+	for (const fs of mergeDifficultySections(allActivation)) {
 		const vel = (fs as { velocity?: number }).velocity ?? 100
 		const ch = (fs as { channel?: number }).channel ?? 0
 		addNoteOnOffWithChannel(events, fs.tick, fs.length, 120, vel, ch)

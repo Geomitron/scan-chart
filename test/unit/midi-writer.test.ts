@@ -12,6 +12,7 @@ import type { MidiEvent } from '@geomitron/midi-file'
 import { describe, expect, it } from 'vitest'
 
 import { createEmptyChart } from 'src/chart/create-chart'
+import { writeChartFile } from 'src/chart/chart-writer'
 import { writeMidiFile } from 'src/chart/midi-writer'
 import { noteFlags, type NoteType, noteTypes } from 'src/chart/types'
 import { parseChartAndIni, type ParsedChart } from 'src/chart/parse-chart-and-ini'
@@ -222,6 +223,23 @@ describe('writeMidiFile round-trip: drum tracks', () => {
 		const notes = flatNotes(findTrack(roundTrip(chart), 'drums'))
 		expect(notes[0].flags & noteFlags.accent).toBeTruthy()
 		expect(notes[1].flags & noteFlags.ghost).toBeTruthy()
+	})
+
+	it('writes a drum fill the track has twice twice, in both formats, and a fill on several difficulties once', () => {
+		const chart = createEmptyChart({ format: 'mid' })
+		for (const difficulty of ['expert', 'hard'] as const) {
+			const td = emptyDrumTrack(difficulty)
+			td.noteEventGroups.push([note(0, noteTypes.kick)], [note(480, noteTypes.redDrum)])
+			td.drumFreestyleSections.push({ tick: 480, length: 240, isCoda: false, msTime: 0, msLength: 0 })
+			if (difficulty === 'expert') td.drumFreestyleSections.push({ tick: 480, length: 240, isCoda: false, msTime: 0, msLength: 0 })
+			chart.trackData.push(td)
+		}
+		const fills = (parsed: ParsedChart, difficulty: string) => findTrack(parsed, 'drums', difficulty).drumFreestyleSections.map(fill => [fill.tick, fill.length])
+		const asMidi = roundTrip(chart)
+		expect(fills(asMidi, 'expert')).toEqual([[480, 240], [480, 240]])
+		const asChart = parseChartAndIni([{ fileName: 'notes.chart', data: new TextEncoder().encode(writeChartFile({ ...chart, format: 'chart' })) }]).parsedChart!
+		expect(fills(asChart, 'expert')).toEqual([[480, 240], [480, 240]])
+		expect(fills(asChart, 'hard')).toEqual([[480, 240]])
 	})
 
 	it('preserves the accent of a sustained note at tick 0: [ENABLE_CHART_DYNAMICS] comes before it', () => {

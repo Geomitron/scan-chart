@@ -157,15 +157,24 @@ export function addNoteOnOffWithChannel(
 	})
 }
 
-/** Dedupe by (tick, length) — source may carry multi-difficulty duplicates. */
-export function deduplicateSections<T extends { tick: number; length: number }>(sections: T[]): T[] {
-	const seen = new Set<string>()
-	const out: T[] = []
-	for (const s of sections) {
-		const key = `${s.tick}:${s.length}`
-		if (!seen.has(key)) { seen.add(key); out.push(s) }
+/**
+ * Merges each difficulty's phrases into the one list a MIDI track holds for the instrument. A phrase on several
+ * difficulties is written once, and a phrase a difficulty has twice is written twice, so it reads back twice.
+ */
+export function mergeDifficultySections<T extends { tick: number; length: number }>(perDifficulty: readonly (readonly T[])[]): T[] {
+	const merged = new Map<string, { section: T; count: number }>()
+	for (const sections of perDifficulty) {
+		const counts = new Map<string, number>()
+		for (const section of sections) {
+			const key = `${section.tick}:${section.length}`
+			const count = (counts.get(key) ?? 0) + 1
+			counts.set(key, count)
+			const entry = merged.get(key)
+			if (entry === undefined) merged.set(key, { section, count })
+			else entry.count = Math.max(entry.count, count)
+		}
 	}
-	return out.sort((a, b) => a.tick - b.tick)
+	return [...merged.values()].flatMap(({ section, count }) => Array<T>(count).fill(section)).sort((a, b) => a.tick - b.tick)
 }
 
 /**

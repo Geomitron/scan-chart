@@ -10,7 +10,7 @@ import { fiveFretDiffStarts, fiveFretLaneOffsets, sixFretDiffStarts, sixFretLane
 import { computeHopoThresholdTicks, isNaturalHopo } from '../natural-hopo'
 import type { ParsedChart } from '../parse-chart-and-ini'
 import { wrapEventBrackets } from '../writer-shared'
-import { addNoteOnOff, addNoteOnOffWithChannel, computeLengthOverrides, deduplicateSections, finalizeMidiTrack, metaTextEvent, noteOffEvent, noteOnEvent, trackNameEvent } from './shared'
+import { addNoteOnOff, addNoteOnOffWithChannel, computeLengthOverrides, mergeDifficultySections, finalizeMidiTrack, metaTextEvent, noteOffEvent, noteOnEvent, trackNameEvent } from './shared'
 import type { AbsoluteEvent, ParsedTrack } from './shared'
 
 
@@ -69,9 +69,9 @@ export function buildFretTrack(
 		event: trackNameEvent(trackName),
 	})
 
-	const allStarPower: { tick: number; length: number }[] = []
-	const allSolo: { tick: number; length: number }[] = []
-	const allActivation: { tick: number; length: number }[] = []
+	const allStarPower: { tick: number; length: number }[][] = []
+	const allSolo: { tick: number; length: number }[][] = []
+	const allActivation: { tick: number; length: number }[][] = []
 	const emittedFlexLane = new Map<string, number>()
 
 	// Use ENHANCED_OPENS mode when:
@@ -145,11 +145,11 @@ export function buildFretTrack(
 			emitFretNotes(events, td, fiveFretDiffStarts, fiveFretNoteTypeToOffset, animMap, useEnhancedOpens, animSeqMap)
 		}
 
-		for (const sp of td.starPowerSections) allStarPower.push(sp)
-		for (const solo of td.soloSections) allSolo.push(solo)
+		allStarPower.push(td.starPowerSections)
+		allSolo.push(td.soloSections)
 		// BRE / coda activation (MIDI 120) — fret tracks support this in
 		// addition to drums.
-		for (const fs of td.drumFreestyleSections) allActivation.push(fs)
+		allActivation.push(td.drumFreestyleSections)
 
 		for (const fl of td.flexLanes) {
 			const note = fl.isDouble ? 127 : 126
@@ -244,21 +244,21 @@ export function buildFretTrack(
 	// Instrument-wide sections. Star power = 116, solo = 103, BRE/coda = 120. With song.ini's `multiplier_note = 103`
 	// (Guitar Hero 1 and 2), 103 is star power and 116 is star power the parser rejects; such a chart has no solos.
 	const gh1StarPower = chart.iniChartModifiers.multiplier_note === 103
-	const allRejectedStarPower = gh1StarPower ? trackDataEntries.flatMap(td => td.rejectedStarPowerSections) : []
-	for (const sp of deduplicateSections(allStarPower)) {
+	const allRejectedStarPower = gh1StarPower ? trackDataEntries.map(td => td.rejectedStarPowerSections) : []
+	for (const sp of mergeDifficultySections(allStarPower)) {
 		const vel = (sp as { velocity?: number }).velocity ?? 100
 		const ch = (sp as { channel?: number }).channel ?? 0
 		addNoteOnOffWithChannel(events, sp.tick, sp.length, gh1StarPower ? 103 : 116, vel, ch)
 	}
-	for (const sp of deduplicateSections(allRejectedStarPower)) {
+	for (const sp of mergeDifficultySections(allRejectedStarPower)) {
 		addNoteOnOffWithChannel(events, sp.tick, sp.length, 116, 100, 0)
 	}
-	for (const solo of gh1StarPower ? [] : deduplicateSections(allSolo)) {
+	for (const solo of gh1StarPower ? [] : mergeDifficultySections(allSolo)) {
 		const vel = (solo as { velocity?: number }).velocity ?? 100
 		const ch = (solo as { channel?: number }).channel ?? 0
 		addNoteOnOffWithChannel(events, solo.tick, solo.length, 103, vel, ch)
 	}
-	for (const fs of deduplicateSections(allActivation)) {
+	for (const fs of mergeDifficultySections(allActivation)) {
 		const vel = (fs as { velocity?: number }).velocity ?? 100
 		const ch = (fs as { channel?: number }).channel ?? 0
 		addNoteOnOffWithChannel(events, fs.tick, fs.length, 120, vel, ch)
