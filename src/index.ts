@@ -17,6 +17,17 @@ export { canonical20260801 } from './chart/identity/public'
 export { scanIni } from './ini/scan-ini'
 
 /**
+ * Chart authoring / serialization API (createEmptyChart + writers).
+ */
+export { createEmptyChart } from './chart/create-chart'
+export { writeChartFile } from './chart/chart-writer'
+export { writeMidiFile } from './chart/midi-writer'
+export { writeChartFolder } from './chart/chart-document'
+export { writeIniFile } from './ini/ini-writer'
+export type { ChartDocument } from './chart/chart-document'
+export type { IniMetadata } from './ini/ini-writer'
+
+/**
  * Result types, enums, and helper functions
  */
 export type { ParsedChart, ParseChartAndIniResult } from './chart/parse-chart-and-ini'
@@ -73,8 +84,15 @@ export type {
 	VocalPhrase,
 	VocalPart,
 	VocalTrack,
+	NormalizedLyricEvent,
+	NormalizedVocalNote,
+	NormalizedVocalPhrase,
+	NormalizedVocalPart,
+	NormalizedVocalTrack,
 } from './chart/types'
-export { noteTypes, noteFlags, lyricFlags } from './chart/types'
+export { noteTypes, noteFlags, lyricFlags, defaultIniChartModifiers } from './chart/types'
+export type { RawChartData, EventType, VocalTrackData } from './chart/raw-types'
+export { eventTypes } from './chart/raw-types'
 export { defaultMetadata } from './ini/metadata'
 
 export type {
