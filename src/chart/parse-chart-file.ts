@@ -1,8 +1,9 @@
 
 import { defaultMetadata } from '../ini/metadata'
 import { Difficulty, DrumType, drumTypes, getInstrumentType, Instrument, instrumentTypes } from '../types'
-import { classifyChartFile, readChartFile } from './chart-file-parser'
-import { applyMidiRules, classifyMidiFile, readMidiFile } from './midi-file-parser'
+import { ChartFileTokens, chartFileSections, classifyChartFile, tokenizeChartFile } from './chart-file-parser'
+import { applyMidiRules, classifyMidiFile, midiTokensForParsing } from './midi-file-parser'
+import { midiTokensToMidiData, MidiTokens } from './midi-tokens'
 import { parseRules, ParseRules } from './parse-rules'
 import {
 	IniChartModifiers,
@@ -59,11 +60,26 @@ function parseChartFileWithRules(
 	partialIniChartModifiers: Partial<IniChartModifiers>,
 	rules: ParseRules,
 ) {
+	const source: ChartSource = format === 'mid' ? { format, bytes: data, tokens: null } : { format, tokens: tokenizeChartFile(data) }
+	return parseChartSource(source, partialIniChartModifiers, rules)
+}
+
+/** A tokenized chart file. A song document's chart is one. */
+export type ChartSource =
+	| { readonly format: 'chart'; readonly tokens: ChartFileTokens }
+	| { readonly format: 'mid'; readonly bytes: Uint8Array; readonly tokens: MidiTokens | null }
+
+/**
+ * Parses a tokenized chart file with a rule profile: classification, the profile's MIDI rules, then resolution.
+ *
+ * Throws an exception exactly as parsing the file's bytes would.
+ */
+export function parseChartSource(source: ChartSource, partialIniChartModifiers: Partial<IniChartModifiers>, rules: ParseRules) {
 	const iniChartModifiers = Object.assign({}, defaultMetadata, partialIniChartModifiers) as IniChartModifiers
-	const rawChartData = format === 'mid'
-		? applyMidiRules(classifyMidiFile(readMidiFile(data)), iniChartModifiers, rules)
-		: classifyChartFile(readChartFile(data))
-	return resolveChartData(rawChartData, format, iniChartModifiers, rules)
+	const rawChartData = source.format === 'mid'
+		? applyMidiRules(classifyMidiFile(midiTokensToMidiData(midiTokensForParsing(source.tokens, source.bytes))), iniChartModifiers, rules)
+		: classifyChartFile(chartFileSections(source.tokens))
+	return resolveChartData(rawChartData, source.format, iniChartModifiers, rules)
 }
 
 /**

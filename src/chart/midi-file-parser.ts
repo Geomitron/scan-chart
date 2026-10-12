@@ -145,7 +145,19 @@ export function readMidiFile(data: Uint8Array): MidiData {
  * type other than `MTrk` among the tracks is rejected too, as it was when `.mid` files were read with `parseMidi`.
  */
 export function readMidiFileTokens(data: Uint8Array): MidiTokens {
-	const tokens = readMidiTokens(data, 'reject')
+	return checkMidiFileTokens(readMidiTokens(data, 'reject'))
+}
+
+/**
+ * Returns tokens read with unknown chunks kept, checked as `readMidiFileTokens` checks them. A file with an unknown
+ * chunk is read again strictly, so it is rejected exactly as before.
+ */
+export function midiTokensForParsing(tokens: MidiTokens | null, data: Uint8Array): MidiTokens {
+	if (tokens === null || tokens.chunks.some(chunk => chunk.kind === 'skipped' && chunk.id !== 'MTrk')) return readMidiFileTokens(data)
+	return checkMidiFileTokens(tokens)
+}
+
+function checkMidiFileTokens(tokens: MidiTokens): MidiTokens {
 	const { header } = tokens.header
 	if (header.format !== 1) {
 		throw `Invavlid .mid file: unsupported header format "${header.format}"`
