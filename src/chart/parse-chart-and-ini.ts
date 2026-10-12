@@ -1,4 +1,5 @@
 import { defaultMetadata } from '../ini/metadata'
+import { ObjectCache } from '../shared/object-cache'
 import { songContext } from '../song-context'
 import { File, FolderIssueType, MetadataIssueType } from '../types'
 import { findChartData, parseSongFiles } from '../song-document'
@@ -76,7 +77,7 @@ export interface ParseChartAndIniResult {
  * The tokenized chart each parsed chart came from, and the canonical parse it extends, which the competitive hashes
  * reuse instead of parsing the chart again.
  */
-export const parsedCharts = new WeakMap<ParsedChart, { readonly source: ChartSource; readonly parsed: ParsedChartFile }>()
+export const parsedCharts = new ObjectCache<ParsedChart, { readonly source: ChartSource; readonly parsed: ParsedChartFile }>('parsedChart')
 
 /**
  * Parse a chart folder's `notes.{mid,chart}` and `song.ini` into a

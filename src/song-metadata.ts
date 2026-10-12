@@ -5,6 +5,7 @@ import { folderIssue, Issue, metadataIssue } from './issues'
 import { findChartData, SongDocument } from './song-document'
 import { isByteSource, readFileBytes, SongFile } from './song-files'
 import { hasIniExtension } from './shared/file-names'
+import { ObjectCache } from './shared/object-cache'
 
 /**
  * A song's metadata as Clone Hero reads it: song.ini when the song has one, and the `.chart` `[Song]` section only
@@ -44,7 +45,7 @@ export function songMetadata(song: SongDocument): SongMetadata {
 	return metadata
 }
 
-const documentMetadata = new WeakMap<SongDocument, SongMetadata>()
+const documentMetadata = new ObjectCache<SongDocument, SongMetadata>('songMetadata')
 
 /** `[Song]` keys Clone Hero and scan-chart read as metadata when there's no song.ini, with their song.ini keys. */
 const chartSongKeys: readonly (readonly [chartKey: string, iniKey: string, secondsToMs?: true])[] = [
