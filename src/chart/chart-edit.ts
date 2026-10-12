@@ -50,7 +50,8 @@ export function editChartLines(tokens: ChartFileTokens, edits: readonly ChartLin
 		}
 	})
 
-	splices.sort((a, b) => a.start - b.start || a.order - b.order)
+	// An insertion at a line's start goes before an edit of that line, so it doesn't overlap it.
+	splices.sort((a, b) => a.start - b.start || (a.end - a.start === 0 ? 0 : 1) - (b.end - b.start === 0 ? 0 : 1) || a.order - b.order)
 	for (let i = 1; i < splices.length; i++) {
 		if (splices[i].start < splices[i - 1].end) throw new RangeError('Two edits touch the same line')
 	}
