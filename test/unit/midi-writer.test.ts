@@ -13,7 +13,7 @@ import { describe, expect, it } from 'vitest'
 
 import { createEmptyChart } from 'src/chart/create-chart'
 import { writeMidiFile } from 'src/chart/midi-writer'
-import { noteFlags, noteTypes } from 'src/chart/types'
+import { noteFlags, type NoteType, noteTypes } from 'src/chart/types'
 import { parseChartAndIni, type ParsedChart } from 'src/chart/parse-chart-and-ini'
 
 function roundTrip(chart: ParsedChart, iniText?: string): ParsedChart {
@@ -49,7 +49,7 @@ function emptyDrumTrack(
 	}
 }
 
-function note(tick: number, type: number, flags = 0, length = 0) {
+function note(tick: number, type: NoteType, flags = 0, length = 0) {
 	return { tick, type, flags, length, msTime: 0, msLength: 0 }
 }
 
