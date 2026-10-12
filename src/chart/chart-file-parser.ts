@@ -6,6 +6,11 @@ import { extractChartLyrics, extractChartVocalPhrases } from './lyric-parser'
 
 /* eslint-disable @typescript-eslint/naming-convention */
 type TrackName = keyof typeof trackNameMap
+
+/** The instrument and difficulty a `.chart` section holds, or `null` for a section that isn't a track. */
+export function chartSectionTrack(sectionName: string): { instrument: Instrument; difficulty: Difficulty } | null {
+	return Object.prototype.hasOwnProperty.call(trackNameMap, sectionName) ? trackNameMap[sectionName as TrackName] as { instrument: Instrument; difficulty: Difficulty } : null
+}
 const trackNameMap = {
 	ExpertSingle: { instrument: 'guitar', difficulty: 'expert' },
 	HardSingle: { instrument: 'guitar', difficulty: 'hard' },
@@ -598,7 +603,7 @@ function parseChartUnrecognizedSyncTrackEvents(lines: string[]): { tick: number;
 type ParsedNoteEvent = { kind: 'note'; tick: number; type: EventType; length: number }
 type ParsedTextEvent = { kind: 'text'; tick: number; text: string }
 type ParsedVersusEvent = { kind: 'versus'; tick: number; length: number; isPlayer2: boolean }
-type ParsedTrackLine = ParsedNoteEvent | ParsedTextEvent | ParsedVersusEvent
+export type ParsedTrackLine = ParsedNoteEvent | ParsedTextEvent | ParsedVersusEvent
 
 /**
  * Parse a single line of a .chart instrument track section. Produces a typed
@@ -610,7 +615,7 @@ type ParsedTrackLine = ParsedNoteEvent | ParsedTextEvent | ParsedVersusEvent
  *   TICK = S VALUE LENGTH    → starPower, flex lane, freestyle, or versus phrase
  *   TICK = N VALUE LENGTH    → note (with instrument-specific mapping)
  */
-function parseTrackLine(line: string, instrument: Instrument, difficulty: Difficulty): ParsedTrackLine | null {
+export function parseTrackLine(line: string, instrument: Instrument, difficulty: Difficulty): ParsedTrackLine | null {
 	// Most lines are N/S (notes). Try them first to short-circuit the common case.
 	const nsMatch = chartLineNS.exec(line)
 	if (nsMatch) {
