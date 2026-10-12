@@ -75,14 +75,18 @@ export interface ParseChartAndIniResult {
 	iniMetadataIssues: { metadataIssue: MetadataIssueType; description: string }[]
 }
 
+/** The tokenized chart each parsed chart came from, so a second parse of it doesn't tokenize the file again. */
+export const parsedChartSources = new WeakMap<ParsedChart, ChartSource>()
+
 /**
  * Parse a chart folder's `notes.{mid,chart}` and `song.ini` into a
  * `ParsedChart`, with no hashing or audio/image scanning. Pair with
  * `scanChart` if you need hashes, chart issues, or asset scanning.
+ *
+ * The notes are read with Clone Hero's rules, the canonical ones (E2): a
+ * `.chart` section with no notes isn't a track, only the first `.mid` track
+ * of an instrument is read, and a `.mid` tap phrase includes its end tick.
  */
-/** The tokenized chart each parsed chart came from, so a second parse of it doesn't tokenize the file again. */
-export const parsedChartSources = new WeakMap<ParsedChart, ChartSource>()
-
 export function parseChartAndIni(files: File[]): ParseChartAndIniResult {
 	const iniData = scanIni(files)
 	const iniChartModifiers: IniChartModifiers = iniData.metadata
@@ -97,7 +101,7 @@ export function parseChartAndIni(files: File[]): ParseChartAndIniResult {
 		const chartData = chart.format === 'mid' ? chart.bytes : chart.tokens.bytes
 		const format = chart.format
 		try {
-			const inner = parseChartSource(chart, iniChartModifiers, parseRules.scanner)
+			const inner = parseChartSource(chart, iniChartModifiers, parseRules.canonical20260801)
 
 			// Merge [Song]-section metadata with song.ini metadata onto a single
 			// `parsedChart.metadata`. song.ini wins where both provide a value —
