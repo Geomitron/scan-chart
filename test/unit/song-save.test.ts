@@ -15,7 +15,8 @@ const songIni = { fileName: 'song.ini', data: encode('[song]\r\nname = Test\r\ns
 function song(lines: string[], lineEnding = '\r\n') {
 	return parseSongFiles([{ fileName: 'notes.chart', data: encode(lines.join(lineEnding) + lineEnding) }, songIni])
 }
-const header = ['[Song]', '{', '  Resolution = 192', '}', '[SyncTrack]', '{', '  0 = B 120000', '}', '[Events]', '{', '}']
+// [Song] agrees with song.ini, so the [Song] normalization has nothing to do.
+const header = ['[Song]', '{', '  Resolution = 192', '  Name = "Test"', '  Length = 60', '}', '[SyncTrack]', '{', '  0 = B 120000', '}', '[Events]', '{', '}']
 
 /** Lengthens Expert Guitar's note at tick 192. */
 function lengthenExpertNote(original: SongDocument) {

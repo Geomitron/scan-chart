@@ -310,17 +310,25 @@ export function readChartSongEntries(data: Uint8Array): ReadonlyMap<string, stri
 		while (position < text.length && ' \r\n\t'.includes(text[position])) position++
 		if (position === text.length || text[position] === '}') break
 		const lineEnd = findEndOfLine(text, position)
-		const line = text.slice(position, lineEnd)
+		const entry = readChartSongLine(text.slice(position, lineEnd))
 		position = lineEnd + 1
-		const separator = line.indexOf('=')
-		if (separator === -1) continue
-		const key = trimDotnet(line.slice(0, separator))
-		const value = trimDotnet(stripOuterQuotes(trimDotnet(line.slice(separator + 1))))
-		if (value === '') continue
-		if (key === 'Name' && (value === 'TEMPO TRACK' || value === 'midi_export')) break
-		if (!entries.has(key)) entries.set(key, value)
+		if (entry === null || entry.value === '') continue
+		if (isChartSongReaderStop(entry)) break
+		if (!entries.has(entry.key)) entries.set(entry.key, entry.value)
 	}
 	return entries
+}
+
+/** A `[Song]` line's key and value as Clone Hero reads them, or `null` for a line without `=`. */
+export function readChartSongLine(line: string): { readonly key: string; readonly value: string } | null {
+	const separator = line.indexOf('=')
+	if (separator === -1) return null
+	return { key: trimDotnet(line.slice(0, separator)), value: trimDotnet(stripOuterQuotes(trimDotnet(line.slice(separator + 1)))) }
+}
+
+/** Whether Clone Hero's `[Song]` reader stops at this entry: a `Name` of `TEMPO TRACK` or `midi_export`. */
+export function isChartSongReaderStop(entry: { readonly key: string; readonly value: string }) {
+	return entry.key === 'Name' && (entry.value === 'TEMPO TRACK' || entry.value === 'midi_export')
 }
 
 /** Mirrors CH `ParsingTools.FindEndOfLine`: a line ends at LF, or at CR only when LF follows it. */
