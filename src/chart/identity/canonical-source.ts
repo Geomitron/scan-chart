@@ -278,6 +278,11 @@ export function parseCanonicalChartSource(source: ChartSource, modifiers: Partia
 	return canonicalOutcome(source.format, () => parseChartSource(source, modifiers, parseRules.canonical20260801))
 }
 
+/** The canonical outcome of a chart already parsed with the canonical rules. Only reads `parsed`. */
+export function canonicalChartFromParse(format: 'chart' | 'mid', parsed: ReturnType<typeof parseChartSource>): CanonicalParseOutcome {
+	return canonicalOutcome(format, () => parsed)
+}
+
 function canonicalOutcome(format: 'chart' | 'mid', parse: () => ReturnType<typeof parseChartFileCanonicalIdentity>): CanonicalParseOutcome {
 	try {
 		const parsed = parse()
