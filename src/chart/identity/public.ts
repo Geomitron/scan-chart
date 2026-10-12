@@ -39,6 +39,7 @@ import {
 import {
 	HistoricalSongHashDurationMs,
 } from './duration-types'
+import { calculateTempoMapHash } from './tempo-map-hash'
 import { identityTrackKey } from './track-key'
 
 const frozenLegacyChartToken: unique symbol = Symbol('frozenLegacyChart')
@@ -125,6 +126,8 @@ export interface Canonical20260801Api {
 	calculateSongIdentity(request: CanonicalSongIdentityRequest): CanonicalSongIdentity
 	/** Calculates every member track's identity and duration, and the song's SongHash, from one parsed chart. */
 	calculateSongBundle(request: CanonicalSongBundleRequest): CanonicalSongBundle
+	/** Calculates Clone Hero's tempo map hash, which the leaderboard backend compares across scores. */
+	calculateTempoMapHash(chart: CanonicalParsedChart): string
 	readBTrack(bytes: Uint8Array): CanonicalBTrackReadOutcome
 }
 
@@ -302,6 +305,7 @@ export const canonical20260801: Canonical20260801Api = {
 	calculateTrackIdentity: track => identifyCanonicalTrack(track.semantics),
 	calculateSongIdentity: identifyCanonicalSong,
 	calculateSongBundle: calculateCanonicalSongBundle,
+	calculateTempoMapHash: chart => calculateTempoMapHash(chart.tempoMap),
 	readBTrack: readBTrack20260801,
 }
 
