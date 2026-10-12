@@ -132,6 +132,37 @@ export function readMidiTokens(data: Uint8Array, unknownChunks: MidiUnknownChunk
 	return { data, header, chunks, trailingStart }
 }
 
+/**
+ * The tokens of `tokens`' file with the track chunk at `chunkIndex` replaced by `chunkBytes`, a whole `MTrk` chunk.
+ * Only the new chunk is read: the chunks before it are kept, and the chunks after it keep their decoded events at
+ * shifted offsets. The result equals reading the edited file with `readMidiTokens`.
+ */
+export function replaceMidiTrackChunk(tokens: MidiTokens, chunkIndex: number, chunkBytes: Uint8Array): MidiTokens {
+	const old = tokens.chunks[chunkIndex]
+	if (old?.kind !== 'track') throw new RangeError('Only a MIDI track chunk can be replaced')
+	const shift = chunkBytes.length - (old.end - old.start)
+	const data = new Uint8Array(tokens.data.length + shift)
+	data.set(tokens.data.subarray(0, old.start))
+	data.set(chunkBytes, old.start)
+	data.set(tokens.data.subarray(old.end), old.start + chunkBytes.length)
+
+	const frame = readChunkFrame(data, old.start)
+	const replaced: MidiTrackChunk = { ...frame, kind: 'track', events: readTrackEvents(data.subarray(frame.bodyStart, frame.end), frame.bodyStart) }
+	const chunks = tokens.chunks.map((chunk, index): MidiChunk => index < chunkIndex ? chunk
+		: index === chunkIndex ? replaced
+		: shiftChunk(chunk, shift))
+	return { data, header: tokens.header, chunks, trailingStart: tokens.trailingStart + shift }
+}
+
+/** A chunk moved `shift` bytes later in the file, with its events' offsets moved too. */
+function shiftChunk(chunk: MidiChunk, shift: number): MidiChunk {
+	const moved = { ...chunk, start: chunk.start + shift, lengthStart: chunk.lengthStart + shift, bodyStart: chunk.bodyStart + shift, end: chunk.end + shift }
+	if (moved.kind === 'track') {
+		moved.events = moved.events.map(token => ({ start: token.start + shift, end: token.end + shift, tick: token.tick, event: token.event }))
+	}
+	return moved
+}
+
 /** The file's bytes, chunk by chunk: the same bytes as `tokens.data` for tokens that are not edited. */
 export function serializeMidiTokens(tokens: MidiTokens): Uint8Array {
 	const { data } = tokens
