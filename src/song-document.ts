@@ -1,10 +1,29 @@
 import * as _ from 'lodash'
 
-import { type AuthoredEvent, midiAuthoredTracks } from './chart/authored-view'
-import { chartEventEdits, chartEventInsertEdit, editChartLines } from './chart/chart-edit'
+import type { MidiEvent } from '@geomitron/midi-file'
+
+import {
+	type AuthoredEvent,
+	type AuthoredSource,
+	type AuthoredTempo,
+	type AuthoredTextEvent,
+	type AuthoredTimeSignature,
+	midiAuthoredTracks,
+} from './chart/authored-view'
+import { chartEventEdits, chartEventInsertEdit, chartLineInsertEdit, ChartValueChange, chartValueText, editChartLines } from './chart/chart-edit'
 import { ChartFileTokens, tokenizeChartFile } from './chart/chart-file-parser'
-import { editMidiTrack, midiEventEdits, midiEventEncoding, midiEventInserts, MidiTrackEdit } from './chart/midi-edit'
-import { MidiTokens, readMidiTokens, serializeMidiTokens } from './chart/midi-tokens'
+import {
+	editMidiTrack,
+	midiEventEdits,
+	midiEventEncoding,
+	midiEventInserts,
+	midiTempoEvent,
+	midiTextEvent,
+	midiTimeSignatureEvent,
+	MidiTrackEdit,
+} from './chart/midi-edit'
+import { findMidiEventsTrack, isTextLikeEvent } from './chart/midi-file-parser'
+import { MidiTokens, midiTokensToMidiData, readMidiTokens, serializeMidiTokens } from './chart/midi-tokens'
 import { IniTokens, tokenizeIni } from './ini/parse-ini'
 import { findIniData } from './ini/scan-ini'
 import { getBasename, getExtension, hasChartExtension, hasChartName } from './shared/file-names'
@@ -116,14 +135,37 @@ export function findChartData(files: readonly File[]) {
 	}
 }
 
+/** An authored element an edit can move or remove: an event, text event, tempo or time signature. */
+export interface AuthoredElement {
+	readonly tick: number
+	/** Absent for an element written as one event or line with no length, such as a tempo. */
+	readonly length?: number
+	readonly source: AuthoredSource
+}
+
 /** The edits one call of `editSong` collects; they apply together, as one change. */
 export interface SongEditBatch {
-	/** Moves an authored event, keeping its length. */
-	setTick(event: AuthoredEvent, tick: number): void
+	/** Moves an authored element, keeping its length. */
+	setTick(element: AuthoredElement, tick: number): void
 	/** Changes an authored event's length. */
 	setLength(event: AuthoredEvent, length: number): void
-	/** Removes an authored event. */
-	remove(event: AuthoredEvent): void
+	/** Removes an authored element. */
+	remove(element: AuthoredElement): void
+	/**
+	 * Changes a tempo marker's tempo. It's rounded to what the format holds: thousandths of a BPM in `.chart`, whole
+	 * microseconds per beat in `.mid`.
+	 */
+	setTempo(tempo: AuthoredTempo, beatsPerMinute: number): void
+	/** Changes a time signature. The denominator is a power of two. */
+	setTimeSignature(timeSignature: AuthoredTimeSignature, numerator: number, denominator: number): void
+	/** Changes a text event's text. */
+	setText(textEvent: AuthoredTextEvent, text: string): void
+	/** Adds a tempo marker to the `[SyncTrack]` section or the conductor track, rounded as `setTempo` rounds. */
+	addTempo(tick: number, beatsPerMinute: number): void
+	/** Adds a time signature to the `[SyncTrack]` section or the conductor track. */
+	addTimeSignature(tick: number, numerator: number, denominator: number): void
+	/** Adds a text event, such as a practice section, to the `[Events]` section or the events track. */
+	addTextEvent(tick: number, text: string): void
 	/** Adds an event to a `.chart` instrument section, by the section's index in the file's tokens. */
 	addToChartSection(section: number, tick: number, type: EventType, length: number): void
 	/**
@@ -141,6 +183,8 @@ export interface SongEditBatch {
 	): void
 }
 
+type ElementChange = { tick?: number; length?: number; value?: ChartValueChange }
+
 /**
  * Applies a batch of edits to a song's chart and returns the edited song, leaving `song` unchanged: the earlier
  * document is the undo step. Every byte the edits don't touch is kept.
@@ -150,20 +194,28 @@ export interface SongEditBatch {
 export function editSong(song: SongDocument, collect: (batch: SongEditBatch) => void): SongDocument {
 	const { chart } = song
 	if (chart === null) throw new RangeError('The song has no chart to edit')
-	// Changes to one event merge, so setting its tick and its length in one batch does both.
-	const changesBySource = new Map<string, { event: AuthoredEvent; change: { tick?: number; length?: number } | 'remove' }>()
-	const change = (event: AuthoredEvent, update: { tick?: number; length?: number } | 'remove') => {
-		const key = event.source.format === 'chart' ? `${event.source.section}:${event.source.line}` : `${event.source.chunk}:${event.source.events[0]}`
+	// Changes to one element merge, so setting its tick and its length or value in one batch does both.
+	const changesBySource = new Map<string, { element: AuthoredElement; change: ElementChange | 'remove' }>()
+	const change = (element: AuthoredElement, update: ElementChange | 'remove') => {
+		const { source } = element
+		const key = source.format === 'chart' ? `${source.section}:${source.line}` : `${source.chunk}:${source.events[0]}`
 		const earlier = changesBySource.get(key)?.change
-		if (earlier === 'remove') throw new RangeError('The event is already removed in this batch')
-		changesBySource.set(key, { event, change: update === 'remove' ? update : { ...earlier, ...update } })
+		if (earlier === 'remove') throw new RangeError('The element is already removed in this batch')
+		changesBySource.set(key, { element, change: update === 'remove' ? update : { ...earlier, ...update } })
 	}
 	const additions: { section: number; tick: number; type: EventType; length: number }[] = []
 	const midiAdditions: Parameters<SongEditBatch['addToMidiTrack']>[] = []
+	const songAdditions: { tick: number; value: ChartValueChange }[] = []
 	collect({
-		setTick: (event, tick) => change(event, { tick }),
+		setTick: (element, tick) => change(element, { tick }),
 		setLength: (event, length) => change(event, { length }),
-		remove: event => change(event, 'remove'),
+		remove: element => change(element, 'remove'),
+		setTempo: (tempo, beatsPerMinute) => change(tempo, { value: { beatsPerMinute } }),
+		setTimeSignature: (timeSignature, numerator, denominator) => change(timeSignature, { value: { numerator, denominator } }),
+		setText: (textEvent, text) => change(textEvent, { value: { text } }),
+		addTempo: (tick, beatsPerMinute) => songAdditions.push({ tick, value: { beatsPerMinute } }),
+		addTimeSignature: (tick, numerator, denominator) => songAdditions.push({ tick, value: { numerator, denominator } }),
+		addTextEvent: (tick, text) => songAdditions.push({ tick, value: { text } }),
 		addToChartSection: (section, tick, type, length) => additions.push({ section, tick, type, length }),
 		addToMidiTrack: (...addition) => midiAdditions.push(addition),
 	})
@@ -172,37 +224,52 @@ export function editSong(song: SongDocument, collect: (batch: SongEditBatch) => 
 	if (chart.format === 'chart') {
 		if (midiAdditions.length) throw new RangeError('A .chart file has no MIDI tracks to add to')
 		const tokens = chart.tokens
+		// Clone Hero reads the last section of each name.
+		const lastSection = (name: string) => {
+			const section = tokens.sections.reduce((last, candidate, index) => candidate.name === name ? index : last, -1)
+			if (section === -1) throw new RangeError(`The .chart file has no [${name}] section to add to`)
+			return section
+		}
 		const edits = [
-			...changes.flatMap(({ event, change }) => {
-				if (event.source.format !== 'chart') throw new RangeError('The event isn\'t from this chart')
-				const source = event.source
+			...changes.flatMap(({ element, change }) => {
+				if (element.source.format !== 'chart') throw new RangeError('The element isn\'t from this chart')
+				const source = element.source
 				return change === 'remove'
 					? [{ kind: 'delete' as const, section: source.section, line: source.line }]
-					: chartEventEdits(tokens, { ...event, source }, change)
+					: chartEventEdits(tokens, { ...element, source }, change)
 			}),
 			...additions.map(({ section, tick, type, length }) => chartEventInsertEdit(tokens, section, tick, type, length)),
+			...songAdditions.map(({ tick, value }) =>
+				chartLineInsertEdit(tokens, lastSection('text' in value ? 'Events' : 'SyncTrack'), tick, chartValueText(null, value))),
 		]
 		return { ...song, chart: { ...chart, tokens: editChartLines(tokens, edits) } }
 	}
 
 	if (additions.length) throw new RangeError('A .mid file has no .chart sections to add to')
 	if (chart.tokens === null) throw new RangeError('The .mid file can\'t be read, so it can\'t be edited')
+	const midiTokens = chart.tokens
 	const byChunk = new Map<number, MidiTrackEdit[]>()
 	const editsOf = (chunk: number) => {
 		let chunkEdits = byChunk.get(chunk)
 		if (!chunkEdits) byChunk.set(chunk, chunkEdits = [])
 		return chunkEdits
 	}
-	for (const { event, change } of changes) {
-		if (event.source.format !== 'mid') throw new RangeError('The event isn\'t from this chart')
-		const source = event.source
-		const edits = change === 'remove'
-			? source.events.map(index => ({ kind: 'delete' as const, event: index }))
-			: midiEventEdits({ ...event, source }, change)
+	for (const { element, change } of changes) {
+		if (element.source.format !== 'mid') throw new RangeError('The element isn\'t from this chart')
+		const source = element.source
 		const chunkEdits = editsOf(source.chunk)
-		for (const edit of edits) chunkEdits.push(edit)
+		if (change === 'remove') {
+			for (const index of new Set(source.events)) chunkEdits.push({ kind: 'delete', event: index })
+			continue
+		}
+		for (const edit of midiEventEdits({ ...element, source }, change)) chunkEdits.push(edit)
+		if (change.value) {
+			const chunk = midiTokens.chunks[source.chunk]
+			const original = chunk.kind === 'track' ? chunk.events[source.events[0]].event : undefined
+			chunkEdits.push({ kind: 'replace', event: source.events[0], with: midiValueEvent(change.value, original) })
+		}
 	}
-	const tracks = midiAdditions.length ? midiAuthoredTracks(chart.tokens) : []
+	const tracks = midiAdditions.length ? midiAuthoredTracks(midiTokens) : []
 	for (const [chunk, scope, tick, type, length, note] of midiAdditions) {
 		const track = tracks.find(candidate => candidate.chunk === chunk)
 		if (!track) throw new RangeError('The chunk isn\'t an instrument track')
@@ -215,7 +282,31 @@ export function editSong(song: SongDocument, collect: (batch: SongEditBatch) => 
 		const chunkEdits = editsOf(chunk)
 		for (const edit of midiEventInserts(encoded.encoding, tick, length, note)) chunkEdits.push(edit)
 	}
-	let tokens = chart.tokens
+	if (songAdditions.length) {
+		// Clone Hero reads tempos and time signatures from the first track, and text events from the first events track.
+		const trackChunks = midiTokens.chunks.flatMap((chunk, index) => chunk.kind === 'track' ? [index] : [])
+		const eventsTrack = songAdditions.some(({ value }) => 'text' in value) ? findMidiEventsTrack(midiTokensToMidiData(midiTokens)) : null
+		for (const { tick, value } of songAdditions) {
+			const chunk = 'text' in value ? (eventsTrack === null ? undefined : trackChunks[eventsTrack]) : trackChunks[0]
+			if (chunk === undefined) throw new RangeError(`The .mid file has no ${'text' in value ? 'events track' : 'tracks'} to add to`)
+			editsOf(chunk).push({ kind: 'insert', tick, event: midiValueEvent(value) })
+		}
+	}
+	let tokens = midiTokens
 	for (const [chunk, edits] of byChunk) tokens = editMidiTrack(tokens, chunk, edits)
 	return { ...song, chart: { ...chart, bytes: tokens.data, tokens } }
+}
+
+/** The MIDI meta event for a tempo, time signature or text, replacing `original` when given, which must be of its kind. */
+function midiValueEvent(value: ChartValueChange, original?: MidiEvent) {
+	if ('beatsPerMinute' in value) {
+		if (original && original.type !== 'setTempo') throw new RangeError('The event isn\'t a tempo')
+		return midiTempoEvent(value.beatsPerMinute)
+	}
+	if ('numerator' in value) {
+		if (original && original.type !== 'timeSignature') throw new RangeError('The event isn\'t a time signature')
+		return midiTimeSignatureEvent(value.numerator, value.denominator, original?.type === 'timeSignature' ? original : undefined)
+	}
+	if (original && !isTextLikeEvent(original)) throw new RangeError('The event isn\'t a text event')
+	return midiTextEvent(value.text, original)
 }

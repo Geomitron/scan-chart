@@ -1,6 +1,6 @@
 import type { Instrument } from '../types'
 import { ChartFileTokens, chartSectionLines, chartSectionTrack, ChartLineToken, getNEventType, getSEventType, tokenizeChartFile } from './chart-file-parser'
-import type { AuthoredEvent, ChartAuthoredSource } from './authored-view'
+import type { ChartAuthoredSource } from './authored-view'
 import { EventType, eventTypes } from './raw-types'
 
 /** One line edit of a `.chart` section. `text` is the line's content, without indentation or line ending. */
@@ -28,14 +28,15 @@ export function editChartLines(tokens: ChartFileTokens, edits: readonly ChartLin
 		return lines
 	}
 
-	const splices: { start: number; end: number; text: string; order: number }[] = []
+	const splices: { start: number; end: number; text: string; tick: number; order: number }[] = []
 	edits.forEach((edit, order) => {
 		const lines = linesOf(edit.section)
 		if (edit.kind === 'insert') {
 			if (edit.beforeLine < 1 || edit.beforeLine >= lines.length) throw new RangeError('A line can be inserted only between a section\'s braces')
 			const at = offsets(lines[edit.beforeLine].start)
 			const { indent, ending } = lineStyle(tokens, lines)
-			splices.push({ start: at, end: at, text: `${indent}${edit.text}${ending}\n`, order })
+			const tick = Number(/^(\d+) =/.exec(edit.text)?.[1] ?? 0)
+			splices.push({ start: at, end: at, text: `${indent}${edit.text}${ending}\n`, tick, order })
 			return
 		}
 		const line = lines[edit.line]
@@ -43,15 +44,16 @@ export function editChartLines(tokens: ChartFileTokens, edits: readonly ChartLin
 		if (edit.kind === 'replace') {
 			const indent = /^[ \t]*/.exec(raw)![0]
 			const trailing = /[ \t\r]*$/.exec(raw.slice(indent.length))![0]
-			splices.push({ start: offsets(line.start), end: offsets(line.end), text: `${indent}${edit.text}${trailing}`, order })
+			splices.push({ start: offsets(line.start), end: offsets(line.end), text: `${indent}${edit.text}${trailing}`, tick: 0, order })
 		} else {
 			const isLast = edit.line === lines.length - 1
-			splices.push({ start: offsets(line.start), end: isLast ? offsets(line.end) : offsets(line.end + 1), text: '', order })
+			splices.push({ start: offsets(line.start), end: isLast ? offsets(line.end) : offsets(line.end + 1), text: '', tick: 0, order })
 		}
 	})
 
-	// An insertion at a line's start goes before an edit of that line, so it doesn't overlap it.
-	splices.sort((a, b) => a.start - b.start || (a.end - a.start === 0 ? 0 : 1) - (b.end - b.start === 0 ? 0 : 1) || a.order - b.order)
+	// An insertion at a line's start goes before an edit of that line, so it doesn't overlap it. Insertions at one place
+	// go in tick order.
+	splices.sort((a, b) => a.start - b.start || (a.end - a.start === 0 ? 0 : 1) - (b.end - b.start === 0 ? 0 : 1) || a.tick - b.tick || a.order - b.order)
 	for (let i = 1; i < splices.length; i++) {
 		if (splices[i].start < splices[i - 1].end) throw new RangeError('Two edits touch the same line')
 	}
@@ -83,27 +85,68 @@ export function chartEventLineText(instrument: Instrument, tick: number, type: E
 	return null
 }
 
+/** A new value for a tempo, time signature or text event. */
+export type ChartValueChange =
+	| { readonly beatsPerMinute: number }
+	| { readonly numerator: number; readonly denominator: number }
+	| { readonly text: string }
+
 /**
- * The line edits that change an authored event's tick or length, keeping its line's written form. A tick change moves
- * the line to its place in tick order, which Clone Hero needs.
+ * The line edits that change an authored element's tick, length or value, keeping the rest of its line's written form.
+ * Any `tick = value` line can move; only an `N` or `S` line has a length. A tick change moves the line to its place in
+ * tick order, which Clone Hero needs.
  */
 export function chartEventEdits(
 	tokens: ChartFileTokens,
-	event: AuthoredEvent & { readonly source: ChartAuthoredSource },
-	change: { readonly tick?: number; readonly length?: number },
+	event: { readonly tick: number; readonly length?: number; readonly source: ChartAuthoredSource },
+	change: { readonly tick?: number; readonly length?: number; readonly value?: ChartValueChange },
 ): ChartLineEdit[] {
 	const { section, line } = event.source
 	const lines = chartSectionLines(tokens, tokens.sections[section])
-	const tick = change.tick ?? event.tick
-	const length = change.length ?? event.length
-	const match = /^(\d+) = ([NSE]) (.*?)( \d+)?$/.exec(lines[line].text)
-	if (match === null) throw new RangeError('The event\'s line isn\'t a tick = N, S or E line')
-	const [, , letter, value, lengthPart] = match
-	if (letter === 'E' && length !== event.length) throw new RangeError('A .chart text event has no length')
-	const text = letter === 'E' ? `${tick} = E ${value}${lengthPart ?? ''}`
-		: `${tick} = ${letter} ${value}${lengthPart === undefined && length === 0 ? '' : ` ${length}`}`
-	if (tick === event.tick) return [{ kind: 'replace', section, line, text }]
+	const match = /^(\d+) = (.*)$/.exec(lines[line].text)
+	if (match === null) throw new RangeError('The event\'s line isn\'t a tick = value line')
+	const writtenTick = Number(match[1])
+	const tick = change.tick ?? writtenTick
+	let value = change.value ? chartValueText(match[2], change.value) : match[2]
+	if (change.length !== undefined && change.length !== event.length) {
+		const note = /^([NS]) (\d+)(?: \d+)?$/.exec(value)
+		if (note === null) throw new RangeError(value.startsWith('E ') ? 'A .chart text event has no length' : 'Only a .chart N or S event has a length')
+		value = `${note[1]} ${note[2]} ${change.length}`
+	}
+	const text = `${tick} = ${value}`
+	if (tick === writtenTick) return [{ kind: 'replace', section, line, text }]
 	return [{ kind: 'delete', section, line }, chartEventInsert(tokens, section, tick, text, line)]
+}
+
+/**
+ * The value of a `.chart` line (after `tick = `) with a new tempo, time signature or text, in the form `written` has:
+ * a time signature keeps an explicit denominator of 4, and a text event keeps or omits its quotes. Without `written`,
+ * the value of a new line.
+ */
+export function chartValueText(written: string | null, change: ChartValueChange): string {
+	if ('beatsPerMinute' in change) {
+		const millibeats = Math.round(change.beatsPerMinute * 1000)
+		if (written !== null && !written.startsWith('B ')) throw new RangeError('The line isn\'t a tempo')
+		if (!(millibeats >= 1 && Number.isSafeInteger(millibeats))) throw new RangeError('A .chart tempo must be at least 0.001 BPM')
+		return `B ${millibeats}`
+	}
+	if ('numerator' in change) {
+		const exponent = Math.log2(change.denominator)
+		if (written !== null && !written.startsWith('TS ')) throw new RangeError('The line isn\'t a time signature')
+		if (!Number.isSafeInteger(change.numerator) || change.numerator < 1 || !Number.isInteger(exponent) || exponent < 0) {
+			throw new RangeError('A time signature needs a positive numerator and a power-of-two denominator')
+		}
+		const writesDenominator = exponent !== 2 || (written !== null && /^TS \d+ \d+$/.test(written))
+		return `TS ${change.numerator}${writesDenominator ? ` ${exponent}` : ''}`
+	}
+	if (written !== null && !written.startsWith('E ')) throw new RangeError('The line isn\'t a text event')
+	if (/[\r\n]/.test(change.text)) throw new RangeError('A .chart text event can\'t hold a line break')
+	return written === null || /^E ".*"$/.test(written) ? `E "${change.text}"` : `E ${change.text}`
+}
+
+/** The edit that inserts a line at its place in tick order. `value` is the line's content after `tick = `. */
+export function chartLineInsertEdit(tokens: ChartFileTokens, section: number, tick: number, value: string): ChartLineEdit {
+	return chartEventInsert(tokens, section, tick, `${tick} = ${value}`)
 }
 
 /** The edit that inserts a line for a new authored event at its place in tick order. */
