@@ -1,7 +1,24 @@
 import { defaultMetadata } from '../ini/metadata'
-import { ChartFileTokens, classifyChartFile, lazyChartFileSections } from './chart-file-parser'
+import {
+	ChartFileTokens,
+	classifyChartFile,
+	classifyChartTrackSections,
+	ChartSectionClassifier,
+	chartSectionTrack,
+	lazyChartFileSections,
+} from './chart-file-parser'
 import { TokensCache } from './edit-history'
-import { applyChartRules, ParsedChartFile, resolveChartData, ResolvedTrack, resolveTrack } from './parse-chart-file'
+import {
+	applyChartRules,
+	applyChartTrackRules,
+	chartDrumType,
+	isTrackAllocated,
+	ParsedChartFile,
+	resolveChartData,
+	ResolvedTrack,
+	resolveTrack,
+	TrackResolutionContext,
+} from './parse-chart-file'
 import type { ParseRules } from './parse-rules'
 import type { RawChartData } from './raw-types'
 import type { IniChartModifiers } from './types'
@@ -18,6 +35,8 @@ interface ChartParseMemo {
 	readonly classified: ReadonlyMap<string, { readonly firstCodaTick: number | null; readonly track: ClassifiedTrack }>
 	/** Each instrument section's resolved track, with the tempo map, resolution and drum type it was resolved with. */
 	readonly resolved: ReadonlyMap<string, { readonly context: string; readonly track: ResolvedTrack }>
+	/** The tick of the first coda event, which classifying an instrument section reads; unknown without one. */
+	readonly firstCodaTick: number | null | undefined
 	readonly parsed: ParsedChartFile
 }
 
@@ -53,7 +72,9 @@ function parseReusing(
 	const classified = new Map<string, { firstCodaTick: number | null; track: ClassifiedTrack }>()
 	const sectionOf = new WeakMap<ClassifiedTrack, string>()
 	const unchanged = new WeakSet<ClassifiedTrack>()
-	const raw = classifyChartFile(lazyChartFileSections(tokens, bodies), (name, firstCodaTick, classify) => {
+	let codaTick: number | null | undefined
+	const classifySection: ChartSectionClassifier = (name, firstCodaTick, classify) => {
+		codaTick = firstCodaTick
 		const kept = earlier?.classified.get(name)
 		let track: ClassifiedTrack
 		if (kept !== undefined && kept.firstCodaTick === firstCodaTick && earlier!.bodies.get(name) === bodies.get(name)) {
@@ -68,22 +89,50 @@ function parseReusing(
 		}
 		sectionOf.set(track, name)
 		return track
-	})
+	}
 
-	const syncTrack = bodies.get('SyncTrack') ?? ''
+	const fileSections = lazyChartFileSections(tokens, bodies)
 	const resolved = new Map<string, { context: string; track: ResolvedTrack }>()
-	const parsed = resolveChartData(applyChartRules(raw, rules), 'chart', iniChartModifiers, rules, (track, context) => {
+	const resolveOne = (track: ClassifiedTrack, context: TrackResolutionContext) => {
 		const name = sectionOf.get(track)!
 		// Only drum tracks are resolved with the drum type.
-		const contextKey = `${context.resolution}|${track.instrument === 'drums' ? context.drumType : ''}|${syncTrack}`
+		const contextKey = `${context.resolution}|${track.instrument === 'drums' ? context.drumType : ''}|${bodies.get('SyncTrack') ?? ''}`
 		const kept = earlier?.resolved.get(name)
 		const result = !unchanged.has(track) ? resolveTrack(track, context)
 			: kept?.context === contextKey ? kept.track
 			: resolveTrack(cloneClassifiedTrack(track), context)
 		resolved.set(name, { context: contextKey, track: result })
 		return result
-	})
-	return { key, bodies, classified, resolved, parsed }
+	}
+
+	// When every section but the instrument sections is unchanged, so is everything parsed from them: only the tracks
+	// and the drum type, which the drum tracks decide, are parsed again.
+	if (earlier?.firstCodaTick !== undefined && songSectionsUnchanged(earlier.bodies, bodies)) {
+		const trackData = classifyChartTrackSections(fileSections, earlier.firstCodaTick, classifySection)
+		for (const track of trackData) applyChartTrackRules(track, rules)
+		const { tempos, resolution } = earlier.parsed
+		const drumType = chartDrumType(trackData, iniChartModifiers)
+		const context: TrackResolutionContext = { timedTempos: tempos, drumType, iniChartModifiers, resolution, format: 'chart' }
+		const resolvedTracks = trackData.map(track => resolveOne(track, context))
+		const parsed = { ...earlier.parsed, drumType, trackData: resolvedTracks.filter(track => isTrackAllocated(track.noteEventGroups, 'chart', rules)) }
+		return { key, bodies, firstCodaTick: earlier.firstCodaTick, classified, resolved, parsed }
+	}
+
+	const raw = classifyChartFile(fileSections, classifySection)
+	const parsed = resolveChartData(applyChartRules(raw, rules), 'chart', iniChartModifiers, rules, resolveOne)
+	return { key, bodies, firstCodaTick: codaTick, classified, resolved, parsed }
+}
+
+/** Whether two versions of a file have the same sections in the same order, with the same text in each but the instrument sections. */
+function songSectionsUnchanged(earlier: ReadonlyMap<string, string>, now: ReadonlyMap<string, string>): boolean {
+	if (earlier.size !== now.size) return false
+	const earlierNames = [...earlier.keys()]
+	let i = 0
+	for (const [name, body] of now) {
+		if (earlierNames[i++] !== name) return false
+		if (chartSectionTrack(name) === null && earlier.get(name) !== body) return false
+	}
+	return true
 }
 
 /**
