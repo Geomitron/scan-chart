@@ -141,9 +141,10 @@ export function midiEventEdits(
 ): MidiTrackEdit[] {
 	const tick = change.tick ?? event.tick
 	const length = change.length ?? event.length ?? 0
-	if (event.length === undefined && length !== 0) throw new RangeError('The event has no length')
-	if (length < 0) throw new RangeError('A length can\'t be negative')
 	const [start, end] = event.source.events
+	// An element written as one event, such as a disco flip or a tempo, has no end to move.
+	if (start === end && length !== (event.length ?? 0)) throw new RangeError('The event has no length')
+	if (length < 0) throw new RangeError('A length can\'t be negative')
 	return [
 		...(tick === event.tick ? [] : [{ kind: 'move' as const, event: start, tick }]),
 		...(end === start || tick + length === event.tick + (event.length ?? 0) ? [] : [{ kind: 'move' as const, event: end, tick: tick + length }]),
