@@ -1,4 +1,5 @@
 import { ObjectValues } from '../shared/type-utils'
+import { defaultMetadata } from '../ini/metadata'
 
 /** The subset of `defaultMetadata` that influences chart parsing. */
 export interface IniChartModifiers {
@@ -10,6 +11,22 @@ export interface IniChartModifiers {
 	chord_snap_threshold: number
 	five_lane_drums: boolean
 	pro_drums: boolean
+}
+
+/**
+ * Default `IniChartModifiers` — the parsing-relevant subset of
+ * `defaultMetadata`. Used by `createEmptyChart` and as the fallback when a
+ * caller parses a chart file without supplying ini modifiers.
+ */
+export const defaultIniChartModifiers: IniChartModifiers = {
+	song_length: defaultMetadata.song_length,
+	hopo_frequency: defaultMetadata.hopo_frequency,
+	eighthnote_hopo: defaultMetadata.eighthnote_hopo,
+	multiplier_note: defaultMetadata.multiplier_note,
+	sustain_cutoff_threshold: defaultMetadata.sustain_cutoff_threshold,
+	chord_snap_threshold: defaultMetadata.chord_snap_threshold,
+	five_lane_drums: defaultMetadata.five_lane_drums,
+	pro_drums: defaultMetadata.pro_drums,
 }
 
 /** A single note event in a chart's track. Note that more than one note event can occur at the same time. */
@@ -154,3 +171,14 @@ export interface VocalTrack {
 	/** Shared lyric shift markers sourced from the lead vocals or first harmony part. */
 	lyricShifts: { tick: number; msTime: number; length: number; msLength: number }[]
 }
+
+/** @deprecated Use {@link LyricEvent}. Kept as an alias for `@eliwhite/scan-chart` consumers. */
+export type NormalizedLyricEvent = LyricEvent
+/** @deprecated Use {@link VocalNote}. Kept as an alias for `@eliwhite/scan-chart` consumers. */
+export type NormalizedVocalNote = VocalNote
+/** @deprecated Use {@link VocalPhrase}. Kept as an alias for `@eliwhite/scan-chart` consumers. */
+export type NormalizedVocalPhrase = VocalPhrase
+/** @deprecated Use {@link VocalPart}. Kept as an alias for `@eliwhite/scan-chart` consumers. */
+export type NormalizedVocalPart = VocalPart
+/** @deprecated Use {@link VocalTrack}. Kept as an alias for `@eliwhite/scan-chart` consumers. */
+export type NormalizedVocalTrack = VocalTrack
