@@ -5,7 +5,7 @@ import { chartAuthoredTracks, midiAuthoredTracks } from 'src/chart/authored-view
 import { chartEventEdits, editChartLines } from 'src/chart/chart-edit'
 import { chartSectionLines } from 'src/chart/chart-file-parser'
 import { editSong, parseSong, SongDocument } from 'src/song-document'
-import { ChartFileNormalization, saveSong, songHashes } from 'src/song-save'
+import { saveSong, songHashes, SongNormalization } from 'src/song-save'
 
 const encode = (text: string) => new TextEncoder().encode(text)
 const decode = (bytes: Uint8Array) => new TextDecoder().decode(bytes)
@@ -59,15 +59,16 @@ describe('saving (E7)', () => {
 		const original = song([...header, '[ExpertSingle]', '{', '  0 = N 0 0', '  192 = N 1 0', '}', '[HardSingle]', '{', '  0 = N 0 0', '}'])
 		const edited = lengthenExpertNote(original)
 		// Stand-ins that change notes: the one on Hard changes Hard's hashes, which the edit didn't spend.
-		const addNote = (section: string, line: string): ChartFileNormalization => ({
+		const addNote = (section: string, line: string): SongNormalization => ({
 			kind: 'order',
 			section,
-			apply: chart => {
-				if (chart.format !== 'chart') return chart
-				const { tokens } = chart
+			apply: current => {
+				if (current.chart?.format !== 'chart') return current
+				const { tokens } = current.chart
 				const index = tokens.sections.findIndex(candidate => candidate.name === section)
 				const lines = chartSectionLines(tokens, tokens.sections[index])
-				return { ...chart, tokens: editChartLines(tokens, [{ kind: 'insert', section: index, beforeLine: lines.length - 1, text: line }]) }
+				const edited = editChartLines(tokens, [{ kind: 'insert', section: index, beforeLine: lines.length - 1, text: line }])
+				return { ...current, chart: { ...current.chart, tokens: edited } }
 			},
 		})
 		const { files, report } = saveSong(original, edited, () => [addNote('ExpertSingle', '384 = N 2 0'), addNote('HardSingle', '384 = N 2 0')])
@@ -116,6 +117,14 @@ describe('saving (E7)', () => {
 		const guitar = saved.chart?.format === 'mid' && saved.chart.tokens?.chunks[1]
 		expect(guitar && guitar.kind === 'track' ? guitar.events.filter(({ event }) => event.type === 'trackName').map(({ event }) => event.type === 'trackName' && event.text) : []).toEqual(['PART GUITAR'])
 		expect(saved.chart?.format === 'mid' && saved.chart.tokens ? midiAuthoredTracks(saved.chart.tokens)[0].events.map(event => event.length) : []).toEqual([240])
+	})
+
+	it('removes a song.ini key a later line of the same key replaces, in any letter case', () => {
+		const ini = { fileName: 'song.ini', data: encode('[song]\r\nname = Old\r\nName = Test\r\nsong_length = 60000\r\n; comment\r\n') }
+		const original = parseSong([{ fileName: 'notes.chart', data: encode([...header, '[ExpertSingle]', '{', '  0 = N 0 0', '  192 = N 1 0', '}'].join('\r\n') + '\r\n') }, ini])
+		const { files, report } = saveSong(original, lengthenExpertNote(original))
+		expect(report.normalized).toEqual([{ kind: 'duplicateKeys', section: 'song.ini' }])
+		expect(decode(files[1].data)).toBe('[song]\r\nName = Test\r\nsong_length = 60000\r\n; comment\r\n')
 	})
 
 	it('hashes a song as the reference tool does: canonical and legacy TrackHashes and SongHashes', () => {
