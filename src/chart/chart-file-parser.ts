@@ -259,7 +259,7 @@ export function classifyChartFile(fileSections: ChartFileSections, classifySecti
 		unrecognizedMidiTracks: [], // MIDI-only
 		unrecognizedEventsTrackMidiEvents: [], // MIDI-only
 		unrecognizedChartSections: buildUnrecognizedChartSections(fileSections, fileSectionKeys),
-		trackData: buildChartTrackData(fileSections, firstCodaTick, classifySection),
+		trackData: classifyChartTrackSections(fileSections, firstCodaTick, classifySection),
 	}
 }
 
@@ -360,7 +360,8 @@ export type ChartSectionClassifier = (
 	classify: () => RawChartData['trackData'][number],
 ) => RawChartData['trackData'][number]
 
-function buildChartTrackData(
+/** Classifies every instrument section, in the order classification lists tracks. */
+export function classifyChartTrackSections(
 	fileSections: { [k: string]: string[] },
 	firstCodaTick: number | null,
 	classifySection: ChartSectionClassifier,

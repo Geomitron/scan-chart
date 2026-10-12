@@ -177,16 +177,17 @@ export function resolveTrack(track: RawChartData['trackData'][number], context: 
 
 /** Applies the profile's `.chart` rules to classified data: without `chartFlam`, `N 109` markers are dropped. */
 export function applyChartRules(rawChartData: RawChartData, rules: ParseRules): RawChartData {
-	if (rules.chartFlam === 'ignored') {
-		for (const track of rawChartData.trackData) {
-			track.trackEvents = track.trackEvents.filter(event => event.type !== eventTypes.forceFlam)
-		}
-	}
+	for (const track of rawChartData.trackData) applyChartTrackRules(track, rules)
 	return rawChartData
 }
 
+/** Applies the profile's `.chart` rules to one classified track. */
+export function applyChartTrackRules(track: RawChartData['trackData'][number], rules: ParseRules): void {
+	if (rules.chartFlam === 'ignored') track.trackEvents = track.trackEvents.filter(event => event.type !== eventTypes.forceFlam)
+}
+
 /** Applies the profile's track-allocation rule after notes have been resolved. */
-function isTrackAllocated(noteEventGroups: unknown[][], format: 'chart' | 'mid', rules: ParseRules) {
+export function isTrackAllocated(noteEventGroups: unknown[][], format: 'chart' | 'mid', rules: ParseRules) {
 	const hasNotes = noteEventGroups.some(group => group.length > 0)
 	return format === 'mid' ? rules.midiTrackAllocation === 'difficultiesWithNotesAndExpert' || hasNotes
 		: rules.chartTrackAllocation === 'everySection' || hasNotes

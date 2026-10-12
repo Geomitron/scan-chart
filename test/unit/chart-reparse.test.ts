@@ -44,6 +44,18 @@ describe('reparsing an edited .chart', () => {
 		expect(trackOf(after, 'drums', 'expert')).toBe(trackOf(before, 'drums', 'expert'))
 		expect(trackOf(after, 'guitar', 'expert')).not.toBe(trackOf(before, 'guitar', 'expert'))
 		expect(trackOf(after, 'guitar', 'expert')!.noteEventGroups[0][0].length).toBe(96)
+		// [Song], [SyncTrack] and [Events] are unchanged, so everything parsed from them is reused.
+		expect(after.vocalTracks).toBe(before.vocalTracks)
+		expect(after.tempos).toBe(before.tempos)
+	})
+
+	it('parses the song sections again after an [Events] edit, keeping the tracks', () => {
+		const before = parse(song)
+		const edited = editSong(song, batch => batch.addTextEvent(192, 'section Verse'))
+		const after = parse(edited)
+		expect(after).toEqual(fullParse(edited))
+		expect(after.sections).not.toBe(before.sections)
+		expect(trackOf(after, 'guitar', 'hard')).toBe(trackOf(before, 'guitar', 'hard'))
 	})
 
 	it('resolves every track again after a tempo edit', () => {
