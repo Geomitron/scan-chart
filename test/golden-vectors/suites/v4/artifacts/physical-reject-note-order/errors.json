@@ -1,0 +1,9 @@
+[
+  {
+    "code": "recordValueInvalid",
+    "field": "noteType",
+    "reason": "orderNoncanonical",
+    "recordIndex": 1,
+    "sectionId": "9"
+  }
+]

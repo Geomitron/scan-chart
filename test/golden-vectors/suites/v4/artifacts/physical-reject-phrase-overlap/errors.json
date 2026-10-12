@@ -1,0 +1,9 @@
+[
+  {
+    "code": "recordValueInvalid",
+    "field": "length",
+    "reason": "overlapNoncanonical",
+    "recordIndex": 1,
+    "sectionId": "4"
+  }
+]

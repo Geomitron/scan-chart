@@ -1,0 +1,8 @@
+[
+  {
+    "actual": 4,
+    "code": "recognizedPayloadLengthInvalid",
+    "expected": "20",
+    "sectionId": "2"
+  }
+]
