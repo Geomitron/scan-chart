@@ -1,0 +1,9 @@
+[
+  {
+    "code": "recordValueInvalid",
+    "field": "noteType",
+    "reason": "enumUnknown",
+    "recordIndex": 0,
+    "sectionId": "9"
+  }
+]

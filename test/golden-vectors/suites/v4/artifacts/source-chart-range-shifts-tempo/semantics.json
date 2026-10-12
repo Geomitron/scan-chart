@@ -1,0 +1,40 @@
+{
+  "drumFreestyle": [],
+  "flexLanes": [],
+  "notes": [
+    {
+      "flags": 1,
+      "length": "0",
+      "tick": "0",
+      "type": 2
+    }
+  ],
+  "rangeShifts": [
+    {
+      "position": 3,
+      "size": 3,
+      "tick": "100"
+    },
+    {
+      "position": 3,
+      "size": 3,
+      "tick": "200"
+    }
+  ],
+  "resolution": 192,
+  "solos": [],
+  "starPower": [],
+  "tempos": [
+    {
+      "beatsPerMinute": 120.001,
+      "tick": "0"
+    }
+  ],
+  "timeSignatures": [
+    {
+      "denominator": 4,
+      "numerator": 4,
+      "tick": "0"
+    }
+  ]
+}
