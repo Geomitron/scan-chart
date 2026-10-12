@@ -1,5 +1,5 @@
-import { ChartNormalization, chartNormalizations, ChartNormalizationKind } from './chart/chart-normalize'
-import { ChartFileTokens } from './chart/chart-file-parser'
+import { chartNormalizations, ChartNormalizationKind } from './chart/chart-normalize'
+import { midiNormalizations, MidiNormalizationKind } from './chart/midi-normalize'
 import { resolveHistoricalDuration } from './chart/identity/historical-duration'
 import { songBundle20251010 } from './chart/identity/public'
 import { parseChartAndIni } from './chart/parse-chart-and-ini'
@@ -67,67 +67,94 @@ function calculateSongHashes(song: SongDocument, chart: ChartDocument, songIni: 
 	return hashes
 }
 
+/** One normalization of a song's chart file, in either format. */
+export interface ChartFileNormalization {
+	readonly kind: ChartNormalizationKind | MidiNormalizationKind
+	/** The section or MIDI track it rewrites, or `null` for the whole file. */
+	readonly section: string | null
+	readonly apply: (chart: ChartDocument) => ChartDocument
+}
+
+/** Every normalization a song's chart file needs, in its format. */
+export function chartFileNormalizations(chart: ChartDocument): ChartFileNormalization[] {
+	if (chart.format === 'chart') {
+		return chartNormalizations(chart.tokens).map(({ kind, section, apply }) => ({
+			kind,
+			section,
+			apply: current => current.format === 'chart' ? { ...current, tokens: apply(current.tokens) } : current,
+		}))
+	}
+	if (chart.tokens === null) return []
+	return midiNormalizations(chart.tokens).map(({ kind, section, apply }) => ({
+		kind,
+		section,
+		apply: current => {
+			if (current.format !== 'mid' || current.tokens === null) return current
+			const tokens = apply(current.tokens)
+			return { ...current, tokens, bytes: tokens.data }
+		},
+	}))
+}
+
 /** What saving did. */
 export interface SaveReport {
 	/** The hashes the edits changed, which normalization may change too; `null` when there was nothing to normalize. */
 	readonly spentHashes: readonly string[] | null
-	readonly normalized: readonly { readonly kind: ChartNormalizationKind; readonly section: string | null }[]
+	readonly normalized: readonly { readonly kind: ChartFileNormalization['kind']; readonly section: string | null }[]
 	/** Normalizations left out because each would change a hash the edits didn't, listed with those hashes. */
-	readonly withheld: readonly { readonly kind: ChartNormalizationKind; readonly section: string | null; readonly hashes: readonly string[] }[]
+	readonly withheld: readonly { readonly kind: ChartFileNormalization['kind']; readonly section: string | null; readonly hashes: readonly string[] }[]
 }
 
 /**
- * Saves `edited`, a song edited from `original` (E7). An unedited song comes back byte for byte. An edited `.chart`
- * is also normalized wherever that changes no hash the edits left as it was:
+ * Saves `edited`, a song edited from `original` (E7). An unedited song comes back byte for byte. An edited one is
+ * also normalized wherever that changes no hash the edits left as it was:
  *
  * 1. The hashes before and after the edits are compared; each one that changed is spent.
  * 2. Every normalization is applied and the output read back. If no unspent hash changed, that's the result.
  * 3. Otherwise each normalization is tried on its own, and one that changes an unspent hash is left out.
  *
- * So the rule holds by checking the output, not by predicting what a normalization changes. `.mid` files and song.ini
- * aren't normalized yet.
+ * So the rule holds by checking the output, not by predicting what a normalization changes. song.ini isn't
+ * normalized yet.
  */
 export function saveSong(
 	original: SongDocument,
 	edited: SongDocument,
-	normalizationsOf: (tokens: ChartFileTokens) => readonly ChartNormalization[] = chartNormalizations,
+	normalizationsOf: (chart: ChartDocument) => readonly ChartFileNormalization[] = chartFileNormalizations,
 ): { files: File[]; report: SaveReport } {
 	const unchanged = { spentHashes: null, normalized: [], withheld: [] }
-	if (edited.chart === original.chart && edited.ini === original.ini) return { files: serializeSong(edited), report: unchanged }
-	if (edited.chart?.format !== 'chart') return { files: serializeSong(edited), report: unchanged }
-	const normalizations = normalizationsOf(edited.chart.tokens)
+	if (edited.chart === null || (edited.chart === original.chart && edited.ini === original.ini)) return { files: serializeSong(edited), report: unchanged }
+	const normalizations = normalizationsOf(edited.chart)
 	if (normalizations.length === 0) return { files: serializeSong(edited), report: unchanged }
 	const before = songHashes(original)
 	const after = songHashes(edited)
 	if (before === null || after === null) return { files: serializeSong(edited), report: unchanged }
 
 	const spent = new Set([...before.keys(), ...after.keys()].filter(key => before.get(key) !== after.get(key)))
-	const withTokens = (tokens: ChartFileTokens): SongDocument => ({ ...edited, chart: { ...edited.chart as { format: 'chart'; fileName: string }, tokens } })
 	/** The unspent hashes a version of the chart changes. */
-	const unspentChanges = (tokens: ChartFileTokens): string[] => {
-		const hashes = songHashes(withTokens(tokens))
+	const unspentChanges = (chart: ChartDocument): string[] => {
+		const hashes = songHashes({ ...edited, chart })
 		if (hashes === null) return ['(the chart no longer parses)']
 		return [...new Set([...after.keys(), ...hashes.keys()])].filter(key => !spent.has(key) && hashes.get(key) !== after.get(key)).sort()
 	}
 
-	let tokens = edited.chart.tokens
-	for (const normalization of normalizations) tokens = normalization.apply(tokens)
+	let chart = edited.chart
+	for (const normalization of normalizations) chart = normalization.apply(chart)
 	const normalized: SaveReport['normalized'][number][] = []
 	const withheld: SaveReport['withheld'][number][] = []
-	if (normalizations.length > 0 && unspentChanges(tokens).length === 0) {
+	if (unspentChanges(chart).length === 0) {
 		for (const { kind, section } of normalizations) normalized.push({ kind, section })
 	} else {
-		tokens = edited.chart.tokens
+		chart = edited.chart
 		for (const { kind, section, apply } of normalizations) {
-			const candidate = apply(tokens)
+			const candidate = apply(chart)
 			const changes = unspentChanges(candidate)
 			if (changes.length === 0) {
-				tokens = candidate
+				chart = candidate
 				normalized.push({ kind, section })
 			} else {
 				withheld.push({ kind, section, hashes: changes })
 			}
 		}
 	}
-	return { files: serializeSong(withTokens(tokens)), report: { spentHashes: [...spent].sort(), normalized, withheld } }
+	return { files: serializeSong({ ...edited, chart }), report: { spentHashes: [...spent].sort(), normalized, withheld } }
 }

@@ -1,11 +1,11 @@
+import { writeMidi } from '@geomitron/midi-file'
 import { describe, expect, it } from 'vitest'
 
-import { chartAuthoredTracks } from 'src/chart/authored-view'
+import { chartAuthoredTracks, midiAuthoredTracks } from 'src/chart/authored-view'
 import { chartEventEdits, editChartLines } from 'src/chart/chart-edit'
-import type { ChartNormalization } from 'src/chart/chart-normalize'
 import { chartSectionLines } from 'src/chart/chart-file-parser'
 import { editSong, parseSong, SongDocument } from 'src/song-document'
-import { saveSong, songHashes } from 'src/song-save'
+import { ChartFileNormalization, saveSong, songHashes } from 'src/song-save'
 
 const encode = (text: string) => new TextEncoder().encode(text)
 const decode = (bytes: Uint8Array) => new TextDecoder().decode(bytes)
@@ -59,12 +59,15 @@ describe('saving (E7)', () => {
 		const original = song([...header, '[ExpertSingle]', '{', '  0 = N 0 0', '  192 = N 1 0', '}', '[HardSingle]', '{', '  0 = N 0 0', '}'])
 		const edited = lengthenExpertNote(original)
 		// Stand-ins that change notes: the one on Hard changes Hard's hashes, which the edit didn't spend.
-		const addNote = (section: string, line: string): ChartNormalization => ({
+		const addNote = (section: string, line: string): ChartFileNormalization => ({
 			kind: 'order',
 			section,
-			apply: tokens => {
+			apply: chart => {
+				if (chart.format !== 'chart') return chart
+				const { tokens } = chart
 				const index = tokens.sections.findIndex(candidate => candidate.name === section)
-				return editChartLines(tokens, [{ kind: 'insert', section: index, beforeLine: chartSectionLines(tokens, tokens.sections[index]).length - 1, text: line }])
+				const lines = chartSectionLines(tokens, tokens.sections[index])
+				return { ...chart, tokens: editChartLines(tokens, [{ kind: 'insert', section: index, beforeLine: lines.length - 1, text: line }]) }
 			},
 		})
 		const { files, report } = saveSong(original, edited, () => [addNote('ExpertSingle', '384 = N 2 0'), addNote('HardSingle', '384 = N 2 0')])
@@ -89,6 +92,30 @@ describe('saving (E7)', () => {
 		const tokens = original.chart?.format === 'chart' ? original.chart.tokens : null
 		const lyricLine = { tick: 0, source: { format: 'chart' as const, section: 2, line: 1 } }
 		expect(() => chartEventEdits(tokens!, lyricLine, { tick: 96 })).toThrow('can only be removed')
+	})
+
+	it('normalizes an edited .mid file: a track keeps only the last of its tick-0 names, which Clone Hero reads', () => {
+		const midi = writeMidi({
+			header: { format: 1, numTracks: 2, ticksPerBeat: 480 },
+			tracks: [
+				[{ deltaTime: 0, type: 'setTempo', microsecondsPerBeat: 500000 }, { deltaTime: 0, type: 'endOfTrack' }],
+				[
+					{ deltaTime: 0, type: 'trackName', text: 'TEMPO TRACK' },
+					{ deltaTime: 0, type: 'trackName', text: 'PART GUITAR' },
+					{ deltaTime: 0, type: 'noteOn', channel: 0, noteNumber: 96, velocity: 100 },
+					{ deltaTime: 10, type: 'noteOff', channel: 0, noteNumber: 96, velocity: 0 },
+					{ deltaTime: 0, type: 'endOfTrack' },
+				],
+			],
+		})
+		const original = parseSong([{ fileName: 'notes.mid', data: new Uint8Array(midi) }, songIni])
+		const [green] = original.chart?.format === 'mid' && original.chart.tokens ? midiAuthoredTracks(original.chart.tokens)[0].events : []
+		const { files, report } = saveSong(original, editSong(original, batch => batch.setLength(green, 240)))
+		expect(report.normalized).toEqual([{ kind: 'trackNames', section: 'PART GUITAR' }])
+		const saved = parseSong(files)
+		const guitar = saved.chart?.format === 'mid' && saved.chart.tokens?.chunks[1]
+		expect(guitar && guitar.kind === 'track' ? guitar.events.filter(({ event }) => event.type === 'trackName').map(({ event }) => event.type === 'trackName' && event.text) : []).toEqual(['PART GUITAR'])
+		expect(saved.chart?.format === 'mid' && saved.chart.tokens ? midiAuthoredTracks(saved.chart.tokens)[0].events.map(event => event.length) : []).toEqual([240])
 	})
 
 	it('hashes a song as the reference tool does: canonical and legacy TrackHashes and SongHashes', () => {
