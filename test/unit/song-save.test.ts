@@ -31,6 +31,14 @@ describe('saving (E7)', () => {
 		expect(report.normalized).toEqual([])
 	})
 
+	it('saves an edited song that is already standard as edited, without calculating its hashes', () => {
+		const original = song([...header, '[ExpertSingle]', '{', '  0 = N 0 0', '  192 = N 1 0', '}'])
+		const edited = lengthenExpertNote(original)
+		const { files, report } = saveSong(original, edited)
+		expect(report).toEqual({ spentHashes: null, normalized: [], withheld: [] })
+		expect(decode(files[0].data)).toContain('192 = N 1 96\r\n')
+	})
+
 	it('normalizes an edited song where that changes no hash the edit didn\'t', () => {
 		const original = song([
 			...header,
