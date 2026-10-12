@@ -57,7 +57,22 @@ export function editChartLines(tokens: ChartFileTokens, edits: readonly ChartLin
 	for (let i = 1; i < splices.length; i++) {
 		if (splices[i].start < splices[i - 1].end) throw new RangeError('Two edits touch the same line')
 	}
+	return spliceBytes(tokens, splices)
+}
 
+/**
+ * Replaces ranges of a tokenized `.chart` file's decoded text and returns the edited file, tokenized. Every byte
+ * outside the ranges is copied unchanged. Ranges are offsets in the text, in order and not overlapping.
+ *
+ * Throws if a range boundary's bytes don't decode to the text before it.
+ */
+export function spliceChartText(tokens: ChartFileTokens, splices: readonly { start: number; end: number; text: string }[]): ChartFileTokens {
+	const offsets = byteOffsets(tokens)
+	return spliceBytes(tokens, splices.map(splice => ({ start: offsets(splice.start), end: offsets(splice.end), text: splice.text })))
+}
+
+/** Splices text into the file's bytes, in its encoding. `start` and `end` are byte offsets, in order. */
+function spliceBytes(tokens: ChartFileTokens, splices: readonly { start: number; end: number; text: string }[]): ChartFileTokens {
 	const parts: Uint8Array[] = []
 	let copied = 0
 	for (const splice of splices) {
