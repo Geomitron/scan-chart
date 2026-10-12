@@ -3,7 +3,7 @@ import type { MidiEvent } from '@geomitron/midi-file'
 import { type Difficulty, type InstrumentType, instrumentTypes } from '../types'
 import type { MidiAuthoredSource } from './authored-view'
 import { get5FretNoteType, get6FretNoteType, getDrumsNoteType, getInstrumentEventType } from './midi-file-parser'
-import { MidiEventToken, MidiTokens, readMidiTokens } from './midi-tokens'
+import { MidiEventToken, MidiTokens, replaceMidiTrackChunk } from './midi-tokens'
 import { type EventType, eventTypes } from './raw-types'
 
 /**
@@ -124,11 +124,7 @@ export function editMidiTrack(tokens: MidiTokens, chunkIndex: number, edits: rea
 	chunkBytes.set([0x4d, 0x54, 0x72, 0x6b]) // MTrk
 	new DataView(chunkBytes.buffer).setUint32(4, body.length)
 	chunkBytes.set(body, 8)
-	const edited = new Uint8Array(data.length - (chunk.end - chunk.start) + chunkBytes.length)
-	edited.set(data.subarray(0, chunk.start))
-	edited.set(chunkBytes, chunk.start)
-	edited.set(data.subarray(chunk.end), chunk.start + chunkBytes.length)
-	return readMidiTokens(edited, 'skip')
+	return replaceMidiTrackChunk(tokens, chunkIndex, chunkBytes)
 }
 
 /**

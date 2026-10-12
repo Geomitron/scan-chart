@@ -168,6 +168,23 @@ describe('MIDI track edits', () => {
 		expect(view(editMidiTrack(tokens, 1, midiEventEdits(green, { length: 240 })))).toEqual([[0, eventTypes.green, 240]])
 	})
 
+	it('give tokens equal to reading the edited file, shifting the chunks after the edited one', () => {
+		const midi = writeMidi({
+			header: { format: 1, numTracks: 3, ticksPerBeat: 480 },
+			tracks: [
+				[{ deltaTime: 0, type: 'setTempo', microsecondsPerBeat: 500000 }, { deltaTime: 0, type: 'endOfTrack' }],
+				[{ deltaTime: 0, type: 'trackName', text: 'PART GUITAR' }, on(0, 96), off(10, 96), { deltaTime: 0, type: 'endOfTrack' }],
+				[{ deltaTime: 0, type: 'trackName', text: 'PART BASS' }, on(0, 97), off(10, 97), { deltaTime: 0, type: 'endOfTrack' }],
+			],
+		})
+		const extra = [...new TextEncoder().encode('XTRA'), 0, 0, 0, 2, 0xab, 0xcd, 0x00]
+		const tokens = readMidiTokens(new Uint8Array([...midi, ...extra]))
+		const [green] = midiAuthoredTracks(tokens)[0].events
+		const edited = editMidiTrack(tokens, 1, [...midiEventEdits(green, { length: 2000 }), { kind: 'insert', tick: 4000, event: { type: 'noteOn', channel: 0, noteNumber: 98, velocity: 100 } }])
+		expect(edited).toEqual(readMidiTokens(edited.data))
+		expect(edited.chunks[2].start).toBeGreaterThan(tokens.chunks[2].start)
+	})
+
 	it('insert a note and delete one', () => {
 		const tokens = guitar([on(0, 96), off(10, 96)])
 		const edited = editMidiTrack(tokens, 1, [
