@@ -99,6 +99,36 @@ describe('song documents', () => {
 			? midiAuthoredTracks(editedMid.chart.tokens)[0].events.map(event => [event.tick, event.length]) : []).toEqual([[480, 240]])
 	})
 
+	it('add events to a .mid track, writing star power asked for on one difficulty for the instrument', () => {
+		const midi = writeMidi({
+			header: { format: 1, numTracks: 2, ticksPerBeat: 480 },
+			tracks: [
+				[{ deltaTime: 0, type: 'setTempo', microsecondsPerBeat: 500000 }, { deltaTime: 0, type: 'endOfTrack' }],
+				[
+					{ deltaTime: 0, type: 'trackName', text: 'PART GUITAR' },
+					{ deltaTime: 0, type: 'noteOn', channel: 0, noteNumber: 96, velocity: 100 },
+					{ deltaTime: 10, type: 'noteOff', channel: 0, noteNumber: 96, velocity: 0 },
+					{ deltaTime: 0, type: 'endOfTrack' },
+				],
+			],
+		})
+		const song = parseSong([{ fileName: 'notes.mid', data: new Uint8Array(midi) }])
+		const edited = parseSong(serializeSong(editSong(song, batch => {
+			batch.addToMidiTrack(1, 'expert', 480, eventTypes.red, 0)
+			batch.addToMidiTrack(1, 'expert', 0, eventTypes.starPower, 960)
+			batch.addToMidiTrack(1, 'hard', 480, eventTypes.forceTap, 10)
+		})))
+		const events = edited.chart?.format === 'mid' && edited.chart.tokens ? midiAuthoredTracks(edited.chart.tokens)[0].events : []
+		expect(events.map(event => [event.tick, event.type, event.length, event.scope])).toEqual([
+			[0, eventTypes.starPower, 960, 'instrument'],
+			[0, eventTypes.green, 10, 'expert'],
+			[480, eventTypes.red, 0, 'expert'],
+			[480, eventTypes.forceTap, 10, 'hard'],
+		])
+		expect(() => editSong(song, batch => batch.addToMidiTrack(1, 'expert', 0, eventTypes.open, 0)))
+			.toThrow('A .mid guitar track can\'t hold a open event on expert')
+	})
+
 	it('have no chart or song.ini when the folder has none', () => {
 		const song = parseSong([file('readme.txt', 'hi')])
 		expect(song.chart).toBeNull()

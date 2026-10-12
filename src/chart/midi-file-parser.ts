@@ -731,7 +731,7 @@ function scanInstrumentTrack(
 }
 
 /** These apply to the entire instrument, not specific difficulties. */
-function getInstrumentEventType(note: number) {
+export function getInstrumentEventType(note: number) {
 	switch (note) {
 		case 103:
 			return eventTypes.soloSection
@@ -768,7 +768,7 @@ function getInstrumentEventType(note: number) {
 	}
 }
 
-function get6FretNoteType(note: number, difficulty: Difficulty) {
+export function get6FretNoteType(note: number, difficulty: Difficulty) {
 	switch (note - sixFretDiffStarts[difficulty]) {
 		case 0:
 			return eventTypes.open // Not forceOpen
@@ -793,7 +793,7 @@ function get6FretNoteType(note: number, difficulty: Difficulty) {
 	}
 }
 
-function get5FretNoteType(note: number, difficulty: Difficulty, enhancedOpens: boolean) {
+export function get5FretNoteType(note: number, difficulty: Difficulty, enhancedOpens: boolean) {
 	switch (note - fiveFretDiffStarts[difficulty]) {
 		case 0:
 			return enhancedOpens ? eventTypes.open : null // Not forceOpen
@@ -816,7 +816,7 @@ function get5FretNoteType(note: number, difficulty: Difficulty, enhancedOpens: b
 	}
 }
 
-function getDrumsNoteType(note: number, difficulty: Difficulty) {
+export function getDrumsNoteType(note: number, difficulty: Difficulty) {
 	switch (note - drumsDiffStarts[difficulty]) {
 		case -1:
 			return eventTypes.kick2x

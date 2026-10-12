@@ -1,15 +1,15 @@
 import * as _ from 'lodash'
 
-import type { AuthoredEvent } from './chart/authored-view'
+import { type AuthoredEvent, midiAuthoredTracks } from './chart/authored-view'
 import { chartEventEdits, chartEventInsertEdit, editChartLines } from './chart/chart-edit'
 import { ChartFileTokens, tokenizeChartFile } from './chart/chart-file-parser'
-import { editMidiTrack, midiEventEdits, MidiTrackEdit } from './chart/midi-edit'
+import { editMidiTrack, midiEventEdits, midiEventEncoding, midiEventInserts, MidiTrackEdit } from './chart/midi-edit'
 import { MidiTokens, readMidiTokens, serializeMidiTokens } from './chart/midi-tokens'
 import { IniTokens, tokenizeIni } from './ini/parse-ini'
 import { findIniData } from './ini/scan-ini'
 import { getBasename, getExtension, hasChartExtension, hasChartName } from './shared/file-names'
-import type { EventType } from './chart/raw-types'
-import type { File, FolderIssueType } from './types'
+import { type EventType, eventTypes } from './chart/raw-types'
+import { type Difficulty, type File, type FolderIssueType, getInstrumentType } from './types'
 
 /** The chart file of a song, tokenized in its format. */
 export type ChartDocument =
@@ -126,6 +126,19 @@ export interface SongEditBatch {
 	remove(event: AuthoredEvent): void
 	/** Adds an event to a `.chart` instrument section, by the section's index in the file's tokens. */
 	addToChartSection(section: number, tick: number, type: EventType, length: number): void
+	/**
+	 * Adds an event to a `.mid` instrument track, by the track chunk's index in the file's tokens. An event type the
+	 * format stores once for the instrument, such as star power, is added for the instrument whichever difficulty
+	 * asks. A note's velocity defaults to 100 and its channel to 0.
+	 */
+	addToMidiTrack(
+		chunk: number,
+		scope: Difficulty | 'instrument',
+		tick: number,
+		type: EventType,
+		length: number,
+		note?: { readonly velocity: number; readonly channel: number },
+	): void
 }
 
 /**
@@ -146,15 +159,18 @@ export function editSong(song: SongDocument, collect: (batch: SongEditBatch) => 
 		changesBySource.set(key, { event, change: update === 'remove' ? update : { ...earlier, ...update } })
 	}
 	const additions: { section: number; tick: number; type: EventType; length: number }[] = []
+	const midiAdditions: Parameters<SongEditBatch['addToMidiTrack']>[] = []
 	collect({
 		setTick: (event, tick) => change(event, { tick }),
 		setLength: (event, length) => change(event, { length }),
 		remove: event => change(event, 'remove'),
 		addToChartSection: (section, tick, type, length) => additions.push({ section, tick, type, length }),
+		addToMidiTrack: (...addition) => midiAdditions.push(addition),
 	})
 	const changes = [...changesBySource.values()]
 
 	if (chart.format === 'chart') {
+		if (midiAdditions.length) throw new RangeError('A .chart file has no MIDI tracks to add to')
 		const tokens = chart.tokens
 		const edits = [
 			...changes.flatMap(({ event, change }) => {
@@ -169,18 +185,35 @@ export function editSong(song: SongDocument, collect: (batch: SongEditBatch) => 
 		return { ...song, chart: { ...chart, tokens: editChartLines(tokens, edits) } }
 	}
 
-	if (additions.length) throw new RangeError('Adding events to a .mid chart isn\'t supported yet')
+	if (additions.length) throw new RangeError('A .mid file has no .chart sections to add to')
 	if (chart.tokens === null) throw new RangeError('The .mid file can\'t be read, so it can\'t be edited')
 	const byChunk = new Map<number, MidiTrackEdit[]>()
+	const editsOf = (chunk: number) => {
+		let chunkEdits = byChunk.get(chunk)
+		if (!chunkEdits) byChunk.set(chunk, chunkEdits = [])
+		return chunkEdits
+	}
 	for (const { event, change } of changes) {
 		if (event.source.format !== 'mid') throw new RangeError('The event isn\'t from this chart')
 		const source = event.source
 		const edits = change === 'remove'
 			? source.events.map(index => ({ kind: 'delete' as const, event: index }))
 			: midiEventEdits({ ...event, source }, change)
-		let chunkEdits = byChunk.get(source.chunk)
-		if (!chunkEdits) byChunk.set(source.chunk, chunkEdits = [])
+		const chunkEdits = editsOf(source.chunk)
 		for (const edit of edits) chunkEdits.push(edit)
+	}
+	const tracks = midiAdditions.length ? midiAuthoredTracks(chart.tokens) : []
+	for (const [chunk, scope, tick, type, length, note] of midiAdditions) {
+		const track = tracks.find(candidate => candidate.chunk === chunk)
+		if (!track) throw new RangeError('The chunk isn\'t an instrument track')
+		const enhancedOpens = track.enhancedOpensFrom !== null && tick >= track.enhancedOpensFrom
+		const encoded = midiEventEncoding(getInstrumentType(track.instrument), scope, type, enhancedOpens)
+		if (!encoded) {
+			const typeName = Object.keys(eventTypes).find(name => eventTypes[name as keyof typeof eventTypes] === type)
+			throw new RangeError(`A .mid ${track.instrument} track can't hold a ${typeName} event${scope === 'instrument' ? '' : ` on ${scope}`}`)
+		}
+		const chunkEdits = editsOf(chunk)
+		for (const edit of midiEventInserts(encoded.encoding, tick, length, note)) chunkEdits.push(edit)
 	}
 	let tokens = chart.tokens
 	for (const [chunk, edits] of byChunk) tokens = editMidiTrack(tokens, chunk, edits)
