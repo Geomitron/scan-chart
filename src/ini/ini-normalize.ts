@@ -52,7 +52,7 @@ function repeatedKeyLines(tokens: IniTokens): { start: number; end: number }[] {
 	for (let start = 0; start < bytes.length;) {
 		const lineFeed = bytes.indexOf(0x0a, start)
 		const end = lineFeed === -1 ? bytes.length : lineFeed + 1
-		const line = trimDotnet(decoder.decode(bytes.subarray(start, lineFeed === -1 ? end : lineFeed)).replace(/^﻿/, ''))
+		const line = trimDotnet(decoder.decode(bytes.subarray(start, lineFeed === -1 ? end : lineFeed)).replace(/^\uFEFF/, ''))
 		// As parseIniTokens reads lines: comments, then sections, then keys.
 		if (line.length > 0 && !line.startsWith(';') && !line.startsWith('#')) {
 			if (line.startsWith('[') && line.endsWith(']')) section = toLowerInvariant(line.slice(1, -1))
