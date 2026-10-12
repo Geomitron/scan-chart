@@ -105,7 +105,8 @@ export function scanIni(files: File[]): ScanIniResult {
  * @returns the .ini file data in this chart, or `null` if one wasn't found. Prefers "song.ini", then that name in
  * another letter case, then the last other .ini file.
  */
-function findIniData(files: File[]): {
+export function findIniData(files: readonly File[]): {
+	iniFile: File | null
 	iniData: Uint8Array | null
 	/** `true` if the chosen file is one Clone Hero reads: song.ini in any letter case. */
 	isSongIni: boolean
@@ -138,7 +139,7 @@ function findIniData(files: File[]): {
 	if (ini === null) {
 		folderIssues.push({ folderIssue: 'noMetadata', description: 'This chart doesn\'t have "song.ini".' })
 	}
-	return { iniData: ini?.data ?? null, isSongIni: ini?.fileName.toLowerCase() === 'song.ini', folderIssues }
+	return { iniFile: ini, iniData: ini?.data ?? null, isSongIni: ini?.fileName.toLowerCase() === 'song.ini', folderIssues }
 }
 
 /** All keys that extractSongMetadata reads (primary + legacy aliases). */

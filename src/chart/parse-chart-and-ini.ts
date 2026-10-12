@@ -132,7 +132,7 @@ export function parseChartAndIni(files: File[]): ParseChartAndIniResult {
 	}
 }
 
-function findChartData(files: File[]) {
+export function findChartData(files: readonly File[]) {
 	const folderIssues: { folderIssue: FolderIssueType; description: string }[] = []
 
 	// Like Clone Hero, prefer a file named "notes" in any letter case, and .mid over .chart when both exist.
@@ -160,9 +160,10 @@ function findChartData(files: File[]) {
 
 	if (chartFiles.length === 0) {
 		folderIssues.push({ folderIssue: 'noChart', description: 'This chart doesn\'t have "notes.chart"/"notes.mid".' })
-		return { chartData: null, format: null, folderIssues }
+		return { chartFile: null, chartData: null, format: null, folderIssues }
 	} else {
 		return {
+			chartFile: chartFiles[0],
 			chartData: chartFiles[0].data,
 			format: (getExtension(chartFiles[0].fileName).toLowerCase() === 'mid' ? 'mid' : 'chart') as 'mid' | 'chart',
 			folderIssues,
