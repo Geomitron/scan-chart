@@ -4,7 +4,8 @@ import { describe, expect, it } from 'vitest'
 import { chartAuthoredTracks, midiAuthoredTracks } from 'src/chart/authored-view'
 import { chartEventEdits, editChartLines } from 'src/chart/chart-edit'
 import { chartSectionLines } from 'src/chart/chart-file-parser'
-import { editSong, parseSong, SongDocument } from 'src/song-document'
+import { editSong, parseSongFiles, SongDocument } from 'src/song-document'
+import { fileBytes } from 'src/song-files'
 import { saveSong, songHashes, SongNormalization } from 'src/song-save'
 
 const encode = (text: string) => new TextEncoder().encode(text)
@@ -12,7 +13,7 @@ const decode = (bytes: Uint8Array) => new TextDecoder().decode(bytes)
 const songIni = { fileName: 'song.ini', data: encode('[song]\r\nname = Test\r\nsong_length = 60000\r\n') }
 
 function song(lines: string[], lineEnding = '\r\n') {
-	return parseSong([{ fileName: 'notes.chart', data: encode(lines.join(lineEnding) + lineEnding) }, songIni])
+	return parseSongFiles([{ fileName: 'notes.chart', data: encode(lines.join(lineEnding) + lineEnding) }, songIni])
 }
 const header = ['[Song]', '{', '  Resolution = 192', '}', '[SyncTrack]', '{', '  0 = B 120000', '}', '[Events]', '{', '}']
 
@@ -36,7 +37,7 @@ describe('saving (E7)', () => {
 		const edited = lengthenExpertNote(original)
 		const { files, report } = saveSong(original, edited)
 		expect(report).toEqual({ spentHashes: null, normalized: [], withheld: [] })
-		expect(decode(files[0].data)).toContain('192 = N 1 96\r\n')
+		expect(decode(fileBytes(files[0]))).toContain('192 = N 1 96\r\n')
 	})
 
 	it('normalizes an edited song where that changes no hash the edit didn\'t', () => {
@@ -48,7 +49,7 @@ describe('saving (E7)', () => {
 		const { files, report } = saveSong(original, lengthenExpertNote(original))
 		expect(report.spentHashes).toEqual(['canonical:guitar:expert', 'canonical:song', 'legacy:guitar:expert', 'legacy:song'])
 		expect(report.withheld).toEqual([])
-		expect(decode(files[0].data)).toBe([
+		expect(decode(fileBytes(files[0]))).toBe([
 			...header,
 			'[ExpertSingle]', '{', '  0 = N 0 0', '  0 = E solo', '  192 = N 1 96', '  384 = E soloend', '}',
 			'[HardSingle]', '{', '  0 = N 0 0', '  192 = N 1 0', '}',
@@ -74,18 +75,18 @@ describe('saving (E7)', () => {
 		const { files, report } = saveSong(original, edited, () => [addNote('ExpertSingle', '384 = N 2 0'), addNote('HardSingle', '384 = N 2 0')])
 		expect(report.normalized).toEqual([{ kind: 'order', section: 'ExpertSingle' }])
 		expect(report.withheld).toEqual([{ kind: 'order', section: 'HardSingle', hashes: ['canonical:guitar:hard', 'legacy:guitar:hard'] }])
-		const saved = parseSong(files)
+		const saved = parseSongFiles(files)
 		expect(songHashes(saved)?.get('canonical:guitar:hard')).toBe(songHashes(original)?.get('canonical:guitar:hard'))
-		expect(decode(files[0].data)).toContain('384 = N 2 0\r\n}\r\n[HardSingle]')
+		expect(decode(fileBytes(files[0]))).toContain('384 = N 2 0\r\n}\r\n[HardSingle]')
 	})
 
 	it('leaves a section with bytes that aren\'t valid UTF-8 as written, and never rewrites those bytes', () => {
 		const latin1 = (text: string) => Uint8Array.from([...text].map(char => char.charCodeAt(0)))
 		const text = ['[Song]', '{', '\tName = "Café"', '  Resolution = 192', '}', '[SyncTrack]', '{', '  0 = B 120000', '}',
 			'[Events]', '{', '\t0 = E "lyric Café"', '}', '[ExpertSingle]', '{', '\t0 = N 0 0', '\t192 = N 1 0', '}'].join('\n') + '\n'
-		const original = parseSong([{ fileName: 'notes.chart', data: latin1(text) }, songIni])
+		const original = parseSongFiles([{ fileName: 'notes.chart', data: latin1(text) }, songIni])
 		const { files } = saveSong(original, lengthenExpertNote(original))
-		const saved = files[0].data
+		const saved = fileBytes(files[0])
 		// The two sections holding the invalid byte (0xE9) keep it, and every line ending gets its carriage return.
 		expect(saved.filter(byte => byte === 0xe9).length).toBe(2)
 		expect(saved).toEqual(latin1(text.replaceAll('\n', '\r\n').replace('\t0 = N 0 0\r\n\t192 = N 1 0', '  0 = N 0 0\r\n  192 = N 1 96')))
@@ -109,11 +110,11 @@ describe('saving (E7)', () => {
 				],
 			],
 		})
-		const original = parseSong([{ fileName: 'notes.mid', data: new Uint8Array(midi) }, songIni])
+		const original = parseSongFiles([{ fileName: 'notes.mid', data: new Uint8Array(midi) }, songIni])
 		const [green] = original.chart?.format === 'mid' && original.chart.tokens ? midiAuthoredTracks(original.chart.tokens)[0].events : []
 		const { files, report } = saveSong(original, editSong(original, batch => batch.setLength(green, 240)))
 		expect(report.normalized).toEqual([{ kind: 'trackNames', section: 'PART GUITAR' }])
-		const saved = parseSong(files)
+		const saved = parseSongFiles(files)
 		const guitar = saved.chart?.format === 'mid' && saved.chart.tokens?.chunks[1]
 		expect(guitar && guitar.kind === 'track' ? guitar.events.filter(({ event }) => event.type === 'trackName').map(({ event }) => event.type === 'trackName' && event.text) : []).toEqual(['PART GUITAR'])
 		expect(saved.chart?.format === 'mid' && saved.chart.tokens ? midiAuthoredTracks(saved.chart.tokens)[0].events.map(event => event.length) : []).toEqual([240])
@@ -121,10 +122,10 @@ describe('saving (E7)', () => {
 
 	it('removes a song.ini key a later line of the same key replaces, in any letter case', () => {
 		const ini = { fileName: 'song.ini', data: encode('[song]\r\nname = Old\r\nName = Test\r\nsong_length = 60000\r\n; comment\r\n') }
-		const original = parseSong([{ fileName: 'notes.chart', data: encode([...header, '[ExpertSingle]', '{', '  0 = N 0 0', '  192 = N 1 0', '}'].join('\r\n') + '\r\n') }, ini])
+		const original = parseSongFiles([{ fileName: 'notes.chart', data: encode([...header, '[ExpertSingle]', '{', '  0 = N 0 0', '  192 = N 1 0', '}'].join('\r\n') + '\r\n') }, ini])
 		const { files, report } = saveSong(original, lengthenExpertNote(original))
 		expect(report.normalized).toEqual([{ kind: 'duplicateKeys', section: 'song.ini' }])
-		expect(decode(files[1].data)).toBe('[song]\r\nName = Test\r\nsong_length = 60000\r\n; comment\r\n')
+		expect(decode(fileBytes(files[1]))).toBe('[song]\r\nName = Test\r\nsong_length = 60000\r\n; comment\r\n')
 	})
 
 	it('hashes a song as the reference tool does: canonical and legacy TrackHashes and SongHashes', () => {

@@ -14,7 +14,7 @@ import { describe, expect, it } from 'vitest'
 import { writeChartFile } from 'src/chart/chart-writer'
 import { canonical20260801 } from 'src/chart/identity/public'
 import { createEmptyChart } from 'src/chart/create-chart'
-import { NoteEvent, noteFlags, type NoteType, noteTypes } from 'src/chart/types'
+import { defaultIniChartModifiers, NoteEvent, noteFlags, type NoteType, noteTypes } from 'src/chart/types'
 import { parseChartAndIni, type ParsedChart } from 'src/chart/parse-chart-and-ini'
 
 function roundTrip(chart: ParsedChart, iniText?: string): ParsedChart {
@@ -409,7 +409,7 @@ describe('converting .mid flam to .chart (C18)', () => {
 		const chartText = writeChartFile({ ...parsed, format: 'chart' })
 		expect(chartText).toContain('0 = N 109 0')
 		const trackHash = (format: 'chart' | 'mid', bytes: Uint8Array) => {
-			const source = canonical20260801.parseSource({ source: { format, bytes }, modifiers: {} })
+			const source = canonical20260801.parseSource({ source: { format, bytes }, modifiers: defaultIniChartModifiers })
 			if (source.kind !== 'accepted') throw new Error(source.errors[0].message)
 			return canonical20260801.calculateTrackIdentity(source.chart.tracks[0]).trackHash.value
 		}

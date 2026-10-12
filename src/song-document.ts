@@ -27,9 +27,10 @@ import { findMidiEventsTrack, isTextLikeEvent } from './chart/midi-file-parser'
 import { MidiTokens, midiTokensToMidiData, readMidiTokens, serializeMidiTokens } from './chart/midi-tokens'
 import { IniTokens, tokenizeIni } from './ini/parse-ini'
 import { findIniData } from './ini/scan-ini'
-import { getBasename, getExtension, hasChartExtension, hasChartName } from './shared/file-names'
+import { getBasename, getExtension, hasChartExtension, hasChartName, hasIniExtension } from './shared/file-names'
 import { type EventType, eventTypes } from './chart/raw-types'
-import { type Difficulty, type File, type FolderIssueType, getInstrumentType } from './types'
+import { fileBytes, isByteSource, readFileBytes, type SongFile } from './song-files'
+import { type Difficulty, type FolderIssueType, getInstrumentType } from './types'
 
 /** The chart file of a song, tokenized in its format. */
 export type ChartDocument =
@@ -54,29 +55,41 @@ export interface IniDocument {
  * given. Every view of the song is derived from it.
  */
 export interface SongDocument {
-	/** Every file of the folder, in the order given. */
-	readonly files: readonly File[]
+	/** Every file of the folder, in the order given. Files scan-chart doesn't read can stay byte sources. */
+	readonly files: readonly SongFile[]
 	/** The chart file Clone Hero reads, or `null` when the folder has none. */
 	readonly chart: ChartDocument | null
 	/** The song.ini Clone Hero reads, or `null` when the folder has none. */
 	readonly ini: IniDocument | null
 }
 
-/** Parses a song folder into a document. Never throws: a malformed chart or song.ini is reported when it is read. */
-export function parseSong(files: readonly File[]): SongDocument {
+/**
+ * Parses a song folder into a document. Only the chart and .ini files are read; other files, such as audio, video
+ * and album art, can be byte sources, and are read only when something needs them. Never rejects: a malformed chart
+ * or song.ini is reported when it's read.
+ */
+export async function parseSong(files: readonly SongFile[]): Promise<SongDocument> {
+	const read = await Promise.all(files.map(async file =>
+		!isByteSource(file.data) || !(hasChartExtension(file.fileName) || hasIniExtension(file.fileName)) ? file
+		: { fileName: file.fileName, data: await readFileBytes(file) }))
+	return parseSongFiles(read)
+}
+
+/** `parseSong` for a folder whose chart and .ini files are already bytes. */
+export function parseSongFiles(files: readonly SongFile[]): SongDocument {
 	const { chartFile, format } = findChartData(files)
 	const { iniFile } = findIniData(files)
 	return {
 		files,
 		chart: chartFile === null ? null
-			: format === 'mid' ? { format, fileName: chartFile.fileName, bytes: chartFile.data, ...tokenizeMidi(chartFile.data) }
-			: { format: 'chart', fileName: chartFile.fileName, tokens: tokenizeChartFile(chartFile.data) },
-		ini: iniFile === null ? null : { fileName: iniFile.fileName, tokens: tokenizeIni(iniFile.data) },
+			: format === 'mid' ? { format, fileName: chartFile.fileName, bytes: fileBytes(chartFile), ...tokenizeMidi(fileBytes(chartFile)) }
+			: { format: 'chart', fileName: chartFile.fileName, tokens: tokenizeChartFile(fileBytes(chartFile)) },
+		ini: iniFile === null ? null : { fileName: iniFile.fileName, tokens: tokenizeIni(fileBytes(iniFile)) },
 	}
 }
 
 /** Writes a song document back to files: an unedited document gives back every file byte for byte. */
-export function serializeSong(song: SongDocument): File[] {
+export function serializeSong(song: SongDocument): SongFile[] {
 	return song.files.map(file =>
 		file.fileName === song.chart?.fileName ? { fileName: file.fileName, data: chartBytes(song.chart) }
 		: file.fileName === song.ini?.fileName ? { fileName: file.fileName, data: song.ini.tokens.bytes }
@@ -97,7 +110,7 @@ function tokenizeMidi(bytes: Uint8Array): { tokens: MidiTokens | null; readError
 }
 
 /** Chooses the chart file Clone Hero reads from a song folder, and reports problems with the folder's chart files. */
-export function findChartData(files: readonly File[]) {
+export function findChartData(files: readonly SongFile[]) {
 	const folderIssues: { folderIssue: FolderIssueType; description: string }[] = []
 
 	// Like Clone Hero, prefer a file named "notes" in any letter case, and .mid over .chart when both exist.
@@ -125,11 +138,10 @@ export function findChartData(files: readonly File[]) {
 
 	if (chartFiles.length === 0) {
 		folderIssues.push({ folderIssue: 'noChart', description: 'This chart doesn\'t have "notes.chart"/"notes.mid".' })
-		return { chartFile: null, chartData: null, format: null, folderIssues }
+		return { chartFile: null, format: null, folderIssues }
 	} else {
 		return {
 			chartFile: chartFiles[0],
-			chartData: chartFiles[0].data,
 			format: (getExtension(chartFiles[0].fileName).toLowerCase() === 'mid' ? 'mid' : 'chart') as 'mid' | 'chart',
 			folderIssues,
 		}

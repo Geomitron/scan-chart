@@ -9,14 +9,14 @@ import { MidiTokens, readMidiTokens } from 'src/chart/midi-tokens'
 import { parseChartSource } from 'src/chart/parse-chart-file'
 import { parseRules } from 'src/chart/parse-rules'
 import { eventTypes } from 'src/chart/raw-types'
-import { editSong, parseSong, SongDocument } from 'src/song-document'
+import { editSong, parseSongFiles, SongDocument } from 'src/song-document'
 
 const rules = parseRules.canonical20260801
 const on = (deltaTime: number, noteNumber: number): MidiEvent => ({ deltaTime, type: 'noteOn', channel: 0, noteNumber, velocity: 100 })
 const off = (deltaTime: number, noteNumber: number): MidiEvent => ({ deltaTime, type: 'noteOff', channel: 0, noteNumber, velocity: 0 })
 const track = (name: string, ...events: MidiEvent[]): MidiEvent[] =>
 	[{ deltaTime: 0, type: 'trackName', text: name }, ...events, { deltaTime: 0, type: 'endOfTrack' }]
-const song = parseSong([{ fileName: 'notes.mid', data: new Uint8Array(writeMidi({
+const song = parseSongFiles([{ fileName: 'notes.mid', data: new Uint8Array(writeMidi({
 	header: { format: 1, numTracks: 6, ticksPerBeat: 480 },
 	tracks: [
 		[{ deltaTime: 0, type: 'setTempo', microsecondsPerBeat: 500000 }, { deltaTime: 0, type: 'endOfTrack' }],

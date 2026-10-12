@@ -1,9 +1,11 @@
 import { load } from 'exifreader'
 
-import { File, FolderIssueType } from '../types'
+import { fileBytes, type SongFile } from '../song-files'
+import { FolderIssueType } from '../types'
 import { hasAlbumName } from '../shared/file-names'
 
-export function scanImage(files: File[]) {
+/** Scans the album art. Its file must already be bytes; the other files are only looked at by name. */
+export function scanImage(files: readonly SongFile[]) {
 	const folderIssues: { folderIssue: FolderIssueType; description: string }[] = []
 
 	const findAlbumDataResult = findAlbumData(files)
@@ -21,15 +23,15 @@ export function scanImage(files: File[]) {
 /**
  * @returns the album art file data in this chart, or `null` if one wasn't found.
  */
-function findAlbumData(files: File[]) {
+function findAlbumData(files: readonly SongFile[]) {
 	const folderIssues: { folderIssue: FolderIssueType; description: string }[] = []
 	let albumCount = 0
-	let lastAlbumData: Uint8Array | null = null
+	let lastAlbumFile: SongFile | null = null
 
 	for (const file of files) {
 		if (hasAlbumName(file.fileName)) {
 			albumCount++
-			lastAlbumData = file.data
+			lastAlbumFile = file
 		}
 	}
 
@@ -37,8 +39,8 @@ function findAlbumData(files: File[]) {
 		folderIssues.push({ folderIssue: 'multipleAlbumArt', description: 'This chart has multiple album art files.' })
 	}
 
-	if (lastAlbumData !== null) {
-		return { albumData: lastAlbumData, folderIssues }
+	if (lastAlbumFile !== null) {
+		return { albumData: fileBytes(lastAlbumFile), folderIssues }
 	} else {
 		folderIssues.push({ folderIssue: 'noAlbumArt', description: "This chart doesn't have album art." })
 		return { albumData: null, folderIssues }

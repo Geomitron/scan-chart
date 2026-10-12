@@ -93,7 +93,8 @@ function calculateCanonicalIdentity(parsedChart: ParsedChart):
 	}
 }
 
-function getChartHash(chartBytes: Uint8Array, iniChartModifiers: IniChartModifiers) {
+/** BLAKE3 of the chart file and the non-default parse settings, as unpadded base64url. */
+export function getChartHash(chartBytes: Uint8Array, iniChartModifiers: IniChartModifiers) {
 	const hashedIniModifiers = (
 		[
 			{ name: 'hopo_frequency', value: iniChartModifiers.hopo_frequency },

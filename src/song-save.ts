@@ -6,6 +6,7 @@ import { songBundle20251010 } from './chart/identity/public'
 import { parseChartAndIni } from './chart/parse-chart-and-ini'
 import { parseChartFileFrozenLegacyIdentity } from './chart/parse-chart-file'
 import { ChartDocument, IniDocument, SongDocument, serializeSong } from './song-document'
+import { fileBytes, type SongFile } from './song-files'
 import type { File } from './types'
 
 /**
@@ -28,12 +29,12 @@ export function songHashes(song: SongDocument): ReadonlyMap<string, string> | nu
 	return hashes
 }
 
-const hashCache = new WeakMap<ChartDocument, { ini: IniDocument | null; songIni: File | null; fileNames: string; hashes: ReadonlyMap<string, string> | null }>()
+const hashCache = new WeakMap<ChartDocument, { ini: IniDocument | null; songIni: SongFile | null; fileNames: string; hashes: ReadonlyMap<string, string> | null }>()
 
-function calculateSongHashes(song: SongDocument, chart: ChartDocument, songIni: File | null): ReadonlyMap<string, string> | null {
+function calculateSongHashes(song: SongDocument, chart: ChartDocument, songIni: SongFile | null): ReadonlyMap<string, string> | null {
 	const chartBytes = chart.format === 'mid' ? chart.bytes : chart.tokens.bytes
 	const files: File[] = [{ fileName: chart.format === 'mid' ? 'notes.mid' : 'notes.chart', data: chartBytes }]
-	if (songIni !== null) files.push({ fileName: 'song.ini', data: song.ini?.fileName === songIni.fileName ? song.ini.tokens.bytes : songIni.data })
+	if (songIni !== null) files.push({ fileName: 'song.ini', data: song.ini?.fileName === songIni.fileName ? song.ini.tokens.bytes : fileBytes(songIni) })
 	const { parsedChart } = parseChartAndIni(files)
 	if (parsedChart === null) return null
 
@@ -136,7 +137,7 @@ export function saveSong(
 	original: SongDocument,
 	edited: SongDocument,
 	normalizationsOf: (song: SongDocument) => readonly SongNormalization[] = songNormalizations,
-): { files: File[]; report: SaveReport } {
+): { files: SongFile[]; report: SaveReport } {
 	const unchanged = { spentHashes: null, normalized: [], withheld: [] }
 	if (edited.chart === null || (edited.chart === original.chart && edited.ini === original.ini)) return { files: serializeSong(edited), report: unchanged }
 	const normalizations = normalizationsOf(edited)

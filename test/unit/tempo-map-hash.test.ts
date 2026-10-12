@@ -2,9 +2,10 @@ import { writeMidi } from '@geomitron/midi-file'
 import { describe, expect, it } from 'vitest'
 
 import { canonical20260801 } from 'src/chart/identity/public'
+import { defaultIniChartModifiers } from 'src/chart/types'
 
 const tempoMapHash = (format: 'chart' | 'mid', bytes: Uint8Array) => {
-	const parsed = canonical20260801.parseSource({ source: { format, bytes }, modifiers: {} })
+	const parsed = canonical20260801.parseSource({ source: { format, bytes }, modifiers: defaultIniChartModifiers })
 	if (parsed.kind !== 'accepted') throw new Error('expected the chart to parse')
 	return canonical20260801.calculateTempoMapHash(parsed.chart)
 }

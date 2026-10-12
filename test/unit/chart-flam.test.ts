@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 
 import { canonical20260801 } from 'src/chart/identity/public'
 import { parseChartFileCanonicalIdentity, parseChartFileFrozenLegacyIdentity } from 'src/chart/parse-chart-file'
-import { noteFlags } from 'src/chart/types'
+import { defaultIniChartModifiers, noteFlags } from 'src/chart/types'
 
 type MidiEvent = MidiData['tracks'][number][number]
 
@@ -60,7 +60,7 @@ describe('flam in .chart (C18)', () => {
 			tracks: [[{ deltaTime: 0, type: 'setTempo', microsecondsPerBeat: 500000 }, { deltaTime: 0, type: 'endOfTrack' }], drums],
 		}))
 		const trackHash = (format: 'chart' | 'mid', bytes: Uint8Array) => {
-			const parsed = canonical20260801.parseSource({ source: { format, bytes }, modifiers: {} })
+			const parsed = canonical20260801.parseSource({ source: { format, bytes }, modifiers: defaultIniChartModifiers })
 			if (parsed.kind !== 'accepted') throw new Error(parsed.errors[0].message)
 			return canonical20260801.calculateTrackIdentity(parsed.chart.tracks[0]).trackHash.value
 		}
