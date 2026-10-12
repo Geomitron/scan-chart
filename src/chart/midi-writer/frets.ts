@@ -241,13 +241,19 @@ export function buildFretTrack(
 		}
 	}
 
-	// Instrument-wide sections. Star power = 116, solo = 103, BRE/coda = 120.
+	// Instrument-wide sections. Star power = 116, solo = 103, BRE/coda = 120. With song.ini's `multiplier_note = 103`
+	// (Guitar Hero 1 and 2), 103 is star power and 116 is star power the parser rejects; such a chart has no solos.
+	const gh1StarPower = chart.iniChartModifiers.multiplier_note === 103
+	const allRejectedStarPower = gh1StarPower ? trackDataEntries.flatMap(td => td.rejectedStarPowerSections) : []
 	for (const sp of deduplicateSections(allStarPower)) {
 		const vel = (sp as { velocity?: number }).velocity ?? 100
 		const ch = (sp as { channel?: number }).channel ?? 0
-		addNoteOnOffWithChannel(events, sp.tick, sp.length, 116, vel, ch)
+		addNoteOnOffWithChannel(events, sp.tick, sp.length, gh1StarPower ? 103 : 116, vel, ch)
 	}
-	for (const solo of deduplicateSections(allSolo)) {
+	for (const sp of deduplicateSections(allRejectedStarPower)) {
+		addNoteOnOffWithChannel(events, sp.tick, sp.length, 116, 100, 0)
+	}
+	for (const solo of gh1StarPower ? [] : deduplicateSections(allSolo)) {
 		const vel = (solo as { velocity?: number }).velocity ?? 100
 		const ch = (solo as { channel?: number }).channel ?? 0
 		addNoteOnOffWithChannel(events, solo.tick, solo.length, 103, vel, ch)
