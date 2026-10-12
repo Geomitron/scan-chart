@@ -543,14 +543,15 @@ function serializeTrackSection(track: ParsedTrack, chart: ParsedChart): string[]
 	// for downstream YARG parent-note selection.
 	events.sort((a, b) => (a.tick !== b.tick ? a.tick - b.tick : a.sortKey - b.sortKey))
 
-	// Deduplicate exact same-tick same-value duplicates (possible after modifier
-	// emission produces redundant markers).
+	// Deduplicate exact same-tick same-value notes and text events (possible
+	// after modifier emission produces redundant markers). Phrases are kept: a
+	// phrase a track has twice, such as a repeated drum fill, counts twice.
 	const deduped: TrackLineEvent[] = []
 	for (const ev of events) {
 		const prev = deduped[deduped.length - 1]
 		if (prev && prev.tick === ev.tick && prev.kind === ev.kind) {
 			if (ev.kind === 'E' && prev.kind === 'E' && prev.text === ev.text) continue
-			if (ev.kind !== 'E' && prev.kind !== 'E' && prev.value === ev.value && prev.length === ev.length) continue
+			if (ev.kind === 'N' && prev.kind === 'N' && prev.value === ev.value && prev.length === ev.length) continue
 		}
 		deduped.push(ev)
 	}
