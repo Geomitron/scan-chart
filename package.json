@@ -52,13 +52,10 @@
 		"@geomitron/midi-file": "^1.2.5",
 		"bottleneck": "^2.19.5",
 		"exifreader": "^4.23.2",
-		"fluent-ffmpeg": "^2.1.2",
 		"js-md5": "^0.8.3",
 		"lodash": "^4.17.21",
 		"rfc4648": "^1.5.3",
-		"sanitize-filename": "^1.6.3",
-		"stream-audio-fingerprint": "git+https://github.com/Geomitron/stream-audio-fingerprint.git",
-		"workerpool": "^6.4.0"
+		"sanitize-filename": "^1.6.3"
 	},
 	"devDependencies": {
 		"@angular-eslint/builder": "^21.3.1",
@@ -69,11 +66,9 @@
 		"@changesets/cli": "^2.26.1",
 		"@eslint/js": "^9.39.4",
 		"@types/charset-detector": "^0.0.1",
-		"@types/fluent-ffmpeg": "^2.1.21",
 		"@types/js-md5": "^0.7.2",
 		"@types/lodash": "^4.14.194",
 		"@types/node": "^25.9.1",
-		"@types/workerpool": "^6.4.0",
 		"@types/yargs": "^17.0.33",
 		"@typescript-eslint/eslint-plugin": "^8.59.3",
 		"@typescript-eslint/parser": "^8.59.3",
