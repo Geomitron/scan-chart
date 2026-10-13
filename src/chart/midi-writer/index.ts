@@ -13,6 +13,7 @@ import { writeMidi } from '@geomitron/midi-file'
 
 import type { Instrument } from '../../types'
 import type { ParsedChart } from '../parse-chart-and-ini'
+import { midiInstrumentTrackNames } from '../midi-track-names'
 import { buildDrumTrack } from './drums'
 import { buildEventsTrack, buildTempoTrack, buildUnrecognizedTrack } from './events'
 import { buildFretTrack, fiveFretInstruments, sixFretInstruments } from './frets'
@@ -51,7 +52,7 @@ export function writeMidiFile(chart: ParsedChart, options: MidiWriteOptions = {}
 	}
 	const groups: TrackGroup[] = []
 	for (const td of chart.trackData) {
-		const trackName = instrumentTrackNames[td.instrument]
+		const trackName = midiInstrumentTrackNames[td.instrument]
 		if (!trackName) continue
 		const dupKey = `${td.instrument}:${td.difficulty}`
 		let group: TrackGroup | undefined
@@ -117,19 +118,6 @@ export function writeMidiFile(chart: ParsedChart, options: MidiWriteOptions = {}
 // Instrument → track name mapping
 // ---------------------------------------------------------------------------
 
-const instrumentTrackNames: Record<Instrument, string> = {
-	drums: 'PART DRUMS',
-	guitar: 'PART GUITAR',
-	guitarcoop: 'PART GUITAR COOP',
-	rhythm: 'PART RHYTHM',
-	bass: 'PART BASS',
-	keys: 'PART KEYS',
-	guitarghl: 'PART GUITAR GHL',
-	guitarcoopghl: 'PART GUITAR COOP GHL',
-	rhythmghl: 'PART RHYTHM GHL',
-	bassghl: 'PART BASS GHL',
-	keysghl: 'PART KEYS GHL',
-}
 
 // HARM1/2/3 (not PART HARM1/2/3) — matches the convention used by most MIDI
 // chart files in the wild, including ones re-exported by YARG/ChartDump.
