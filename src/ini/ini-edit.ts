@@ -35,6 +35,20 @@ export function setSongIniValue(tokens: IniTokens, key: string, value: string | 
 	return encodeLike(tokens, lines.join(''))
 }
 
+/**
+ * A song.ini that can be edited: as it is when it's UTF-8, or else its decoded text written as UTF-8, which Clone Hero
+ * reads the same. Throws for a file that can't be decoded.
+ */
+export function asUtf8Ini(tokens: IniTokens): IniTokens {
+	if (tokens.text === null) throw new RangeError('song.ini can\'t be decoded, so it can\'t be edited')
+	try {
+		editableText(tokens)
+		return tokens
+	} catch {
+		return tokenizeIni(new TextEncoder().encode(tokens.text))
+	}
+}
+
 /** Whether a song.ini has a `[song]` section, in any letter case, as Clone Hero reads sections. */
 export function hasSongIniSection(tokens: IniTokens): boolean {
 	return tokens.text !== null && scanSongSections(tokens.text, null).lastSongLine !== -1

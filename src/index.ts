@@ -67,6 +67,10 @@ export type { ByteRange, PlannedFile, SavePlan } from './save-plan'
 export type { SaveReport } from './song-save'
 export { createSong } from './create-song'
 
+/** Converting a song's chart to the other format. */
+export { ConversionError, convertChart } from './convert-chart'
+export type { ConversionCause, ConversionLimit, ConversionReport } from './convert-chart'
+
 /** Names and constants shared by every part of the API. */
 export { difficulties, drumTypes, getInstrumentType, instruments, instrumentTypes } from './types'
 export type { Difficulty, DrumType, Instrument, InstrumentType } from './types'
