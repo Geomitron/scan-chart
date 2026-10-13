@@ -220,7 +220,7 @@ export function sameAsExpert(canonicalChart: CanonicalParsedChart | null): (inst
  * Whether two values serialize to the same JSON, with BigInts as their digits, without serializing them: it stops at
  * the first difference, where serializing every note of two tracks took a sixth of a scan.
  */
-function sameAsJson(a: unknown, b: unknown): boolean {
+export function sameAsJson(a: unknown, b: unknown): boolean {
 	const [x, y] = [jsonValue(a), jsonValue(b)]
 	if (x === y) return true
 	if (typeof x !== 'object' || typeof y !== 'object' || x === null || y === null) return false
