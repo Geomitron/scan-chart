@@ -1,4 +1,3 @@
-import { chartNormalizations } from './chart/chart-normalize'
 import { chartSectionLines, chartSectionTrack } from './chart/chart-file-parser'
 import { midiTrackInstrument } from './chart/midi-file-parser'
 import { midiNormalizations } from './chart/midi-normalize'
@@ -39,29 +38,31 @@ export function chartSpellingIssues(source: ChartSource, styleNotes: boolean): I
 	}
 	if (source.format === 'chart') {
 		const { tokens } = source
-		const reported = new Set<string>()
+		const unsorted = new Set<string>()
+		const respelled: [SpellingIssueType, string][] = []
+		// The normalizations read the last section of each name, which Clone Hero reads.
+		const lastOfName = new Map<string, (typeof tokens.sections)[number]>()
+		for (const section of tokens.sections) lastOfName.set(section.name, section)
 		for (const section of tokens.sections) {
+			const track = chartSectionTrack(section.name)
 			// Clone Hero's readers of track sections, [SyncTrack] and [Events] each refuse a tick lower than the line before
 			// it (TrackParser, ChartReader.Sync, ChartReader.Events). Lines of one tick may come in any order.
-			const track = chartSectionTrack(section.name)
-			if (reported.has(section.name) || (track === null && section.name !== 'SyncTrack' && section.name !== 'Events')) continue
-			let lastTick = 0
-			for (const line of chartSectionLines(tokens, section)) {
-				const tick = /^(\d+)\s*=/.exec(line.text)
-				if (tick === null) continue
-				if (Number(tick[1]) < lastTick) {
-					add('unsortedChartLines', track ?? { instrument: null, difficulty: null })
-					reported.add(section.name)
-					break
-				}
-				lastTick = Number(tick[1])
+			const ordered = track !== null || section.name === 'SyncTrack' || section.name === 'Events'
+			const isLast = lastOfName.get(section.name) === section
+			const checkOrder = ordered && !unsorted.has(section.name)
+			if (!isLast && !checkOrder) continue
+			const scanned = scanSectionLines(tokens.text, section.bodyStart, section.bodyEnd, checkOrder, isLast && track !== null)
+			if (scanned.unsorted) unsorted.add(section.name)
+			if (scanned.quoted) respelled.push(['quotedChartTrackEvent', section.name])
+			// Only where Clone Hero reads the lines, so it's true that it reads a repeated one once.
+			if (isLast && styleNotes && ordered) {
+				const lines = chartSectionLines(tokens, section).map(line => line.text).filter(text => text !== '')
+				if (new Set(lines).size !== lines.length) respelled.push(['duplicateChartLine', section.name])
 			}
 		}
-		for (const { kind, section } of chartNormalizations(tokens)) {
-			const track = (section === null ? null : chartSectionTrack(section)) ?? { instrument: null, difficulty: null }
-			if (kind === 'quotedTrackEvents') add('quotedChartTrackEvent', track)
-			else if (kind === 'duplicateLines' && styleNotes) add('duplicateChartLine', track)
-		}
+		const trackOf = (name: string) => chartSectionTrack(name) ?? { instrument: null, difficulty: null }
+		for (const name of unsorted) add('unsortedChartLines', trackOf(name))
+		for (const [code, name] of respelled) add(code, trackOf(name))
 		return issues
 	}
 	if (source.tokens === null) return issues
@@ -72,6 +73,39 @@ export function chartSpellingIssues(source: ChartSource, styleNotes: boolean): I
 		add('overlappingMidiNotes', { instrument: midiTrackInstrument(trackName), difficulty: null })
 	}
 	return issues
+}
+
+/**
+ * Whether a section's tick lines go backwards, and whether it has a quoted track event (a line that is, trimmed,
+ * `<tick> = E "<text>"`), read a character at a time: every line of every chart is scanned on every analysis.
+ */
+function scanSectionLines(text: string, start: number, end: number, checkOrder: boolean, checkQuoted: boolean) {
+	let unsorted = false, quoted = false, lastTick = 0
+	const isBlank = (code: number) => code === 32 || code === 9 || code === 13
+	for (let position = start; position < end && ((checkOrder && !unsorted) || (checkQuoted && !quoted));) {
+		const lineFeed = text.indexOf('\n', position)
+		const lineEnd = lineFeed === -1 || lineFeed > end ? end : lineFeed
+		let index = position
+		while (index < lineEnd && isBlank(text.charCodeAt(index))) index++
+		const digitsStart = index
+		let tick = 0
+		while (index < lineEnd && text.charCodeAt(index) >= 48 && text.charCodeAt(index) <= 57) tick = tick * 10 + text.charCodeAt(index++) - 48
+		if (index > digitsStart) {
+			let equals = index
+			while (equals < lineEnd && isBlank(text.charCodeAt(equals))) equals++
+			if (text.charCodeAt(equals) === 61) {
+				if (checkOrder && !unsorted) {
+					if (tick < lastTick) unsorted = true
+					else lastTick = tick
+				}
+				if (checkQuoted && !quoted && text.startsWith(' = E "', index)) {
+					quoted = /^\d+ = E ".*"$/.test(text.slice(digitsStart, lineEnd).replace(/[ \t\r]+$/, ''))
+				}
+			}
+		}
+		position = lineEnd + 1
+	}
+	return { unsorted, quoted }
 }
 
 /** The nonstandard spellings of the song.ini Clone Hero reads; none for another `.ini` file, which it doesn't read. */
