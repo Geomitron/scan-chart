@@ -24,7 +24,7 @@ import {
 import { findMidiEventsTrack, isTextLikeEvent } from './chart/midi-file-parser'
 import { MidiTokens, midiTokensToMidiData, readMidiTokens, serializeMidiTokens } from './chart/midi-tokens'
 import { chartSongIniEntries } from './ini/chart-song-entries'
-import { appendSongIniSection, setSongIniValue } from './ini/ini-edit'
+import { appendSongIniSection, hasSongIniSection, setSongIniValue } from './ini/ini-edit'
 import { defaultMetadata } from './ini/metadata'
 import { IniTokens, tokenizeIni } from './ini/parse-ini'
 import { findIniData } from './ini/scan-ini'
@@ -406,13 +406,30 @@ function editChart(
  * a `[song]` section gets one, holding the `[Song]` values Clone Hero read before the edits.
  */
 function editMetadata(song: SongDocument, edits: ReadonlyMap<string, string | null>): SongDocument {
+	let tokens = songIniWithSection(song)
+	for (const [key, value] of edits) tokens = setSongIniValue(tokens, key, value)!
+	return withSongIni(song, tokens)
+}
+
+/** The song.ini Clone Hero reads: `song.ini` in any letter case. */
+function cloneHeroSongIni(song: SongDocument): IniDocument | null {
+	return song.ini !== null && song.ini.fileName.toLowerCase() === 'song.ini' ? song.ini : null
+}
+
+/**
+ * The tokens of the song.ini Clone Hero reads, with a `[song]` section: a song.ini without one gets one, and a song
+ * without song.ini a new file, holding the `.chart` `[Song]` values Clone Hero read, so they still read the same.
+ */
+export function songIniWithSection(song: SongDocument): IniTokens {
+	const tokens = cloneHeroSongIni(song)?.tokens ?? tokenizeIni(new Uint8Array(0))
+	if (hasSongIniSection(tokens)) return tokens
 	const { chart } = song
-	const ini = song.ini !== null && song.ini.fileName.toLowerCase() === 'song.ini' ? song.ini : null
-	const copied = () => chart?.format === 'chart' ? chartSongIniEntries(readChartSongEntries(chart.tokens.bytes)) : []
-	let tokens = ini?.tokens ?? tokenizeIni(new Uint8Array(0))
-	for (const [key, value] of edits) {
-		tokens = setSongIniValue(tokens, key, value) ?? setSongIniValue(appendSongIniSection(tokens, copied()), key, value)!
-	}
+	return appendSongIniSection(tokens, chart?.format === 'chart' ? chartSongIniEntries(readChartSongEntries(chart.tokens.bytes)) : [])
+}
+
+/** The song with `tokens` as the song.ini Clone Hero reads, added as `song.ini` when it has none. */
+export function withSongIni(song: SongDocument, tokens: IniTokens): SongDocument {
+	const ini = cloneHeroSongIni(song)
 	if (ini !== null) return { ...song, ini: { ...ini, tokens } }
 	return { ...song, files: [...song.files, { fileName: 'song.ini', data: tokens.bytes }], ini: { fileName: 'song.ini', tokens } }
 }

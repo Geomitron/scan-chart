@@ -10,7 +10,19 @@ import { noteFlags, noteTypes } from '../types'
 import { drumsDiffStarts } from '../midi-note-numbers'
 import type { ParsedChart } from '../parse-chart-and-ini'
 import { wrapEventBrackets } from '../writer-shared'
-import { addNoteOnOff, addNoteOnOffWithChannel, computeLengthOverrides, mergeDifficultySections, finalizeMidiTrack, metaTextEvent, noteOffEvent, noteOnEvent, trackNameEvent } from './shared'
+import {
+	addNoteOnOff,
+	addNoteOnOffWithChannel,
+	computeLengthOverrides,
+	finalizeMidiTrack,
+	instrumentSections,
+	metaTextEvent,
+	type MidiWriteOptions,
+	noteOffEvent,
+	noteOnEvent,
+	stretchUnsustainedNotes,
+	trackNameEvent,
+} from './shared'
 import type { AbsoluteEvent, ParsedTrack } from './shared'
 
 
@@ -55,6 +67,7 @@ export function buildDrumTrack(
 	trackDataEntries: ParsedTrack[],
 	chart: ParsedChart,
 	trackName: string,
+	options: MidiWriteOptions = {},
 ): MidiEvent[] {
 	const events: AbsoluteEvent[] = []
 
@@ -149,20 +162,20 @@ export function buildDrumTrack(
 	// Instrument-wide sections. Preserve velocity/channel from source if the
 	// parser attached them (MIDI-parsed sections carry raw MIDI properties).
 	const soloNote = 103
-	for (const sp of mergeDifficultySections(allStarPower)) {
+	for (const sp of instrumentSections(trackDataEntries, allStarPower, options)) {
 		const vel = (sp as { velocity?: number }).velocity ?? 100
 		const ch = (sp as { channel?: number }).channel ?? 0
-		addNoteOnOffWithChannel(events, sp.tick, sp.length, 116, vel, ch)
+		addNoteOnOffWithChannel(events, sp.tick, sp.length, 116, vel, ch, options.zeroLengthPhrases)
 	}
-	for (const solo of mergeDifficultySections(allSolo)) {
+	for (const solo of instrumentSections(trackDataEntries, allSolo, options)) {
 		const vel = (solo as { velocity?: number }).velocity ?? 100
 		const ch = (solo as { channel?: number }).channel ?? 0
-		addNoteOnOffWithChannel(events, solo.tick, solo.length, soloNote, vel, ch)
+		addNoteOnOffWithChannel(events, solo.tick, solo.length, soloNote, vel, ch, options.zeroLengthPhrases)
 	}
-	for (const fs of mergeDifficultySections(allActivation)) {
+	for (const fs of instrumentSections(trackDataEntries, allActivation, options)) {
 		const vel = (fs as { velocity?: number }).velocity ?? 100
 		const ch = (fs as { channel?: number }).channel ?? 0
-		addNoteOnOffWithChannel(events, fs.tick, fs.length, 120, vel, ch)
+		addNoteOnOffWithChannel(events, fs.tick, fs.length, 120, vel, ch, options.zeroLengthPhrases)
 	}
 
 	// Flex lanes (preserve length 0 — use seq to keep noteOn before noteOff).
@@ -235,6 +248,7 @@ export function buildDrumTrack(
 		if (markerTick !== null) addNoteOnOff(events, markerTick, 1, 112, 100)
 	}
 
+	if (options.sustainCutoff !== undefined) stretchUnsustainedNotes(events, options.sustainCutoff)
 	return finalizeMidiTrack(events)
 }
 
@@ -332,9 +346,9 @@ function emitDrumNotes(
 
 			const isDoubleKick = note.type === noteTypes.kick && (note.flags & noteFlags.doubleKick)
 			if (isDoubleKick) {
-				addNoteOnOff(events, note.tick, emitLength, base - 1, velocity, true)
+				addNoteOnOff(events, note.tick, emitLength, base - 1, velocity, true, true)
 			} else {
-				addNoteOnOff(events, note.tick, emitLength, base + offset, velocity, true)
+				addNoteOnOff(events, note.tick, emitLength, base + offset, velocity, true, true)
 			}
 
 			// Tom markers only emit in fourLanePro. Skip the offset-5 fallback

@@ -12,23 +12,7 @@ import { IniTokens, tokenizeIni } from './parse-ini'
 export function setSongIniValue(tokens: IniTokens, key: string, value: string | null): IniTokens | null {
 	const text = editableText(tokens)
 	if (value !== null) assertIniValue(value)
-	const lines = text.match(/[^\n]*\n|[^\n]+$/g) ?? []
-	const wanted = toLowerInvariant(key)
-	let inSong = false
-	let lastSongLine = -1
-	const keyLines: number[] = []
-	lines.forEach((line, index) => {
-		// As parseIniTokens reads lines: comments, then sections, then keys.
-		const trimmed = trimDotnet(index === 0 ? line.replace(/^﻿/, '') : line)
-		if (trimmed.length === 0 || trimmed.startsWith(';') || trimmed.startsWith('#')) return
-		if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
-			inSong = toLowerInvariant(trimmed.slice(1, -1)) === 'song'
-			if (inSong) lastSongLine = index
-		} else if (inSong && trimmed.includes('=')) {
-			lastSongLine = index
-			if (toLowerInvariant(trimDotnet(trimmed.slice(0, trimmed.indexOf('=')))) === wanted) keyLines.push(index)
-		}
-	})
+	const { lines, lastSongLine, keyLines } = scanSongSections(text, key)
 	if (lastSongLine === -1) return null
 
 	if (value === null) {
@@ -49,6 +33,36 @@ export function setSongIniValue(tokens: IniTokens, key: string, value: string | 
 		lines.splice(lastSongLine + 1, 0, `${key} = ${value}${ending}`)
 	}
 	return encodeLike(tokens, lines.join(''))
+}
+
+/** Whether a song.ini has a `[song]` section, in any letter case, as Clone Hero reads sections. */
+export function hasSongIniSection(tokens: IniTokens): boolean {
+	return tokens.text !== null && scanSongSections(tokens.text, null).lastSongLine !== -1
+}
+
+/**
+ * The file's lines, the last line of its last `[song]` section (its header or its last key line), and the lines of
+ * `key` in `[song]` sections.
+ */
+function scanSongSections(text: string, key: string | null) {
+	const lines = text.match(/[^\n]*\n|[^\n]+$/g) ?? []
+	const wanted = key === null ? null : toLowerInvariant(key)
+	let inSong = false
+	let lastSongLine = -1
+	const keyLines: number[] = []
+	lines.forEach((line, index) => {
+		// As parseIniTokens reads lines: comments, then sections, then keys.
+		const trimmed = trimDotnet(index === 0 ? line.replace(/^\uFEFF/, '') : line)
+		if (trimmed.length === 0 || trimmed.startsWith(';') || trimmed.startsWith('#')) return
+		if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+			inSong = toLowerInvariant(trimmed.slice(1, -1)) === 'song'
+			if (inSong) lastSongLine = index
+		} else if (inSong && trimmed.includes('=')) {
+			lastSongLine = index
+			if (wanted !== null && toLowerInvariant(trimDotnet(trimmed.slice(0, trimmed.indexOf('=')))) === wanted) keyLines.push(index)
+		}
+	})
+	return { lines, lastSongLine, keyLines }
 }
 
 /** Adds a `[song]` section holding `entries` at the end of a song.ini, with the file's line ending. UTF-8 only. */

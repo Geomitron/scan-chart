@@ -10,7 +10,19 @@ import { fiveFretDiffStarts, fiveFretLaneOffsets, sixFretDiffStarts, sixFretLane
 import { computeHopoThresholdTicks, isNaturalHopo } from '../natural-hopo'
 import type { ParsedChart } from '../parse-chart-and-ini'
 import { wrapEventBrackets } from '../writer-shared'
-import { addNoteOnOff, addNoteOnOffWithChannel, computeLengthOverrides, mergeDifficultySections, finalizeMidiTrack, metaTextEvent, noteOffEvent, noteOnEvent, trackNameEvent } from './shared'
+import {
+	addNoteOnOff,
+	addNoteOnOffWithChannel,
+	computeLengthOverrides,
+	finalizeMidiTrack,
+	instrumentSections,
+	metaTextEvent,
+	type MidiWriteOptions,
+	noteOffEvent,
+	noteOnEvent,
+	stretchUnsustainedNotes,
+	trackNameEvent,
+} from './shared'
 import type { AbsoluteEvent, ParsedTrack } from './shared'
 
 
@@ -58,6 +70,7 @@ export function buildFretTrack(
 	trackDataEntries: ParsedTrack[],
 	chart: ParsedChart,
 	trackName: string,
+	options: MidiWriteOptions = {},
 ): MidiEvent[] {
 	const events: AbsoluteEvent[] = []
 	const instrument = trackDataEntries[0].instrument
@@ -245,23 +258,23 @@ export function buildFretTrack(
 	// (Guitar Hero 1 and 2), 103 is star power and 116 is star power the parser rejects; such a chart has no solos.
 	const gh1StarPower = chart.iniChartModifiers.multiplier_note === 103
 	const allRejectedStarPower = gh1StarPower ? trackDataEntries.map(td => td.rejectedStarPowerSections) : []
-	for (const sp of mergeDifficultySections(allStarPower)) {
+	for (const sp of instrumentSections(trackDataEntries, allStarPower, options)) {
 		const vel = (sp as { velocity?: number }).velocity ?? 100
 		const ch = (sp as { channel?: number }).channel ?? 0
-		addNoteOnOffWithChannel(events, sp.tick, sp.length, gh1StarPower ? 103 : 116, vel, ch)
+		addNoteOnOffWithChannel(events, sp.tick, sp.length, gh1StarPower ? 103 : 116, vel, ch, options.zeroLengthPhrases)
 	}
-	for (const sp of mergeDifficultySections(allRejectedStarPower)) {
-		addNoteOnOffWithChannel(events, sp.tick, sp.length, 116, 100, 0)
+	for (const sp of instrumentSections(trackDataEntries, allRejectedStarPower, options)) {
+		addNoteOnOffWithChannel(events, sp.tick, sp.length, 116, 100, 0, options.zeroLengthPhrases)
 	}
-	for (const solo of gh1StarPower ? [] : mergeDifficultySections(allSolo)) {
+	for (const solo of gh1StarPower ? [] : instrumentSections(trackDataEntries, allSolo, options)) {
 		const vel = (solo as { velocity?: number }).velocity ?? 100
 		const ch = (solo as { channel?: number }).channel ?? 0
-		addNoteOnOffWithChannel(events, solo.tick, solo.length, 103, vel, ch)
+		addNoteOnOffWithChannel(events, solo.tick, solo.length, 103, vel, ch, options.zeroLengthPhrases)
 	}
-	for (const fs of mergeDifficultySections(allActivation)) {
+	for (const fs of instrumentSections(trackDataEntries, allActivation, options)) {
 		const vel = (fs as { velocity?: number }).velocity ?? 100
 		const ch = (fs as { channel?: number }).channel ?? 0
-		addNoteOnOffWithChannel(events, fs.tick, fs.length, 120, vel, ch)
+		addNoteOnOffWithChannel(events, fs.tick, fs.length, 120, vel, ch, options.zeroLengthPhrases)
 	}
 	let flexSeq = 0
 	for (const [key, velocity] of emittedFlexLane) {
@@ -290,6 +303,7 @@ export function buildFretTrack(
 		})
 	}
 
+	if (options.sustainCutoff !== undefined) stretchUnsustainedNotes(events, options.sustainCutoff)
 	return finalizeMidiTrack(events)
 }
 
@@ -313,7 +327,7 @@ function emitFretNotes(
 	const emitWithAnimSeq = (tick: number, length: number, noteNum: number): void => {
 		const animSeqs = animSeqMap.get(`${tick}:${noteNum}`)
 		if (!animSeqs) {
-			addNoteOnOff(events, tick, length, noteNum, 100, true)
+			addNoteOnOff(events, tick, length, noteNum, 100, true, true)
 			return
 		}
 		const effectiveLength = Math.max(length, 1)
