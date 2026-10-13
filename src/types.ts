@@ -315,7 +315,6 @@ export type FolderIssueType =
 	| 'multipleAlbumArt' // This chart has multiple album art files
 	| 'noAudio' // This chart doesn't have an audio file
 	| 'invalidAudio' // Audio file is not a valid audio stem name
-	| 'badAudio' // This chart's audio couldn't be parsed
 	| 'multipleAudio' // This chart has multiple audio files of the same stem
 	| 'noChart' // This chart doesn't have "notes.chart"/"notes.mid"
 	| 'invalidChart' // .chart/.mid file is not named "notes.chart"/"notes.mid"

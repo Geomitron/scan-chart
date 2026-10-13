@@ -1,10 +1,15 @@
 import { blake3 } from '@awasm/noble'
 
-import * as _ from 'lodash'
 import { base64url } from 'rfc4648'
 
 import { Difficulty, Instrument } from '../types'
 import { ParsedChartFile } from './parse-chart-file'
+
+/** The events sorted by tick, keeping the last one defined on each tick. */
+function lastOnEachTick<T extends { tick: number }>(events: readonly T[]): T[] {
+	const sorted = [...events].sort((a, b) => a.tick - b.tick)
+	return sorted.filter((event, index) => index === sorted.length - 1 || sorted[index + 1].tick !== event.tick)
+}
 
 export function calculateTrackHash(parsedChart: ParsedChartFile, instrument: Instrument, difficulty: Difficulty) {
 	const trackData = parsedChart.trackData.find(t => t.instrument === instrument && t.difficulty === difficulty)
@@ -12,27 +17,15 @@ export function calculateTrackHash(parsedChart: ParsedChartFile, instrument: Ins
 		throw 'Track with specified instrument or difficulty was not found.'
 	}
 
-	// Only include the last tempo defined on each tick
-	const tempoData = _.chain(parsedChart.tempos)
-		.sortBy(t => t.tick)
-		.reverse()
-		.sortedUniqBy(t => t.tick)
-		.reverse()
-		.value()
-
-	// Only include the last time signature defined on each tick
-	const timeSignatureData = _.chain(parsedChart.timeSignatures)
-		.sortBy(t => t.tick)
-		.reverse()
-		.sortedUniqBy(t => t.tick)
-		.reverse()
-		.value()
+	// Only include the last tempo and time signature defined on each tick
+	const tempoData = lastOnEachTick(parsedChart.tempos)
+	const timeSignatureData = lastOnEachTick(parsedChart.timeSignatures)
 
 	const starPowerData = pruneEmptyPhrases(trackData.starPowerSections, trackData.noteEventGroups)
 	const soloSectionData = pruneEmptyPhrases(trackData.soloSections, trackData.noteEventGroups)
 	const flexLanesData = pruneEmptyPhrases(trackData.flexLanes, trackData.noteEventGroups)
 	const drumFreestyleSectionData = trackData.drumFreestyleSections
-	const notesData = _.flatten(trackData.noteEventGroups)
+	const notesData = trackData.noteEventGroups.flat()
 
 	const headerSize = 4 + 4 + 4
 	const tempoSize = 4 + (8 + 8) * tempoData.length

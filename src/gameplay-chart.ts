@@ -1,5 +1,6 @@
 import type { ChartSource, ParsedChartFile } from './chart/parse-chart-file'
 import type { IniChartModifiers, NoteType, VocalTrack } from './chart/types'
+import { defaultMetadata } from './ini/metadata'
 import { ObjectCache } from './shared/object-cache'
 import { songContext } from './song-context'
 import type { SongDocument } from './song-document'
@@ -17,6 +18,17 @@ export interface ChartParseSettings {
 	readonly chord_snap_threshold: number
 	readonly five_lane_drums: boolean
 	readonly pro_drums: boolean
+}
+
+/** The parse settings of a song whose song.ini sets none. */
+export const defaultChartParseSettings: ChartParseSettings = {
+	hopo_frequency: defaultMetadata.hopo_frequency,
+	eighthnote_hopo: defaultMetadata.eighthnote_hopo,
+	multiplier_note: defaultMetadata.multiplier_note,
+	sustain_cutoff_threshold: defaultMetadata.sustain_cutoff_threshold,
+	chord_snap_threshold: defaultMetadata.chord_snap_threshold,
+	five_lane_drums: defaultMetadata.five_lane_drums,
+	pro_drums: defaultMetadata.pro_drums,
 }
 
 /** One lane or fret at one tick, with its sustain and its note modifiers. */

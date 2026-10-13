@@ -1,6 +1,6 @@
 import { join } from 'node:path'
 
-import { parseChartAndIni, scanChart } from 'src'
+import { parseChartAndIni, scanChart } from 'src/v8-api'
 
 import { SNAPSHOT_SCAN_CONFIG } from '../shared/constants'
 import { loadChartFolderFiles } from '../shared/files'

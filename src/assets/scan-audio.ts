@@ -1,4 +1,3 @@
-import * as _ from 'lodash'
 
 import type { SongFile } from '../song-files'
 import { FolderIssueType } from '../types'
@@ -37,7 +36,7 @@ function findAudioData(files: readonly SongFile[]) {
 		}
 	}
 
-	if (_.uniq(stemNames).length !== stemNames.length) {
+	if (new Set(stemNames).size !== stemNames.length) {
 		folderIssues.push({ folderIssue: 'multipleAudio', description: 'This chart has multiple audio files of the same stem.' })
 	}
 

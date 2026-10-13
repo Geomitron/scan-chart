@@ -1,7 +1,7 @@
 import { join } from 'node:path'
 
 import { scanChartFolder } from 'scan-chart-baseline'
-import { parseChartAndIni, scanChart } from 'src'
+import { parseChartAndIni, scanChart } from 'src/v8-api'
 import { BTRACK_SCAN_CONFIG } from '../shared/constants'
 import { loadChartFolderFiles } from '../shared/files'
 

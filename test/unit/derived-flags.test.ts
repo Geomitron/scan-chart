@@ -16,7 +16,7 @@ import { writeMidi, MidiData } from '@geomitron/midi-file'
 
 import { parseChartFile } from 'src/chart/parse-chart-file'
 import { defaultMetadata } from 'src/ini/metadata'
-import { scanChart } from 'src'
+import { scanChart } from 'src/v8-api'
 import { parseChartAndIni } from 'src/chart/parse-chart-and-ini'
 import { File } from 'src/types'
 

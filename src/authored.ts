@@ -1,4 +1,14 @@
-import { AuthoredSource, AuthoredTextEvent, chartAuthoredTracks, midiAuthoredTracks } from './chart/authored-view'
+import {
+	AuthoredSongEvents,
+	AuthoredSource,
+	authoredSongEvents as viewSongEvents,
+	AuthoredTextEvent,
+	chartAuthoredTracks,
+	chartFormatCapabilities,
+	FormatSupport,
+	midiAuthoredTracks,
+} from './chart/authored-view'
+import type { ChartFormat } from './gameplay-chart'
 import { EventType, eventTypes } from './chart/raw-types'
 import type { ChartDocument } from './song-document'
 import { Difficulty, getInstrumentType, Instrument, InstrumentType, instrumentTypes } from './types'
@@ -70,6 +80,23 @@ export function authoredTracks(chart: ChartDocument): readonly AuthoredTrack[] {
 		textEvents: [],
 		location: { format: 'mid', chunk: track.chunk },
 	})))
+}
+
+/**
+ * The tempo map, time signatures and song text events of a chart file, as written, from the section or track Clone
+ * Hero reads for each. Empty for a `.mid` file that can't be read.
+ */
+export function authoredSongEvents(chart: ChartDocument): AuthoredSongEvents {
+	if (chart.format === 'chart') return viewSongEvents(chart)
+	return chart.tokens === null ? { tempos: [], timeSignatures: [], textEvents: null } : viewSongEvents({ format: 'mid', tokens: chart.tokens })
+}
+
+/** What a chart format can store, and how: for each difficulty, once for the instrument, per note, or not at all. */
+export type ChartCapabilities = { readonly [feature in keyof (typeof chartFormatCapabilities)['chart']]: FormatSupport }
+
+/** What `format` can store: `addEvent` refuses what it can't, and conversion reports it. */
+export function chartCapabilities(format: ChartFormat): ChartCapabilities {
+	return chartFormatCapabilities[format]
 }
 
 // The authored views keep their unchanged tracks across an edit, so the public form of each is kept with it.

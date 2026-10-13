@@ -3,7 +3,7 @@ import { readdir, readFile, writeFile } from 'fs/promises'
 import * as _ from 'lodash'
 import { join } from 'path'
 import sanitize from 'sanitize-filename'
-import { parseChartAndIni, scanChart } from 'src'
+import { parseChartAndIni, scanChart } from 'src/v8-api'
 import yargs from 'yargs'
 import { hideBin } from 'yargs/helpers'
 

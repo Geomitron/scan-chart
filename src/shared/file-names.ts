@@ -1,10 +1,9 @@
-import * as _ from 'lodash'
 
 /**
  * @returns extension of a file, excluding the dot. (e.g. "song.ogg" -> "ogg")
  */
 export function getExtension(fileName: string) {
-	return _.last(fileName.split('.')) ?? ''
+	return fileName.split('.').pop() ?? ''
 }
 
 /**

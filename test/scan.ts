@@ -1,7 +1,7 @@
 import { readdir, readFile } from 'node:fs/promises'
 import { join, relative, resolve } from 'node:path'
 
-import { parseChartAndIni, scanChart } from 'src'
+import { parseChartAndIni, scanChart } from 'src/v8-api'
 import type { File, ScanChartConfig, ScannedChart } from 'src/types'
 import yargs from 'yargs'
 import { hideBin } from 'yargs/helpers'

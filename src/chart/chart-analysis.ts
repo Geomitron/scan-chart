@@ -1,4 +1,4 @@
-import * as _ from 'lodash'
+import { difference, maxOf, minOf, removeWhere, roundTo, uniq } from '../shared/lodash-equivalents'
 
 import { ChartIssueType, Difficulty, DrumType, getInstrumentType, Instrument, instrumentTypes } from '../types'
 import type { CanonicalParsedChart } from './identity/canonical-source'
@@ -148,26 +148,26 @@ export function chartStats(chartData: ParsedChartFile, settings: IniChartModifie
 		}
 	}
 
-	const first = _.min(chartData.trackData.map(track => _.first(track.noteEventGroups)?.[0]?.msTime))
-	const last = _.max(chartData.trackData.map(track => _.last(track.noteEventGroups)?.[0]?.msTime))
+	const first = minOf(chartData.trackData.map(track => track.noteEventGroups[0]?.[0]?.msTime))
+	const last = maxOf(chartData.trackData.map(track => track.noteEventGroups[track.noteEventGroups.length - 1]?.[0]?.msTime))
 	return {
-		instruments: _.uniq(chartData.trackData.map(t => t.instrument)),
+		instruments: uniq(chartData.trackData.map(t => t.instrument)),
 		drumType: chartData.drumType,
-		hasSolos: (_.max(chartData.trackData.map(t => t.soloSections.length)) ?? 0) > 0,
+		hasSolos: (maxOf(chartData.trackData.map(t => t.soloSections.length)) ?? 0) > 0,
 		hasLyrics,
 		hasVocals,
 		hasForcedNotes,
 		hasTapNotes,
 		hasOpenNotes,
 		has2xKick,
-		hasFlexLanes: (_.max(chartData.trackData.map(t => t.flexLanes.length)) ?? 0) > 0,
+		hasFlexLanes: (maxOf(chartData.trackData.map(t => t.flexLanes.length)) ?? 0) > 0,
 		noteCounts: chartData.trackData.map(t => ({
 			instrument: t.instrument,
 			difficulty: t.difficulty,
-			count: t.instrument === 'drums' ? _.sumBy(t.noteEventGroups, 'length') : t.noteEventGroups.length,
+			count: t.instrument === 'drums' ? t.noteEventGroups.reduce((count, group) => count + group.length, 0) : t.noteEventGroups.length,
 		})),
 		maxNps: chartData.trackData.map(t => ({ instrument: t.instrument, difficulty: t.difficulty, ...findMaxNps(t.noteEventGroups) })),
-		noteSpanMs: first !== undefined && last !== undefined ? _.round(last - first, 3) : settings.song_length,
+		noteSpanMs: first !== undefined && last !== undefined ? roundTo('round', last - first, 3) : settings.song_length,
 		tempoMarkerCount: chartData.tempos.length,
 	}
 }
@@ -194,7 +194,7 @@ function findMaxNps(notes: NoteEvent[][]) {
 		}
 	}
 
-	return { nps: (1000 * maxNotesInWindow) / NPS_GROUP_SIZE_MS, msTime: _.round(notes[maxWindowStartIndex][0].msTime, 3) }
+	return { nps: (1000 * maxNotesInWindow) / NPS_GROUP_SIZE_MS, msTime: roundTo('round', notes[maxWindowStartIndex][0].msTime, 3) }
 }
 
 /**
@@ -236,12 +236,12 @@ export function findChartIssues(
 
 	// misalignedTimeSignature
 	{
-		const timeSignatures = _.clone(chartData.timeSignatures)
+		const timeSignatures = [...chartData.timeSignatures]
 		let lastBeatlineTick = 0
 		for (let i = 0; i < timeSignatures.length; i++) {
 			if (lastBeatlineTick !== timeSignatures[i].tick) {
 				addIssue(null, null, 'misalignedTimeSignature', timeSignatures[i])
-				_.pullAt(timeSignatures, i) // Treat misaligned time signature like it was removed to discover future misaligned time signatures
+				timeSignatures.splice(i, 1) // Treat misaligned time signature like it was removed to discover future misaligned time signatures
 				i--
 			}
 			while (timeSignatures[i + 1] && lastBeatlineTick < timeSignatures[i + 1].tick) {
@@ -263,10 +263,9 @@ export function findChartIssues(
 
 	// noExpert, difficultyNotReduced
 	{
-		for (const instrumentGroup of _.chain(chartData.trackData)
-			.groupBy(track => track.instrument)
-			.values()
-			.value()) {
+		const instrumentGroups = new Map<string, typeof chartData.trackData>()
+		for (const track of chartData.trackData) instrumentGroups.set(track.instrument, [...(instrumentGroups.get(track.instrument) ?? []), track])
+		for (const instrumentGroup of instrumentGroups.values()) {
 			if (instrumentGroup.every(track => track.difficulty !== 'expert')) {
 				addIssue(instrumentGroup[0].instrument, null, 'noExpert')
 			} else {
@@ -281,7 +280,7 @@ export function findChartIssues(
 
 	// isDefaultBPM
 	{
-		const isDefaultTempo = chartData.tempos.length === 1 && _.round(chartData.tempos[0].beatsPerMinute, 12) === 120
+		const isDefaultTempo = chartData.tempos.length === 1 && roundTo('round', chartData.tempos[0].beatsPerMinute, 12) === 120
 		const isDefaultTimeSignature =
 			chartData.timeSignatures.length === 1 && chartData.timeSignatures[0].numerator === 4 && chartData.timeSignatures[0].denominator === 4
 		if (isDefaultTempo && isDefaultTimeSignature) {
@@ -303,7 +302,7 @@ export function findChartIssues(
 				addIssue(null, null, 'badEndEvent', endEvent)
 			}
 		}
-		const lastNoteTick = _.max(chartData.trackData.map(track => _.last(track.noteEventGroups)?.[0]?.tick))
+		const lastNoteTick = maxOf(chartData.trackData.map(track => track.noteEventGroups[track.noteEventGroups.length - 1]?.[0]?.tick))
 		if (lastNoteTick && chartData.endEvents[0] && chartData.endEvents[0].tick < lastNoteTick) {
 			addIssue(null, null, 'badEndEvent', chartData.endEvents[0])
 		}
@@ -327,7 +326,7 @@ export function findChartIssues(
 				track.starPowerSections.length === 0 &&
 				track.instrument !== 'drums' &&
 				track.noteEventGroups.length > 50 &&
-				_.last(track.noteEventGroups)![0].msTime - _.first(track.noteEventGroups)![0].msTime > 60000
+				track.noteEventGroups[track.noteEventGroups.length - 1][0].msTime - track.noteEventGroups[0][0].msTime > 60000
 			) {
 				addIssue('noStarPower')
 			}
@@ -335,7 +334,7 @@ export function findChartIssues(
 
 		// emptyStarPower
 		{
-			const emptyStarPowerSections = _.difference(track.starPowerSections, pruneEmptyPhrases(track.starPowerSections, track.noteEventGroups))
+			const emptyStarPowerSections = difference(track.starPowerSections, pruneEmptyPhrases(track.starPowerSections, track.noteEventGroups))
 			for (const emptyStarPowerSection of emptyStarPowerSections) {
 				addIssue('emptyStarPower', emptyStarPowerSection)
 			}
@@ -350,7 +349,7 @@ export function findChartIssues(
 
 		// emptySoloSection
 		{
-			const emptySoloSections = _.difference(track.soloSections, pruneEmptyPhrases(track.soloSections, track.noteEventGroups))
+			const emptySoloSections = difference(track.soloSections, pruneEmptyPhrases(track.soloSections, track.noteEventGroups))
 			for (const emptySoloSection of emptySoloSections) {
 				addIssue('emptySoloSection', emptySoloSection)
 			}
@@ -363,7 +362,7 @@ export function findChartIssues(
 				track.drumFreestyleSections.length === 0 &&
 				track.starPowerSections.length > 0 &&
 				track.noteEventGroups.length > 50 &&
-				_.last(track.noteEventGroups)![0].msTime - _.first(track.noteEventGroups)![0].msTime > 60000
+				track.noteEventGroups[track.noteEventGroups.length - 1][0].msTime - track.noteEventGroups[0][0].msTime > 60000
 			) {
 				addIssue('noDrumActivationLanes')
 			}
@@ -371,7 +370,7 @@ export function findChartIssues(
 
 		// emptyFlexLane
 		{
-			const emptyFlexLanes = _.difference(track.flexLanes, pruneEmptyPhrases(track.flexLanes, track.noteEventGroups))
+			const emptyFlexLanes = difference(track.flexLanes, pruneEmptyPhrases(track.flexLanes, track.noteEventGroups))
 			for (const emptyFlexLane of emptyFlexLanes) {
 				addIssue('emptyFlexLane', emptyFlexLane)
 			}
@@ -508,7 +507,7 @@ export function findChartIssues(
 				for (let i = 0; i < track.noteEventGroups.length; i++) {
 					const noteGroup = track.noteEventGroups[i]
 
-					_.remove(futureSustainGaps, r => r.endTime <= noteGroup[0].msTime)
+					removeWhere(futureSustainGaps, r => r.endTime <= noteGroup[0].msTime)
 					if (futureSustainGaps.some(r => noteGroup[0].msTime >= r.startTime && noteGroup[0].msTime < r.endTime)) {
 						addIssue('badSustainGap', noteGroup[0])
 					}
