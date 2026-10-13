@@ -1,4 +1,3 @@
-import * as _ from 'lodash'
 
 import type { MidiEvent } from '@geomitron/midi-file'
 
@@ -118,14 +117,16 @@ export function findChartData(files: readonly SongFile[]) {
 	const folderIssues: { folderIssue: FolderIssueType; description: string }[] = []
 
 	// Like Clone Hero, prefer a file named "notes" in any letter case, and .mid over .chart when both exist.
-	const chartFiles = _.chain(files)
-		.filter(f => hasChartExtension(f.fileName))
-		.orderBy([
-			f => getBasename(f.fileName).toLowerCase() === 'notes',
-			f => getExtension(f.fileName).toLowerCase() === 'mid',
-			f => hasChartName(f.fileName),
-		], ['desc', 'desc', 'desc'])
-		.value()
+	const preference = (f: SongFile) => [
+		getBasename(f.fileName).toLowerCase() === 'notes',
+		getExtension(f.fileName).toLowerCase() === 'mid',
+		hasChartName(f.fileName),
+	]
+	const chartFiles = files.filter(f => hasChartExtension(f.fileName)).sort((a, b) => {
+		const [preferenceA, preferenceB] = [preference(a), preference(b)]
+		const differing = preferenceA.findIndex((value, index) => value !== preferenceB[index])
+		return differing === -1 ? 0 : preferenceA[differing] ? -1 : 1
+	})
 
 	for (const file of chartFiles) {
 		if (!hasChartName(file.fileName)) {
@@ -197,6 +198,19 @@ export interface SongEditBatch {
 		length: number,
 		options?: { readonly scope?: Difficulty | 'instrument'; readonly velocity?: number; readonly channel?: number },
 	): void
+	/**
+	 * Sets a song.ini value, as song.ini's text (a time in milliseconds, a difficulty as a whole number), or removes it
+	 * with `null`. A song without song.ini gets one, holding the `.chart` `[Song]` values Clone Hero read, so only the
+	 * edited value reads differently. A value song.ini can't hold as written, such as one with a line break, is refused.
+	 */
+	setMetadata(key: SongMetadataKey, value: string | null): void
+}
+
+/**
+ * `SongEditBatch` with additions by position in the file's tokens and by the parser's numeric event types, which
+ * scan-chart's own tools and tests use. The public `editSong` offers only `SongEditBatch`.
+ */
+export interface RawSongEditBatch extends SongEditBatch {
 	/** Adds an event to a `.chart` instrument section, by the section's index in the file's tokens. */
 	addToChartSection(section: number, tick: number, type: EventType, length: number): void
 	/**
@@ -212,12 +226,6 @@ export interface SongEditBatch {
 		length: number,
 		note?: { readonly velocity: number; readonly channel: number },
 	): void
-	/**
-	 * Sets a song.ini value, as song.ini's text (a time in milliseconds, a difficulty as a whole number), or removes it
-	 * with `null`. A song without song.ini gets one, holding the `.chart` `[Song]` values Clone Hero read, so only the
-	 * edited value reads differently. A value song.ini can't hold as written, such as one with a line break, is refused.
-	 */
-	setMetadata(key: SongMetadataKey, value: string | null): void
 }
 
 /** A song.ini key scan-chart reads. */
@@ -226,7 +234,7 @@ export type SongMetadataKey = keyof typeof defaultMetadata
 type ElementChange = { tick?: number; length?: number; value?: ChartValueChange }
 type ChartChange = { element: AuthoredElement; change: ElementChange | 'remove' }
 type ChartAddition = { section: number; tick: number; type: EventType; length: number }
-type MidiAddition = Parameters<SongEditBatch['addToMidiTrack']>
+type MidiAddition = Parameters<RawSongEditBatch['addToMidiTrack']>
 type SongEventAddition = { tick: number; value: ChartValueChange }
 
 /**
@@ -235,7 +243,7 @@ type SongEventAddition = { tick: number; value: ChartValueChange }
  *
  * Throws if an edit doesn't fit the chart's format, such as a length on a `.chart` text event.
  */
-export function editSong(song: SongDocument, collect: (batch: SongEditBatch) => void): SongDocument {
+export function editSong(song: SongDocument, collect: (batch: RawSongEditBatch) => void): SongDocument {
 	const { chart } = song
 	// Changes to one element merge, so setting its tick and its length or value in one batch does both.
 	const changesBySource = new Map<string, ChartChange>()

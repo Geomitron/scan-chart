@@ -1,4 +1,4 @@
-import * as _ from 'lodash'
+import { truncate } from '../shared/lodash-equivalents'
 
 import { toLowerInvariant, trimDotnet } from '../shared/text'
 import { decodeCloneHeroText } from '../shared/decode-text'
@@ -64,7 +64,7 @@ export function parseIniTokens(tokens: IniTokens): { iniObject: IniObject; folde
 
 			;(iniObject[currentSection] ??= Object.create(null))[key] = value
 		} else {
-			folderIssues.push({ folderIssue: 'badIniLine', description: `Unsupported type of line: "${_.truncate(line, { length: 200 })}"` })
+			folderIssues.push({ folderIssue: 'badIniLine', description: `Unsupported type of line: "${truncate(line, 200)}"` })
 		}
 	}
 

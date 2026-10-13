@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-import { parseChartAndIni } from 'src'
+import { parseChartAndIni } from 'src/v8-api'
 import { calculateTrackHash } from 'src/chart/track-hasher'
 
 import { loadChartFolderFiles } from '../shared/files'

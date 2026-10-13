@@ -16,7 +16,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { createEmptyChart } from 'src/chart/create-chart'
-import { writeChartFile, writeMidiFile } from 'src/index'
+import { writeChartFile, writeMidiFile } from 'src/v8-api'
 import { parseChartAndIni } from 'src/chart/parse-chart-and-ini'
 import type { ParsedChart } from 'src/chart/parse-chart-and-ini'
 import { noteFlags, type NoteType, noteTypes } from 'src/chart/types'

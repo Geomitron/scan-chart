@@ -1,12 +1,10 @@
-import { md5 } from 'js-md5'
-import * as _ from 'lodash'
 
 import { analyzeChart } from './analyze-chart'
 import { scanAudio } from './assets/scan-audio'
 import { scanImage } from './assets/scan-image'
 import { scanVideo } from './assets/scan-video'
 import type { ChartStats } from './chart/chart-analysis'
-import { getChartHash } from './chart/scan-parsed-chart'
+import { getChartHash } from './chart/chart-hash'
 import { calculateCompetitiveHashes, CompetitiveHashes } from './competitive'
 import { resolveChart } from './gameplay-chart'
 import { defaultMetadata } from './ini/metadata'
@@ -156,13 +154,15 @@ function difficultyIssues(metadata: SongMetadata, stats: ChartStats) {
 }
 
 async function fileHashes(files: readonly SongFile[], context: ReturnType<typeof songContext>): Promise<FileHashes> {
+	// MD5 is loaded only when file hashes are asked for, so a tool that never asks doesn't bundle it.
+	const { md5 } = await import('js-md5')
 	// Each file's name, then its bytes, in file name order. A large file is read in chunks.
 	const folder = md5.create()
-	for (const file of _.orderBy(files, file => file.fileName)) {
+	for (const file of [...files].sort((a, b) => a.fileName < b.fileName ? -1 : a.fileName > b.fileName ? 1 : 0)) {
 		folder.update(file.fileName)
 		await forEachChunk(file, chunk => folder.update(chunk))
 	}
-	const albumFile = _.findLast(files, file => hasAlbumName(file.fileName))
+	const albumFile = [...files].reverse().find(file => hasAlbumName(file.fileName))
 	return {
 		folderHash: folder.hex(),
 		chartHash: context.chart.kind === 'parsed' ? getChartHash(context.chart.bytes, context.settings) : null,

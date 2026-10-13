@@ -11,7 +11,7 @@ const chart = encode('[Song]\r\n{\r\n  Name = "Chart <b>Name</b>"\r\n  Artist = 
 const ini = encode('[song]\r\nname = Ini Name\r\nartist = Ini Artist\r\ndelay = 100\r\n')
 
 /** A byte source that records each read, so a test can check what was read. */
-function recorded(bytes: Uint8Array): ByteSource & { reads: number } {
+function recorded(bytes: Uint8Array<ArrayBuffer>): ByteSource & { reads: number } {
 	const source = byteSourceFromBlob(new Blob([bytes]))
 	const counted = { size: source.size, reads: 0, read: (offset: number, length: number) => { counted.reads++; return source.read(offset, length) } }
 	return counted

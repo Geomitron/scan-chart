@@ -47,7 +47,8 @@ export function songContext(song: SongDocument): SongContext {
 
 function createSongContext(song: SongDocument): SongContext {
 	const ini = scanIni(currentFiles(song))
-	const settings: IniChartModifiers = ini.metadata ? { ...defaultMetadata, ...ini.metadata } : defaultMetadata
+	// Clone Hero reads only song.ini, in any letter case; scanIni also reads another .ini file when there's no song.ini.
+	const settings: IniChartModifiers = ini.metadata && ini.songSection !== null ? { ...defaultMetadata, ...ini.metadata } : defaultMetadata
 	const { chart } = song
 	const chartSong = chart?.format === 'chart' ? readChartSongMetadata(chart.tokens.bytes) : {}
 	return {
