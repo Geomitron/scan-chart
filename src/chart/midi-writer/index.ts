@@ -16,7 +16,7 @@ import type { ParsedChart } from '../parse-chart-and-ini'
 import { buildDrumTrack } from './drums'
 import { buildEventsTrack, buildTempoTrack, buildUnrecognizedTrack } from './events'
 import { buildFretTrack, fiveFretInstruments, sixFretInstruments } from './frets'
-import type { ParsedTrack } from './shared'
+import type { MidiWriteOptions, ParsedTrack } from './shared'
 import { buildVocalPartTrack } from './vocals'
 
 
@@ -34,7 +34,7 @@ import { buildVocalPartTrack } from './vocals'
  *   N — Vocal tracks (PART VOCALS / HARM1 / HARM2 / HARM3)
  *   N — Unrecognized MIDI tracks (verbatim pass-through)
  */
-export function writeMidiFile(chart: ParsedChart): Uint8Array {
+export function writeMidiFile(chart: ParsedChart, options: MidiWriteOptions = {}): Uint8Array {
 	const trackMap = new Map<string, MidiEvent[]>()
 
 	trackMap.set('TEMPO TRACK', buildTempoTrack(chart))
@@ -73,9 +73,9 @@ export function writeMidiFile(chart: ParsedChart): Uint8Array {
 		let mapKey = g.trackName
 		while (trackMap.has(mapKey)) mapKey = `${g.trackName}__dup${dupSuffix++}`
 		if (g.instrument === 'drums') {
-			trackMap.set(mapKey, buildDrumTrack(g.entries, chart, g.trackName))
+			trackMap.set(mapKey, buildDrumTrack(g.entries, chart, g.trackName, options))
 		} else if (fiveFretInstruments.has(g.instrument) || sixFretInstruments.has(g.instrument)) {
-			trackMap.set(mapKey, buildFretTrack(g.entries, chart, g.trackName))
+			trackMap.set(mapKey, buildFretTrack(g.entries, chart, g.trackName, options))
 		}
 	}
 

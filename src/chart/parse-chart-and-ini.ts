@@ -2,7 +2,7 @@ import { defaultMetadata } from '../ini/metadata'
 import { ObjectCache } from '../shared/object-cache'
 import { songContext } from '../song-context'
 import { File, FolderIssueType, MetadataIssueType } from '../types'
-import { findChartData, parseSongFiles } from '../song-document'
+import { findChartData, parseSongFiles, type SongDocument } from '../song-document'
 import { IniChartModifiers } from './types'
 import { ChartSource, ParsedChartFile } from './parse-chart-file'
 import type { SongHashMetadata } from './identity/song-hash-20251010'
@@ -89,8 +89,13 @@ export const parsedCharts = new ObjectCache<ParsedChart, { readonly source: Char
  * of an instrument is read, and a `.mid` tap phrase includes its end tick.
  */
 export function parseChartAndIni(files: File[]): ParseChartAndIniResult {
-	const { folderIssues: chartFolderIssues } = findChartData(files)
-	const { ini: iniData, settings: iniChartModifiers, songHashMetadata, chart } = songContext(parseSongFiles(files))
+	return parseSongChartAndIni(parseSongFiles(files))
+}
+
+/** `parseChartAndIni` for a song document, from its context: what the 8.x writers, the converter's encoders, take. */
+export function parseSongChartAndIni(song: SongDocument): ParseChartAndIniResult {
+	const { folderIssues: chartFolderIssues } = findChartData(song.files)
+	const { ini: iniData, settings: iniChartModifiers, songHashMetadata, chart } = songContext(song)
 
 	let parsedChart: ParsedChart | null = null
 	if (chart.kind === 'parsed') {

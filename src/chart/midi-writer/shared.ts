@@ -42,6 +42,26 @@ export interface AbsoluteEvent {
 	event: MidiEvent
 	/** Stable sort tiebreaker — preserves source ordering within the same tick. */
 	seq?: number
+	/** On a note-on, its note-off, when the two were written together. */
+	pairOff?: AbsoluteEvent
+	/** On a note-on, that it's a gameplay note written at zero length, which `stretchUnsustainedNotes` may lengthen. */
+	unsustained?: true
+}
+
+/**
+ * How the encoder writes what 8.x's writer wrote differently (r4 Q4 and Q5). Each defaults to 8.x's behavior, which
+ * the same-format round trip tests keep.
+ */
+export interface MidiWriteOptions {
+	/** Each instrument's phrases from its Expert track, or its hardest when it has none, rather than every difficulty's. */
+	readonly phrasesFromExpert?: boolean
+	/** Zero-length phrases at zero length, rather than widened to a tick. */
+	readonly zeroLengthPhrases?: boolean
+	/**
+	 * The sustain cutoff the file will be read with. An unsustained note is then written as long as it can be and still
+	 * read as unsustained: the cutoff, or a tick before the next note of its pitch.
+	 */
+	readonly sustainCutoff?: number
 }
 
 // ---------------------------------------------------------------------------
@@ -118,8 +138,9 @@ export function addNoteOnOff(
 	noteNumber: number,
 	velocity: number,
 	allowZeroLength = false,
+	unsustained = false,
 ): void {
-	addNoteOnOffWithChannel(events, tick, length, noteNumber, velocity, 0, allowZeroLength)
+	addNoteOnOffWithChannel(events, tick, length, noteNumber, velocity, 0, allowZeroLength, unsustained)
 }
 
 export function addNoteOnOffWithChannel(
@@ -130,31 +151,62 @@ export function addNoteOnOffWithChannel(
 	velocity: number,
 	channel: number,
 	allowZeroLength = false,
+	unsustained = false,
 ): void {
 	const effectiveLength = allowZeroLength ? length : Math.max(length, 1)
 	if (allowZeroLength && effectiveLength === 0) {
-		const onSeq = zeroLenSeq++
-		const offSeq = zeroLenSeq++
-		events.push({
-			tick,
-			seq: onSeq,
-			event: noteOnEvent(noteNumber, velocity, channel),
-		})
-		events.push({
-			tick,
-			seq: offSeq,
-			event: noteOffEvent(noteNumber, channel),
-		})
+		const off: AbsoluteEvent = { tick, seq: zeroLenSeq + 1, event: noteOffEvent(noteNumber, channel) }
+		events.push({ tick, seq: zeroLenSeq, event: noteOnEvent(noteNumber, velocity, channel), pairOff: off, ...(unsustained ? { unsustained: true as const } : {}) })
+		events.push(off)
+		zeroLenSeq += 2
 		return
 	}
-	events.push({
-		tick,
-		event: noteOnEvent(noteNumber, velocity, channel),
-	})
-	events.push({
-		tick: tick + effectiveLength,
-		event: noteOffEvent(noteNumber, channel),
-	})
+	const off: AbsoluteEvent = { tick: tick + effectiveLength, event: noteOffEvent(noteNumber, channel) }
+	events.push({ tick, event: noteOnEvent(noteNumber, velocity, channel), pairOff: off })
+	events.push(off)
+}
+
+/**
+ * Lengthens each gameplay note written at zero length to the longest length still read as unsustained (r4 Q5): the
+ * sustain cutoff, or a tick before the next note of its pitch. A note inside a sustain of its pitch is a zero-length
+ * link of back-to-back sustains (`computeLengthOverrides`), and stays at zero length.
+ */
+export function stretchUnsustainedNotes(events: AbsoluteEvent[], cutoff: number): void {
+	const notesByPitch = new Map<number, AbsoluteEvent[]>()
+	for (const event of events) {
+		if (event.event.type !== 'noteOn' || event.pairOff === undefined) continue
+		const pitch = event.event.channel * 128 + event.event.noteNumber
+		const notes = notesByPitch.get(pitch)
+		if (notes === undefined) notesByPitch.set(pitch, [event])
+		else notes.push(event)
+	}
+	for (const notes of notesByPitch.values()) {
+		notes.sort((a, b) => a.tick - b.tick)
+		let coveredUntil = -1
+		notes.forEach((note, index) => {
+			const isLink = coveredUntil > note.tick
+			coveredUntil = Math.max(coveredUntil, note.pairOff!.tick)
+			if (!note.unsustained || isLink) return
+			const next = notes.slice(index + 1).find(other => other.tick > note.tick)
+			const length = Math.min(cutoff, (next?.tick ?? Infinity) - note.tick - 1)
+			if (length <= 0) return
+			note.pairOff!.tick = note.tick + length
+			// Once the note-off is on a later tick, it sorts like any other.
+			delete note.pairOff!.seq
+			coveredUntil = Math.max(coveredUntil, note.pairOff!.tick)
+		})
+	}
+}
+
+/** The phrases a MIDI track holds for an instrument, from its difficulty tracks, as `options` asks (r4 Q4). */
+export function instrumentSections<T extends { tick: number; length: number }>(
+	tracks: readonly { difficulty: string }[],
+	perDifficulty: readonly (readonly T[])[],
+	options: MidiWriteOptions,
+): T[] {
+	if (!options.phrasesFromExpert) return mergeDifficultySections(perDifficulty)
+	const index = ['expert', 'hard', 'medium', 'easy'].map(difficulty => tracks.findIndex(track => track.difficulty === difficulty)).find(found => found !== -1)
+	return index === undefined ? [] : mergeDifficultySections([perDifficulty[index] ?? []])
 }
 
 /**
