@@ -151,23 +151,21 @@ describe('round-trip: drums', () => {
 		})
 	}
 
-	// Flam survives only .mid round-trip. The .chart writer emits `N 109` but
-	// the .chart parser does not recognize it as a flam marker — this is a
-	// pre-existing parser gap, not a writer bug. Asymmetric test is the
-	// honest thing to ship.
-	it('preserves flam via .mid', () => {
-		const chart = createEmptyChart({ format: 'mid', resolution: 480 })
-		chart.iniChartModifiers.pro_drums = true
-		chart.drumType = 1
+	// `.chart` reads `N 109` as flam since C18, so flam survives both round trips.
+	for (const format of ['chart', 'mid'] as const) {
+		it(`preserves flam via .${format}`, () => {
+			const chart = createEmptyChart({ format, resolution: 480 })
+			chart.iniChartModifiers.pro_drums = true
+			chart.drumType = 1
+			const td = emptyDrumTrack('expert')
+			td.noteEventGroups.push([note(0, noteTypes.redDrum, noteFlags.flam)])
+			chart.trackData.push(td)
 
-		const td = emptyDrumTrack('expert')
-		td.noteEventGroups.push([note(0, noteTypes.redDrum, noteFlags.flam)])
-		chart.trackData.push(td)
-
-		const re = writeAndReparseAsMidi(chart)
-		const reTd = re.trackData.find(t => t.instrument === 'drums')!
-		expect(reTd.noteEventGroups[0][0].flags & noteFlags.flam).toBeTruthy()
-	})
+			const re = format === 'chart' ? writeAndReparseAsChart(chart) : writeAndReparseAsMidi(chart)
+			const reTd = re.trackData.find(t => t.instrument === 'drums')!
+			expect(reTd.noteEventGroups[0][0].flags & noteFlags.flam).toBeTruthy()
+		})
+	}
 })
 
 // ---------------------------------------------------------------------------
