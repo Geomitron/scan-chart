@@ -1,0 +1,79 @@
+{
+	"$schema": "https://mintlify.com/docs.json",
+	"theme": "mint",
+	"name": "Chart specification",
+	"colors": {
+		"primary": "#2F5597"
+	},
+	"navbar": {
+		"primary": {
+			"type": "github",
+			"href": "https://github.com/Geomitron/scan-chart"
+		}
+	},
+	"navigation": {
+		"tabs": [
+			{
+				"tab": "Formats",
+				"groups": [
+					{
+						"group": "Introduction",
+						"pages": ["index"]
+					},
+					{
+						"group": "Song folders",
+						"pages": ["song-folders"]
+					},
+					{
+						"group": ".chart",
+						"pages": [
+							"chart/syntax",
+							"chart/song",
+							"chart/sync-track",
+							"chart/events",
+							"chart/instrument-sections",
+							"chart/modifiers",
+							"chart/phrases",
+							"chart/drums",
+							"chart/note-resolution"
+						]
+					},
+					{
+						"group": ".mid",
+						"pages": [
+							"mid/structure",
+							"mid/events",
+							"mid/instrument-tracks",
+							"mid/modifiers",
+							"mid/phrases",
+							"mid/drums",
+							"mid/vocals",
+							"mid/note-pairing"
+						]
+					},
+					{
+						"group": "song.ini",
+						"pages": ["ini/settings", "ini/metadata", "ini/reading-rules"]
+					},
+					{
+						"group": "Converting",
+						"pages": ["converting"]
+					},
+					{
+						"group": "Differences",
+						"pages": ["differences"]
+					}
+				]
+			},
+			{
+				"tab": "scan-chart",
+				"groups": [
+					{
+						"group": "scan-chart",
+						"pages": ["scan-chart/index"]
+					}
+				]
+			}
+		]
+	}
+}

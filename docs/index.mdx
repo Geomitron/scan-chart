@@ -1,0 +1,36 @@
+---
+title: "About these docs"
+description: "What these docs describe, who they're for, and how they relate to Clone Hero, scan-chart, and GuitarGame_ChartFormats."
+---
+
+These docs describe the files of a Clone Hero song folder: the chart, written as a `.chart` or a `.mid` file, and `song.ini`. For each file, they say how Clone Hero reads it. A chart written to these docs plays the way its charter meant, and a program that follows them reads a chart the way the game does.
+
+They're written for two groups of people:
+
+- developers of programs that read or write charts, such as chart editors, converters, and chart sites;
+- charters who want to know exactly what each part of a file does.
+
+## Clone Hero is the reference
+
+A format leaves room for different readings. When an instrument has two tracks with the same name, one of them has to count. A line out of order has to mean something, or nothing. Where that happens, these docs give the reading Clone Hero applies.
+
+[scan-chart](/scan-chart/index) is a library that implements this reading. Its hashes, which cover every note and phrase, agree with Clone Hero's on a library of 63,000 songs. Where scan-chart reads a file differently from Clone Hero, the page says so. Some pages also say what scan-chart does beyond reading a file, such as warning about a spelling that another program reads differently.
+
+## GuitarGame_ChartFormats
+
+[GuitarGame_ChartFormats](https://github.com/TheNathannator/GuitarGame_ChartFormats) documents the chart formats of many rhythm games, and these docs grew from it. They cover only what Clone Hero reads, in more detail. For Clone Hero, these docs are the reference where the two differ. [Differences from GuitarGame_ChartFormats](/differences) lists each place they do.
+
+Much of the text here is adapted from GuitarGame_ChartFormats, which its authors dedicated to the public domain under CC0. Thank you to everyone who contributed to it.
+
+## Terms
+
+These words have one meaning throughout the docs:
+
+| Term | Meaning |
+|---|---|
+| Tick | The unit of position in a chart. A chart's events are placed at whole ticks. |
+| Resolution | The number of ticks in a beat, which is a quarter note. |
+| Track | One instrument at one difficulty, such as Expert guitar. A `.chart` file writes each track as a section. A `.mid` file writes all of an instrument's difficulties in one MIDI track. |
+| Event | One line of a `.chart` section, or one MIDI event: a note, a modifier, a phrase, a tempo marker, or a text event. |
+| Refuses | Clone Hero doesn't load the song. |
+| Ignores | Clone Hero reads the file as if the line or event weren't there. |
