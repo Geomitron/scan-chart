@@ -1,6 +1,7 @@
 import { sameAsJson } from './chart/chart-analysis'
 import { readChartSongEntries } from './chart/chart-file-parser'
 import { writeChartFile } from './chart/chart-writer'
+import { roundBpm } from './chart/identity/btrack-20260801'
 import { canonicalChartFromParse } from './chart/identity/canonical-source'
 import { writeMidiFile } from './chart/midi-writer'
 import { ParsedChart, parseSongChartAndIni } from './chart/parse-chart-and-ini'
@@ -196,15 +197,23 @@ function soloReadsAsStarPower(chart: ParsedChart, multiplierNote: number): boole
 function comparison(before: SongDocument, after: SongDocument): Pick<ConversionReport, 'tracks' | 'songHashKept'> {
 	const [hashesBefore, hashesAfter] = [calculateCompetitiveHashes(before), calculateCompetitiveHashes(after)]
 	if (!hashesBefore.accepted || !hashesAfter.accepted) return { tracks: [], songHashKept: null }
-	const semanticsOf = (song: SongDocument) => {
+	const canonicalOf = (song: SongDocument) => {
 		const { chart } = songContext(song)
 		const outcome = chart.kind === 'parsed' ? canonicalChartFromParse(chart.source.format, chart.parsed) : null
-		return new Map(outcome?.kind === 'accepted' ? outcome.chart.tracks.map(track => [`${track.key.instrument}:${track.key.difficulty}`, track.semantics]) : [])
+		return outcome?.kind === 'accepted' ? outcome.chart : null
 	}
-	const [semanticsBefore, semanticsAfter] = [semanticsOf(before), semanticsOf(after)]
+	const [canonicalBefore, canonicalAfter] = [canonicalOf(before), canonicalOf(after)]
+	const semanticsOf = (chart: typeof canonicalBefore) =>
+		new Map(chart === null ? [] : chart.tracks.map(track => [`${track.key.instrument}:${track.key.difficulty}`, track.semantics]))
+	const [semanticsBefore, semanticsAfter] = [semanticsOf(canonicalBefore), semanticsOf(canonicalAfter)]
 	const hashBefore = new Map(hashesBefore.tracks.map(track => [`${track.instrument}:${track.difficulty}`, track]))
 	const hashAfter = new Map(hashesAfter.tracks.map(track => [`${track.instrument}:${track.difficulty}`, track]))
-	const tempoMapChanged = hashesBefore.tempoMapHash !== hashesAfter.tempoMapHash
+	// The tempo map as the TrackHash reads it: tempos rounded to 0.001 BPM, which .chart and .mid can't both store exactly.
+	const hashedTempoMap = (chart: typeof canonicalBefore) => chart === null ? null : {
+		tempos: chart.tempoMap.tempos.map(tempo => [tempo.tick, roundBpm(tempo.beatsPerMinute)]),
+		timeSignatures: chart.tempoMap.timeSignatures.map(signature => [signature.tick, signature.numerator, signature.denominator]),
+	}
+	const tempoMapChanged = !sameAsJson(hashedTempoMap(canonicalBefore), hashedTempoMap(canonicalAfter))
 	const tracks: ConversionReport['tracks'][number][] = []
 	for (const key of new Set([...hashBefore.keys(), ...hashAfter.keys()])) {
 		const { instrument, difficulty } = (hashBefore.get(key) ?? hashAfter.get(key))!
