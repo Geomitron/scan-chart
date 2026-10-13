@@ -67,7 +67,7 @@ const requiredProperties: MetaStringKey[] = ['name', 'artist', 'album', 'genre',
 /** Integer keys that change how notes parse. Clone Hero reads them with `IniFile.GetInt`, so they parse like `int.TryParse`. */
 const chartModifierIntegers = ['hopo_frequency', 'multiplier_note', 'sustain_cutoff_threshold', 'chord_snap_threshold'] as const
 
-export function scanIni(files: readonly SongFile[]): ScanIniResult {
+export function scanIni(files: readonly SongFile[], options: { readonly removeStyleTags?: boolean } = {}): ScanIniResult {
 	const folderIssues: { folderIssue: FolderIssueType; description: string }[] = []
 
 	const findIniDataResult = findIniData(files)
@@ -91,7 +91,7 @@ export function scanIni(files: readonly SongFile[]): ScanIniResult {
 		return { metadata: null, folderIssues, metadataIssues: [], unknownIniValues: {}, songSection: null }
 	}
 
-	const { metadata, metadataIssues, unknownIniValues } = extractSongMetadata(songSection)
+	const { metadata, metadataIssues, unknownIniValues } = extractSongMetadata(songSection, options)
 
 	return {
 		metadata,
@@ -152,21 +152,24 @@ const knownIniKeys = new Set([
 /**
  * @returns the chart metadata found in `songSection`, using default values if not found.
  * Also returns all unrecognized key-value pairs for roundtrip preservation.
+ * Text values have their style tags removed unless `removeStyleTags` is `false`; 8.x always removed them.
  */
-export function extractSongMetadata(songSection: { readonly [key: string]: string }): {
+export function extractSongMetadata(songSection: { readonly [key: string]: string }, options: { readonly removeStyleTags?: boolean } = {}): {
 	metadata: typeof defaultMetadata
 	metadataIssues: { metadataIssue: MetadataIssueType; description: string }[]
 	unknownIniValues: { [key: string]: string }
 } {
 	const metadataIssues: { metadataIssue: MetadataIssueType; description: string }[] = []
+	const text = (key: MetaStringKey, legacyKey?: Exclude<InputMetaStringKey, MetaStringKey>) =>
+		getIniString(songSection, key, legacyKey, options.removeStyleTags ?? true)
 
 	const metadata: typeof defaultMetadata = {
-		name: getIniString(songSection, 'name'),
-		artist: getIniString(songSection, 'artist'),
-		album: getIniString(songSection, 'album'),
-		genre: getIniString(songSection, 'genre'),
-		year: getIniString(songSection, 'year'),
-		charter: getIniString(songSection, 'charter', 'frets'),
+		name: text('name'),
+		artist: text('artist'),
+		album: text('album'),
+		genre: text('genre'),
+		year: text('year'),
+		charter: text('charter', 'frets'),
 		song_length: getIniInteger(songSection, 'song_length'),
 		diff_band: getIniInteger(songSection, 'diff_band'),
 		diff_guitar: getIniInteger(songSection, 'diff_guitar'),
@@ -183,8 +186,8 @@ export function extractSongMetadata(songSection: { readonly [key: string]: strin
 		diff_bassghl: getIniInteger(songSection, 'diff_bassghl'),
 		diff_vocals: getIniInteger(songSection, 'diff_vocals'),
 		preview_start_time: getIniInteger(songSection, 'preview_start_time'),
-		icon: getIniString(songSection, 'icon'),
-		loading_phrase: getIniString(songSection, 'loading_phrase'),
+		icon: text('icon'),
+		loading_phrase: text('loading_phrase'),
 		album_track: getIniInteger(songSection, 'album_track', 'track'),
 		playlist_track: getIniInteger(songSection, 'playlist_track'),
 		modchart: getIniBoolean(songSection, 'modchart'),
@@ -258,16 +261,22 @@ export function extractSongMetadata(songSection: { readonly [key: string]: strin
  * @returns the value in `songSection` at `key`, parsed as a string.
  * Falls back to `legacyKey` if not found or invalid.
  * Then falls back to the default value if `legacyKey` is not found or invalid.
- * Any style tags are removed from the string.
+ * Style tags are removed from the string when `removeTags` is set.
  */
-function getIniString(songSection: { readonly [key: string]: string }, key: MetaStringKey, legacyKey?: Exclude<InputMetaStringKey, MetaStringKey>) {
+function getIniString(
+	songSection: { readonly [key: string]: string },
+	key: MetaStringKey,
+	legacyKey: Exclude<InputMetaStringKey, MetaStringKey> | undefined,
+	removeTags: boolean,
+) {
+	const clean = (value: string) => removeTags ? removeStyleTags(value) : value
 	const value = songSection[key]
 	if (value && value !== '0' && value !== '-1') {
-		return removeStyleTags(value)
+		return clean(value)
 	} else if (legacyKey) {
 		const legacyValue = songSection[legacyKey]
 		if (legacyValue && legacyValue !== '0' && legacyValue !== '-1') {
-			return removeStyleTags(legacyValue)
+			return clean(legacyValue)
 		}
 	}
 

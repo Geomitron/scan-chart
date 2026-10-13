@@ -41,14 +41,21 @@ describe('song files', () => {
 		expect(issues.map(issue => [issue.scope, issue.code])).toEqual([['metadata', 'missingValue'], ['metadata', 'missingValue'], ['metadata', 'missingValue'], ['metadata', 'missingValue']])
 	})
 
-	it('give [Song]\'s metadata when there\'s no song.ini, cleaned as song.ini values are', async () => {
-		const { metadata, issues } = await parseSongMetadata([{ fileName: 'notes.chart', data: chart }, { fileName: 'song.ogg', data: new Uint8Array(0) }])
-		expect(metadata).toMatchObject({ name: 'Chart Name', artist: 'Chart Artist', year: '2002', diff_guitar: 4, preview_start_time: 45280, chartOffsetMs: 561 })
+	it('give [Song]\'s metadata when there\'s no song.ini, read as song.ini values are', async () => {
+		const files = [{ fileName: 'notes.chart', data: chart }, { fileName: 'song.ogg', data: new Uint8Array(0) }]
+		const { metadata, issues } = await parseSongMetadata(files)
+		expect(metadata).toMatchObject({ name: 'Chart <b>Name</b>', artist: 'Chart Artist', year: '2002', diff_guitar: 4, preview_start_time: 45280, chartOffsetMs: 561 })
+		expect((await parseSongMetadata(files, { removeStyleTags: true })).metadata.name).toBe('Chart Name')
 		expect(issues).toEqual([{ scope: 'folder', code: 'noMetadata', instrument: null, difficulty: null, tick: null, msTime: null, message: 'This chart doesn\'t have "song.ini".' }])
 	})
 
-	it('give a song document\'s metadata the same way', async () => {
-		const song = await parseSong([{ fileName: 'notes.chart', data: chart }, { fileName: 'song.ini', data: ini }])
-		expect(songMetadata(song)).toEqual((await parseSongMetadata([{ fileName: 'notes.chart', data: chart }, { fileName: 'song.ini', data: ini }])).metadata)
+	it('give a song document\'s metadata the same way, with style tags or without', async () => {
+		const files = [{ fileName: 'notes.chart', data: chart }, { fileName: 'song.ini', data: ini }]
+		const song = await parseSong(files)
+		expect(songMetadata(song)).toEqual((await parseSongMetadata(files)).metadata)
+		const tagged = await parseSong([{ fileName: 'notes.chart', data: chart }, { fileName: 'song.ini', data: new TextEncoder().encode('[song]\r\nname = <color=#AEFFFF>Aren</color> & Geo\r\n') }])
+		expect(songMetadata(tagged).name).toBe('<color=#AEFFFF>Aren</color> & Geo')
+		expect(songMetadata(tagged, { removeStyleTags: true }).name).toBe('Aren & Geo')
+		expect(songMetadata(tagged).name).toBe('<color=#AEFFFF>Aren</color> & Geo')
 	})
 })
