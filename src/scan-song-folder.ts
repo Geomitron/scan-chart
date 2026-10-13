@@ -27,6 +27,8 @@ export interface ScanOptions {
 	readonly albumArt?: boolean
 	/** Nonstandard spellings every reader reads alike, such as a repeated `.chart` line. Default: `false`. */
 	readonly styleNotes?: boolean
+	/** Remove style tags, such as `<b>`, from the metadata's text values, for plain-text display. Default: `false`. */
+	readonly removeStyleTags?: boolean
 }
 
 /** A song folder, scanned. What wasn't asked for is `null`. */
@@ -66,7 +68,7 @@ export interface AlbumArt {
 export async function scanSongFolder(files: readonly SongFile[], options: ScanOptions = {}): Promise<ScannedSong> {
 	const song = await parseSong(files)
 	const context = songContext(song)
-	const metadata = songMetadata(song)
+	const metadata = songMetadata(song, { removeStyleTags: options.removeStyleTags })
 	const folderIssues = [...context.ini.folderIssues, ...findChartData(song.files).folderIssues]
 	const metadataIssues = [...context.ini.metadataIssues]
 	let stats: ChartStats | null = null

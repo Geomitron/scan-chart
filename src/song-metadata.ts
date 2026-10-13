@@ -12,28 +12,38 @@ import { songIniSpellingIssues } from './spelling-issues'
 
 /**
  * A song's metadata as Clone Hero reads it: song.ini when the song has one, and the `.chart` `[Song]` section only
- * when it doesn't. Values are cleaned for display (style tags removed), and a value that isn't set is Clone Hero's
- * default ("Unknown Artist", -1 for a difficulty, and so on). The keys are song.ini's; without song.ini, the `[Song]`
- * Offset is the delay.
+ * when it doesn't. A value that isn't set is Clone Hero's default ("Unknown Artist", -1 for a difficulty, and so on).
+ * Text keeps its style tags, such as `<b>`, which Clone Hero shows as formatting, unless `removeStyleTags` asks for
+ * plain text. The keys are song.ini's; without song.ini, the `[Song]` Offset is the delay.
  */
 export type SongMetadata = { readonly [key in keyof typeof defaultMetadata]: (typeof defaultMetadata)[key] } & {
 	/** The `.chart` `[Song]` Offset, converted from seconds to milliseconds as Clone Hero rounds it; 0 when there's none. */
 	readonly chartOffsetMs: number
 }
 
+/** How to read metadata. */
+export interface SongMetadataOptions {
+	/** Remove style tags, such as `<b>` and `<color=#AEFFFF>`, from text values, for plain-text display. Default: `false`. */
+	readonly removeStyleTags?: boolean
+}
+
 /**
  * Reads a song folder's metadata and the issues with its song.ini and chart file names, without reading the notes:
  * only song.ini and the `.chart` `[Song]` section are read.
  */
-export async function parseSongMetadata(files: readonly SongFile[]): Promise<{ readonly metadata: SongMetadata; readonly issues: readonly Issue[] }> {
+export async function parseSongMetadata(
+	files: readonly SongFile[],
+	options: SongMetadataOptions = {},
+): Promise<{ readonly metadata: SongMetadata; readonly issues: readonly Issue[] }> {
 	const { chartFile, format, folderIssues: chartFolderIssues } = findChartData(files)
 	const read = await Promise.all(files.map(async file =>
 		hasIniExtension(file.fileName) && isByteSource(file.data) ? { fileName: file.fileName, data: await readFileBytes(file) } : file))
-	const ini = scanIni(read)
+	const removeStyleTags = options.removeStyleTags ?? false
+	const ini = scanIni(read, { removeStyleTags })
 	const { iniFile } = findIniData(read)
 	const chartSong = format === 'chart' && chartFile !== null ? readChartSongEntries(await readFileBytes(chartFile)) : null
 	return {
-		metadata: songMetadataFrom(ini, chartSong),
+		metadata: songMetadataFrom(ini, chartSong, removeStyleTags),
 		issues: [
 			...ini.folderIssues.map(folderIssue),
 			...chartFolderIssues.map(folderIssue),
@@ -44,23 +54,27 @@ export async function parseSongMetadata(files: readonly SongFile[]): Promise<{ r
 }
 
 /** The metadata of a song document, from its song.ini as edited and its `.chart` `[Song]` section. */
-export function songMetadata(song: SongDocument): SongMetadata {
-	let metadata = documentMetadata.get(song)
+export function songMetadata(song: SongDocument, options: SongMetadataOptions = {}): SongMetadata {
+	const removeStyleTags = options.removeStyleTags ?? false
+	let cached = documentMetadata.get(song)
+	if (cached === undefined) documentMetadata.set(song, cached = {})
+	const variant = removeStyleTags ? 'plain' : 'asWritten'
+	let metadata = cached[variant]
 	if (metadata === undefined) {
 		const { ini, chart, files } = song
 		const iniFiles = files.map(file => ini !== null && file.fileName === ini.fileName ? { fileName: file.fileName, data: ini.tokens.bytes } : file)
-		metadata = songMetadataFrom(scanIni(iniFiles), chart?.format === 'chart' ? readChartSongEntries(chart.tokens.bytes) : null)
-		documentMetadata.set(song, metadata)
+		metadata = songMetadataFrom(scanIni(iniFiles, { removeStyleTags }), chart?.format === 'chart' ? readChartSongEntries(chart.tokens.bytes) : null, removeStyleTags)
+		cached[variant] = metadata
 	}
 	return metadata
 }
 
-const documentMetadata = new ObjectCache<SongDocument, SongMetadata>('songMetadata')
+const documentMetadata = new ObjectCache<SongDocument, { plain?: SongMetadata; asWritten?: SongMetadata }>('songMetadata')
 
-function songMetadataFrom(ini: ReturnType<typeof scanIni>, chartSong: ReadonlyMap<string, string> | null): SongMetadata {
+function songMetadataFrom(ini: ReturnType<typeof scanIni>, chartSong: ReadonlyMap<string, string> | null, removeStyleTags: boolean): SongMetadata {
 	const chartOffsetMs = secondsToMs(chartSong?.get('Offset')) ?? 0
 	// Clone Hero reads only song.ini, in any letter case; scanIni also reads another .ini file when there's no song.ini.
 	if (ini.metadata !== null && ini.songSection !== null) return { ...ini.metadata, chartOffsetMs }
 	// Without song.ini, [Song]'s values go through song.ini's reading and cleaning; its issues are about song.ini.
-	return { ...extractSongMetadata(Object.fromEntries(chartSong === null ? [] : chartSongIniEntries(chartSong))).metadata, chartOffsetMs }
+	return { ...extractSongMetadata(Object.fromEntries(chartSong === null ? [] : chartSongIniEntries(chartSong)), { removeStyleTags }).metadata, chartOffsetMs }
 }

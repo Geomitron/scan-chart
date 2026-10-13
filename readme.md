@@ -1,23 +1,16 @@
 # scan-chart
 
-scan-chart reads the song folders that Clone Hero plays: the `notes.chart` or `notes.mid` file and the `song.ini` beside it. It reads them the way Clone Hero does, so the notes and hashes it reports match the game's.
+scan-chart is a library to work with song folders for five fret games like Clone Hero, YARG, etc... It uses the standardized set of parsing rules that Clone Hero and YARG agree on.
 
-Use it to:
+This library can:
 
-- show a song's name, artist, and other metadata without reading its notes;
-- check a chart for problems and get its statistics;
-- calculate the hashes that Clone Hero's leaderboards use to tell charts apart;
+- parse just the song's metadata
+- detect common chart problems
+- extract generalized information and statistics about a chart
+- calculate the hashes that Clone Hero's leaderboards use to tell charts apart
 - edit a chart, save it, and convert it between `.chart` and `.mid`.
 
-Chorus Encore uses scan-chart to scan every chart it hosts.
-
-## Why it works this way
-
-**It matches Clone Hero.** Clone Hero decides which chart file and song.ini to read, which track of an instrument counts, and how each note resolves into strums, HOPOs, and taps. scan-chart follows the same rules. Its hashes, which cover every note and phrase, are compared with Clone Hero's on a library of 63,000 songs, and they agree on every song both can read.
-
-**It keeps your files as you wrote them.** A song you don't edit saves back byte for byte. An edit changes only the lines or MIDI events it touches. When you save an edited song, scan-chart also rewrites nonstandard spellings in the standard form, but never where that would change a hash your edit left alone.
-
-**It runs wherever JavaScript runs.** scan-chart never reads the disk. You pass it the files, so it works the same in Node and in a browser. Large files, such as audio, are read only when something needs them.
+It is battle-tested by Chorus Encore and has been verified to match the byte-for-byte output of Clone Hero's parser. It can run in Node.js (22.22+) or in the browser.
 
 ## Install
 
@@ -25,18 +18,9 @@ Chorus Encore uses scan-chart to scan every chart it hosts.
 npm install scan-chart
 ```
 
-scan-chart needs Node 22.22 or later, or a current browser with a bundler. It has two entry points:
-
-| Import from | For |
-|---|---|
-| `scan-chart` | Reading, checking, editing, saving, and converting songs |
-| `scan-chart/competitive` | The hashes that decide whether two scores were played on the same chart |
-
-The package is marked free of side effects, so a bundler keeps only what you import. A tool that shows metadata doesn't ship the hashing code.
-
 ## Pass in a song folder
 
-Every function that reads a song folder takes its files as an array of `SongFile`:
+This library does not handle chart folder discovery or filesystem operations. You must do that yourself and pass its files to this library as an array of `SongFile`:
 
 ```ts
 interface SongFile {
@@ -81,7 +65,7 @@ To list songs, call `parseSongMetadata`. It reads song.ini and the `[Song]` sect
 ```ts
 import { parseSongMetadata } from 'scan-chart'
 
-const { metadata, issues } = await parseSongMetadata(await readSongFolder('songs/Example Song'))
+const { metadata, issues } = await parseSongMetadata(await readSongFolder('songs/Example Song'), { removeStyleTags: true })
 console.log(`${metadata.artist} - ${metadata.name} (charted by ${metadata.charter})`)
 for (const issue of issues) console.log(`${issue.code}: ${issue.message}`)
 ```
@@ -90,7 +74,7 @@ for (const issue of issues) console.log(`${issue.code}: ${issue.message}`)
 
 - The values come from song.ini when the song has one, and from the `.chart` `[Song]` section only when it doesn't.
 - A value that isn't set is Clone Hero's default, such as `Unknown Artist`, or `-1` for a difficulty.
-- Text is cleaned for display: style tags such as `<b>` are removed.
+- Text is as the file writes it, including style tags such as `<b>` and `<color=#AEFFFF>`, which Clone Hero shows as formatting. To show plain text, pass `{ removeStyleTags: true }`, as the example does. `songMetadata` and `scanSongFolder` take the same option.
 - The keys are song.ini's keys, so the guitar difficulty is `diff_guitar` and the song length is `song_length`, in milliseconds.
 
 `issues` lists problems with the folder and its metadata, such as a missing song.ini or a misnamed chart file.
