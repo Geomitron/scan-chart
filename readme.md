@@ -1,661 +1,322 @@
-This package scans charts for rhythm games like Clone Hero and produces useful metadata about them.
+# scan-chart
 
-`parseChartFile` has been designed to produce the exact same result as Clone Hero.
-This has been validated on 40,000 charts, including some that were deliberately designed to test parsing edge cases.
+scan-chart reads the song folders that Clone Hero plays: the `notes.chart` or `notes.mid` file and the `song.ini` beside it. It reads them the way Clone Hero does, so the notes and hashes it reports match the game's.
 
-# Testing
+Use it to:
 
-Before running tests, you need the following:
+- show a song's name, artist, and other metadata without reading its notes;
+- check a chart for problems and get its statistics;
+- calculate the hashes that Clone Hero's leaderboards use to tell charts apart;
+- edit a chart, save it, and convert it between `.chart` and `.mid`.
 
-- Locally clone the repository
-- Install NodeJS >= v24.6.0
-- Run `npm i`
+Chorus Encore uses scan-chart to scan every chart it hosts.
 
-To run unit tests, use:
+## Why it works this way
 
-```bash
-$ npm test
+**It matches Clone Hero.** Clone Hero decides which chart file and song.ini to read, which track of an instrument counts, and how each note resolves into strums, HOPOs, and taps. scan-chart follows the same rules. Its hashes, which cover every note and phrase, are compared with Clone Hero's on a library of 63,000 songs, and they agree on every song both can read.
+
+**It keeps your files as you wrote them.** A song you don't edit saves back byte for byte. An edit changes only the lines or MIDI events it touches. When you save an edited song, scan-chart also rewrites nonstandard spellings in the standard form, but never where that would change a hash your edit left alone.
+
+**It runs wherever JavaScript runs.** scan-chart never reads the disk. You pass it the files, so it works the same in Node and in a browser. Large files, such as audio, are read only when something needs them.
+
+## Install
+
+```sh
+npm install scan-chart
 ```
 
-Run filesystem and tool integration tests with:
+scan-chart needs Node 22.22 or later, or a current browser with a bundler. It has two entry points:
 
-```bash
-$ npm run test:integration
-```
+| Import from | For |
+|---|---|
+| `scan-chart` | Reading, checking, editing, saving, and converting songs |
+| `scan-chart/competitive` | The hashes that decide whether two scores were played on the same chart |
 
-Corpus tests use a local chart library that is not committed. Run a differential scan against the published baseline with:
+The package is marked free of side effects, so a bundler keeps only what you import. A tool that shows metadata doesn't ship the hashing code.
 
-```bash
-$ npm run corpus:diff -- --input <corpus>
-```
+## Pass in a song folder
 
-Run reference parity against HashScanTool with:
-
-```bash
-$ npm run corpus:parity -- --input <corpus> --ch-bin <HashScanTool.exe>
-```
-
-The hash JSON helper, which records `scanChart`'s canonical TrackHashes, is available with `npm run test:cli -- --inputFolder <corpus> --outputFolder <output>`.
-
-For the in-development `CHNF/20260801` BTrack and TrackHash profiles, see the
-[BTrack developer preview](docs/btrack-developer-preview.md). It includes the
-golden-vector workflow, the standalone reference tool, and the current
-stability limits.
-
-# API
+Every function that reads a song folder takes its files as an array of `SongFile`:
 
 ```ts
-/**
- * Parses a chart folder's `notes.{mid,chart}` and `song.ini` into a `ParsedChart`.
- * No hashing or audio/image scanning.
- */
-function parseChartAndIni(files: { fileName: string; data: Uint8Array }[]): ParseChartAndIniResult
-
-/**
- * Validates, hashes, and asset-scans the parsed chart folder. Pair with
- * `parseChartAndIni()` to get the input.
- */
-function scanChart(files: { fileName: string; data: Uint8Array }[], parseResult: ParseChartAndIniResult, config?: ScanChartConfig): ScannedChart
-
-function parseChartFile(data: Uint8Array, format: 'chart' | 'mid', iniChartModifiers: IniChartModifiers): ParsedChart
-
-// The canonical 20260801 identity profile: BTrack, TrackHash, SongHash, and durations.
-const canonical = canonical20260801.parseSource({ source: { format, bytes }, modifiers: iniChartModifiers })
-if (canonical.kind === 'accepted') {
-	// Each member track's BTrack, TrackHash, and duration, the canonical song duration, and the SongHash.
-	// For a chart folder, pass `parseChartAndIni(files).parsedChart.songHashMetadata` as the metadata.
-	canonical20260801.calculateSongBundle({ chart: canonical.chart, metadata })
-}
-canonical20260801.readBTrack(btrackBytes)
-
-interface ScanChartConfig {
-	/**
-	 * Set this to false to skip calculating `ScannedChart.md5`. It will be set to 'md5 calculation skipped' instead.
-	 *
-	 * Default: `true`.
-	 */
-	includeMd5?: boolean
-
-	/**
-	 * Set this to true to calculate `ScannedChart.notesData.trackHashes[].btrack`. Otherwise, it will have the value `null`.
-	 *
-	 * Default: `false`.
-	 */
-	includeBTrack?: boolean
-
-	/**
-	 * Set this to false to skip parsing `ScannedChart.albumArt`. It will be set to `null` instead.
-	 *
-	 * Default: `true`.
-	 */
-	includeAlbumArt?: boolean
-}
-
-interface ParseChartAndIniResult {
-	/** The parsed chart, or `null` if a chart file could not be found or could not be parsed. Inspect `chartFolderIssues` for the reason. */
-	parsedChart: ParsedChart | null
-	/** `true` if the folder contains a parseable `song.ini`. */
-	hasIni: boolean
-	/** Folder-level issues from chart file discovery and parsing (`noChart`, `invalidChart`, `multipleChart`, `badChart`). */
-	chartFolderIssues: { folderIssue: FolderIssueType; description: string }[]
-	/** The metadata parsed from `song.ini`, or `null` if no ini was present. */
-	iniMetadata: { /* same shape as defaultMetadata */ } | null
-	/** Folder-level issues from ini scanning (`noMetadata`, `invalidIni`, `invalidMetadata`, `badIniLine`, `multipleIniFiles`). */
-	iniFolderIssues: { folderIssue: FolderIssueType; description: string }[]
-	/** Validation issues with ini values. */
-	iniMetadataIssues: { metadataIssue: MetadataIssueType; description: string }[]
-}
-
-interface ScannedChart {
-	/** An MD5 hash of the names and binary contents of every file in the chart. */
-	md5: string
-	/** A blake3 hash of just the chart file and the .ini modifiers that impact chart parsing. If this changes, the in-game score is reset. */
-	chartHash: string
-	/**
-	 * The canonical 20260801 SongHash, as unpadded base64url. It identifies the song on leaderboards and covers the
-	 * song's metadata, `songDurationMs`, and the TrackHash of every track in `notesData.trackHashes`.
-	 * `null` if the chart couldn't be parsed, or if the canonical profile rejected it (see the `badChartIdentity` folder issue).
-	 */
-	songHash: string | null
-	/**
-	 * The canonical song duration in milliseconds: the time at song speed 1.0 of the latest note end across every
-	 * track plus one quarter-note, rounded up. It doesn't depend on audio or `song_length`. `null` when `songHash` is.
-	 */
-	songDurationMs: number | null
-	/** If the chart is able to be played in-game. This is `false` if `notesData` is `null`. */
-	playable: boolean
-
-	/** Metadata read from the chart's song.ini or .chart [Song] section. */
-	metadata: ScannedChartMetadata
-
-	/** The chart's album art, or `null` if there is no album art. */
-	albumArt: AlbumArt | null
-	/** Data describing properties of the .chart or .mid file, or `null` if the .chart or .mid file doesn't exist or couldn't be parsed. */
-	notesData: NotesData | null
-	/** Issues with the chart files. */
-	folderIssues: { folderIssue: FolderIssueType; description: string }[]
-	/** Issues with the chart's metadata. */
-	metadataIssues: { metadataIssue: MetadataIssueType; description: string }[]
-	/** `true` if the chart has a video background. */
-	hasVideoBackground: boolean
-}
-
-interface ScannedChartMetadata {
-	/** The song name. */
-	name?: string
-	/** The song artist. */
-	artist?: string
-	/** The song album. */
-	album?: string
-	/** The song genre. */
-	genre?: string
-	/** The song year. */
-	year?: string
-	/** The chart's charter(s). */
-	charter?: string
-	/** The length of the chart's audio, in milliseconds. If there are stems, this is the length of the longest stem. */
-	song_length?: number
-	/** The difficulty rating of the chart as a whole. Usually an integer between 0 and 6 (inclusive) */
-	diff_band?: number
-	/** The difficulty rating of the lead guitar chart. Usually an integer between 0 and 6 (inclusive) */
-	diff_guitar?: number
-	/** The difficulty rating of the co-op guitar chart. Usually an integer between 0 and 6 (inclusive) */
-	diff_guitar_coop?: number
-	/** The difficulty rating of the rhythm guitar chart. Usually an integer between 0 and 6 (inclusive) */
-	diff_rhythm?: number
-	/** The difficulty rating of the bass guitar chart. Usually an integer between 0 and 6 (inclusive) */
-	diff_bass?: number
-	/** The difficulty rating of the drums chart. Usually an integer between 0 and 6 (inclusive) */
-	diff_drums?: number
-	/** The difficulty rating of the Phase Shift "real drums" chart. Usually an integer between 0 and 6 (inclusive) */
-	diff_drums_real?: number
-	/** The difficulty rating of the keys chart. Usually an integer between 0 and 6 (inclusive) */
-	diff_keys?: number
-	/** The difficulty rating of the GHL (6-fret) keys chart. Usually an integer between 0 and 6 (inclusive) */
-	diff_keys_ghl?: number
-	/** The difficulty rating of the GHL (6-fret) lead guitar chart. Usually an integer between 0 and 6 (inclusive) */
-	diff_guitarghl?: number
-	/** The difficulty rating of the GHL (6-fret) co-op guitar chart. Usually an integer between 0 and 6 (inclusive) */
-	diff_guitar_coop_ghl?: number
-	/** The difficulty rating of the GHL (6-fret) rhythm guitar chart. Usually an integer between 0 and 6 (inclusive) */
-	diff_rhythm_ghl?: number
-	/** The difficulty rating of the GHL (6-fret) bass guitar chart. Usually an integer between 0 and 6 (inclusive) */
-	diff_bassghl?: number
-	/** The difficulty rating of the vocals chart. Usually an integer between 0 and 6 (inclusive) */
-	diff_vocals?: number
-	/** The number of milliseconds into the song where the chart's audio preview should start playing. */
-	preview_start_time?: number
-	/** The name of the icon to be displayed on the chart. Usually represents a charter or setlist. */
-	icon?: string
-	/** A text phrase that will be displayed before the chart begins. */
-	loading_phrase?: string
-	/** The ordinal position of the song on the album. This is `undefined` if it's not on an album. */
-	album_track?: number
-	/** The ordinal position of the chart in its setlist. This is `undefined` if it's not on a setlist. */
-	playlist_track?: number
-	/** `true` if the chart is a modchart. This only affects how the chart is filtered and displayed, and doesn't impact gameplay. */
-	modchart?: boolean
-	/** The amount of time the game should delay the start of the track in milliseconds. */
-	delay?: number
-	/** The amount of time the game should delay the start of the track in seconds. */
-	chart_offset?: number
-	/** Overrides the default HOPO threshold with a specified value in ticks. Only applies to .mid charts. */
-	hopo_frequency?: number
-	/** Sets the HOPO threshold to be a 1/8th step. Only applies to .mid charts. */
-	eighthnote_hopo?: boolean
-	/** Overrides the .mid note number for Star Power on 5-Fret Guitar. Valid values are 103 and 116. Only applies to .mid charts. */
-	multiplier_note?: number
-	/**
-	 * For .mid charts, setting this causes any sustains shorter than the threshold (in number of ticks) to be reduced to length 0.
-	 * By default, this happens to .mid sustains shorter than 1/12 step.
-	 */
-	sustain_cutoff_threshold?: number
-	/**
-	 * Notes at or closer than this threshold (in number of ticks) will be merged into a chord.
-	 * All note and modifier ticks are set to the tick of the earliest merged note.
-	 * All note sustains are set to the length of the shortest merged note.
-	 */
-	chord_snap_threshold?: number
-	/**
-	 * The amount of time that should be skipped from the beginning of the video background in milliseconds.
-	 * A negative value will delay the start of the video by that many milliseconds.
-	 */
-	video_start_time?: number
-	/** `true` if the "drums" track should be interpreted as 5-lane drums. */
-	five_lane_drums?: boolean
-	/** `true` if the "drums" track should be interpreted as 4-lane pro drums. */
-	pro_drums?: boolean
-	/**
-	 * `true` if the chart's end events should be used to end the chart early. Most games will ignore this,
-	 * and instead use end events if and only if they are between the last note and the end of the audio.
-	 */
-	end_events?: boolean
-}
-
-interface AlbumArt {
-	/** The binary buffer of the album art image, in the .jpg format (quality 75%), resized to 512x512. */
-	data: Uint8Array
-	/** The MD5 hash of `data`. */
-	md5: string
-}
-
-interface NotesData {
-	/** The list of instruments that contain more than zero notes. */
-	instruments: Instrument[]
-	/** The type of drums that are charted. `null` if drums are not charted. */
-	drumType: DrumType | null
-	/** If a solo section event occurs in any track. */
-	hasSoloSections: boolean
-	/** If the chart contains any lyric events. */
-	hasLyrics: boolean
-	/** If the chart contains a "vocals" track. */
-	hasVocals: boolean
-	/** If a forced note event occurs in any track. */
-	hasForcedNotes: boolean
-	/** If a tap note event occurs in any track. */
-	hasTapNotes: boolean
-	/** If an open note event occurs in any track. */
-	hasOpenNotes: boolean
-	/** If a 2xKick event occurs in any "drums" track. */
-	has2xKick: boolean
-	/** If a single or double roll lane event occurs in any "drums" track, or a trill or tremolo lane event occurs in any 5-fret track. */
-	hasFlexLanes: boolean
-	/** Issues detected in the chart file. */
-	chartIssues: {
-		/** `null` if the issue applies to all instruments. */
-		instrument: Instrument | null
-		/** `null` if the issue applies to all difficulties. */
-		difficulty: Difficulty | null
-		noteIssue: ChartIssueType
-		description: string
-	}[]
-	/** The number of individual notes in the chart. Does not include star power, solo markers, or activation lanes. */
-	noteCounts: {
-		instrument: Instrument
-		difficulty: Difficulty
-		count: number
-	}[]
-	/** The one-second region in each track where the notes-per-second is highest. */
-	maxNps: {
-		instrument: Instrument
-		difficulty: Difficulty
-		/** Time of the first note in the high NPS region, in milliseconds. Rounded to 3 decimal places. */
-		time: number
-		/** The notes-per-second in this region. */
-		nps: number
-	}[]
-	/**
-	 * The canonical 20260801 TrackHash of each track that has at least one note, in SongHash order (by instrument,
-	 * then Easy to Expert). A TrackHash changes if and only if the track changes in a way that impacts scoring or
-	 * difficulty, so games can use it to decide which charts share a leaderboard. Empty if the canonical profile
-	 * rejected the chart (see the `badChartIdentity` folder issue).
-	 */
-	trackHashes: {
-		instrument: Instrument
-		difficulty: Difficulty
-		/** The canonical TrackHash, as unpadded base64url. */
-		hash: string
-		/** The track's `CHNF/20260801` BTrack. `hash` is derived from it. `null` if `ScanChartConfig.includeBTrack` is `false`. */
-		btrack: Uint8Array<ArrayBuffer> | null
-	}[]
-	/** MD5 hash of the chart's tempo map, including BPM markers and time signature markers. */
-	tempoMapHash: string
-	/** The number of BPM markers in the chart. */
-	tempoMarkerCount: number
-	/**
-	 * The amount of time between the chart's first and last note starts in milliseconds. Rounded to 3 decimal places.
-	 * If there are multiple tracks, the first note start is the earliest first note across all the tracks,
-	 * and the last note start is the latest last note across all the tracks.
-	 */
-	effectiveLength: number
-}
-
-type Instrument = (typeof instruments)[number]
-const instruments = [
-	'guitar',        // Lead Guitar
-	'guitarcoop',    // Co-op Guitar
-	'rhythm',        // Rhythm Guitar
-	'bass',          // Bass Guitar
-	'drums',         // Drums
-	'keys',          // Keys
-	'guitarghl',     // GHL (6-fret) Lead Guitar
-	'guitarcoopghl', // GHL (6-fret) Co-op Guitar
-	'rhythmghl',     // GHL (6-fret) Rhythm Guitar
-	'bassghl',       // GHL (6-fret) Bass Guitar
-	'keysghl',       // GHL (6-fret) Keys
-] as const
-
-type InstrumentType = ObjectValues<typeof instrumentTypes>
-const instrumentTypes = {
-	sixFret: 0,
-	fiveFret: 1,
-	drums: 2,
-} as const
-
-type DrumType = ObjectValues<typeof drumTypes>
-const drumTypes = {
-	fourLane: 0,
-	fourLanePro: 1,
-	fiveLane: 2,
-} as const
-
-type Difficulty = (typeof difficulties)[number]
-const difficulties = [
-	'expert',
-	'hard',
-	'medium',
-	'easy',
-] as const
-
-type ChartIssueType =
-	| 'misalignedTimeSignature' // This time signature marker doesn't appear at the start of a measure
-	| 'noNotes'                 // This chart has no notes
-	| 'noExpert'                // One of this chart's instruments has Easy, Medium, or Hard charted but not Expert
-	| 'difficultyNotReduced'    // The notes of this difficulty are identical to the notes of a higher difficulty
-	| 'isDefaultBPM'            // This chart has only one 120 BPM marker and only one 4/4 time signature
-	| 'noSections'              // This chart has no sections
-	| 'badEndEvent'             // This end event is in an invalid location and will be ignored by most games
-	| 'smallLeadingSilence'     // This track has a note that is less than 2000ms after the start of the track
-	| 'noStarPower'             // This track has no star power (not included if there are fewer than 50 notes or the song is less than a minute)
-	| 'emptyStarPower'          // This star power phrase does not apply to any notes
-	| 'badStarPower'            // This star power is being ignored due to the .ini "multiplier_note" setting
-	| 'emptySoloSection'        // This solo section does not contain any notes
-	| 'noDrumActivationLanes'   // This track has no activation lanes (not included if there are fewer than 50 notes or the song is less than a minute)
-	| 'emptyFlexLane'           // This flex lane does not apply to any notes
-	| 'difficultyForbiddenNote' // This is a note or drum lane that isn't allowed on the track's difficulty
-	| 'invalidChord'            // The use of this type of chord is strongly discouraged
-	| 'brokenNote'              // This note is so close to the previous note that this was likely a charting mistake
-	| 'badSustainGap'           // This note is not far enough ahead of the previous sustain
-	| 'babySustain'             // The sustain on this note is too short
-	| 'invalidLyric'            // A lyric event was found on the EVENTS track in a .mid chart and will not be displayed
-	| 'invalidPhraseStart'      // A phrase_start text event was found on the EVENTS track in a .mid chart
-	| 'invalidPhraseEnd'        // A phrase_end text event was found on the EVENTS track in a .mid chart
-
-type FolderIssueType =
-	| 'noMetadata'              // This chart doesn't have "song.ini"
-	| 'invalidIni'              // .ini file is not named "song.ini"
-	| 'invalidMetadata'         // "song.ini" doesn't have a "[Song]" section
-	| 'badIniLine'              // This line in "song.ini" couldn't be parsed
-	| 'multipleIniFiles'        // This chart has multiple .ini files
-	| 'noAlbumArt'              // This chart doesn't have album art
-	| 'albumArtSize'            // This chart's album art is not 500x500 or 512x512
-	| 'badAlbumArt'             // This chart's album art couldn't be parsed
-	| 'multipleAlbumArt'        // This chart has multiple album art files
-	| 'noAudio'                 // This chart doesn't have an audio file
-	| 'invalidAudio'            // Audio file is not a valid audio stem name
-	| 'badAudio'                // This chart's audio couldn't be parsed
-	| 'multipleAudio'           // This chart has multiple audio files of the same stem
-	| 'noChart'                 // This chart doesn't have "notes.chart"/"notes.mid"
-	| 'invalidChart'            // .chart/.mid file is not named "notes.chart"/"notes.mid"
-	| 'badChart'                // This chart's .chart/.mid file couldn't be parsed
-	| 'badChartIdentity'        // The canonical identity profile rejected this chart, so it has no TrackHashes or SongHash
-	| 'multipleChart'           // This chart has multiple .chart/.mid files
-	| 'badVideo'                // This chart has a video background that will not work on Linux
-	| 'multipleVideo'           // This chart has multiple video background files
-
-type MetadataIssueType =
-	| 'missingValue'            // Metadata is missing a required value
-	| 'invalidValue'            // Metadata property was set to an unsupported value
-	| 'extraValue'              // Metadata contains a property that should not be included
-
-interface ParsedChart {
-	/**
-	 * The raw bytes of the source chart file. Needed by `scanChart` to compute
-	 * `chartHash`, which is `blake3(chartBytes ++ ini-modifier name/value pairs)`.
-	 */
-	chartBytes: Uint8Array
-	/** The format the chart was parsed from. */
-	format: 'chart' | 'mid'
-	/** The fully-resolved ini modifiers that influenced parsing. */
-	iniChartModifiers: IniChartModifiers
-	/**
-	 * The metadata Clone Hero hashes into the canonical SongHash, before the SongHash writer resolves it: the song.ini
-	 * `[song]` values when a song.ini with that section loads, otherwise the `.chart [Song]` values. Blank values are
-	 * "Unknown …". Style tags and the "0"/"-1" sentinels remain; the writer handles them.
-	 */
-	songHashMetadata: {
-		name: string | null
-		artist: string | null
-		album: string | null
-		genre: string | null
-		year: string | null
-		charter: string | null
-		icon: string | null
-	}
-	resolution: number
-	drumType: DrumType | null
-	metadata: {
-			name: string | undefined
-			artist: string | undefined
-			album: string | undefined
-			genre: string | undefined
-			year: string | undefined
-			charter: string | undefined
-			diff_guitar: number | undefined
-			delay: number | undefined
-			preview_start_time: number | undefined
-	}
-	parseIssues: { instrument: Instrument | null; difficulty: Difficulty | null; noteIssue: ChartIssueType }[]
-	vocalTracks: VocalTrack
-	endEvents: {
-			tick: number
-			msTime: number
-			msLength: number
-	}[]
-	tempos: {
-			tick: number
-			beatsPerMinute: number
-			msTime: number
-	}[]
-	timeSignatures: {
-			tick: number
-			numerator: number
-			denominator: number
-			msTime: number
-			msLength: number
-	}[]
-	sections: {
-			tick: number
-			name: string
-			msTime: number
-			msLength: number
-	}[]
-	trackData: {
-		noteEventGroups: NoteEvent[][]
-		instrument: Instrument
-		difficulty: Difficulty
-		starPowerSections: {
-				tick: number
-				length: number
-				msTime: number
-				msLength: number
-		}[]
-		rejectedStarPowerSections: {
-				tick: number
-				length: number
-				msTime: number
-				msLength: number
-		}[]
-		soloSections: {
-				tick: number
-				length: number
-				msTime: number
-				msLength: number
-		}[]
-		flexLanes: {
-				tick: number
-				length: number
-				isDouble: boolean
-				msTime: number
-				msLength: number
-		}[]
-		drumFreestyleSections: {
-				tick: number
-				length: number
-				isCoda: boolean
-				msTime: number
-				msLength: number
-		}[]
-	}
-}
-
-/** A single note event in a chart's track. Note that more than one note event can occur at the same time. */
-interface NoteEvent {
-	/** Tick position where the note event begins. */
-	tick: number
-	/** Time where the note event begins, in ms. */
-	msTime: number
-	/** Length of the note event, in ticks. */
-	length: number
-	/** Length of the note event, in ms. */
-	msLength: number
-	/** The type of the note. (green, open, redDrum, kick, etc...) */
-	type: NoteType
-	/** bitmask of `noteFlags`, which define the modifiers that apply to this note event. (strum, tap, cymbal, accent, etc...) */
-	flags: number
-}
-
-/** Note: specific values here are standardized; they are constants used in the track hash calculation. */
-type NoteType = ObjectValues<typeof noteTypes>
-const noteTypes = {
-	// 5 fret
-	open: 1,
-	green: 2,
-	red: 3,
-	yellow: 4,
-	blue: 5,
-	orange: 6,
-
-	// 6 fret
-	black1: 7,
-	black2: 8,
-	black3: 9,
-	white1: 10,
-	white2: 11,
-	white3: 12,
-
-	// Drums
-	kick: 13,
-	redDrum: 14,
-	yellowDrum: 15,
-	blueDrum: 16,
-	greenDrum: 17,
-} as const
-
-/** Note: specific values here are standardized; they are constants used in the track hash calculation. */
-const noteFlags = {
-	none: 0,
-	strum: 1,
-	hopo: 2,
-	tap: 4,
-	doubleKick: 8,
-	tom: 16,
-	cymbal: 32,
-	discoNoflip: 64,
-	disco: 128,
-	flam: 256,
-	ghost: 512,
-	accent: 1024,
-} as const
-
-const lyricFlags = {
-	none: 0,
-	joinWithNext: 1,
-	nonPitched: 2,
-	lenientScoring: 4,
-	pitchSlide: 16,
-	harmonyHidden: 32,
-	staticShift: 64,
-	rangeShift: 128,
-	hyphenateWithNext: 256,
-} as const
-
-interface LyricEvent {
-	/** Tick position of the lyric event. */
-	tick: number
-	/** Time of the lyric event, in ms. */
-	msTime: number
-	/** The text content of the lyric event. Often will be a single lyric syllable. */
-	text: string
-	/** bitmask of `lyricFlags`, which define the modifiers that apply to this lyric event. (nonPitched, lenientScoring, hyphenateWithNext, etc...) */
-	flags: number
-}
-
-/** A single timed vocal event inside a vocal phrase, either a sung pitch target or vocals percussion cue. */
-interface VocalNote {
-	/** Tick position where the vocal note begins. */
-	tick: number
-	/** Time where the vocal note begins, in ms. */
-	msTime: number
-	/** Length of the vocal note, in ticks. */
-	length: number
-	/** Length of the vocal note, in ms. */
-	msLength: number
-	/** The MIDI note number for the vocal pitch of this note. */
-	pitch: number
-	/** Whether this note is a sung pitch note (MIDI 36-84) or vocals percussion cue (MIDI 96/97). */
-	type: 'pitched' | 'percussion'
-}
-
-/**
- * A range created by a vocals phrase marker, used during gameplay to decide
- * which pitch/percussion notes and lyric syllables belong to the same sung line.
- * The game scores and displays vocals phrase-by-phrase as playback crosses
- * these ranges instead of treating every note as an unrelated standalone event.
- */
-interface VocalPhrase {
-	/** Tick position where the vocal phrase begins. */
-	tick: number
-	/** Time where the vocal phrase begins, in ms. */
-	msTime: number
-	/** Length of the vocal phrase, in ticks. */
-	length: number
-	/** Length of the vocal phrase, in ms. */
-	msLength: number
-	/** Whether every note in this phrase is a vocals percussion cue. */
-	isPercussion: boolean
-	/** Lead-vocals singer assigned to this phrase in two-player modes; omitted for harmony phrases. */
-	player?: 1 | 2
-	/** All vocal note events contained inside this phrase range. */
-	notes: VocalNote[]
-	/** All lyric events contained inside this phrase range. */
-	lyrics: LyricEvent[]
-}
-
-/** Data for one singer lane, such as lead vocals or a single harmony part. */
-interface VocalPart {
-	/** Vocal phrases that group the notes and lyrics sung and scored together. */
-	notePhrases: VocalPhrase[]
-	/** Vocal phrases that group lyrics for fixed-position static lyric display. */
-	staticLyricPhrases: VocalPhrase[]
-	/** Star Power phrase ranges available to this vocal part. */
-	starPowerSections: { tick: number; msTime: number; length: number; msLength: number }[]
-	/** Range shift markers for this part's vocals note display. */
-	rangeShifts: { tick: number; msTime: number; length: number; msLength: number }[]
-	/** Lyric shift markers for this part's static lyric display. */
-	lyricShifts: { tick: number; msTime: number; length: number; msLength: number }[]
-	/** Raw vocal text events for this part, excluding parsed lyric syllables. */
-	textEvents: { tick: number; msTime: number; text: string }[]
-}
-
-/** Top-level normalized vocals data containing every singer lane and shared track-level shift markers. */
-interface VocalTrack {
-	/** Vocal parts keyed by canonical part name, such as `vocals` or `harmony1`. */
-	parts: { [partName: string]: VocalPart }
-	/** Shared range shift markers sourced from the lead vocals or first harmony part. */
-	rangeShifts: { tick: number; msTime: number; length: number; msLength: number }[]
-	/** Shared lyric shift markers sourced from the lead vocals or first harmony part. */
-	lyricShifts: { tick: number; msTime: number; length: number; msLength: number }[]
-}
-
-interface IniChartModifiers {
-	song_length: number               // Default: 0
-	hopo_frequency: number            // Default: 0
-	eighthnote_hopo: boolean          // Default: false
-	multiplier_note: number           // Default: 0
-	sustain_cutoff_threshold: number  // Default: -1
-	chord_snap_threshold: number      // Default: 0
-	five_lane_drums: boolean          // Default: false
-	pro_drums: boolean                // Default: false
+interface SongFile {
+	readonly fileName: string
+	readonly data: Uint8Array | ByteSource
 }
 ```
+
+`data` holds the file's bytes or a `ByteSource`, which reads the file on demand. scan-chart reads only the chart file, song.ini, and album art. Use a byte source for everything else, so the audio and video never have to fit in memory.
+
+In Node, open each file as a `Blob` and wrap it with `byteSourceFromBlob`. The examples that follow use this `readSongFolder` function:
+
+```ts
+import { openAsBlob } from 'node:fs'
+import { readdir } from 'node:fs/promises'
+import { join } from 'node:path'
+import { byteSourceFromBlob, type SongFile } from 'scan-chart'
+
+async function readSongFolder(folder: string): Promise<SongFile[]> {
+	const entries = await readdir(folder, { withFileTypes: true })
+	return Promise.all(entries.filter(entry => entry.isFile()).map(async entry => ({
+		fileName: entry.name,
+		data: byteSourceFromBlob(await openAsBlob(join(folder, entry.name))),
+	})))
+}
+```
+
+In a browser, a `File` is a `Blob`, so wrap the files from a folder picker the same way:
+
+```ts browser
+import { byteSourceFromBlob, type SongFile } from 'scan-chart'
+
+function songFiles(input: HTMLInputElement): SongFile[] {
+	return [...(input.files ?? [])].map(file => ({ fileName: file.name, data: byteSourceFromBlob(file) }))
+}
+```
+
+## Show a song's metadata
+
+To list songs, call `parseSongMetadata`. It reads song.ini and the `[Song]` section of a `.chart` file, but not the notes, so it takes a small fraction of a full scan:
+
+```ts
+import { parseSongMetadata } from 'scan-chart'
+
+const { metadata, issues } = await parseSongMetadata(await readSongFolder('songs/Example Song'))
+console.log(`${metadata.artist} - ${metadata.name} (charted by ${metadata.charter})`)
+for (const issue of issues) console.log(`${issue.code}: ${issue.message}`)
+```
+
+`metadata` holds what Clone Hero shows:
+
+- The values come from song.ini when the song has one, and from the `.chart` `[Song]` section only when it doesn't.
+- A value that isn't set is Clone Hero's default, such as `Unknown Artist`, or `-1` for a difficulty.
+- Text is cleaned for display: style tags such as `<b>` are removed.
+- The keys are song.ini's keys, so the guitar difficulty is `diff_guitar` and the song length is `song_length`, in milliseconds.
+
+`issues` lists problems with the folder and its metadata, such as a missing song.ini or a misnamed chart file.
+
+## Check a chart
+
+To check a song in one call, use `scanSongFolder`. It returns the metadata, every issue, and the chart's statistics:
+
+```ts
+import { scanSongFolder } from 'scan-chart'
+
+const scanned = await scanSongFolder(await readSongFolder('songs/Example Song'))
+if (!scanned.playable) console.log('Clone Hero can\'t play this song: it needs a readable chart and an audio file.')
+for (const issue of scanned.issues) {
+	const where = issue.instrument === null ? '' : ` (${issue.instrument} ${issue.difficulty ?? ''})`
+	console.log(`${issue.scope} ${issue.code}${where}: ${issue.message}`)
+}
+for (const { instrument, difficulty, count } of scanned.stats?.noteCounts ?? []) {
+	console.log(`${instrument} ${difficulty}: ${count} notes`)
+}
+```
+
+The work that costs more is off by default. Turn it on with the second argument:
+
+| Option | Adds | Result field |
+|---|---|---|
+| `competitiveHashes: true` | The leaderboard hashes. Pass `{ btracks: true }` to also get each track's BTrack. | `competitive` |
+| `fileHashes: true` | MD5 of the whole folder, a hash of the chart and its parse settings, and MD5 of the album art | `fileHashes` |
+| `albumArt: true` | The album art file, as written, and the issues found decoding it | `albumArt` |
+| `styleNotes: true` | Style notes: nonstandard spellings that every program reads the same way | `issues` |
+
+A result field you didn't ask for is `null`.
+
+### Read the issues
+
+Every issue has the same shape, whatever it's about:
+
+```ts
+interface Issue {
+	readonly scope: 'folder' | 'metadata' | 'chart'
+	readonly code: IssueCode // for example 'noStarPower' or 'unsortedChartLines'
+	readonly instrument: Instrument | null // null when it's about more than one instrument
+	readonly difficulty: Difficulty | null
+	readonly tick: number | null // where in the chart, or null for a whole track or file
+	readonly msTime: number | null
+	readonly message: string
+}
+```
+
+Some issues are about how a file is written rather than what it plays. They come in two kinds:
+
+- **Compatibility issues** are on by default. They describe spellings that Clone Hero or another program reads differently, or can't read at all. For example, Clone Hero refuses a `.chart` file whose tick numbers go backwards (`unsortedChartLines`).
+- **Style notes** are off by default. They describe spellings that every program reads the same way, such as a `.chart` line written twice (`duplicateChartLine`).
+
+### Check it step by step
+
+`scanSongFolder` runs three steps. Call them yourself when you want the notes as well as the issues:
+
+```ts
+import { analyzeChart, parseSong, resolveChart } from 'scan-chart'
+
+const song = await parseSong(await readSongFolder('songs/Example Song'))
+const chart = resolveChart(song)
+for (const track of chart.tracks) {
+	console.log(`${track.instrument} ${track.difficulty}: ${track.noteGroups.length} notes and chords, ${track.starPower.length} star power phrases`)
+}
+const { issues, stats } = analyzeChart(chart)
+console.log(`${issues.length} issues, ${stats.tempoMarkerCount} tempo markers`)
+```
+
+- `parseSong` reads the files into a `SongDocument`: the chart file and song.ini as they're written.
+- `resolveChart` gives the chart as Clone Hero plays it: tempos, time signatures, practice sections, and each track's notes, with their times in milliseconds. It throws `ChartReadError` if the song has no chart or Clone Hero can't read it.
+- `analyzeChart` finds the chart's issues and calculates its statistics.
+
+## Calculate competitive hashes
+
+Clone Hero's leaderboards compare scores only when they were played on the same chart. These hashes decide that:
+
+- a **TrackHash** for each instrument and difficulty;
+- a **SongHash** for the whole song;
+- a **tempo map hash**.
+
+They're in the `scan-chart/competitive` entry point:
+
+```ts
+import { calculateCompetitiveHashes } from 'scan-chart/competitive'
+import { parseSong } from 'scan-chart'
+
+const hashes = calculateCompetitiveHashes(await parseSong(await readSongFolder('songs/Example Song')))
+if (hashes.accepted) {
+	console.log(`SongHash ${hashes.songHash}, ${hashes.songDurationMs} ms`)
+	for (const track of hashes.tracks) console.log(`${track.instrument} ${track.difficulty}: ${track.trackHash}`)
+} else {
+	console.log(`No hashes: ${hashes.reason}`)
+}
+```
+
+A chart that the hash rules reject has no hashes, and `reason` says why. To also get each track's BTrack, the binary file its TrackHash is calculated from, pass `{ btracks: true }` as the second argument.
+
+The same entry point exports the specification the hashes are defined by. `canonical20260801` defines the hashes Clone Hero uses now, and `frozenLegacy6142` the hashes Clone Hero 1.1 calculated. `songBundle20251010` calculates both kinds at once.
+
+## Edit and save a song
+
+### Find what to edit
+
+`authoredTracks` lists a chart's tracks as the file writes them, with each event's position, length, and type:
+
+```ts
+import { authoredTracks, parseSong } from 'scan-chart'
+
+const song = await parseSong(await readSongFolder('songs/Example Song'))
+if (song.chart === null) throw new Error('The folder has no chart file')
+for (const track of authoredTracks(song.chart)) {
+	console.log(`${track.instrument} ${track.difficulty ?? 'all difficulties'}: ${track.events.length} events${track.isRead ? '' : ' (Clone Hero ignores this one)'}`)
+}
+```
+
+- A `.chart` file has a track for each instrument and difficulty. A `.mid` file has one track for each instrument, holding every difficulty, so its `difficulty` is `null`.
+- An event is a note, a note modifier such as `forceTap`, or a phrase such as `starPower`. Its `type` is a name.
+- `authoredSongEvents` gives the tempo markers, time signatures, and text events, such as practice sections.
+
+### Make edits
+
+`editSong` applies a batch of edits and returns a new song. The song you pass in doesn't change, so to undo, keep the earlier song:
+
+```ts
+import { authoredTracks, editSong, parseSong } from 'scan-chart'
+
+const song = await parseSong(await readSongFolder('songs/Example Song'))
+const expert = authoredTracks(song.chart!).find(track => track.instrument === 'guitar' && track.difficulty === 'expert' && track.isRead)
+if (expert === undefined) throw new Error('No Expert guitar track')
+
+const edited = editSong(song, batch => {
+	batch.setLength(expert.events[0], 96)
+	batch.addEvent(expert, 768, 'red', 0)
+	batch.addTextEvent(768, 'section Chorus')
+	batch.setMetadata('loading_phrase', 'Watch out for the chorus')
+})
+```
+
+- `setTick`, `setLength`, and `remove` change events, tempo markers, time signatures, and text events.
+- `setTempo`, `setTimeSignature`, and `setText` change their values. `addTempo`, `addTimeSignature`, and `addTextEvent` add new ones.
+- `addEvent` adds a note, a modifier, or a phrase. In a `.mid` track, say which difficulty it's for: `{ scope: 'expert' }`. An event that means nothing on the instrument, such as a tap on drums, throws a `RangeError`.
+- `setMetadata` sets a song.ini value, or removes it with `null`. A song without song.ini gets one, holding the `[Song]` values Clone Hero read, so only your edit reads differently.
+
+### Save the song
+
+`serializeSong` returns a save plan: every file of the folder, and a report of what saving did. The files you didn't change are still byte sources, read only when you write them. Write the files to a new folder:
+
+```ts
+import { createWriteStream } from 'node:fs'
+import { mkdir } from 'node:fs/promises'
+import { join } from 'node:path'
+import { Writable } from 'node:stream'
+import { editSong, parseSong, serializeSong, writeSavePlanFile } from 'scan-chart'
+
+const song = await parseSong(await readSongFolder('songs/Example Song'))
+const edited = editSong(song, batch => batch.setMetadata('genre', 'Rock'))
+const plan = serializeSong(edited)
+console.log(`Rewrote ${plan.report.normalized.length} nonstandard spellings`)
+
+const output = 'songs/Example Song (edited)'
+await mkdir(output, { recursive: true })
+for (const file of plan.files) {
+	await writeSavePlanFile(file, Writable.toWeb(createWriteStream(join(output, file.fileName))))
+}
+```
+
+Don't write a save plan over the folder it came from. A file you didn't change is copied from the original while it's written, so writing it over itself would destroy it.
+
+In a browser, `savePlanToBlobs` gives each file as a `Blob`, ready to download.
+
+The report says what saving changed beyond your edits:
+
+- `normalized` lists the nonstandard spellings saving rewrote, such as lines out of tick order or missing Windows line endings.
+- `withheld` lists the ones it left alone, because rewriting them would change a hash that your edits didn't change.
+- `spentHashes` lists the hashes your edits changed.
+
+If you didn't edit the song, its save plan holds every file byte for byte, and nothing is normalized.
+
+### Convert between `.chart` and `.mid`
+
+`convertChart` gives a new song in the other format, and a report read back from the result:
+
+```ts
+import { convertChart, parseSong } from 'scan-chart'
+
+const song = await parseSong(await readSongFolder('songs/Example Song'))
+const { song: converted, report } = convertChart(song, 'mid')
+for (const track of report.tracks) {
+	if (!track.kept) console.log(`${track.instrument} ${track.difficulty} changes: ${track.causes.join(', ')}`)
+}
+for (const { content, count } of report.dropped) console.log(`Left out: ${count} ${content}`)
+for (const { key, value } of report.settings) console.log(`song.ini: ${key} = ${value}`)
+```
+
+Save `converted` like any other song. Converting writes only the song.ini settings the new format needs:
+
+- **To `.mid`:** a `.mid` file holds one set of star power and solos for each instrument, so they come from the Expert track. `sustain_cutoff_threshold` is written only when `.mid` would otherwise shorten a sustain. `multiplier_note` is written only when a solo would otherwise read as star power.
+- **To `.chart`:** vocal pitches, harmonies, and MIDI-only tracks such as the venue are left out. Lyrics and vocal phrases are kept.
+
+A tempo below 3.58 BPM or a time signature over 255 doesn't fit in a `.mid` file, and converting throws `ConversionError`. To write the nearest value instead, pass `{ force: true }`. A resolution over 32767 ticks per beat has no nearest value, so that chart can't be converted to `.mid`.
+
+### Start a new song
+
+`createSong` makes a song with one tempo marker and one time signature, and a song.ini that holds the metadata you give it:
+
+```ts
+import { createSong } from 'scan-chart'
+
+const song = createSong({ format: 'chart', metadata: { name: 'New Song', artist: 'New Band', charter: 'You' } })
+```
+
+The resolution is 192 ticks per beat for `.chart` and 480 for `.mid`, unless you pass `resolution`.
+
+## Handle errors
+
+| Error | Thrown when |
+|---|---|
+| `ChartReadError` | `resolveChart` or `convertChart` gets a song with no chart, or with a chart Clone Hero can't read. |
+| `ConversionError` | `convertChart` meets a value the new format can't hold. Its `limits` list each value. |
+| `RangeError` | An edit doesn't fit the chart: an event the instrument can't use, a value song.ini can't hold, or an edit to a song.ini that isn't UTF-8. |
+
+`parseSong`, `parseSongMetadata`, and `scanSongFolder` don't throw for a malformed chart or song.ini. They report it as an issue.
+
+## Learn more
+
+- [Release notes](CHANGELOG.md), including how to move from scan-chart 8.
+- [Contributing](CONTRIBUTING.md): running the tests and the tools that compare scan-chart with Clone Hero.
