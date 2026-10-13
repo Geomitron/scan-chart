@@ -181,21 +181,29 @@ function resolvedStrings(id: string, metadata: SongHashMetadata): ResolvedSongHa
 }
 
 /**
- * Derives the canonical SongHash of a song folder the way the scanner does: choose the notes file and read song.ini
- * (`parseChartAndIni`), parse the notes file with the canonical profile and the song.ini chart modifiers, then
- * hash every member Track and the song with the metadata Clone Hero holds on the song.
+ * Derives the canonical SongHash of a song folder as 9.0.0 does: the song document chooses the notes file and reads
+ * song.ini, the notes file is parsed with the canonical profile and the song.ini chart modifiers, then every member
+ * Track and the song are hashed with the metadata Clone Hero holds on the song. `calculateCompetitiveHashes` must
+ * give the same SongHash and TrackHashes.
  */
 export function deriveSongCase(id: string, inputs: readonly { readonly name: string; readonly bytes: Uint8Array }[]): DerivedSong {
 	const files: File[] = inputs.map(input => ({ fileName: input.name, data: input.bytes.slice() }))
-	const folder = parseChartAndIni(files)
-	const chart = folder.parsedChart
-	if (!chart) throw new Error(`${id}: the scanner found no chart: ${folder.chartFolderIssues.map(issue => issue.description).join(' ')}`)
-	const selected = files.find(file => file.data === chart.chartBytes)
+	const song = parseSongFiles(files)
+	const { chart: outcome, settings, songHashMetadata } = songContext(song)
+	if (song.chart === null || outcome.kind !== 'parsed') throw new Error(`${id}: no readable chart: ${outcome.kind === 'failed' ? outcome.error : 'none'}`)
+	const chart = { format: song.chart.format, chartBytes: outcome.bytes, songHashMetadata }
+	const selected = files.find(file => file.fileName === song.chart!.fileName)
 	if (!selected) throw new Error(`${id}: the selected notes file is not one of the inputs`)
-	const modifiers = chartModifiers(chart.iniChartModifiers)
+	const modifiers = chartModifiers(settings)
 	const parsed = canonical20260801.parseSource({ source: { format: chart.format, bytes: chart.chartBytes }, modifiers })
 	if (parsed.kind !== 'accepted') throw new Error(`${id}: canonical parser rejected the source`)
 	const bundle = canonical20260801.calculateSongBundle({ chart: parsed.chart, metadata: chart.songHashMetadata })
+	const competitive = calculateCompetitiveHashes(song)
+	if (!competitive.accepted || competitive.songHash !== bundle.song.songHash.value
+		|| JSON.stringify(competitive.tracks.map(track => [track.instrument, track.difficulty, track.trackHash]))
+			!== JSON.stringify(bundle.tracks.map(track => [track.instrument, track.difficulty, track.identity.trackHash.value]))) {
+		throw new Error(`${id}: calculateCompetitiveHashes disagrees with the specification API`)
+	}
 	const members = bundle.tracks.map(member => {
 		const track = parsed.chart.tracks.find(candidate =>
 			candidate.key.instrument === member.instrument && candidate.key.difficulty === member.difficulty)

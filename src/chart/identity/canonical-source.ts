@@ -2,6 +2,7 @@ import { Difficulty, difficulties, Instrument } from '../../types'
 import { calculateCanonicalChartDuration, CanonicalChartDuration } from '../chart-duration'
 import { ChartSource, parseChartFileCanonicalIdentity, parseChartSource } from '../parse-chart-file'
 import { parseRules } from '../parse-rules'
+import { ObjectCache } from '../../shared/object-cache'
 import type { IniChartModifiers } from '../types'
 import type { SourceParseError, SourceParseRequest } from './public'
 import { CanonicalTrackSemantics, createFiveFretRange } from './btrack-20260801'
@@ -278,10 +279,20 @@ export function parseCanonicalChartSource(source: ChartSource, modifiers: Partia
 	return canonicalOutcome(source.format, () => parseChartSource(source, modifiers, parseRules.canonical20260801))
 }
 
-/** The canonical outcome of a chart already parsed with the canonical rules. Only reads `parsed`. */
+/**
+ * The canonical outcome of a chart already parsed with the canonical rules. Only reads `parsed`, and is calculated
+ * once per parse, since the gameplay chart's analysis and the competitive hashes both need it. Treat it as read-only.
+ */
 export function canonicalChartFromParse(format: 'chart' | 'mid', parsed: ReturnType<typeof parseChartSource>): CanonicalParseOutcome {
-	return canonicalOutcome(format, () => parsed)
+	let outcome = canonicalOutcomes.get(parsed)
+	if (outcome === undefined) {
+		outcome = canonicalOutcome(format, () => parsed)
+		canonicalOutcomes.set(parsed, outcome)
+	}
+	return outcome
 }
+
+const canonicalOutcomes = new ObjectCache<ReturnType<typeof parseChartSource>, CanonicalParseOutcome>('canonicalOutcome')
 
 function canonicalOutcome(format: 'chart' | 'mid', parse: () => ReturnType<typeof parseChartFileCanonicalIdentity>): CanonicalParseOutcome {
 	try {

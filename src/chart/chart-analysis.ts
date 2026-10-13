@@ -207,13 +207,50 @@ export function sameAsExpert(canonicalChart: CanonicalParsedChart | null): (inst
 		const track = canonicalChart?.tracks.find(t => t.key.instrument === instrument && t.key.difficulty === difficulty)
 		if (track === undefined) return undefined
 		const { resolution, notes, starPower, solos, flexLanes, drumFreestyle, rangeShifts } = track.semantics
-		return JSON.stringify({ resolution, notes, starPower, solos, flexLanes, drumFreestyle, rangeShifts },
-			(_key, value) => typeof value === 'bigint' ? value.toString() : value)
+		return { resolution, notes, starPower, solos, flexLanes, drumFreestyle, rangeShifts }
 	}
 	return (instrument, difficulty) => {
 		const expert = semantics(instrument, 'expert')
-		return expert !== undefined && expert === semantics(instrument, difficulty)
+		const other = semantics(instrument, difficulty)
+		return expert !== undefined && other !== undefined && sameAsJson(expert, other)
 	}
+}
+
+/**
+ * Whether two values serialize to the same JSON, with BigInts as their digits, without serializing them: it stops at
+ * the first difference, where serializing every note of two tracks took a sixth of a scan.
+ */
+function sameAsJson(a: unknown, b: unknown): boolean {
+	const [x, y] = [jsonValue(a), jsonValue(b)]
+	if (x === y) return true
+	if (typeof x !== 'object' || typeof y !== 'object' || x === null || y === null) return false
+	if (Array.isArray(x) !== Array.isArray(y)) return false
+	if (Array.isArray(x) && Array.isArray(y)) {
+		if (x.length !== y.length) return false
+		for (let index = 0; index < x.length; index++) if (!sameAsJson(jsonElement(x[index]), jsonElement(y[index]))) return false
+		return true
+	}
+	const [xEntries, yEntries] = [jsonEntries(x), jsonEntries(y)]
+	if (xEntries.length !== yEntries.length) return false
+	for (let index = 0; index < xEntries.length; index++) {
+		if (xEntries[index][0] !== yEntries[index][0] || !sameAsJson(xEntries[index][1], yEntries[index][1])) return false
+	}
+	return true
+}
+
+/** JSON writes a number that isn't finite as null, and here a BigInt as its digits. */
+function jsonValue(value: unknown) {
+	return typeof value === 'number' && !Number.isFinite(value) ? null : typeof value === 'bigint' ? value.toString() : value
+}
+
+/** In an array, JSON writes an undefined element or a function as null. */
+function jsonElement(element: unknown) {
+	return element === undefined || typeof element === 'function' ? null : element
+}
+
+/** JSON leaves out a property that's undefined or a function. */
+function jsonEntries(object: object) {
+	return Object.entries(object).filter(([, value]) => value !== undefined && typeof value !== 'function')
 }
 
 /**
