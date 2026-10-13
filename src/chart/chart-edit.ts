@@ -166,6 +166,18 @@ export function spliceChartText(tokens: ChartFileTokens, splices: readonly { sta
 }
 
 /**
+ * Adds an empty section for each name at the end of a tokenized `.chart` file, with the file's line ending, and
+ * returns the edited file, tokenized. The existing sections keep their indexes, and the new ones follow in order.
+ */
+export function appendChartSections(tokens: ChartFileTokens, names: readonly string[]): ChartFileTokens {
+	if (names.length === 0) return tokens
+	const ending = tokens.text.includes('\r\n') || !tokens.text.includes('\n') ? '\r\n' : '\n'
+	const separator = tokens.text.length === 0 || tokens.text.endsWith('\n') ? '' : ending
+	const text = names.map(name => `[${name}]${ending}{${ending}}${ending}`).join('')
+	return spliceChartText(tokens, [{ start: tokens.text.length, end: tokens.text.length, text: separator + text }])
+}
+
+/**
  * Whether a range of whole lines of a `.chart` file is exactly its decoded text, encoded again: no invalid bytes that
  * decoding replaced. `start` and `end` are offsets of line starts in the text, or the text's end.
  */

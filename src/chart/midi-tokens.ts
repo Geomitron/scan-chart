@@ -154,6 +154,35 @@ export function replaceMidiTrackChunk(tokens: MidiTokens, chunkIndex: number, ch
 	return { data, header: tokens.header, chunks, trailingStart: tokens.trailingStart + shift }
 }
 
+/**
+ * The tokens of `tokens`' file with a new track chunk for each name, holding only its track name, after the last
+ * track chunk, and the header's track count raised to match. The existing track chunks keep their indexes, and the
+ * new ones follow in order.
+ */
+export function addMidiTrackChunks(tokens: MidiTokens, trackNames: readonly string[]): MidiTokens {
+	if (trackNames.length === 0) return tokens
+	const numTracks = tokens.header.header.numTracks + trackNames.length
+	if (numTracks > 0xffff) throw new RangeError('A .mid file can\'t hold more than 65,535 tracks')
+	const lastTrack = tokens.chunks.reduce((last, chunk, index) => chunk.kind === 'track' ? index : last, -1)
+	const at = lastTrack === -1 ? tokens.header.end : tokens.chunks[lastTrack].end
+	const added = trackNames.map(name => {
+		const text = new TextEncoder().encode(name)
+		if (text.length > 0x7f) throw new RangeError(`The track name ${JSON.stringify(name)} is too long`)
+		// A track name at tick 0, then the end of the track.
+		const body = [0x00, 0xff, 0x03, text.length, ...text, 0x00, 0xff, 0x2f, 0x00]
+		const length = body.length
+		return [0x4d, 0x54, 0x72, 0x6b, (length >>> 24) & 0xff, (length >>> 16) & 0xff, (length >>> 8) & 0xff, length & 0xff, ...body]
+	}).flat()
+	const data = new Uint8Array(tokens.data.length + added.length)
+	data.set(tokens.data.subarray(0, at))
+	data.set(added, at)
+	data.set(tokens.data.subarray(at), at + added.length)
+	// The track count follows the format in the header's body, as a big-endian 16-bit number.
+	data[tokens.header.bodyStart + 2] = numTracks >>> 8
+	data[tokens.header.bodyStart + 3] = numTracks & 0xff
+	return readMidiTokens(data, 'skip')
+}
+
 /** A chunk moved `shift` bytes later in the file, with its events' offsets moved too. */
 function shiftChunk(chunk: MidiChunk, shift: number): MidiChunk {
 	const moved = { ...chunk, start: chunk.start + shift, lengthStart: chunk.lengthStart + shift, bodyStart: chunk.bodyStart + shift, end: chunk.end + shift }

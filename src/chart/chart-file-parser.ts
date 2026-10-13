@@ -8,6 +8,13 @@ import { extractChartLyrics, extractChartVocalPhrases } from './lyric-parser'
 type TrackName = keyof typeof trackNameMap
 
 /** The instrument and difficulty a `.chart` section holds, or `null` for a section that isn't a track. */
+/** The `.chart` section name of an instrument and difficulty, such as `ExpertSingle` for Expert guitar. */
+export function chartSectionName(instrument: Instrument, difficulty: Difficulty): string {
+	const name = (Object.keys(trackNameMap) as TrackName[]).find(key => trackNameMap[key].instrument === instrument && trackNameMap[key].difficulty === difficulty)
+	if (name === undefined) throw new RangeError(`A .chart file has no section for ${difficulty} ${instrument}`)
+	return name
+}
+
 export function chartSectionTrack(sectionName: string): { instrument: Instrument; difficulty: Difficulty } | null {
 	return Object.prototype.hasOwnProperty.call(trackNameMap, sectionName) ? trackNameMap[sectionName as TrackName] as { instrument: Instrument; difficulty: Difficulty } : null
 }

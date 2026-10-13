@@ -218,6 +218,7 @@ const edited = editSong(song, batch => {
 - `setTick`, `setLength`, and `remove` change events, tempo markers, time signatures, and text events.
 - `setTempo`, `setTimeSignature`, and `setText` change their values. `addTempo`, `addTimeSignature`, and `addTextEvent` add new ones.
 - `addEvent` adds a note, a modifier, or a phrase. In a `.mid` track, say which difficulty it's for: `{ scope: 'expert' }`. An event that means nothing on the instrument, such as a tap on drums, throws a `RangeError`.
+- `addTrack` adds a track for an instrument and difficulty, and returns it, so `addEvent` can fill it in the same batch. It throws a `RangeError` if Clone Hero already reads events for that instrument and difficulty.
 - `setMetadata` sets a song.ini value, or removes it with `null`. A song without song.ini gets one, holding the `[Song]` values Clone Hero read, so only your edit reads differently.
 
 ### Save the song
@@ -280,15 +281,21 @@ A tempo below 3.58 BPM or a time signature over 255 doesn't fit in a `.mid` file
 
 ### Start a new song
 
-`createSong` makes a song with one tempo marker and one time signature, and a song.ini that holds the metadata you give it:
+`createSong` makes a song with one tempo marker and one time signature, and a song.ini that holds the metadata you give it. Add its tracks with `addTrack`:
 
 ```ts
-import { createSong } from 'scan-chart'
+import { createSong, editSong } from 'scan-chart'
 
 const song = createSong({ format: 'chart', metadata: { name: 'New Song', artist: 'New Band', charter: 'You' } })
+const charted = editSong(song, batch => {
+	const expert = batch.addTrack('guitar', 'expert')
+	batch.addEvent(expert, 0, 'green', 0)
+	batch.addEvent(expert, 192, 'red', 96)
+	batch.addTextEvent(0, 'section Intro')
+})
 ```
 
-The resolution is 192 ticks per beat for `.chart` and 480 for `.mid`, unless you pass `resolution`.
+The resolution is 192 ticks per beat for `.chart` and 480 for `.mid`, unless you pass `resolution`. Save the new song like any other.
 
 ## Handle errors
 
