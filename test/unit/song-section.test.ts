@@ -44,6 +44,15 @@ describe('the [Song] normalization', () => {
 		expect(songSectionAgreement(song(['Offset = -2.046'], '[song]\ndelay = -2046\n'))).toBeNull()
 	})
 
+	it('treats a Difficulty of 0 as a difficulty, and only song.ini\'s -1 as none (Geo, 2026-10-12)', () => {
+		expect(songLines(songSectionAgreement(song(['Resolution = 192'], '[song]\ndiff_guitar = 0\n')))).toEqual(['Resolution = 192', 'Difficulty = 0'])
+		expect(songLines(songSectionAgreement(song(['Difficulty = 4'], '[song]\ndiff_guitar = 0\n')))).toEqual(['Difficulty = 0'])
+		expect(songSectionAgreement(song(['Difficulty = 0'], '[song]\ndiff_guitar = 0\n'))).toBeNull()
+		// Clone Hero doesn't read [Song] Difficulty when there's a song.ini, so a value only [Song] sets is removed.
+		expect(songLines(songSectionAgreement(song(['Difficulty = 0', 'Resolution = 192'], '[song]\nname = Song\n')))).toEqual(['Resolution = 192', 'Name = "Song"'])
+		expect(songLines(songSectionAgreement(song(['Difficulty = 0', 'Resolution = 192'], '[song]\ndiff_guitar = -1\n')))).toEqual(['Resolution = 192'])
+	})
+
 	it('leaves each key on the line Clone Hero reads', () => {
 		const normalized = songSectionAgreement(song(['Name = ""', 'Name = "Old"', 'Name = "Older"'], '[song]\nname = New\n'))
 		expect(songLines(normalized)).toEqual(['Name = "New"'])
