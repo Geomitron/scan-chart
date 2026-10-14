@@ -38,6 +38,12 @@ export interface ParseRules {
 	 * 1.1.0.6142 ignores it; `.chart` gained flam in 2026, mirroring MIDI's flam note.
 	 */
 	readonly chartFlam: 'read' | 'ignored'
+	/**
+	 * Whether a `.chart` line or section written in a nonstandard way is read as what it probably means
+	 * (chart-line-spelling.ts), with a resolution of 192 when the file gives none. Clone Hero refuses such a file, or
+	 * reads it the same way; scan-chart 8 skipped such a line, which the frozen profile keeps doing.
+	 */
+	readonly chartNonstandardLines: 'read' | 'ignored'
 }
 
 const scanner: ParseRules = Object.freeze({
@@ -49,6 +55,7 @@ const scanner: ParseRules = Object.freeze({
 	midiChartDynamics: 'fromEvent',
 	midiKickDynamics: 'ignored',
 	chartFlam: 'read',
+	chartNonstandardLines: 'read',
 })
 
 const frozenLegacy6142: ParseRules = Object.freeze({
@@ -60,6 +67,7 @@ const frozenLegacy6142: ParseRules = Object.freeze({
 	midiChartDynamics: 'leaksAcrossDifficulties',
 	midiKickDynamics: 'applied',
 	chartFlam: 'ignored',
+	chartNonstandardLines: 'ignored',
 })
 
 const canonical20260801: ParseRules = Object.freeze({
@@ -71,6 +79,7 @@ const canonical20260801: ParseRules = Object.freeze({
 	midiChartDynamics: 'fromEvent',
 	midiKickDynamics: 'ignored',
 	chartFlam: 'read',
+	chartNonstandardLines: 'read',
 })
 
 export const parseRules = Object.freeze({ scanner, frozenLegacy6142, canonical20260801 })

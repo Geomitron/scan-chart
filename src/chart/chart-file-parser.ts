@@ -2,13 +2,14 @@ import { Difficulty, Instrument } from '../types'
 import { decodeCloneHeroText } from '../shared/decode-text'
 import { trimDotnet } from '../shared/text'
 import { ChartEncoding, decodeChartText, detectChartEncoding } from './chart-encoding'
+import { ChartEventSection, chartLineSpelling, readableChartLines } from './chart-line-spelling'
+import type { ParseRules } from './parse-rules'
 import { EventType, eventTypes, RawChartData } from './raw-types'
 import { extractChartLyrics, extractChartVocalPhrases } from './lyric-parser'
 
 /* eslint-disable @typescript-eslint/naming-convention */
 type TrackName = keyof typeof trackNameMap
 
-/** The instrument and difficulty a `.chart` section holds, or `null` for a section that isn't a track. */
 /** The `.chart` section name of an instrument and difficulty, such as `ExpertSingle` for Expert guitar. */
 export function chartSectionName(instrument: Instrument, difficulty: Difficulty): string {
 	const name = (Object.keys(trackNameMap) as TrackName[]).find(key => trackNameMap[key].instrument === instrument && trackNameMap[key].difficulty === difficulty)
@@ -16,9 +17,21 @@ export function chartSectionName(instrument: Instrument, difficulty: Difficulty)
 	return name
 }
 
+/** The instrument and difficulty a `.chart` section holds, or `null` for a section that isn't a track. */
 export function chartSectionTrack(sectionName: string): { instrument: Instrument; difficulty: Difficulty } | null {
 	return Object.prototype.hasOwnProperty.call(trackNameMap, sectionName) ? trackNameMap[sectionName as TrackName] as { instrument: Instrument; difficulty: Difficulty } : null
 }
+
+/** The resolution a reader uses for a `.chart` file that doesn't give one. */
+export const defaultChartResolution = 192
+
+/** Which kind of event section a `.chart` section is, or `null` for `[Song]` and sections readers ignore. */
+export function chartEventSection(sectionName: string): ChartEventSection | null {
+	if (sectionName === 'SyncTrack') return 'sync'
+	if (sectionName === 'Events') return 'events'
+	return chartSectionTrack(sectionName) === null ? null : 'track'
+}
+
 const trackNameMap = {
 	ExpertSingle: { instrument: 'guitar', difficulty: 'expert' },
 	HardSingle: { instrument: 'guitar', difficulty: 'hard' },
@@ -191,15 +204,22 @@ export function readChartFile(data: Uint8Array): ChartFileSections {
 }
 
 /**
- * Classifies a `.chart` file's sections into chart data. No rule profile is involved: .chart has no rules that
- * differ between profiles until the notes are resolved.
+ * Classifies a `.chart` file's sections into chart data. The one rule that differs between profiles before the notes
+ * are resolved is `nonstandardLines`: whether a nonstandard line is read as what it probably means.
  *
- * Throws an exception if the resolution is missing.
+ * Throws an exception if the resolution isn't a positive number, or is missing and `nonstandardLines` is `ignored`.
  */
-export function classifyChartFile(fileSections: ChartFileSections, classifySection: ChartSectionClassifier = (_name, _coda, classify) => classify()): RawChartData {
+export function classifyChartFile(
+	fileSections: ChartFileSections,
+	classifySection: ChartSectionClassifier = (_name, _coda, classify) => classify(),
+	nonstandardLines: ParseRules['chartNonstandardLines'] = 'read',
+): RawChartData {
 	const fileSectionKeys = Object.keys(fileSections)
+	// The lines as scan-chart reads them: a nonstandard line that has a probable meaning is read as its standard
+	// spelling (chart-line-spelling.ts).
+	const readable = (lines: string[], section: 'sync' | 'events' | 'song') => nonstandardLines === 'read' ? readableChartLines(lines, section) : lines
 	const metadata: { [key: string]: string } = {}
-	const songLines = fileSections['Song']
+	const songLines = fileSections['Song'] && readable(fileSections['Song'], 'song')
 	if (songLines) {
 		for (const line of songLines) {
 			const m = chartSongMetaRegex.exec(line)
@@ -207,7 +227,10 @@ export function classifyChartFile(fileSections: ChartFileSections, classifySecti
 		}
 	}
 
-	const resolution = Number(metadata['Resolution'])
+	// Without a Resolution, a reader uses 192: Clone Hero does with no [Song] section (Song.cs:59), and YARG does with
+	// no Resolution in it. A value that isn't a positive number stays an error, however it's spaced.
+	const namesResolution = songLines?.some(line => /^Resolution[ \t]*=/.test(line)) ?? false
+	const resolution = !namesResolution && nonstandardLines === 'read' ? defaultChartResolution : Number(metadata['Resolution'])
 	if (!resolution) {
 		throw 'Invalid .chart file: resolution not found.'
 	}
@@ -221,9 +244,13 @@ export function classifyChartFile(fileSections: ChartFileSections, classifySecti
 		extraChartSongFields[key] = value
 	}
 
+	const eventLines = readable(fileSections['Events'] ?? [], 'events')
+	if (fileSections['SyncTrack'] === undefined) throw 'Invalid .chart file: no [SyncTrack] section was found.'
+	const syncLines = readable(fileSections['SyncTrack'], 'sync')
+
 	// Classify each line of the [Events] section into one of:
 	// sections, endEvents, codaEvents, or unrecognizedTextEvents (the remainder).
-	const eventsScan = scanEventsSection(fileSections['Events'] ?? [])
+	const eventsScan = scanEventsSection(eventLines)
 	const firstCodaTick = eventsScan.codaEvents[0]?.tick ?? null
 
 	return {
@@ -248,8 +275,8 @@ export function classifyChartFile(fileSections: ChartFileSections, classifySecti
 		},
 		vocalTracks: {
 			vocals: {
-				lyrics: extractChartLyrics(fileSections['Events'] ?? []),
-				vocalPhrases: extractChartVocalPhrases(fileSections['Events'] ?? []),
+				lyrics: extractChartLyrics(eventLines),
+				vocalPhrases: extractChartVocalPhrases(eventLines),
 				notes: [],
 				starPowerSections: [],
 				rangeShifts: [],
@@ -259,9 +286,9 @@ export function classifyChartFile(fileSections: ChartFileSections, classifySecti
 				unrecognizedMidiEvents: [],
 			},
 		},
-		tempos: parseChartTempos(fileSections['SyncTrack']),
-		timeSignatures: parseChartTimeSignatures(fileSections['SyncTrack']),
-		unrecognizedSyncTrackEvents: parseChartUnrecognizedSyncTrackEvents(fileSections['SyncTrack'] ?? []),
+		tempos: parseChartTempos(syncLines),
+		timeSignatures: parseChartTimeSignatures(syncLines),
+		unrecognizedSyncTrackEvents: parseChartUnrecognizedSyncTrackEvents(syncLines),
 		sections: eventsScan.sections,
 		endEvents: eventsScan.endEvents,
 		unrecognizedEventsTrackTextEvents: eventsScan.unrecognizedTextEvents,
@@ -269,7 +296,7 @@ export function classifyChartFile(fileSections: ChartFileSections, classifySecti
 		unrecognizedMidiTracks: [], // MIDI-only
 		unrecognizedEventsTrackMidiEvents: [], // MIDI-only
 		unrecognizedChartSections: buildUnrecognizedChartSections(fileSections, fileSectionKeys),
-		trackData: classifyChartTrackSections(fileSections, firstCodaTick, classifySection),
+		trackData: classifyChartTrackSections(fileSections, firstCodaTick, classifySection, nonstandardLines),
 	}
 }
 
@@ -396,13 +423,14 @@ export function classifyChartTrackSections(
 	fileSections: { [k: string]: string[] },
 	firstCodaTick: number | null,
 	classifySection: ChartSectionClassifier,
+	nonstandardLines: ParseRules['chartNonstandardLines'] = 'read',
 ): RawChartData['trackData'] {
 	const out: RawChartData['trackData'] = []
 	// Iterate in `trackNameMap` order (matches lodash's `_.pick(fileSections, _.keys(trackNameMap))`)
 	// so `trackData` output order is deterministic regardless of how the chart file orders sections.
 	for (const trackName of Object.keys(trackNameMap) as TrackName[]) {
 		if (!(trackName in fileSections)) continue
-		out.push(classifySection(trackName, firstCodaTick, () => classifyChartTrackSection(trackName, fileSections[trackName], firstCodaTick)))
+		out.push(classifySection(trackName, firstCodaTick, () => classifyChartTrackSection(trackName, fileSections[trackName], firstCodaTick, nonstandardLines)))
 	}
 	return out
 }
@@ -415,6 +443,7 @@ export function classifyChartTrackSection(
 	sectionName: string,
 	lines: readonly string[],
 	firstCodaTick: number | null,
+	nonstandardLines: ParseRules['chartNonstandardLines'] = 'read',
 ): RawChartData['trackData'][number] {
 	const { instrument, difficulty } = trackNameMap[sectionName as TrackName]
 
@@ -422,7 +451,7 @@ export function classifyChartTrackSection(
 	// plus data-carrying events (text, versus).
 	const parsedEvents: ParsedTrackLine[] = []
 	for (const line of lines) {
-		const parsed = parseTrackLine(line, instrument, difficulty)
+		const parsed = parseTrackLine(line, instrument, difficulty, nonstandardLines)
 		if (parsed !== null) parsedEvents.push(parsed)
 	}
 	// Most parsers reject charts that aren't already sorted, but sort here for safety.
@@ -691,8 +720,15 @@ export type ParsedTrackLine = ParsedNoteEvent | ParsedTextEvent | ParsedVersusEv
  *   TICK = E "TEXT"          → text event (or recognized E type: solo, mix...)
  *   TICK = S VALUE LENGTH    → starPower, flex lane, freestyle, or versus phrase
  *   TICK = N VALUE LENGTH    → note (with instrument-specific mapping)
+ *
+ * With `nonstandardLines` read, any other line is read as what it probably means, if anything (chart-line-spelling.ts).
  */
-export function parseTrackLine(line: string, instrument: Instrument, difficulty: Difficulty): ParsedTrackLine | null {
+export function parseTrackLine(
+	line: string,
+	instrument: Instrument,
+	difficulty: Difficulty,
+	nonstandardLines: ParseRules['chartNonstandardLines'] = 'read',
+): ParsedTrackLine | null {
 	// Most lines are N/S (notes). Try them first to short-circuit the common case.
 	const nsMatch = chartLineNS.exec(line)
 	if (nsMatch) {
@@ -711,8 +747,10 @@ export function parseTrackLine(line: string, instrument: Instrument, difficulty:
 		return type !== null ? { kind: 'note', tick, type, length } : null
 	}
 	// E events have quoted arbitrary text, so handle them separately from N/S.
-	const eMatch = chartLineEQuoted.exec(line) ?? chartLineEUnquoted.exec(line)
-	if (eMatch) {
+	const quoted = chartLineEQuoted.exec(line)
+	const eMatch = quoted ?? chartLineEUnquoted.exec(line)
+	// A text after more than one space is read trimmed, as Clone Hero reads it: by its respelling, below.
+	if (eMatch && (quoted !== null || nonstandardLines === 'ignored' || !/^[ \t]/.test(eMatch[2]))) {
 		const tick = Number(eMatch[1])
 		const value = eMatch[2]
 		const recognizedType = getEEventType(value, difficulty)
@@ -724,7 +762,10 @@ export function parseTrackLine(line: string, instrument: Instrument, difficulty:
 		if (stripped === 'ENABLE_CHART_DYNAMICS' || stripped === 'ENHANCED_OPENS') return null
 		return { kind: 'text', tick, text: value }
 	}
-	return null
+	if (nonstandardLines === 'ignored') return null
+	// Not a standard line: read what it probably means, if anything. A respelled line is always standard.
+	const spelling = chartLineSpelling(line, 'track')
+	return spelling?.kind === 'respelled' ? parseTrackLine(spelling.line, instrument, difficulty) : null
 }
 
 function getEEventType(value: string, difficulty: Difficulty): EventType | null {

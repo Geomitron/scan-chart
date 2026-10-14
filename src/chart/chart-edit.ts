@@ -1,7 +1,17 @@
 import type { Instrument } from '../types'
-import { ChartFileTokens, chartSectionLines, chartSectionTrack, ChartLineToken, getNEventType, getSEventType, tokenizeChartFile } from './chart-file-parser'
+import {
+	chartEventSection,
+	ChartFileTokens,
+	chartSectionLines,
+	chartSectionTrack,
+	ChartLineToken,
+	getNEventType,
+	getSEventType,
+	tokenizeChartFile,
+} from './chart-file-parser'
 import type { ChartAuthoredSource } from './authored-view'
 import { bomLength, codeUnitBytes, decodeChartText, encodeChartText } from './chart-encoding'
+import { chartSectionSpellings } from './chart-line-spelling'
 import { EventType, eventTypes } from './raw-types'
 
 /** One line edit of a `.chart` section. `text` is the line's content, without indentation or line ending. */
@@ -245,7 +255,10 @@ export function chartEventEdits(
 ): ChartLineEdit[] {
 	const { section, line } = event.source
 	const lines = chartSectionLines(tokens, tokens.sections[section])
-	const match = /^(\d+) = (.*)$/.exec(lines[line].text)
+	// A line in a nonstandard spelling is edited from the standard spelling it's read as, which the edit then writes.
+	const kind = chartEventSection(tokens.sections[section].name)
+	const spelling = kind === null ? null : chartSectionSpellings(lines.map(({ text }) => text), kind)[line]
+	const match = /^(\d+) = (.*)$/.exec(spelling?.kind === 'respelled' ? spelling.line : lines[line].text)
 	if (match === null) throw new RangeError('The event\'s line isn\'t a tick = value line')
 	const lineEnd = line + 1 < lines.length ? lines[line + 1].start : lines[line].end
 	if (!chartTextRoundTrips(tokens, lines[line].start, lineEnd)) {
@@ -309,7 +322,7 @@ function chartEventInsert(tokens: ChartFileTokens, section: number, tick: number
 	let beforeLine = lines.length - 1
 	for (let index = 1; index < lines.length - 1; index++) {
 		if (index === skipLine) continue
-		const lineTick = /^(\d+) =/.exec(lines[index].text)
+		const lineTick = /^(\d+)(?:[ \t]*=|[ \t])/.exec(lines[index].text)
 		if (lineTick !== null && Number(lineTick[1]) > tick) {
 			beforeLine = index
 			break

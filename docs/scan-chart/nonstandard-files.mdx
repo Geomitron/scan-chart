@@ -1,0 +1,56 @@
+---
+title: "Nonstandard files"
+description: "What scan-chart reads in a .chart file that doesn't follow the standard, and how it saves it."
+---
+
+The [syntax](/chart/syntax) page gives the standard. A file that breaks it is invalid, and other readers may refuse it. scan-chart reads such a file more widely: where a line or section has one probable meaning, scan-chart reads that meaning and reports an issue. When you save an edited song, scan-chart writes what it read in the standard form.
+
+## Lines read as they probably mean
+
+| Written | Read and saved as |
+|---|---|
+| `14592 N 5 0`, without `=` | `14592 = N 5 0` |
+| `0=N 1 0` or `0 =  N  1 0`, or with tabs | `0 = N 1 0` |
+| `0 = N 3 1103.99`, with a decimal | `0 = N 3 1104`, the nearest whole number |
+| `0 = N 1`, without a length | `0 = N 1 0` |
+| `11520 = E  [idle`, with more than one space before the text | `11520 = E [idle` |
+| `0 = E section Intro` in `[Events]`, without quotation marks | `0 = E "section Intro"` |
+| A carriage return before a text's closing quotation mark | The text without it |
+| `96 = E "lyric Saa`, then a line holding only `"` | `96 = E "lyric Saa"` |
+| `Genre = "Rock`, then a line holding only `"`, in `[Song]` | `Genre = "Rock"` |
+| `Resolution=480`, a number in `[Song]` with other spacing | `Resolution = 480` |
+
+The `nonstandardChartLine` issue names the first such line in each section.
+
+## Sections
+
+- **No resolution:** a file with no `[Song]` section, or no `Resolution` in it, is read with a resolution of 192. Saving adds it.
+- **Order:** `[Song]` and `[SyncTrack]` are read wherever they are. Saving puts them first, in that order.
+- **A repeated name:** the first section with the name is read. Saving removes the others.
+
+The `nonstandardChartSections` issue says which of these a file has.
+
+## Lines read as written
+
+These forms don't mean to games what they probably meant to the charter. scan-chart reads them as games do, and saving leaves them as written, for you to fix:
+
+- **A decimal comma,** such as `Offset = 0,1`, is read as no value.
+- **An `[Events]` text with no closing quotation mark,** such as `1 = E "phrase_start`, isn't read. A lyric is the exception: `E "lyric Saa` is read as the lyric `Saa`.
+
+The `nonstandardChartLine` issue names them too.
+
+## Lines that can't be read
+
+A line with no probable meaning is ignored, and saving an edited song removes it:
+
+- two ticks, such as `73344  85632 = E "section Bridge"`;
+- a negative number, such as `52952 = S 2 -1649`;
+- more values than the event takes, such as `0 = N 1 0 0`;
+- text before a section's `}` on its line, such as what's left of a cut-off `419040}`;
+- a `[Song]` number that isn't a number, such as `PreviewStart = soon`, and a `[Song]` line without `=`.
+
+The `unreadableChartLine` issue names the first in each section, so you can fix it before saving.
+
+## When saving keeps a line as written
+
+Saving never changes a hash your edits didn't. The older hashes kept for compatibility skip a nonstandard line, as scan-chart 8 did, so writing one in the standard form can change them. Saving then leaves the line as written and lists it in the save report's `withheld`.

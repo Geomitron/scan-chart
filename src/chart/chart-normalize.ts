@@ -1,18 +1,36 @@
 import { bomLength, codeUnitBytes, encodeChartText } from './chart-encoding'
 import { chartTextRoundTrips, spliceChartText } from './chart-edit'
-import { ChartFileTokens, chartSectionLines, chartSectionTrack, tokenizeChartFile } from './chart-file-parser'
+import {
+	ChartFileTokens,
+	chartEventSection,
+	chartSectionLines,
+	chartSectionTrack,
+	defaultChartResolution,
+	tokenizeChartFile,
+} from './chart-file-parser'
+import { ChartLineSpelling, chartSectionSpellings, chartSongSpellings } from './chart-line-spelling'
 
 /**
  * A kind of nonstandard `.chart` spelling. The standard is what the `.chart` encoder writes and nearly every library
  * file already uses: CRLF line endings, two-space indentation, no blank lines in a section, lines in tick order, no
- * repeated lines or sections, and bare text events in instrument sections.
+ * repeated lines or sections, bare text events in instrument sections, every line in its standard spelling, and
+ * `[Song]` and `[SyncTrack]` as the first two sections, with a `Resolution`.
  */
-export type ChartNormalizationKind = 'lineEndings' | 'spacing' | 'order' | 'duplicateLines' | 'quotedTrackEvents' | 'repeatedSections'
+export type ChartNormalizationKind =
+	| 'lineEndings'
+	| 'lineSpelling'
+	| 'unreadableLines'
+	| 'spacing'
+	| 'order'
+	| 'duplicateLines'
+	| 'quotedTrackEvents'
+	| 'repeatedSections'
+	| 'sectionOrder'
 
 /** One normalization: a nonstandard spelling in one place, rewritten into the standard one. */
 export interface ChartNormalization {
 	readonly kind: ChartNormalizationKind
-	/** The section it rewrites, the last of that name (the one Clone Hero reads), or `null` for the whole file. */
+	/** The section it rewrites, the first of that name (the one a reader uses), or `null` for the whole file. */
 	readonly section: string | null
 	/** Rewrites the file as it is now. Returns `tokens` unchanged when there's nothing left to rewrite. */
 	readonly apply: (tokens: ChartFileTokens) => ChartFileTokens
@@ -24,6 +42,10 @@ type Splice = { start: number; end: number; text: string }
  * Every normalization a `.chart` file needs. A normalization keeps the meaning, but some change what an older reader
  * saw, and so a hash: saving decides where each applies (E7). Content is never normalized: values, redundant markers
  * and unrecognized lines stay as written, and the byte-order mark and encoding are kept. A malformed file gets none.
+ *
+ * A line in a nonstandard spelling is written the way scan-chart reads it (chart-line-spelling.ts): `lineSpelling`
+ * writes the standard spelling, and `unreadableLines` removes a line scan-chart can't read. They come first, so the
+ * others see standard lines.
  */
 export function chartNormalizations(tokens: ChartFileTokens): ChartNormalization[] {
 	if (tokens.structureError !== null) return []
@@ -46,16 +68,125 @@ export function chartNormalizations(tokens: ChartFileTokens): ChartNormalization
 	const copiesOfName = new Map<string, number>()
 	for (const section of tokens.sections) copiesOfName.set(section.name, (copiesOfName.get(section.name) ?? 0) + 1)
 	for (const name of copiesOfName.keys()) {
+		const spellingsOf = sectionSpellings(name)
+		if (spellingsOf !== null) {
+			add('lineSpelling', name, current => spelledLineSplices(current, name, spellingsOf, respelled))
+			add('unreadableLines', name, current => spelledLineSplices(current, name, spellingsOf, readable))
+		}
 		add('spacing', name, current => sectionSplices(current, name, spacing))
 		add('order', name, current => sectionSplices(current, name, lines => order(lines, name)))
 		add('duplicateLines', name, current => sectionSplices(current, name, withoutDuplicates))
 		if (chartSectionTrack(name) !== null) add('quotedTrackEvents', name, current => sectionSplices(current, name, unquoted))
 	}
-	// Last, because removing sections moves the others.
+	// Last, because removing and moving sections moves the others.
 	for (const [name, copies] of copiesOfName) {
 		if (copies > 1) add('repeatedSections', name, current => repeatedSectionSplices(current, name))
 	}
+	add('sectionOrder', null, sectionOrderSplices)
 	return normalizations
+}
+
+/** How scan-chart reads each line of the sections named `name`, or `null` for a section readers ignore. */
+function sectionSpellings(name: string): ((texts: readonly string[]) => (ChartLineSpelling | null)[]) | null {
+	if (name === 'Song') return chartSongSpellings
+	const section = chartEventSection(name)
+	return section === null ? null : texts => chartSectionSpellings(texts, section)
+}
+
+/** A rewrite of lines by their spellings: the spellings it acts on, and each line rewritten, or `null` to remove it. */
+interface SpellingRewrite {
+	readonly acts: (spelling: ChartLineSpelling) => boolean
+	readonly rewrite: (line: string, spelling: ChartLineSpelling | null) => string | null
+}
+
+/** Each respelled line in its standard spelling, and each continued line, whose text the line before now holds, removed. */
+const respelled: SpellingRewrite = {
+	acts: spelling => spelling.kind === 'respelled' || spelling.kind === 'continued',
+	rewrite: (line, spelling) => spelling?.kind === 'continued' ? null
+		: spelling?.kind === 'respelled' ? `  ${spelling.line}${lineEnding(line)}`
+		: line,
+}
+
+/** Each line scan-chart can't read removed. */
+const readable: SpellingRewrite = {
+	acts: spelling => spelling.kind === 'unreadable',
+	rewrite: (line, spelling) => spelling?.kind === 'unreadable' ? null : line,
+}
+
+/**
+ * The splice that rewrites the lines of the first section named `name` by their spellings, or none when `rewrite` keeps
+ * them. Text before the section's `}` on its line, such as what's left of a cut-off note line, counts as a line: once
+ * rewritten it gets a line of its own, and the `}` stays alone on its line.
+ */
+function spelledLineSplices(
+	tokens: ChartFileTokens,
+	name: string,
+	spellingsOf: (texts: readonly string[]) => (ChartLineSpelling | null)[],
+	{ acts, rewrite }: SpellingRewrite,
+): Splice[] {
+	const section = tokens.sections[tokens.sections.findIndex(candidate => candidate.name === name)]
+	const lines = chartSectionLines(tokens, section)
+	if (lines.length < 2) return []
+	const last = lines[lines.length - 1]
+	const withBraceText = last.text !== ''
+	const contentLines = withBraceText ? lines.slice(1) : lines.slice(1, -1)
+	if (contentLines.length === 0) return []
+	const start = contentLines[0].start
+	const end = withBraceText ? section.bodyEnd : last.start
+	if (!chartTextRoundTrips(tokens, start, end)) return []
+	const spellings = spellingsOf(contentLines.map(line => line.text))
+	if (!spellings.some(spelling => spelling !== null && acts(spelling))) return []
+	const content = contentLines.map(line => tokens.text.slice(line.start, line.end))
+	// The text before the `}` gets the line ending the section's other lines have.
+	if (withBraceText && content.slice(0, -1).some(line => line.endsWith('\r'))) content[content.length - 1] += '\r'
+	const rewritten = content.flatMap((line, index) => rewrite(line, spellings[index]) ?? [])
+	return [{ start, end, text: rewritten.map(line => `${line}\n`).join('') }]
+}
+
+/**
+ * The splices that put `[Song]` first and `[SyncTrack]` second, adding a `[Song]` section, or a `Resolution` in it,
+ * with the resolution a reader uses when the file gives none. None when a section to move holds bytes that aren't
+ * valid in the file's encoding.
+ */
+function sectionOrderSplices(tokens: ChartFileTokens): Splice[] {
+	const { text, sections } = tokens
+	const newLine = text.includes('\r\n') ? '\r\n' : '\n'
+	const lineStartAfter = (at: number) => {
+		const lineFeed = text.indexOf('\n', at)
+		return lineFeed === -1 ? text.length : lineFeed + 1
+	}
+	const block = (name: string) => {
+		const section = sections.find(candidate => candidate.name === name)
+		if (section === undefined) return null
+		const header = text.lastIndexOf(`[${name}]`, section.bodyStart)
+		return { start: text.lastIndexOf('\n', header) + 1, end: lineStartAfter(section.bodyEnd), section }
+	}
+	const song = block('Song')
+	const syncTrack = block('SyncTrack')
+	const splices: Splice[] = []
+
+	let songText: string | null = null
+	if (song === null) {
+		songText = `[Song]${newLine}{${newLine}  Resolution = ${defaultChartResolution}${newLine}}${newLine}`
+	} else if (!chartSectionLines(tokens, song.section).some(line => /^Resolution[ \t]*=/.test(line.text))) {
+		const firstLine = lineStartAfter(song.section.bodyStart - 1)
+		splices.push({ start: firstLine, end: firstLine, text: `  Resolution = ${defaultChartResolution}${newLine}` })
+	}
+	const songFirst = song !== null && sections[0] === song.section
+	const syncTrackSecond = syncTrack !== null && sections[song === null ? 0 : 1] === syncTrack.section
+	if (songText === null && songFirst && (syncTrack === null || syncTrackSecond)) return splices
+
+	// Move both sections to the top: each is cut from where it is, and written first, in order.
+	const moved = [song, syncTrack].filter(found => found !== null)
+	if (moved.some(found => !chartTextRoundTrips(tokens, found.start, found.end))) return []
+	const insertion = (songText ?? '') + moved.map(found => {
+		const written = text.slice(found.start, found.end)
+		const added = splices.find(splice => splice.start >= found.start && splice.start < found.end)
+		const withAdded = added ? written.slice(0, added.start - found.start) + added.text + written.slice(added.start - found.start) : written
+		return withAdded.endsWith('\n') ? withAdded : withAdded + newLine
+	}).join('')
+	const cuts = moved.map(found => ({ start: found.start, end: found.end, text: '' })).sort((a, b) => a.start - b.start)
+	return [{ start: 0, end: 0, text: insertion }, ...cuts]
 }
 
 /**

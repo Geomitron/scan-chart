@@ -78,7 +78,7 @@ export function parseChartSource(source: ChartSource, partialIniChartModifiers: 
 	const iniChartModifiers = Object.assign({}, defaultMetadata, partialIniChartModifiers) as IniChartModifiers
 	const rawChartData = source.format === 'mid'
 		? applyMidiRules(classifyMidiFile(midiTokensToMidiData(midiTokensForParsing(source.tokens, source.bytes))), iniChartModifiers, rules)
-		: applyChartRules(classifyChartFile(chartFileSections(source.tokens)), rules)
+		: applyChartRules(classifyChartFile(chartFileSections(source.tokens), undefined, rules.chartNonstandardLines), rules)
 	return resolveChartData(rawChartData, source.format, iniChartModifiers, rules)
 }
 

@@ -70,7 +70,7 @@
 				"groups": [
 					{
 						"group": "scan-chart",
-						"pages": ["scan-chart/index"]
+						"pages": ["scan-chart/index", "scan-chart/nonstandard-files"]
 					}
 				]
 			}

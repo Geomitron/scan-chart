@@ -108,7 +108,7 @@ function parseReusing(
 	// When every section but the instrument sections is unchanged, so is everything parsed from them: only the tracks
 	// and the drum type, which the drum tracks decide, are parsed again.
 	if (earlier?.firstCodaTick !== undefined && songSectionsUnchanged(earlier.bodies, bodies)) {
-		const trackData = classifyChartTrackSections(fileSections, earlier.firstCodaTick, classifySection)
+		const trackData = classifyChartTrackSections(fileSections, earlier.firstCodaTick, classifySection, rules.chartNonstandardLines)
 		for (const track of trackData) applyChartTrackRules(track, rules)
 		const { tempos, resolution } = earlier.parsed
 		const drumType = chartDrumType(trackData, iniChartModifiers)
@@ -118,7 +118,7 @@ function parseReusing(
 		return { key, bodies, firstCodaTick: earlier.firstCodaTick, classified, resolved, parsed }
 	}
 
-	const raw = classifyChartFile(fileSections, classifySection)
+	const raw = classifyChartFile(fileSections, classifySection, rules.chartNonstandardLines)
 	const parsed = resolveChartData(applyChartRules(raw, rules), 'chart', iniChartModifiers, rules, resolveOne)
 	return { key, bodies, firstCodaTick: codaTick, classified, resolved, parsed }
 }
