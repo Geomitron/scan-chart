@@ -35,6 +35,7 @@ The `nonstandardChartSections` issue says which of these a file has.
 These forms don't mean to games what they probably meant to the charter. scan-chart reads them as games do, and saving leaves them as written, for you to fix:
 
 - **A decimal comma,** such as `Offset = 0,1`, is read as no value.
+- **A `Resolution` that isn't a whole number,** such as `Resolution = 480.5`, is read by its leading digits, as 480.
 - **An `[Events]` text with no closing quotation mark,** such as `1 = E "phrase_start`, isn't read. A lyric is the exception: `E "lyric Saa` is read as the lyric `Saa`.
 
 The `nonstandardChartLine` issue names them too.
