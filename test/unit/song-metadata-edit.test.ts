@@ -105,6 +105,6 @@ describe('setMetadata', () => {
 
 	it('returns the song itself for an empty batch', () => {
 		const song = parseSongFiles([file('song.ini', '[song]\n')])
-		expect(editSong(song, () => {})).toBe(song)
+		expect(editSong(song, () => undefined)).toBe(song)
 	})
 })
