@@ -97,7 +97,7 @@ describe('the README', () => {
 
 	it('runs every Node example on a song folder', async () => {
 		writeFixtureSong()
-		const log = vi.spyOn(console, 'log').mockImplementation(() => {})
+		const log = vi.spyOn(console, 'log').mockImplementation(() => undefined)
 		try {
 			for (const file of files) {
 				if (file.info.includes('browser') || isShape(file.code) || definesReader(file.code)) continue
