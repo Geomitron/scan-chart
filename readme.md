@@ -251,8 +251,8 @@ In a browser, `savePlanToBlobs` gives each file as a `Blob`, ready to download.
 The report says what saving changed beyond your edits:
 
 - `normalized` lists the nonstandard spellings saving rewrote, such as lines out of tick order or missing Windows line endings.
-- `withheld` lists the ones it left alone, because rewriting them would change a hash that your edits didn't change.
-- `spentHashes` lists the hashes your edits changed.
+- `withheld` lists the ones it left alone, because rewriting them would change a TrackHash or the SongHash that your edits didn't change. The hashes Clone Hero 1.1 calculated aren't kept: a rewrite may change them.
+- `spentHashes` lists the TrackHashes and SongHash your edits changed.
 
 If you didn't edit the song, its save plan holds every file byte for byte, and nothing is normalized.
 

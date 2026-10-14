@@ -10,7 +10,7 @@ import { calculateCompetitiveHashes } from 'src/competitive'
 import { resolveChart } from 'src/gameplay-chart'
 import { editSong, parseSongFiles } from 'src/song-document'
 import { fileBytes } from 'src/song-files'
-import { saveSong } from 'src/song-save'
+import { saveSong, songHashes } from 'src/song-save'
 
 const encode = (text: string) => new TextEncoder().encode(text)
 const decode = (bytes: Uint8Array) => new TextDecoder().decode(bytes)
@@ -210,14 +210,25 @@ describe('saving a nonstandard .chart file', () => {
 	// [Song] agrees with song.ini, so the [Song] normalization has nothing to do.
 	const savedHead: [string, string[]][] = [['Song', ['Resolution = 192', 'Name = "Test"', 'Length = 60']], head[1]]
 
-	it('respells an edited track\'s lines, and holds back a respelling the frozen profile would read differently in a track the edit didn\'t change', () => {
+	it('respells the lines of a track the edit didn\'t change: that changes only its legacy hashes', () => {
 		const original = song([...savedHead, ['ExpertSingle', ['0 N 0 0', '192 = N 1 0']], ['HardSingle', ['0 N 0 0']]])
 		const tokens = original.chart?.format === 'chart' ? original.chart.tokens : null
 		const expert = chartAuthoredTracks(tokens!).find(track => track.sectionName === 'ExpertSingle')!
 		const edited = editSong(original, batch => batch.setLength(expert.events.find(event => event.tick === 192)!, 96))
 		const { files, report } = saveSong(original, edited)
-		expect(report.withheld.map(({ kind, section }) => `${kind}:${section}`)).toEqual(['lineSpelling:HardSingle'])
-		expect(decode(fileBytes(files[0]))).toBe(chartText([...savedHead, ['ExpertSingle', ['0 = N 0 0', '192 = N 1 96']], ['HardSingle', ['0 N 0 0']]]))
+		expect(report.withheld).toEqual([])
+		expect(decode(fileBytes(files[0]))).toBe(chartText([...savedHead, ['ExpertSingle', ['0 = N 0 0', '192 = N 1 96']], ['HardSingle', ['0 = N 0 0']]]))
+		expect(songHashes(parseSongFiles(files))?.get('canonical:guitar:hard')).toBe(songHashes(original)?.get('canonical:guitar:hard'))
+	})
+
+	it('normalizes an edited file the frozen profile refuses, such as one without a [Song] section', () => {
+		const original = song([head[1], ['ExpertSingle', ['0 N 0 0', '192 = N 1 0']]])
+		const tokens = original.chart?.format === 'chart' ? original.chart.tokens : null
+		const expert = chartAuthoredTracks(tokens!).find(track => track.sectionName === 'ExpertSingle')!
+		const edited = editSong(original, batch => batch.setLength(expert.events.find(event => event.tick === 192)!, 96))
+		const { files, report } = saveSong(original, edited)
+		expect(report.withheld).toEqual([])
+		expect(decode(fileBytes(files[0]))).toBe(chartText([['Song', ['Resolution = 192']], head[1], ['ExpertSingle', ['0 = N 0 0', '192 = N 1 96']]]))
 	})
 
 	it('edits a nonstandard line from the standard spelling it\'s read as', () => {

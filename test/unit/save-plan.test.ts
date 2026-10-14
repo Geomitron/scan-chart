@@ -43,7 +43,7 @@ describe('save plans', () => {
 		expect(songOrigin(once)?.song).toBe(original)
 
 		const plan = serializeSong(twice)
-		expect(plan.report.spentHashes).toEqual(['canonical:guitar:expert', 'canonical:song', 'legacy:guitar:expert'])
+		expect(plan.report.spentHashes).toEqual(['canonical:guitar:expert', 'canonical:song'])
 		expect(plan.report.normalized).toEqual([{ kind: 'lineEndings', section: null }, { kind: 'songSection', section: 'Song' }])
 		expect(bytesOf(plan.files[0])).toBe(chartText.replace('  192 = N 1 0', '  192 = N 1 96').replace('  Name = "Song"', '  Name = "Song"\n  Artist = "Band"').replace(/\n/g, '\r\n'))
 		// The original's hashes are kept and the original is let go.

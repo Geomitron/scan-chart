@@ -1,78 +1,32 @@
 import { chartNormalizations, ChartNormalizationKind } from './chart/chart-normalize'
 import { midiNormalizations, MidiNormalizationKind } from './chart/midi-normalize'
 import { iniNormalizations, IniNormalizationKind } from './ini/ini-normalize'
-import { resolveHistoricalDuration } from './chart/identity/historical-duration'
-import { songBundle20251010 } from './chart/identity/public'
-import { parseChartAndIni } from './chart/parse-chart-and-ini'
-import { parseChartFileFrozenLegacyIdentity } from './chart/parse-chart-file'
-import { ChartDocument, IniDocument, SongDocument, documentFiles } from './song-document'
+import { calculateCompetitiveHashes } from './competitive'
+import { ObjectCache } from './shared/object-cache'
+import { SongDocument, documentFiles } from './song-document'
 import { songSectionAgreement } from './song-section'
-import { fileBytes, type SongFile } from './song-files'
-import type { File } from './types'
+import type { SongFile } from './song-files'
 
 /**
- * Every hash saving keeps unless an edit spends it (E7): each track's canonical and legacy TrackHash, and the
- * canonical and legacy SongHash, keyed like `canonical:guitar:expert` and `legacy:song`. The hashes are those of the
- * chart file and song.ini alone, as the reference tool calculates them. A legacy SongHash that needs the audio's
- * length is left out. `null` when the chart can't be parsed.
+ * Every hash saving keeps unless an edit spends it (E7): each track's canonical TrackHash and the canonical SongHash,
+ * keyed like `canonical:guitar:expert` and `canonical:song`, as `calculateCompetitiveHashes` gives them. Saving doesn't
+ * keep the legacy hashes: a normalization may change them. `null` when the canonical rules reject the chart.
  *
- * Documents don't change, so a song's hashes are calculated once and kept with its chart document.
+ * Documents don't change, so a song's hashes are calculated once per document.
  */
 export function songHashes(song: SongDocument): ReadonlyMap<string, string> | null {
-	const { chart } = song
-	if (chart === null) return null
-	const songIni = song.files.find(file => file.fileName.toLowerCase() === 'song.ini') ?? null
-	const fileNames = song.files.map(file => file.fileName).join('\n')
-	const cached = hashCache.get(chart)
-	if (cached && cached.ini === song.ini && cached.songIni === songIni && cached.fileNames === fileNames) return cached.hashes
-	const hashes = calculateSongHashes(song, chart, songIni)
-	hashCache.set(chart, { ini: song.ini, songIni, fileNames, hashes })
-	return hashes
-}
-
-const hashCache = new WeakMap<ChartDocument, { ini: IniDocument | null; songIni: SongFile | null; fileNames: string; hashes: ReadonlyMap<string, string> | null }>()
-
-function calculateSongHashes(song: SongDocument, chart: ChartDocument, songIni: SongFile | null): ReadonlyMap<string, string> | null {
-	const chartBytes = chart.format === 'mid' ? chart.bytes : chart.tokens.bytes
-	const files: File[] = [{ fileName: chart.format === 'mid' ? 'notes.mid' : 'notes.chart', data: chartBytes }]
-	if (songIni !== null) files.push({ fileName: 'song.ini', data: song.ini?.fileName === songIni.fileName ? song.ini.tokens.bytes : fileBytes(songIni) })
-	const { parsedChart } = parseChartAndIni(files)
-	if (parsedChart === null) return null
-
-	const { format, iniChartModifiers, metadata } = parsedChart
-	// The frozen profile can refuse a file the canonical one reads, such as a `.chart` without a resolution. The bundle
-	// then has no hashes.
-	let legacyChart: ReturnType<typeof parseChartFileFrozenLegacyIdentity>
-	try {
-		legacyChart = parseChartFileFrozenLegacyIdentity(chartBytes, format, iniChartModifiers)
-	} catch {
-		return null
+	let hashes = hashCache.get(song)
+	if (hashes === undefined) {
+		const competitive = calculateCompetitiveHashes(song)
+		hashes = competitive.accepted
+			? new Map([...competitive.tracks.map(track => [`canonical:${track.instrument}:${track.difficulty}`, track.trackHash] as const), ['canonical:song', competitive.songHash]])
+			: null
+		hashCache.set(song, hashes)
 	}
-	const legacyDuration = resolveHistoricalDuration(files[1]?.data ?? null, song.files.map(file => file.fileName), legacyChart)
-	const bundle = songBundle20251010.calculate({
-		source: { format, bytes: chartBytes },
-		modifiers: iniChartModifiers,
-		legacyMetadata: {
-			name: metadata.name ?? null,
-			artist: metadata.artist ?? null,
-			album: metadata.album ?? null,
-			genre: metadata.genre ?? null,
-			year: metadata.year ?? null,
-			charter: metadata.charter ?? null,
-			icon: metadata.icon ?? null,
-		},
-		canonicalMetadata: parsedChart.songHashMetadata,
-		...(legacyDuration.kind === 'available' ? { legacyDurationMs: legacyDuration.durationMs } : {}),
-	})
-	if (bundle.kind === 'rejected') return null
-
-	const hashes = new Map<string, string>()
-	for (const track of bundle.frozenLegacy6142.tracks) hashes.set(`legacy:${track.instrument}:${track.difficulty}`, track.identity.trackHash.value)
-	if (bundle.frozenLegacy6142.song.kind === 'available') hashes.set('legacy:song', bundle.frozenLegacy6142.song.identity.songHash.value)
-	for (const track of bundle.canonical20260801.tracks) hashes.set(`canonical:${track.instrument}:${track.difficulty}`, track.identity.trackHash.value)
-	hashes.set('canonical:song', bundle.canonical20260801.song.songHash.value)
 	return hashes
 }
+
+const hashCache = new ObjectCache<SongDocument, ReadonlyMap<string, string> | null>('songHashes')
 
 /**
  * One normalization of a song: of its chart file, in either format, of its song.ini, or of a `.chart` `[Song]` section
@@ -126,7 +80,7 @@ export function songNormalizations(song: SongDocument): SongNormalization[] {
 	return normalizations
 }
 
-/** What saving did. */
+/** What saving did. The hashes it names are the canonical ones, keyed as `songHashes` keys them. */
 export interface SaveReport {
 	/** The hashes the edits changed, which normalization may change too; `null` when there was nothing to normalize. */
 	readonly spentHashes: readonly string[] | null
@@ -139,7 +93,8 @@ const unchangedReport: SaveReport = { spentHashes: null, normalized: [], withhel
 
 /**
  * Saves `edited`, a song edited from `original` (E7). An unedited song comes back byte for byte. An edited one is
- * also normalized wherever that changes no hash the edits left as it was:
+ * also normalized wherever that changes no canonical hash the edits left as it was (`songHashes`); a legacy hash may
+ * change:
  *
  * 1. The hashes before and after the edits are compared; each one that changed is spent.
  * 2. Every normalization is applied and the output read back. If no unspent hash changed, that's the result.
