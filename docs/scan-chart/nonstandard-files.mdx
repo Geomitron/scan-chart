@@ -51,6 +51,6 @@ A line with no probable meaning is ignored, and saving an edited song removes it
 
 The `unreadableChartLine` issue names the first in each section, so you can fix it before saving.
 
-## When saving keeps a line as written
+## Saving
 
-Saving never changes a hash your edits didn't. The older hashes kept for compatibility skip a nonstandard line, as scan-chart 8 did, so writing one in the standard form can change them. Saving then leaves the line as written and lists it in the save report's `withheld`.
+Saving an edited song never changes a TrackHash or the SongHash your edits didn't. These rewrites can't: the hashes come from what scan-chart reads, and the rewrites write exactly that. So saving always applies them, in every section.

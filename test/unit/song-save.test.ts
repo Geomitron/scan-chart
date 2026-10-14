@@ -49,7 +49,7 @@ describe('saving (E7)', () => {
 			'[HardSingle]', '{', '\t192 = N 1 0', '\t0 = N 0 0', '\t0 = N 0 0', '}',
 		], '\n')
 		const { files, report } = saveSong(original, lengthenExpertNote(original))
-		expect(report.spentHashes).toEqual(['canonical:guitar:expert', 'canonical:song', 'legacy:guitar:expert', 'legacy:song'])
+		expect(report.spentHashes).toEqual(['canonical:guitar:expert', 'canonical:song'])
 		expect(report.withheld).toEqual([])
 		expect(decode(fileBytes(files[0]))).toBe([
 			...header,
@@ -76,7 +76,7 @@ describe('saving (E7)', () => {
 		})
 		const { files, report } = saveSong(original, edited, () => [addNote('ExpertSingle', '384 = N 2 0'), addNote('HardSingle', '384 = N 2 0')])
 		expect(report.normalized).toEqual([{ kind: 'order', section: 'ExpertSingle' }])
-		expect(report.withheld).toEqual([{ kind: 'order', section: 'HardSingle', hashes: ['canonical:guitar:hard', 'legacy:guitar:hard'] }])
+		expect(report.withheld).toEqual([{ kind: 'order', section: 'HardSingle', hashes: ['canonical:guitar:hard'] }])
 		const saved = parseSongFiles(files)
 		expect(songHashes(saved)?.get('canonical:guitar:hard')).toBe(songHashes(original)?.get('canonical:guitar:hard'))
 		expect(decode(fileBytes(files[0]))).toContain('384 = N 2 0\r\n}\r\n[HardSingle]')
@@ -172,8 +172,8 @@ describe('saving (E7)', () => {
 		expect(decode(fileBytes(files[1]))).toBe('[song]\r\nName = Test\r\nsong_length = 60000\r\n; comment\r\n')
 	})
 
-	it('hashes a song as the reference tool does: canonical and legacy TrackHashes and SongHashes', () => {
+	it('keeps the canonical TrackHashes and SongHash, not the legacy ones', () => {
 		const hashes = songHashes(song([...header, '[ExpertSingle]', '{', '  0 = N 0 0', '}']))
-		expect([...hashes!.keys()].sort()).toEqual(['canonical:guitar:expert', 'canonical:song', 'legacy:guitar:expert', 'legacy:song'])
+		expect([...hashes!.keys()].sort()).toEqual(['canonical:guitar:expert', 'canonical:song'])
 	})
 })
