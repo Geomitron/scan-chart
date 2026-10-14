@@ -1,13 +1,75 @@
 ---
 title: "Phrases"
-description: "Star power, solos, flex lanes and drum fills in a .chart file."
+description: "Star power, solos, roll lanes and drum fills in a .chart file."
 ---
 
-<Warning>Placeholder for the local preview. This page isn't written yet.</Warning>
+A phrase marks a stretch of one track, such as a star power phrase or a solo. It applies to the instrument and difficulty of the section that holds it. Most phrases are `S` events:
 
-It will cover:
+```text
+<tick> = S <type> <length>
+```
 
-- Star power
-- Solos
-- Roll and trill lanes
-- Drum fills
+The length is in ticks. A phrase covers the notes from its tick up to, but not including, its end tick, `tick + length`. Some phrases include their end tick, as their descriptions below say.
+
+| Type | Phrase | Instruments |
+|---|---|---|
+| `2` | Star power | All |
+| `64` | Drum fill | Drums |
+| `65` | Single roll lane | Drums |
+| `66` | Double roll lane | Drums |
+| `0`, `1` | Versus phrase, for player 1 or player 2 | All |
+
+A reader ignores a phrase of any other type, and a phrase on an instrument the table doesn't list for it.
+
+{/* review: Q5
+Which instruments may hold drum fills (S 64) and roll lanes (S 65, S 66)? Clone Hero reads all three on every instrument. It draws lanes on any of them, but changes how notes are hit only on drums, and it gives guitar a Big Rock Ending from S 64 after coda. YARG reads them on drums only in a .chart file, as GuitarGame_ChartFormats describes.
+- A. Drums only | A reader ignores them on other instruments | Guitar Big Rock Endings, which only Clone Hero has, aren't standard
+- B. Any instrument | Lanes and fills are valid everywhere, and a reader without gameplay for them ignores them | Charts can rely on behavior only Clone Hero has
+Recommendation: A, as written. It's what the format's documentation and YARG agree on.
+*/}
+
+## Rules for every phrase
+
+- A track must not hold two phrases of one type at one tick. A reader that finds two uses the longer.
+- Phrases of one type must not overlap. A reader that finds two overlapping cuts the earlier one where the later starts, and extends the later one to whichever ends last.
+- A phrase should cover at least one note. A reader ignores a phrase that covers none.
+- A phrase of length 0 covers the notes on its tick. A writer should give every phrase a length.
+
+## Star power
+
+A star power phrase marks notes the player can earn star power from: hitting every note in it fills the star power meter.
+
+```text
+768 = S 2 1536
+```
+
+## Solos
+
+A solo is marked by two text events, `solo` and `soloend`, written without quotation marks. It covers its notes from the `solo` tick through the `soloend` tick, both included:
+
+```text
+3072 = E solo
+6144 = E soloend
+```
+
+- A `soloend` ends the most recent `solo` that hasn't ended. Solos must not be nested.
+- A reader ignores a `soloend` with no open `solo`, and a `solo` that never ends.
+
+## Drum fills
+
+A drum fill marks a stretch where the drummer can play freely and activate star power by hitting the fill's last note. It includes its end tick. A writer should put a note on the fill's end tick.
+
+A drum fill whose tick is at or after the [`coda`](/chart/events#the-coda) is a Big Rock Ending instead: a closing freestyle section with no star power activation.
+
+## Roll lanes
+
+A roll lane marks a stretch the player can play as a roll instead of note by note. It includes its end tick.
+
+- **A single roll lane** (`S 65`) covers a roll on one pad.
+- **A double roll lane** (`S 66`) covers a roll that alternates between two pads.
+
+The lane takes its pads from the notes it covers, and never includes the kick. A lane should cover at least two notes. Lanes may overlap.
+
+## Versus phrases
+
+Versus phrases mark the parts each player plays in a face-off, from older games. Most readers ignore them, and a writer should keep them when rewriting a file.

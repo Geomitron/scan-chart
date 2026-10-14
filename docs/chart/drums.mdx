@@ -1,14 +1,98 @@
 ---
 title: "Drums"
-description: "Cymbals, accents, ghosts, double kicks, disco flip and flam in a .chart file."
+description: "Pads, cymbals, accents, ghosts, double kicks, flams and disco flip in a .chart file."
 ---
 
-<Warning>Placeholder for the local preview. This page isn't written yet.</Warning>
+A drums section, such as `ExpertDrums`, holds one chart for three kinds of drum kit:
 
-It will cover:
+- **4-lane:** a kick and four pads, with no difference between toms and cymbals.
+- **Pro:** the same lanes, with cymbals on yellow, blue and green.
+- **5-lane:** a kick and five pads, in the layout of a kit with three toms and two cymbals.
 
-- Cymbal and tom markers
-- Accents and ghosts
-- Double kicks
-- Disco flip
-- Flam (`N 109`)
+## Notes
+
+| Value | 4-lane and pro | 5-lane |
+|---|---|---|
+| `0` | Kick | Kick |
+| `1` | Red | Red |
+| `2` | Yellow | Yellow |
+| `3` | Blue | Blue |
+| `4` | Green | Orange |
+| `5` | Green, moved to blue when `4` is at the same tick. See [Drum type](#drum-type) | Green |
+| `32` | Double kick | Double kick |
+
+A drum note's length has no effect. A writer should write 0.
+
+### Double kicks
+
+`N 32` is a kick that a reader plays only when the player turns double kick on, such as for a double pedal. Writers alternate `N 0` and `N 32` in fast kick passages. A writer should write `N 32` only in `ExpertDrums`, and must not write `N 0` and `N 32` at one tick.
+
+## Cymbals
+
+In a pro chart, a pad note is a tom unless a cymbal marker at its tick makes it a cymbal:
+
+| Value | Makes a cymbal of |
+|---|---|
+| `66` | Yellow, `N 2` |
+| `67` | Blue, `N 3` |
+| `68` | Green, `N 4` |
+
+Red is always the snare, and `N 5` is always a tom. A marker on a tick without its pad note has no effect. A 4-lane reader plays cymbals as plain pads.
+
+## Accents and ghosts
+
+An accent is a note hit harder than the ones around it, and a ghost is one hit softer:
+
+| Pad | Accent | Ghost |
+|---|---|---|
+| Red, `N 1` | `34` | `40` |
+| Yellow, `N 2` | `35` | `41` |
+| Blue, `N 3` | `36` | `42` |
+| Green or orange, `N 4` | `37` | `43` |
+| Green in 5-lane, `N 5` | `38` | `44` |
+
+- A marker applies to its pad's note at the same tick. A note with both an accent and a ghost marker is an accent.
+- Kicks have no accents or ghosts.
+
+## Flams
+
+`N 109` makes every drum note at its tick a flam: two hits of the pad in quick succession. It's the `.chart` form of MIDI note 109.
+
+## Drum type
+
+A reader decides a chart's type from `song.ini` and from the notes of every drums section, in this order:
+
+1. `five_lane_drums = true` in `song.ini`: 5-lane.
+2. `pro_drums = true`, or a cymbal marker in any drums section: pro.
+3. An `N 5` in any drums section: 5-lane.
+4. Otherwise: 4-lane.
+
+A `false` value means the same as leaving the key out. A writer must not set both keys to `true`.
+
+In a pro chart, an `N 5` is a green tom. A writer should not put `N 4` and `N 5` at one tick: a reader moves the `N 5` to a blue tom.
+
+## Disco flip
+
+A `mix` event sets up the drum audio for one difficulty, and its `d` flag turns on disco flip: a stretch, such as a disco beat, charted with red and yellow swapped. It's an `E` event in the drums section of the difficulty it names:
+
+```text
+<tick> = E mix <difficulty> drums<configuration><flag>
+```
+
+| Part | Values |
+|---|---|
+| Difficulty | `0` Easy, `1` Medium, `2` Hard, `3` Expert |
+| Configuration | `0` to `5`: which drum audio stems the song has |
+| Flag | `d` turns disco flip on, and no flag turns it off. `dnoflip` swaps the snare and the other drum audio, as `d` does on 4-lane drums, without swapping notes |
+
+```text
+3072 = E mix 3 drums0d
+6144 = E mix 3 drums0
+```
+
+- A flip lasts from its tick, notes on it included, until the event that turns it off, or the end of the track.
+- On pro drums, a reader swaps red and yellow back: red becomes a yellow cymbal, and yellow becomes red. On 4-lane drums the notes don't change. The snare and the other drum audio swap instead, so yellow plays the snare.
+- A reader ignores a mix event that names another difficulty. The flags `easy` and `easynokick` have no effect on the notes.
+- A writer must not put two mix events of one difficulty at one tick. A reader that finds several uses an event that turns the flip off, then `d`, then `dnoflip`.
+- A writer should not write disco flip events in a 5-lane chart.
+- A writer should write single spaces between the parts. A reader also accepts `_`, and square brackets around the text.

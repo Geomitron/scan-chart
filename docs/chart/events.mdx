@@ -3,10 +3,68 @@ title: "[Events]"
 description: "Practice sections, lyrics and other song-wide text events in a .chart file."
 ---
 
-<Warning>Placeholder for the local preview. This page isn't written yet.</Warning>
+`[Events]` holds the text events that apply to the whole song: practice sections, lyrics and the song's end. Each is an `E` event with its text in quotation marks:
 
-It will cover:
+```text
+[Events]
+{
+  0 = E "section Intro"
+  768 = E "phrase_start"
+  768 = E "lyric Hel-"
+  864 = E "lyric lo"
+  1152 = E "phrase_end"
+  3072 = E "section Verse 1"
+  15360 = E "end"
+}
+```
 
-- Practice sections
-- Lyrics and vocal phrases
-- End events and other global events
+A reader removes spaces and tabs around the text, and one pair of square brackets around the whole text, so `E "[section Intro]"` means the same as `E "section Intro"`. A writer should write neither. A reader matches every event below in the letter case shown, and ignores any other text in `[Events]`.
+
+## Practice sections
+
+A practice section marks where a part of the song starts, such as the intro or a verse. It runs until the next practice section:
+
+```text
+<tick> = E "section <name>"
+```
+
+- A space or `_` separates `section` from the name. The name must not be empty. A reader removes spaces at the ends of the name.
+- `prc` is an older word for `section`: `prc_verse_1` is a practice section named `verse_1`. A writer should write `section`.
+- A tick must not hold two practice sections. A reader that finds two uses the later one.
+- A chart should have at least one practice section.
+
+## Lyrics
+
+A lyric is one syllable or word of the vocals. Vocal phrases group lyrics into the lines a reader shows:
+
+```text
+<tick> = E "lyric <text>"
+<tick> = E "phrase_start"
+<tick> = E "phrase_end"
+```
+
+- **A lyric** is `lyric`, a space, and the text. A reader ignores a lyric with no text.
+- **A phrase** runs from a `phrase_start` to the next `phrase_start` or `phrase_end`. It holds the lyrics from its start tick through its end tick.
+- **A lyric on a tick where one phrase ends and another starts** belongs to the phrase that starts there.
+- **On a tick with both**, a writer must write `phrase_end` before `phrase_start`. A reader reads them in the order written.
+- **The last phrase** must end with a `phrase_end`. A reader ignores a phrase that never ends.
+- **A lyric outside every phrase** should not be written. A reader ignores it.
+- **A `phrase_end` with no open phrase** has no effect.
+
+A `.chart` file has one vocal part, with lyrics but no pitches.
+
+## The end of the song
+
+```text
+<tick> = E "end"
+```
+
+`end` marks where the song ends. A chart should have at most one, at or after the end of its last note, sustain included. A reader that finds several uses the first. It ignores an `end` that comes before the last note ends.
+
+## The coda
+
+```text
+<tick> = E "coda"
+```
+
+`coda` marks where the song's big ending starts. A drum fill at or after it is a Big Rock Ending: see [Drum fills](/chart/phrases#drum-fills). A chart should have at most one `coda`. A reader that finds several uses the first.
