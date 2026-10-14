@@ -1,3 +1,4 @@
+import { bomLength, codeUnitBytes, encodeChartText } from './chart-encoding'
 import { chartTextRoundTrips, spliceChartText } from './chart-edit'
 import { ChartFileTokens, chartSectionLines, chartSectionTrack, tokenizeChartFile } from './chart-file-parser'
 
@@ -66,14 +67,12 @@ export function chartNormalizations(tokens: ChartFileTokens): ChartNormalization
 function lineFeedsWithoutReturn(tokens: ChartFileTokens): number[] {
 	const { bytes, encoding } = tokens
 	const offsets: number[] = []
-	if (encoding === 'utf-8') {
-		for (let i = bytes.indexOf(0x0a); i !== -1; i = bytes.indexOf(0x0a, i + 1)) if (bytes[i - 1] !== 0x0d) offsets.push(i)
-	} else {
-		const low = encoding === 'utf-16le' ? 0 : 1
-		for (let i = 2; i + 1 < bytes.length; i += 2) {
-			const isUnit = (at: number, value: number) => at >= 2 && bytes[at + low] === value && bytes[at + 1 - low] === 0
-			if (isUnit(i, 0x0a) && !isUnit(i - 2, 0x0d)) offsets.push(i)
-		}
+	const unit = codeUnitBytes(encoding)
+	const [lineFeed, carriageReturn] = [encodeChartText('\n', encoding), encodeChartText('\r', encoding)]
+	const isAt = (at: number, code: Uint8Array) => code.every((byte, k) => bytes[at + k] === byte)
+	// Code units start after the byte order mark, so a line feed's bytes can't be mistaken for part of another unit.
+	for (let i = bomLength(bytes, encoding); i + unit <= bytes.length; i += unit) {
+		if (isAt(i, lineFeed) && !(i - unit >= 0 && isAt(i - unit, carriageReturn))) offsets.push(i)
 	}
 	return offsets
 }
@@ -82,7 +81,7 @@ function lineFeedsWithoutReturn(tokens: ChartFileTokens): number[] {
 function withCarriageReturns(tokens: ChartFileTokens): ChartFileTokens {
 	const offsets = lineFeedsWithoutReturn(tokens)
 	if (offsets.length === 0) return tokens
-	const carriageReturn = tokens.encoding === 'utf-8' ? [0x0d] : tokens.encoding === 'utf-16le' ? [0x0d, 0x00] : [0x00, 0x0d]
+	const carriageReturn = encodeChartText('\r', tokens.encoding)
 	const bytes = new Uint8Array(tokens.bytes.length + offsets.length * carriageReturn.length)
 	let from = 0, to = 0
 	for (const offset of offsets) {

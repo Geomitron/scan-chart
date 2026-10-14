@@ -1,6 +1,7 @@
 import { Difficulty, Instrument } from '../types'
 import { decodeCloneHeroText } from '../shared/decode-text'
-import { getEncoding, trimDotnet } from '../shared/text'
+import { trimDotnet } from '../shared/text'
+import { ChartEncoding, decodeChartText, detectChartEncoding } from './chart-encoding'
 import { EventType, eventTypes, RawChartData } from './raw-types'
 import { extractChartLyrics, extractChartVocalPhrases } from './lyric-parser'
 
@@ -122,7 +123,7 @@ export interface ChartSectionToken {
 /** A `.chart` file as read, kept whole so an unedited file is written back byte for byte. */
 export interface ChartFileTokens {
 	readonly bytes: Uint8Array
-	readonly encoding: 'utf-8' | 'utf-16le' | 'utf-16be'
+	readonly encoding: ChartEncoding
 	/** The decoded text, without the byte-order mark. */
 	readonly text: string
 	/** Every section in file order, duplicates included. */
@@ -133,8 +134,8 @@ export interface ChartFileTokens {
 
 /** Tokenizes a `.chart` file. Never throws: a malformed file keeps its error for classification to report. */
 export function tokenizeChartFile(bytes: Uint8Array): ChartFileTokens {
-	const encoding = getEncoding(bytes)
-	const text = new TextDecoder(encoding).decode(bytes)
+	const { encoding, bomLength } = detectChartEncoding(bytes)
+	const text = decodeChartText(bytes.subarray(bomLength), encoding)
 	return { bytes, encoding, text, ...findChartSections(text) }
 }
 

@@ -1,6 +1,7 @@
 import type { Instrument } from '../types'
 import { ChartFileTokens, chartSectionLines, chartSectionTrack, ChartLineToken, getNEventType, getSEventType, tokenizeChartFile } from './chart-file-parser'
 import type { ChartAuthoredSource } from './authored-view'
+import { bomLength, codeUnitBytes, decodeChartText, encodeChartText } from './chart-encoding'
 import { EventType, eventTypes } from './raw-types'
 
 /** One line edit of a `.chart` section. `text` is the line's content, without indentation or line ending. */
@@ -124,7 +125,7 @@ function withSplicedLines(tokens: ChartFileTokens, bytes: Uint8Array, splices: r
 /** The line index after `splices`: starts inside a replaced range go, the inserted text's starts come in, and later ones shift. */
 function splicedLineIndex(index: LineIndex, splices: readonly LineSplice[], encoded: readonly Uint8Array[], encoding: ChartFileTokens['encoding']): LineIndex {
 	const { textLineStarts, byteLineStarts } = index
-	const unit = encoding === 'utf-8' ? 1 : 2
+	const unit = codeUnitBytes(encoding)
 	const textStarts: number[] = [], byteStarts: number[] = []
 	let line = 0, textShift = 0, byteShift = 0
 	splices.forEach((splice, k) => {
@@ -340,8 +341,8 @@ function lineIndexOf(tokens: ChartFileTokens): LineIndex {
 	const cached = lineIndexes.get(tokens)
 	if (cached !== undefined) return cached
 	const { bytes, text, encoding } = tokens
-	const unit = encoding === 'utf-8' ? 1 : 2
-	const bom = encoding === 'utf-8' ? (bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf ? 3 : 0) : 2
+	const unit = codeUnitBytes(encoding)
+	const bom = bomLength(bytes, encoding)
 	const textLineStarts = [0]
 	for (let i = text.indexOf('\n'); i !== -1; i = text.indexOf('\n', i + 1)) textLineStarts.push(i + 1)
 	const byteLineStarts = [bom]
@@ -355,8 +356,8 @@ function lineIndexOf(tokens: ChartFileTokens): LineIndex {
 }
 
 function isLineFeedAt(bytes: Uint8Array, i: number, encoding: ChartFileTokens['encoding']): boolean {
-	return encoding === 'utf-8' ? bytes[i] === 0x0a
-		: encoding === 'utf-16le' ? bytes[i] === 0x0a && bytes[i + 1] === 0 : bytes[i] === 0 && bytes[i + 1] === 0x0a
+	const lineFeed = encodeChartText('\n', encoding)
+	return lineFeed.every((byte, k) => bytes[i + k] === byte)
 }
 
 /**
@@ -376,16 +377,12 @@ function byteOffsets(tokens: ChartFileTokens): (textOffset: number) => number {
 		const prefix = text.slice(textLineStarts[low], textOffset)
 		const encoded = encodeText(prefix, encoding)
 		const start = byteLineStarts[low]
-		const decoded = new TextDecoder(encoding, { ignoreBOM: true }).decode(bytes.subarray(start, start + encoded.length))
+		const decoded = decodeChartText(bytes.subarray(start, start + encoded.length), encoding)
 		if (decoded !== prefix) throw new RangeError('An edited line\'s bytes don\'t decode to its text')
 		return start + encoded.length
 	}
 }
 
 function encodeText(text: string, encoding: ChartFileTokens['encoding']): Uint8Array {
-	if (encoding === 'utf-8') return new TextEncoder().encode(text)
-	const out = new Uint8Array(text.length * 2)
-	const view = new DataView(out.buffer)
-	for (let i = 0; i < text.length; i++) view.setUint16(i * 2, text.charCodeAt(i), encoding === 'utf-16le')
-	return out
+	return encodeChartText(text, encoding)
 }
