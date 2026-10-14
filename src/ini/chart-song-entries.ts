@@ -1,4 +1,7 @@
-/** `[Song]` keys Clone Hero and scan-chart read as metadata when there's no song.ini, with their song.ini keys. */
+/**
+ * `[Song]` keys scan-chart reads as metadata when there's no song.ini, with their song.ini keys. Clone Hero reads the
+ * same keys but `Difficulty`, which it ignores; YARG reads `Difficulty` as `diff_band`.
+ */
 const chartSongKeys: readonly (readonly [chartKey: string, iniKey: string, secondsToMs?: true])[] = [
 	['Name', 'name'],
 	['Artist', 'artist'],
@@ -30,7 +33,7 @@ export function chartSongIniEntries(chartSong: ReadonlyMap<string, string>): [ke
 /**
  * A `[Song]` time in seconds, in milliseconds as Clone Hero reads it, or `null` if it isn't a number. Clone Hero
  * calculates `(int)Math.Ceiling(float.Parse(value) * 1000)` (`SongEntry.ReadFeedbackChartMetadata`) in single
- * precision, so 0.025 seconds reads as 26 ms, where double precision gives 25.
+ * precision, so 0.127 seconds reads as 128 ms, where double precision gives 127.
  */
 export function secondsToMs(seconds: string | undefined): number | null {
 	const value = seconds === undefined ? NaN : Number(seconds)

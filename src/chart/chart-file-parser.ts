@@ -228,9 +228,13 @@ export function classifyChartFile(
 	}
 
 	// Without a Resolution, a reader uses 192: Clone Hero does with no [Song] section (Song.cs:59), and YARG does with
-	// no Resolution in it. A value that isn't a positive number stays an error, however it's spaced.
+	// no Resolution in it. A value is read by its leading digits, as Clone Hero reads it (ChartReader.Header.cs,
+	// WeakIntParse): `480.5` is 480 and `1e3` is 1. A value that doesn't start with a digit, or is 0, is an error.
+	// The frozen profile keeps scan-chart 8's reading.
 	const namesResolution = songLines?.some(line => /^Resolution[ \t]*=/.test(line)) ?? false
-	const resolution = !namesResolution && nonstandardLines === 'read' ? defaultChartResolution : Number(metadata['Resolution'])
+	const resolution = nonstandardLines === 'ignored' ? Number(metadata['Resolution'])
+		: namesResolution ? Number(/^\d*/.exec(metadata['Resolution'] ?? '')![0])
+		: defaultChartResolution
 	if (!resolution) {
 		throw 'Invalid .chart file: resolution not found.'
 	}
@@ -265,10 +269,8 @@ export function classifyChartFile(
 			charter: metadata['Charter'] || undefined,
 			diff_guitar: Number(metadata['Difficulty']) || undefined,
 			// "Offset" and "PreviewStart" are in units of seconds.
-			// NOTE: [Song].Offset is a .chart-only property — distinct from
-			// song.ini's `delay`, which games recognize in .ini (but NOT in
-			// [Song]). We expose [Song].Offset under the `chart_offset` key so
-			// it never collides with the ini-origin `delay` on merge.
+			// NOTE: [Song].Offset pairs with song.ini's `delay`, and games read it only when `delay` is 0 or missing.
+			// It's exposed under the `chart_offset` key so it never overwrites the ini-origin `delay` on merge.
 			chart_offset: Number(metadata['Offset']) ? Number(metadata['Offset']) * 1000 : undefined,
 			preview_start_time: Number(metadata['PreviewStart']) ? Number(metadata['PreviewStart']) * 1000 : undefined,
 			...(Object.keys(extraChartSongFields).length > 0 ? { extraChartSongFields } : {}),
@@ -668,12 +670,12 @@ function parseChartTimeSignatures(lines: string[]): { tick: number; numerator: n
 	}
 	for (const ts of result) {
 		if (ts.numerator === 0) {
-			throw `Invalid .mid file: Time signature numerator at tick ${ts.tick} was zero.`
+			throw `Invalid .chart file: Time signature numerator at tick ${ts.tick} was zero.`
 		}
 	}
 	for (const ts of result) {
 		if (ts.denominator === 0) {
-			throw `Invalid .mid file: Time signature denominator at tick ${ts.tick} was zero.`
+			throw `Invalid .chart file: Time signature denominator at tick ${ts.tick} was zero.`
 		}
 	}
 	if (!result[0] || result[0].tick !== 0) {
