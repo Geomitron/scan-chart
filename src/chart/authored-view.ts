@@ -1,5 +1,6 @@
 import { difficulties, type Difficulty, type Instrument } from '../types'
 import { ChartFileTokens, chartSectionLines, chartSectionTrack, parseTrackLine } from './chart-file-parser'
+import { chartSectionSpellings } from './chart-line-spelling'
 import {
 	classifyMidiInstrumentTrack,
 	classifyMidiInstrumentTracks,
@@ -255,8 +256,9 @@ export interface AuthoredSongEvents {
 }
 
 /**
- * Reads the tempo map, time signatures and song text events of a chart, from the section or track Clone Hero reads
- * for each: the last `[SyncTrack]` and `[Events]` section, or the conductor track and the first events track.
+ * Reads the tempo map, time signatures and song text events of a chart, from the section or track a reader uses for
+ * each: the first `[SyncTrack]` and `[Events]` section, or the conductor track and the first events track. A `.chart`
+ * line in a nonstandard spelling is read as classification reads it, with that line as its source.
  */
 export function authoredSongEvents(
 	chart: { readonly format: 'chart'; readonly tokens: ChartFileTokens } | { readonly format: 'mid'; readonly tokens: MidiTokens },
@@ -266,12 +268,20 @@ export function authoredSongEvents(
 	if (chart.format === 'chart') {
 		const { tokens } = chart
 		const firstSection = (name: string) => tokens.sections.findIndex(section => section.name === name)
-		const lines = (section: number) => section === -1 ? [] : chartSectionLines(tokens, tokens.sections[section])
+		const lines = (section: number, kind: 'sync' | 'events') => {
+			if (section === -1) return []
+			const texts = chartSectionLines(tokens, tokens.sections[section]).map(line => line.text)
+			const spellings = chartSectionSpellings(texts, kind)
+			return texts.map((text, index) => {
+				const spelling = spellings[index]
+				return spelling?.kind === 'respelled' ? spelling.line : text
+			})
+		}
 		const syncTrack = firstSection('SyncTrack')
-		lines(syncTrack).forEach((line, lineIndex) => {
+		lines(syncTrack, 'sync').forEach((text, lineIndex) => {
 			const source: ChartAuthoredSource = { format: 'chart', section: syncTrack, line: lineIndex }
-			const tempo = /^(\d+) = B (\d+)$/.exec(line.text)
-			const timeSignature = /^(\d+) = TS (\d+)(?: (\d+))?$/.exec(line.text)
+			const tempo = /^(\d+) = B (\d+)$/.exec(text)
+			const timeSignature = /^(\d+) = TS (\d+)(?: (\d+))?$/.exec(text)
 			if (tempo) tempos.push({ tick: Number(tempo[1]), beatsPerMinute: Number(tempo[2]) / 1000, source })
 			if (timeSignature) {
 				const denominator = timeSignature[3] ? Math.pow(2, Number(timeSignature[3])) : 4
@@ -279,8 +289,8 @@ export function authoredSongEvents(
 			}
 		})
 		const events = firstSection('Events')
-		const textEvents = lines(events).flatMap((line, lineIndex): AuthoredTextEvent[] => {
-			const match = /^(\d+) = E "([^\r\n]*?)"$/.exec(line.text)
+		const textEvents = lines(events, 'events').flatMap((text, lineIndex): AuthoredTextEvent[] => {
+			const match = /^(\d+) = E "([^\r\n]*?)"$/.exec(text)
 			return match ? [{ tick: Number(match[1]), text: match[2], source: { format: 'chart', section: events, line: lineIndex } }] : []
 		})
 		return { tempos, timeSignatures, textEvents: events === -1 ? null : textEvents }

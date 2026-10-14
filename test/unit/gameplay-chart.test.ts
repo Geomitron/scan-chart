@@ -40,7 +40,8 @@ describe('the gameplay chart', () => {
 
 	it('throws ChartReadError when the song has no readable chart', () => {
 		expect(() => resolveChart(parseSongFiles([files[1]]))).toThrow(ChartReadError)
-		expect(() => resolveChart(parseSongFiles([{ fileName: 'notes.chart', data: encode('[Song]\r\n{\r\n}\r\n') }]))).toThrow('resolution not found')
+		expect(() => resolveChart(parseSongFiles([{ fileName: 'notes.chart', data: encode('[Song]\r\n{\r\n  Resolution = 0\r\n}\r\n') }]))).toThrow('resolution not found')
+		expect(() => resolveChart(parseSongFiles([{ fileName: 'notes.chart', data: encode('[Song]\r\n{\r\n}\r\n') }]))).toThrow('no [SyncTrack] section')
 	})
 })
 

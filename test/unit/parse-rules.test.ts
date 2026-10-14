@@ -11,6 +11,7 @@ describe('parse profiles', () => {
 			{
 			  "canonical20260801": {
 			    "chartFlam": "read",
+			    "chartNonstandardLines": "read",
 			    "chartTrackAllocation": "sectionsWithNotes",
 			    "midiChartDynamics": "fromEvent",
 			    "midiDuplicateInstrumentTracks": "firstWins",
@@ -21,6 +22,7 @@ describe('parse profiles', () => {
 			  },
 			  "frozenLegacy6142": {
 			    "chartFlam": "ignored",
+			    "chartNonstandardLines": "ignored",
 			    "chartTrackAllocation": "everySection",
 			    "midiChartDynamics": "leaksAcrossDifficulties",
 			    "midiDuplicateInstrumentTracks": "keepAll",
@@ -31,6 +33,7 @@ describe('parse profiles', () => {
 			  },
 			  "scanner": {
 			    "chartFlam": "read",
+			    "chartNonstandardLines": "read",
 			    "chartTrackAllocation": "everySection",
 			    "midiChartDynamics": "fromEvent",
 			    "midiDuplicateInstrumentTracks": "keepAll",

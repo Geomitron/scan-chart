@@ -40,11 +40,15 @@ function calculateSongHashes(song: SongDocument, chart: ChartDocument, songIni: 
 	if (parsedChart === null) return null
 
 	const { format, iniChartModifiers, metadata } = parsedChart
-	const legacyDuration = resolveHistoricalDuration(
-		files[1]?.data ?? null,
-		song.files.map(file => file.fileName),
-		parseChartFileFrozenLegacyIdentity(chartBytes, format, iniChartModifiers),
-	)
+	// The frozen profile can refuse a file the canonical one reads, such as a `.chart` without a resolution. The bundle
+	// then has no hashes.
+	let legacyChart: ReturnType<typeof parseChartFileFrozenLegacyIdentity>
+	try {
+		legacyChart = parseChartFileFrozenLegacyIdentity(chartBytes, format, iniChartModifiers)
+	} catch {
+		return null
+	}
+	const legacyDuration = resolveHistoricalDuration(files[1]?.data ?? null, song.files.map(file => file.fileName), legacyChart)
 	const bundle = songBundle20251010.calculate({
 		source: { format, bytes: chartBytes },
 		modifiers: iniChartModifiers,
