@@ -3,10 +3,83 @@ title: "Instrument sections"
 description: "The section names for each instrument and difficulty, and their note values."
 ---
 
-<Warning>Placeholder for the local preview. This page isn't written yet.</Warning>
+Each instrument section holds one track: the notes, modifiers and phrases of one instrument at one difficulty.
 
-It will cover:
+## Section names
 
-- Section names
-- Note values for each instrument
-- Empty sections
+A section's name is a difficulty followed by an instrument, such as `ExpertSingle` for Expert guitar. The difficulties are `Easy`, `Medium`, `Hard` and `Expert`.
+
+| Instrument in the name | Instrument | Kind |
+|---|---|---|
+| `Single` | Lead guitar | 5-fret |
+| `DoubleGuitar` | Co-op guitar | 5-fret |
+| `DoubleBass` | Bass guitar | 5-fret |
+| `DoubleRhythm` | Rhythm guitar | 5-fret |
+| `Keyboard` | Keys, played on a guitar controller | 5-fret |
+| `Drums` | Drums | Drums |
+| `GHLGuitar` | 6-fret guitar | 6-fret |
+| `GHLBass` | 6-fret bass | 6-fret |
+| `GHLRhythm` | 6-fret rhythm guitar | 6-fret |
+| `GHLCoop` | 6-fret co-op guitar | 6-fret |
+| `GHLKeys` | 6-fret keys | 6-fret |
+
+A reader matches names exactly, in the letter case shown, and ignores a section with any other name. Older games used names such as `ExpertSingleBass` and `ExpertDoubleDrums`, which readers don't read.
+
+## Notes
+
+A note is an `N` event:
+
+```text
+<tick> = N <value> <length>
+```
+
+The value says which note it is, and depends on the kind of instrument. The length is the note's sustain, in ticks: the note is held from its tick to `tick + length`. A length of 0 means no sustain.
+
+### 5-fret
+
+| Value | Note |
+|---|---|
+| `0` | Green |
+| `1` | Red |
+| `2` | Yellow |
+| `3` | Blue |
+| `4` | Orange |
+| `7` | Open: strummed with no fret held |
+| `5` | Forced modifier. See [Note modifiers](/chart/modifiers) |
+| `6` | Tap modifier. See [Note modifiers](/chart/modifiers) |
+
+### 6-fret
+
+The 6-fret frets are in two rows: three black frets on top and three white frets below them.
+
+| Value | Note |
+|---|---|
+| `3` | Black 1 |
+| `4` | Black 2 |
+| `8` | Black 3 |
+| `0` | White 1 |
+| `1` | White 2 |
+| `2` | White 3 |
+| `7` | Open |
+| `5` | Forced modifier |
+| `6` | Tap modifier |
+
+### Drums
+
+[Drums](/chart/drums) gives the values for drums.
+
+### Values readers ignore
+
+A reader ignores an `N` value that the tables don't list for the section's instrument, such as `N 8` in a 5-fret section.
+
+## Notes at one tick
+
+- Notes of different values at one tick form a chord. Each note of a chord keeps its own length, so a chord's sustains can end at different ticks.
+- A track must not hold two notes of one value at one tick. A reader that finds two uses the longer.
+- A writer should not put an open note in a chord with fret notes.
+
+## Tracks
+
+A section is a track only if it holds at least one note. A section with only modifiers, phrases or text events isn't a track, and a writer should not write one.
+
+[How notes resolve](/chart/note-resolution) says how a reader turns a section's notes into the notes a player plays.

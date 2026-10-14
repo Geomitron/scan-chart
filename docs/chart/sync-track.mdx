@@ -3,10 +3,62 @@ title: "[SyncTrack]"
 description: "Tempo markers and time signatures in a .chart file."
 ---
 
-<Warning>Placeholder for the local preview. This page isn't written yet.</Warning>
+`[SyncTrack]` is a `.chart` file's second section. It holds the chart's tempo markers, which decide when each tick plays, and its time signatures:
 
-It will cover:
+```text
+[SyncTrack]
+{
+  0 = TS 4
+  0 = B 120000
+  3072 = TS 6 3
+  3072 = B 95500
+}
+```
 
-- Tempo markers (`B`)
-- Time signatures (`TS`)
-- Tempo anchors (`A`)
+## Tempo markers
+
+A tempo marker sets the tempo from its tick to the next tempo marker:
+
+```text
+<tick> = B <tempo>
+```
+
+- The tempo is in thousandths of a beat per minute: `B 120000` is 120 BPM, and `B 150325` is 150.325 BPM.
+- The tempo must be a whole number from 1 to 4294967295. A reader refuses a file with a tempo of 0.
+
+## Time signatures
+
+A time signature sets the meter from its tick to the next time signature:
+
+```text
+<tick> = TS <numerator> <exponent>
+```
+
+- The numerator is the number of beats in a measure. It must be a whole number from 1 to 4294967295. A reader refuses a file with a numerator of 0.
+- The exponent gives the note value of a beat: the denominator is 2 to the power of the exponent. It must be a whole number from 0 to 31. Without an exponent, the denominator is 4.
+- Time signatures don't change when notes play. Only tempo markers do.
+
+| Written | Time signature |
+|---|---|
+| `TS 4` | 4/4 |
+| `TS 3 3` | 3/8 |
+| `TS 6 3` | 6/8 |
+| `TS 7 4` | 7/16 |
+
+A reader ignores spaces at the end of a line, so `0 = TS 4 ` is 4/4.
+
+## Tempo anchors
+
+A tempo anchor locks the tempo marker at its tick to a time in the audio, so a chart editor can keep that marker in place while the tempos before it change:
+
+```text
+<tick> = A <microseconds>
+```
+
+An anchor should share its tick with a tempo marker. Readers other than chart editors ignore anchors.
+
+## The start of the chart
+
+A chart should have a tempo marker and a time signature at tick 0. Until its first tempo marker, a chart plays at 120 BPM, and until its first time signature, it's in 4/4.
+
+[Syntax](/chart/syntax#tick-order) says how events are ordered, and which of two tempo markers or two time signatures at one tick counts.

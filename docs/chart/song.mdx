@@ -3,10 +3,79 @@ title: "[Song]"
 description: "The metadata and resolution in a .chart file's [Song] section."
 ---
 
-<Warning>Placeholder for the local preview. This page isn't written yet.</Warning>
+`[Song]` is a `.chart` file's first section. It gives the chart's resolution, and metadata such as the song's name and artist:
 
-It will cover:
+```text
+[Song]
+{
+  Name = "Song Name"
+  Artist = "Artist"
+  Charter = "Charter"
+  Resolution = 192
+  Offset = 0
+}
+```
 
-- The resolution
-- The metadata keys, and when a reader uses them instead of song.ini's
-- The keys with a song.ini counterpart, and how the two must agree
+Each line names one value, as [Named entries](/chart/syntax#named-entries) describes. Keys are case-sensitive, and a key must not appear twice.
+
+## Resolution
+
+`Resolution` is the number of ticks in a beat. Every `.chart` file must give it, as a whole number from 1 up, written in digits without quotation marks.
+
+- A reader refuses a file whose `Resolution` is 0 or isn't a number.
+- A reader that reads a file without a `Resolution` uses 192.
+- A reader that finds `Resolution` more than once uses the last one.
+
+## Metadata
+
+| Key | Value | song.ini key |
+|---|---|---|
+| `Name` | The song's title | `name` |
+| `Artist` | The artist | `artist` |
+| `Album` | The album | `album` |
+| `Genre` | The genre | `genre` |
+| `Year` | The year the song was released | `year` |
+| `Charter` | The name of the person who charted the song | `charter` |
+| `Offset` | How far the chart is moved against the audio, in seconds. A higher value makes every note come later | `delay`, in milliseconds |
+| `PreviewStart` | Where the song list's preview starts, in seconds | `preview_start_time`, in milliseconds |
+| `PreviewEnd` | Where the preview ends, in seconds | `preview_end_time`, in milliseconds |
+| `Difficulty` | The difficulty of the whole song, from 0 to 6 | `diff_band` |
+
+- **Text** is written in quotation marks: `Name = "Song Name"`.
+- **Times** are written in seconds, as digits with an optional `-` before them and an optional decimal part, without quotation marks: `Offset = -0.25`. A time should have at most three decimals.
+- **Year:** a reader removes a leading `, ` from the value, so `Year = ", 2002"` and `Year = "2002"` mean the same.
+- **A repeated key:** a reader that finds a key more than once uses the first one with a value.
+
+{/* review: Q4
+What does Difficulty mean? Clone Hero ignores it. YARG reads it as diff_band, the difficulty of the whole song. scan-chart pairs it with diff_guitar when it keeps [Song] and song.ini in agreement.
+- A. The song's difficulty | Difficulty pairs with diff_band | scan-chart's pairing changes from diff_guitar to diff_band
+- B. Not used | Readers ignore Difficulty, and a writer should not write it | YARG's reading becomes nonstandard, and charts that set it today lose nothing in Clone Hero
+Recommendation: A, as written. It's what YARG reads and what GuitarGame_ChartFormats describes.
+*/}
+
+### Keys readers ignore
+
+A reader ignores every other key. Older chart editors wrote some of them:
+
+- audio file names, such as `MusicStream` and `GuitarStream`. A reader finds the audio by file name instead. See [Audio](/song-folders#audio).
+- `Player2`, `MediaType`, `Length` and others, which games no longer use.
+
+A writer may keep these keys as written.
+
+### Placeholder names
+
+Some converters wrote `Name = "TEMPO TRACK"` or `Name = "midi_export"` instead of the song's name. `Name` must not have either value. A reader ignores that line and every metadata line after it.
+
+## [Song] and song.ini
+
+A song folder must hold a `song.ini` file, which gives the song's metadata. See [Files in a song folder](/song-folders). The two must agree:
+
+- When both `[Song]` and `song.ini` set a key from the table, they must give the same value. Times are compared in milliseconds, and `Year` without its leading `, `.
+- A writer may leave any of these keys out of `[Song]`.
+
+A reader that finds the two disagreeing uses `song.ini`:
+
+- It takes the name, artist, album, genre, year and charter from `song.ini` alone, even when `song.ini` leaves one of them out.
+- It takes `Offset` and `PreviewStart` from `[Song]` only when `song.ini` doesn't set `delay` or `preview_start_time`. A `delay` of 0 and a `preview_start_time` of -1 count as not set.
+
+A reader that reads a folder without `song.ini` takes all of the metadata from `[Song]`.

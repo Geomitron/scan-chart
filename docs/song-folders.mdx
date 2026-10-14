@@ -3,10 +3,92 @@ title: "Files in a song folder"
 description: "The files a song folder holds, their names, and which one a reader uses when there are several."
 ---
 
-<Warning>Placeholder for the local preview. This page isn't written yet.</Warning>
+A song folder holds one song. A reader finds each of its files by name:
 
-It will cover:
+| File | Holds | Required |
+|---|---|---|
+| `notes.chart` or `notes.mid` | The chart | Yes |
+| `song.ini` | The song's metadata and settings | Yes |
+| Audio files, such as `song.opus` or `guitar.ogg` | The song's audio, whole or in stems | At least one |
+| `album.png`, `album.jpg` or `album.jpeg` | The album art | No |
+| `background.png`, `background.jpg` or `background.jpeg` | An image shown behind the highway | No |
+| `video.webm` | A video shown behind the highway | No |
 
-- The chart file, and which one counts when a folder has several: `notes.mid` over `notes.chart`
-- `song.ini`, the audio files, and the album art
-- Text encodings
+A reader ignores every other file in the folder.
+
+## File names
+
+- Each file name must be in lowercase, as written on this page. A reader matches names in any letter case, so it reads `Song.ini` as `song.ini`.
+- A folder must not hold two names that differ only in letter case, such as `song.ini` and `Song.ini`.
+- A song folder must not hold another song folder. A reader doesn't look for a song inside a song folder.
+
+## The chart
+
+The chart is `notes.chart` or `notes.mid`. A reader doesn't read a chart file with any other name. [Syntax](/chart/syntax) gives the structure of a `.chart` file.
+
+A song folder should hold only one chart. A reader that finds both uses `notes.mid`.
+
+## song.ini
+
+A song folder must hold a `song.ini` file. It gives the song's metadata, such as its name and artist, and settings that change how the chart plays.
+
+{/* review: Q1
+Should every song folder have to hold song.ini? YARG doesn't load a folder without one. Clone Hero loads a .chart folder without one, takes the metadata from the [Song] section and writes a song.ini into the folder. Only 11 library charts have no song.ini.
+- A. Required | A folder without song.ini is invalid. A reader that loads one anyway takes the metadata from [Song] | Valid files load in both games
+- B. Required for .mid only | A .chart folder may leave song.ini out and give its metadata in [Song] | Such a .chart folder doesn't load in YARG
+Recommendation: A. A folder that follows the standard then loads in every game.
+*/}
+
+- A reader reads only `song.ini`, and ignores any other `.ini` file.
+- A reader that loads a `.chart` folder without `song.ini` takes the song's metadata from the chart's [[Song] section](/chart/song).
+- A reader decodes `song.ini` the way it decodes a `.chart` file. See [Encoding](/chart/syntax#encoding). A writer should write `song.ini` as UTF-8.
+
+## Audio
+
+A song's audio is one file, or several files called stems that a reader plays together. Each file's name says what it holds:
+
+| Name | Holds |
+|---|---|
+| `song` | The audio that no other file holds, or the whole song when it's the only file |
+| `guitar` | Lead guitar |
+| `rhythm` | Rhythm guitar, or the bass when there's no `bass` file |
+| `bass` | Bass guitar |
+| `keys` | Keys |
+| `drums` | All of the drums |
+| `drums_1` | The kick, and the snare, toms and cymbals when `drums_2` to `drums_4` don't hold them |
+| `drums_2` | The snare, and the toms and cymbals when `drums_3` and `drums_4` don't hold them |
+| `drums_3` | The toms, and the cymbals when there's no `drums_4` |
+| `drums_4` | The cymbals |
+| `vocals` | All of the vocals |
+| `vocals_1` | The lead vocals |
+| `vocals_2` | The second vocals |
+| `crowd` | Crowd noise and singing |
+| `preview` | The excerpt the song list plays |
+
+- Each file is one of these names with the extension `.opus`, `.ogg`, `.mp3` or `.wav`.
+- A song folder must hold at least one audio file other than `preview` and `crowd`.
+- A reader plays every file it finds together. So a folder should not hold `drums` with the numbered `drums_` files, or `vocals` with the numbered `vocals_` files.
+- Without a `preview` file, the song list plays the song from the preview start that `song.ini` gives.
+- A folder should hold only one file for each name. A reader that finds several, such as `guitar.ogg` and `guitar.opus`, uses the first of `.opus`, `.ogg`, `.mp3` and `.wav`.
+
+{/* review: Q2
+How should a folder with two files for one stem, such as guitar.ogg and guitar.opus, be treated? YARG uses the first of .opus, .ogg, .mp3 and .wav. Clone Hero uses the last file in the folder listing, which on Windows is the .wav.
+- A. Invalid | A folder must hold only one file for each name | Games can keep choosing differently, because the standard says nothing about such a folder
+- B. Not recommended | A folder should hold only one. A reader that finds several uses the first of .opus, .ogg, .mp3 and .wav | Clone Hero would have to change to match
+Recommendation: B, as written. Every reader then plays the same file.
+*/}
+
+## Art and video
+
+- **Album art:** `album.png`, `album.jpg` or `album.jpeg`. A folder should hold only one. A reader that finds several uses the first of `.png`, `.jpg` and `.jpeg`.
+- **Background image:** `background.png`, `background.jpg` or `background.jpeg`. A folder should hold only one.
+- **Background video:** `video.webm`. A reader shows the video instead of the background image when a folder holds both.
+
+{/* review: Q3
+Which background videos are standard? Clone Hero reads video.mp4, .avi, .webm, .vp8, .ogv and .mpeg, but plays only .webm, .vp8 and .ogv on Linux. YARG reads bg, background or video with .mp4, .mov or .webm.
+- A. video.webm only | Only the format that plays in both games on every platform | Charts with video.mp4 become invalid, though they still play where they did
+- B. video.webm, and video.mp4 not recommended | video.mp4 is valid, and a writer should use video.webm | Clone Hero on Linux doesn't play video.mp4
+Recommendation: A, as written. A valid video then plays everywhere.
+*/}
+
+A `.sng` file packs a song folder's files into one file. This specification doesn't cover it.

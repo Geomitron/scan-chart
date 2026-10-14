@@ -3,10 +3,39 @@ title: "Note modifiers"
 description: "Forcing, taps and opens in a .chart file."
 ---
 
-<Warning>Placeholder for the local preview. This page isn't written yet.</Warning>
+A modifier is an `N` event that changes how the notes at its tick are played, instead of adding a note. Guitar sections, 5-fret and 6-fret, have two modifiers:
 
-It will cover:
+| Value | Modifier | Effect |
+|---|---|---|
+| `5` | Forced | Flips the notes between strum and HOPO |
+| `6` | Tap | Makes the notes taps |
 
-- Forced HOPOs and strums
-- Taps
-- Open notes
+A modifier applies to every note at its tick, so to a whole chord, never to one fret.
+
+```text
+768 = N 0 0
+768 = N 1 0
+768 = N 5 0
+```
+
+Here the forced modifier makes the green and red chord a HOPO chord.
+
+- A modifier's length has no effect. A writer should write 0.
+- A modifier on a tick with no note has no effect. A writer should not write one.
+- A tick needs only one of each modifier: two forced modifiers at one tick flip the notes once.
+
+In a drums section, `N 5` and `N 6` aren't modifiers. See [Drums](/chart/drums).
+
+## Forced
+
+A note is a strum or a HOPO (hammer-on or pull-off), and a reader decides which from where the notes are: see [Natural HOPOs](/chart/note-resolution#natural-hopos). The forced modifier flips that result: a note that would be a HOPO becomes a strum, and a note that would be a strum becomes a HOPO.
+
+So a forced chord is a HOPO chord, and a forced first note is a HOPO, because chords and first notes are strums unless forced. Forcing a note doesn't change whether the notes after it are HOPOs.
+
+## Tap
+
+The tap modifier makes every note at its tick a tap, which the player can play without strumming. It overrides the forced modifier: a note with both is a tap.
+
+## Open notes
+
+An open note, `N 7`, is a note, not a modifier: the player strums it without holding a fret. It has its own sustain length, and it can be forced or tapped like any other note. See [Instrument sections](/chart/instrument-sections#notes).
