@@ -71,25 +71,6 @@ export function isNullOrWhiteSpaceDotnet(text: string | null | undefined) {
 }
 
 /**
- * @returns the most likely text encoding for text in `buffer`.
- */
-export function getEncoding(buffer: Uint8Array) {
-	if (buffer.length < 2) {
-		return 'utf-8'
-	}
-
-	if (buffer[0] === 0xff && buffer[1] === 0xfe) {
-		return 'utf-16le'
-	}
-
-	if (buffer[0] === 0xfe && buffer[1] === 0xff) {
-		return 'utf-16be'
-	}
-
-	return 'utf-8'
-}
-
-/**
  * @returns `text` with all style tags removed. (e.g. "<color=#AEFFFF>Aren Eternal</color> & Geo" -> "Aren Eternal & Geo")
  */
 export function removeStyleTags(text: string) {
