@@ -60,7 +60,7 @@ export interface ChartAuthoredTrack {
 	readonly sectionName: string
 	/** Index of the section in the file's tokens. */
 	readonly section: number
-	/** `false` for an earlier section whose name repeats later: classification reads only the last one. */
+	/** `false` for a section that repeats an earlier one's name: classification reads only the first. */
 	readonly isRead: boolean
 	/** Notes, note modifiers and phrases in file order. A solo is its `solo` and `soloend` events, as written. */
 	readonly events: readonly (AuthoredEvent & { readonly source: ChartAuthoredSource })[]
@@ -75,8 +75,8 @@ export interface ChartAuthoredTrack {
 export function chartAuthoredTracks(tokens: ChartFileTokens): ChartAuthoredTrack[] {
 	const cached = chartAuthoredCache.get(tokens)
 	if (cached !== undefined) return [...cached.tracks]
-	const lastIndexOfName = new Map<string, number>()
-	tokens.sections.forEach((section, index) => lastIndexOfName.set(section.name, index))
+	const firstIndexOfName = new Map<string, number>()
+	tokens.sections.forEach((section, index) => { if (!firstIndexOfName.has(section.name)) firstIndexOfName.set(section.name, index) })
 	const names = tokens.sections.map(section => section.name)
 	const bodies = tokens.sections.map(section => tokens.text.slice(section.bodyStart, section.bodyEnd))
 	// After an edit that kept the same sections, an unchanged section keeps its earlier track: its sources still point at
@@ -109,7 +109,7 @@ export function chartAuthoredTracks(tokens: ChartFileTokens): ChartAuthoredTrack
 			...track,
 			sectionName: section.name,
 			section: sectionIndex,
-			isRead: lastIndexOfName.get(section.name) === sectionIndex,
+			isRead: firstIndexOfName.get(section.name) === sectionIndex,
 			events,
 			textEvents,
 			versusPhrases,
@@ -265,9 +265,9 @@ export function authoredSongEvents(
 	const timeSignatures: AuthoredTimeSignature[] = []
 	if (chart.format === 'chart') {
 		const { tokens } = chart
-		const lastSection = (name: string) => tokens.sections.reduce((last, section, index) => section.name === name ? index : last, -1)
+		const firstSection = (name: string) => tokens.sections.findIndex(section => section.name === name)
 		const lines = (section: number) => section === -1 ? [] : chartSectionLines(tokens, tokens.sections[section])
-		const syncTrack = lastSection('SyncTrack')
+		const syncTrack = firstSection('SyncTrack')
 		lines(syncTrack).forEach((line, lineIndex) => {
 			const source: ChartAuthoredSource = { format: 'chart', section: syncTrack, line: lineIndex }
 			const tempo = /^(\d+) = B (\d+)$/.exec(line.text)
@@ -278,7 +278,7 @@ export function authoredSongEvents(
 				timeSignatures.push({ tick: Number(timeSignature[1]), numerator: Number(timeSignature[2]), denominator, source })
 			}
 		})
-		const events = lastSection('Events')
+		const events = firstSection('Events')
 		const textEvents = lines(events).flatMap((line, lineIndex): AuthoredTextEvent[] => {
 			const match = /^(\d+) = E "([^\r\n]*?)"$/.exec(line.text)
 			return match ? [{ tick: Number(match[1]), text: match[2], source: { format: 'chart', section: events, line: lineIndex } }] : []

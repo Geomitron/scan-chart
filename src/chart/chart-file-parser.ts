@@ -140,7 +140,8 @@ export function tokenizeChartFile(bytes: Uint8Array): ChartFileTokens {
 }
 
 /**
- * Reads a tokenized `.chart` file's sections by name. A repeated name takes its last body.
+ * Reads a tokenized `.chart` file's sections by name. A repeated name takes its first body: a file must not repeat a
+ * name, and a reader of one that does uses the first section with it.
  *
  * Throws an exception if the file is malformed or has no sections.
  */
@@ -148,6 +149,7 @@ export function chartFileSections(tokens: ChartFileTokens): ChartFileSections {
 	if (tokens.structureError !== null) throw tokens.structureError
 	const fileSections: ChartFileSections = {}
 	for (const section of tokens.sections) {
+		if (Object.prototype.hasOwnProperty.call(fileSections, section.name)) continue
 		fileSections[section.name] = splitTrimmedNonEmptyLines(tokens.text, section.bodyStart, section.bodyEnd)
 	}
 	if (Object.keys(fileSections).length === 0) {
@@ -164,11 +166,11 @@ export function chartFileSections(tokens: ChartFileTokens): ChartFileSections {
  */
 export function lazyChartFileSections(tokens: ChartFileTokens, bodies?: Map<string, string>): ChartFileSections {
 	if (tokens.structureError !== null) throw tokens.structureError
-	const lastOfName = new Map<string, ChartSectionToken>()
-	for (const section of tokens.sections) lastOfName.set(section.name, section)
-	if (lastOfName.size === 0) throw 'Invalid .chart file: no sections were found.'
+	const firstOfName = new Map<string, ChartSectionToken>()
+	for (const section of tokens.sections) if (!firstOfName.has(section.name)) firstOfName.set(section.name, section)
+	if (firstOfName.size === 0) throw 'Invalid .chart file: no sections were found.'
 	const fileSections: ChartFileSections = {}
-	for (const [name, section] of lastOfName) {
+	for (const [name, section] of firstOfName) {
 		bodies?.set(name, tokens.text.slice(section.bodyStart, section.bodyEnd))
 		let lines: string[] | undefined
 		Object.defineProperty(fileSections, name, {
@@ -482,8 +484,8 @@ export function classifyChartTrackSection(
 }
 
 /**
- * Finds each section body in file order, duplicates included. A body that repeats an earlier name replaces it when
- * the sections are read by name. A malformed file gets an error instead of throwing, so it can still be tokenized.
+ * Finds each section body in file order, duplicates included. A body that repeats an earlier name is ignored when the
+ * sections are read by name. A malformed file gets an error instead of throwing, so it can still be tokenized.
  */
 function findChartSections(chartText: string): { sections: ChartSectionToken[]; structureError: string | null } {
 	const sections: ChartSectionToken[] = []

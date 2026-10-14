@@ -388,9 +388,9 @@ function editChart(
 		if (midiAdditions.length) throw new RangeError('A .chart file has no MIDI tracks to add to')
 		// New sections go at the end, so every section the other edits name keeps its index.
 		const tokens = appendChartSections(chart.tokens, newTracks)
-		// Clone Hero reads the last section of each name.
-		const lastSection = (name: string) => {
-			const section = tokens.sections.reduce((last, candidate, index) => candidate.name === name ? index : last, -1)
+		// A reader uses the first section of each name.
+		const firstSection = (name: string) => {
+			const section = tokens.sections.findIndex(candidate => candidate.name === name)
 			if (section === -1) throw new RangeError(`The .chart file has no [${name}] section to add to`)
 			return section
 		}
@@ -404,7 +404,7 @@ function editChart(
 			}),
 			...additions.map(({ section, tick, type, length }) => chartEventInsertEdit(tokens, section, tick, type, length)),
 			...songAdditions.map(({ tick, value }) =>
-				chartLineInsertEdit(tokens, lastSection('text' in value ? 'Events' : 'SyncTrack'), tick, chartValueText(null, value))),
+				chartLineInsertEdit(tokens, firstSection('text' in value ? 'Events' : 'SyncTrack'), tick, chartValueText(null, value))),
 		]
 		const edited = editChartLines(tokens, edits)
 		recordEdit(chart.tokens, edited)

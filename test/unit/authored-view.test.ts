@@ -36,7 +36,7 @@ describe('.chart authored view', () => {
 
 	it('keeps a repeated section and marks which one classification reads', () => {
 		const tracks = chartAuthoredTracks(chart('[ExpertDrums]\n{\n  0 = N 0 0\n}\n[ExpertDrums]\n{\n  0 = N 1 0\n}\n'))
-		expect(tracks.map(track => [track.section, track.isRead, track.events.length])).toEqual([[0, false, 1], [1, true, 1]])
+		expect(tracks.map(track => [track.section, track.isRead, track.events.length])).toEqual([[0, true, 1], [1, false, 1]])
 	})
 })
 
@@ -79,10 +79,10 @@ describe('.mid authored view', () => {
 })
 
 describe('authored tracks in either format', () => {
-	it('give a .chart section\'s events in its difficulty\'s scope, reading the section Clone Hero reads', () => {
+	it('give a .chart section\'s events in its difficulty\'s scope, reading the first section of its name', () => {
 		const tokens = chart('[ExpertDrums]\n{\n  0 = N 0 0\n}\n[ExpertDrums]\n{\n  0 = N 1 0\n}\n')
 		expect(authoredTrack({ format: 'chart', tokens }, 'drums', 'expert')?.map(event => [event.type, event.scope, event.source]))
-			.toEqual([[eventTypes.redDrum, 'expert', { format: 'chart', section: 1, line: 1 }]])
+			.toEqual([[eventTypes.kick, 'expert', { format: 'chart', section: 0, line: 1 }]])
 		expect(authoredTrack({ format: 'chart', tokens }, 'drums', 'hard')).toBeNull()
 	})
 })

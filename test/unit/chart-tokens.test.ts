@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { chartFileSections, chartSectionLines, tokenizeChartFile } from 'src/chart/chart-file-parser'
+import { chartFileSections, chartSectionLines, lazyChartFileSections, tokenizeChartFile } from 'src/chart/chart-file-parser'
 
 const encode = (text: string) => new TextEncoder().encode(text)
 
@@ -14,14 +14,17 @@ function utf16le(text: string): Uint8Array {
 const twoSongSections = '[Song]\r\n{\r\n  Resolution = 192\r\n}\r\n[Song]\r\n{\r\n  Resolution = 480\r\n}\r\n'
 
 describe('.chart tokens', () => {
-	it('keep every section in file order, duplicates included, while reading by name takes the last', () => {
+	it('keep every section in file order, duplicates included, while reading by name takes the first', () => {
 		const tokens = tokenizeChartFile(encode(twoSongSections))
 		expect(tokens.sections.map(section => section.name)).toEqual(['Song', 'Song'])
 		expect(tokens.sections.map(section => tokens.text.slice(section.bodyStart, section.bodyEnd))).toEqual([
 			'\r\n  Resolution = 192\r\n',
 			'\r\n  Resolution = 480\r\n',
 		])
-		expect(chartFileSections(tokens)).toEqual({ Song: ['Resolution = 480'] })
+		expect(chartFileSections(tokens)).toEqual({ Song: ['Resolution = 192'] })
+		const bodies = new Map<string, string>()
+		expect({ ...lazyChartFileSections(tokens, bodies) }).toEqual({ Song: ['Resolution = 192'] })
+		expect([...bodies]).toEqual([['Song', '\r\n  Resolution = 192\r\n']])
 	})
 
 	it('keep the original bytes and decode without the byte-order mark', () => {
@@ -35,7 +38,7 @@ describe('.chart tokens', () => {
 	it('decode UTF-16 files marked by their byte-order mark', () => {
 		const tokens = tokenizeChartFile(utf16le(twoSongSections))
 		expect(tokens.encoding).toBe('utf-16le')
-		expect(chartFileSections(tokens)).toEqual({ Song: ['Resolution = 480'] })
+		expect(chartFileSections(tokens)).toEqual({ Song: ['Resolution = 192'] })
 	})
 
 	it('split each section into every line with its span, the nonblank ones being the lines classification reads', () => {

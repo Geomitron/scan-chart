@@ -100,6 +100,33 @@ describe('saving (E7)', () => {
 		expect(() => chartEventEdits(tokens!, lyricLine, { tick: 96 })).toThrow('can only be removed')
 	})
 
+	it('keeps the first section of a repeated name, which a reader uses, and adds song events to the first [Events]', () => {
+		const original = song([
+			...header,
+			'[ExpertSingle]', '{', '  0 = N 0 0', '  192 = N 1 0', '}',
+			'[Events]', '{', '  0 = E "section Unread"', '}',
+			'[ExpertSingle]', '{', '  0 = N 4 0', '}',
+		])
+		expect(resolveChart(original).sections).toEqual([])
+		const edited = editSong(lengthenExpertNote(original), batch => batch.addTextEvent(384, 'section Verse'))
+		const { files, report } = saveSong(original, edited)
+		expect(report.normalized).toEqual([{ kind: 'repeatedSections', section: 'Events' }, { kind: 'repeatedSections', section: 'ExpertSingle' }])
+		expect(report.withheld).toEqual([])
+		expect(decode(fileBytes(files[0]))).toBe([
+			...header.slice(0, -1), '  384 = E "section Verse"', '}',
+			'[ExpertSingle]', '{', '  0 = N 0 0', '  192 = N 1 96', '}',
+		].join('\r\n') + '\r\n')
+	})
+
+	it('removes a body written without a header, which repeats the name of the section before it, and only that body', () => {
+		const original = song([...header.slice(0, 10), '{', '}', ...header.slice(10), '[ExpertSingle]', '{', '  0 = N 0 0', '  192 = N 1 0', '}'])
+		const tokens = original.chart?.format === 'chart' ? original.chart.tokens : null
+		expect(tokens?.sections.map(section => section.name)).toEqual(['Song', 'SyncTrack', 'SyncTrack', 'Events', 'ExpertSingle'])
+		const { files, report } = saveSong(original, lengthenExpertNote(original))
+		expect(report.normalized).toEqual([{ kind: 'repeatedSections', section: 'SyncTrack' }])
+		expect(decode(fileBytes(files[0]))).toBe([...header, '[ExpertSingle]', '{', '  0 = N 0 0', '  192 = N 1 96', '}'].join('\r\n') + '\r\n')
+	})
+
 	it('reads a file without a byte order mark that isn\'t valid UTF-8 as ISO-8859-1, and saves it in ISO-8859-1', () => {
 		const latin1 = (text: string) => Uint8Array.from([...text].map(char => char.charCodeAt(0)))
 		const text = [...header.slice(0, -3), '[Events]', '{', '\t0 = E "section Café"', '}', '[ExpertSingle]', '{', '\t0 = N 0 0', '\t192 = N 1 0', '}'].join('\n') + '\n'
