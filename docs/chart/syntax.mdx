@@ -1,6 +1,6 @@
 ---
 title: "Syntax"
-description: "How Clone Hero reads the structure of a .chart file: its encoding, sections, lines, and events."
+description: "The structure of a .chart file: its encoding, sections, lines, and events."
 ---
 
 A `.chart` file is text, divided into named sections. Each section holds one entry per line:
@@ -27,11 +27,11 @@ A `.chart` file is text, divided into named sections. Each section holds one ent
 }
 ```
 
-Clone Hero is strict about this structure. Where this page says Clone Hero **refuses** a file, the song doesn't load at all: Clone Hero doesn't skip the bad line and read the rest.
+## Encoding
 
-## Text encoding
+Write `.chart` files as UTF-8, with or without a byte order mark. A file may also be UTF-16 or UTF-32, with a byte order mark.
 
-Clone Hero decodes a `.chart` file by its byte order mark. It checks the marks in this order, so a file that starts with `FF FE 00 00` is UTF-32, not UTF-16:
+A reader decodes a file by its byte order mark. It checks the marks in this order, so a file that starts with `FF FE 00 00` is UTF-32, not UTF-16:
 
 | The file starts with | Encoding |
 |---|---|
@@ -40,17 +40,15 @@ Clone Hero decodes a `.chart` file by its byte order mark. It checks the marks i
 | `FF FE` | UTF-16, little-endian |
 | `FE FF` | UTF-16, big-endian |
 | `EF BB BF` | UTF-8 |
-| `2B 2F 76` | UTF-7, which Clone Hero refuses |
 | Anything else | UTF-8 if the whole file is valid UTF-8, and ISO-8859-1 otherwise |
 
-- After a byte order mark, every byte must be valid in that encoding. Otherwise, Clone Hero refuses the file.
-- ISO-8859-1 reads each byte as one character. Bytes `80` to `9F` become control characters, not the characters Windows-1252 gives them, such as `€`.
-
-Write `.chart` files as UTF-8, with or without a byte order mark.
+- After a byte order mark, the rest of the file must be valid in that encoding.
+- ISO-8859-1 reads each byte as the character with the same number. Bytes `80` to `9F` are control characters, not the characters Windows-1252 gives them, such as `€`.
+- UTF-7 isn't allowed: a file must not start with `2B 2F 76`.
 
 ## Sections
 
-A section is a name in square brackets, then a body in curly brackets:
+A section is a name in square brackets on its own line, then a body between curly brackets, each on its own line:
 
 ```text
 [ExpertSingle]
@@ -59,10 +57,10 @@ A section is a name in square brackets, then a body in curly brackets:
 }
 ```
 
-- **The name** is every character between `[` and the first `]`, as written. Clone Hero doesn't trim it, and it's case-sensitive.
-- **Before the body**, only spaces, tabs, and line breaks may come between `]` and `{`.
-- **The body ends** at a `}` where the next entry would start.
-- **Between sections**, only spaces, tabs, and line breaks may appear. Any other character, including a comment, makes Clone Hero refuse the file.
+- **The name** is every character between `[` and `]`, as written. Names are case-sensitive.
+- **The `{`** is alone on the line after the name.
+- **The `}`** is alone on the section's last line. No other line of the section may contain `}`.
+- **Between sections**, a file may hold only blank lines.
 
 ### Section names
 
@@ -73,33 +71,19 @@ A section is a name in square brackets, then a body in curly brackets:
 | `Events` | Practice sections, lyrics, and other events for the whole song. See [[Events]](/chart/events). |
 | An instrument and difficulty, such as `ExpertSingle` | One track's notes and phrases. See [Instrument sections](/chart/instrument-sections). |
 
-Clone Hero skips a section with any other name, up to the next `}` character. That `}` can be inside an entry's text, so a section Clone Hero doesn't know must not hold a `}` before its end. Clone Hero refuses an empty name, `[]`, and some short names that start with `E`, `M`, `H`, or `P`, such as `[Hi]`.
+A reader ignores a section with any other name.
 
-### Repeated sections
+### Order and repetition
 
-A file can hold several sections with the same name:
-
-- Clone Hero reads every `Song`, `SyncTrack`, and `Events` section, in file order, as if they were one section.
-- For an instrument section, Clone Hero reads only the first section with the name. It ignores the later ones, even when the first is empty.
-
-<Note>
-scan-chart reads the last section of each name. In its 63,000-song test library, that changes no song Clone Hero can load.
-</Note>
-
-### Order and required sections
-
-No section is required:
-
-- Without a `Song` section, the resolution is 192.
-- Without a `SyncTrack` section, the tempo is 120 BPM and the time signature is 4/4.
-
-Write `Song` first, then `SyncTrack`. Clone Hero times each tempo marker with the resolution it has read up to that line, and it reads the song's metadata from the file's first section, whatever its name.
+- `Song` must be the first section, and `SyncTrack` the second.
+- `Events` and the instrument sections follow, in any order. Each is optional.
+- A section name must not appear twice. A reader that reads a file with a repeated name uses the first section with that name and ignores the rest.
 
 ## Lines
 
-- A line ends at a line feed, or at a carriage return followed by a line feed. Clone Hero can't read a file whose lines end at a carriage return alone.
-- Spaces, tabs, and blank lines before an entry are ignored.
-- A `.chart` file has no comments. A comment line makes Clone Hero refuse the file if it's in a `SyncTrack`, `Events`, or instrument section.
+- A line ends at a line feed, or at a carriage return followed by a line feed. A carriage return alone doesn't end a line.
+- An entry may be indented with spaces or tabs, and a section may hold blank lines.
+- A `.chart` file has no comments.
 
 ## Events
 
@@ -109,51 +93,57 @@ Every entry of the `SyncTrack`, `Events`, and instrument sections is an event:
 <tick> = <type> <value> <value>...
 ```
 
-- **Tick:** the position, written in the digits `0` to `9`. Leading zeros are allowed. A sign, `+` or `-`, makes Clone Hero refuse the file.
-- **` = `:** the tick is followed by exactly one space, an equals sign, and one space. Any other spacing makes Clone Hero refuse the file.
-- **Type:** a code of one or two letters, such as `N` or `TS`. It's case-sensitive and is followed by exactly one space. Two spaces make Clone Hero refuse the file. A tab after the code makes it lose the first value.
-- **Values:** separated by spaces or tabs. Text that isn't a number, a value too many, or a note or phrase without its length makes Clone Hero refuse the file.
+- **Tick:** the position, written in the digits `0` to `9`, without a sign.
+- **Type:** a code of one or two capital letters, such as `N` or `TS`.
+- **Values:** whole numbers in the digits `0` to `9`, or one text value in an `E` event. Each type takes a set number of values. An event must have exactly that number.
+- **Spaces:** exactly one space comes before and after the `=`, after the type, and between values.
 
-Each section reads only some event types:
+Each section holds only some types of event:
 
-| Section | Types | Any other type |
-|---|---|---|
-| `SyncTrack` | `B` tempo, `TS` time signature, `A` anchor, which Clone Hero ignores | Refused |
-| `Events` | `E` text event; `H`, which Clone Hero ignores | Refused |
-| Instrument | `N` note, `S` phrase, `E` text event | Ignored |
+| Section | Types |
+|---|---|
+| `SyncTrack` | `B` tempo, `TS` time signature, and `A` tempo anchor, which readers ignore |
+| `Events` | `E` text event, and `H`, from older charts, which readers ignore |
+| Instrument | `N` note, `S` phrase, and `E` text event |
 
-A note or phrase value that Clone Hero doesn't use on that instrument is ignored.
+- An event of any other type is invalid in `SyncTrack` and `Events`. A reader ignores it in an instrument section.
+- A reader ignores a note or phrase value that has no meaning on its instrument.
 
 ### Tick order
 
-Within a section, each event's tick must be the same as the previous event's or later. A tick lower than the previous one makes Clone Hero refuse the file:
+Within a section, each event's tick must be the same as the previous event's or later:
 
 ```text
 [ExpertSingle]
 {
-  192 = N 1 0
   0 = N 0 0
+  0 = N 1 0
+  192 = N 2 0
 }
 ```
 
 - Events at the same tick may be written in any order.
-- In `SyncTrack`, a later `B` or `TS` at the same tick replaces an earlier one.
-- In `Events`, only `E` events are checked.
-- The order of one section doesn't depend on another's.
+- When two tempo markers, or two time signatures, share a tick in `SyncTrack`, the later one counts.
 
-<Note>
-scan-chart reports a section with ticks out of order as `unsortedChartLines`, and writes the lines in tick order when it saves an edited song.
-</Note>
+## Named entries
+
+Each entry of the `Song` section names a value:
+
+```text
+<key> = <value>
+```
+
+- The key is followed by exactly one space, `=`, and one space.
+- A key must not appear twice in the section.
+- Text values are written in quotation marks: `Name = "Song Name"`. Numbers are written without them: `Resolution = 192`.
+
+[[Song]](/chart/song) lists the keys.
 
 ## Text
 
 Text events are written differently in the two kinds of section:
 
-- **In `Events`**, the text is everything between the line's first and last quotation marks, trimmed of spaces. Clone Hero also removes one `[` from the start and one `]` from the end. The opening quotation mark must be on the same line as the event.
-- **In an instrument section**, the text is the rest of the line, trimmed, with any quotation marks kept. So Clone Hero reads `E "solo"` as the text `"solo"`, not as the start of a solo. Write instrument text events without quotation marks: `768 = E solo`.
+- **In `Events`**, the text is in quotation marks: `0 = E "section Intro"`. A reader also removes one pair of square brackets around the text, so `0 = E "[section Intro]"` means the same.
+- **In an instrument section**, the text has no quotation marks: `768 = E solo`. A quoted text event in an instrument section is invalid.
 
-A `.chart` file has no escape characters. A quotation mark inside the text is kept as written.
-
-<Note>
-scan-chart reports a quoted text event in an instrument section as `quotedChartTrackEvent`, and removes the quotation marks when it saves an edited song.
-</Note>
+A `.chart` file has no escape characters. Text can't hold a line break, and a quotation mark inside the text is part of it.
