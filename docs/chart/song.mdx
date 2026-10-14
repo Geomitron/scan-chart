@@ -22,7 +22,7 @@ Each line names one value, as [Named entries](/chart/syntax#named-entries) descr
 
 `Resolution` is the number of ticks in a beat. Every `.chart` file must give it, as a whole number from 1 up, written in digits without quotation marks.
 
-- A reader refuses a file whose `Resolution` is 0 or isn't a number.
+- A reader reads the value's leading digits, so `Resolution = 480.5` reads as 480. It refuses a file whose `Resolution` doesn't start with a digit, or is 0.
 - A reader that reads a file without a `Resolution` uses 192.
 - A reader that finds `Resolution` more than once uses the last one.
 
