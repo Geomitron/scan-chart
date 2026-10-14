@@ -40,22 +40,22 @@ export function chartSpellingIssues(source: ChartSource, styleNotes: boolean): I
 		const { tokens } = source
 		const unsorted = new Set<string>()
 		const respelled: [SpellingIssueType, string][] = []
-		// The normalizations read the last section of each name, which Clone Hero reads.
-		const lastOfName = new Map<string, (typeof tokens.sections)[number]>()
-		for (const section of tokens.sections) lastOfName.set(section.name, section)
+		// The normalizations read the first section of each name, which a reader uses.
+		const firstOfName = new Map<string, (typeof tokens.sections)[number]>()
+		for (const section of tokens.sections) if (!firstOfName.has(section.name)) firstOfName.set(section.name, section)
 		for (const section of tokens.sections) {
 			const track = chartSectionTrack(section.name)
 			// Clone Hero's readers of track sections, [SyncTrack] and [Events] each refuse a tick lower than the line before
 			// it (TrackParser, ChartReader.Sync, ChartReader.Events). Lines of one tick may come in any order.
 			const ordered = track !== null || section.name === 'SyncTrack' || section.name === 'Events'
-			const isLast = lastOfName.get(section.name) === section
+			const isRead = firstOfName.get(section.name) === section
 			const checkOrder = ordered && !unsorted.has(section.name)
-			if (!isLast && !checkOrder) continue
-			const scanned = scanSectionLines(tokens.text, section.bodyStart, section.bodyEnd, checkOrder, isLast && track !== null)
+			if (!isRead && !checkOrder) continue
+			const scanned = scanSectionLines(tokens.text, section.bodyStart, section.bodyEnd, checkOrder, isRead && track !== null)
 			if (scanned.unsorted) unsorted.add(section.name)
 			if (scanned.quoted) respelled.push(['quotedChartTrackEvent', section.name])
-			// Only where Clone Hero reads the lines, so it's true that it reads a repeated one once.
-			if (isLast && styleNotes && ordered) {
+			// Only where a reader reads the lines, so it's true that it reads a repeated one once.
+			if (isRead && styleNotes && ordered) {
 				const lines = chartSectionLines(tokens, section).map(line => line.text).filter(text => text !== '')
 				if (new Set(lines).size !== lines.length) respelled.push(['duplicateChartLine', section.name])
 			}

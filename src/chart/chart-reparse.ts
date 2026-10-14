@@ -29,7 +29,7 @@ type ClassifiedTrack = RawChartData['trackData'][number]
 interface ChartParseMemo {
 	/** The rule profile and settings it was parsed with; another parse reuses it only with the same. */
 	readonly key: string
-	/** Each section's body text, by name: the last section of a repeated name, as classification reads it. */
+	/** Each section's body text, by name: the first section of a repeated name, as classification reads it. */
 	readonly bodies: ReadonlyMap<string, string>
 	/** Each instrument section's classification, kept unresolved, by section name. */
 	readonly classified: ReadonlyMap<string, { readonly firstCodaTick: number | null; readonly track: ClassifiedTrack }>

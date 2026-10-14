@@ -43,19 +43,17 @@ export function chartNormalizations(tokens: ChartFileTokens): ChartNormalization
 	if (lineFeedsWithoutReturn(tokens).length > 0) {
 		normalizations.push({ kind: 'lineEndings', section: null, apply: withCarriageReturns })
 	}
-	const lastOfName = new Map<string, number>()
-	tokens.sections.forEach((section, index) => lastOfName.set(section.name, index))
-	for (const name of lastOfName.keys()) {
+	const copiesOfName = new Map<string, number>()
+	for (const section of tokens.sections) copiesOfName.set(section.name, (copiesOfName.get(section.name) ?? 0) + 1)
+	for (const name of copiesOfName.keys()) {
 		add('spacing', name, current => sectionSplices(current, name, spacing))
 		add('order', name, current => sectionSplices(current, name, lines => order(lines, name)))
 		add('duplicateLines', name, current => sectionSplices(current, name, withoutDuplicates))
 		if (chartSectionTrack(name) !== null) add('quotedTrackEvents', name, current => sectionSplices(current, name, unquoted))
 	}
 	// Last, because removing sections moves the others.
-	for (const [name, last] of lastOfName) {
-		if (tokens.sections.some((section, index) => section.name === name && index < last)) {
-			add('repeatedSections', name, current => repeatedSectionSplices(current, name))
-		}
+	for (const [name, copies] of copiesOfName) {
+		if (copies > 1) add('repeatedSections', name, current => repeatedSectionSplices(current, name))
 	}
 	return normalizations
 }
@@ -96,12 +94,11 @@ function withCarriageReturns(tokens: ChartFileTokens): ChartFileTokens {
 }
 
 /**
- * The splice that rewrites the content lines of the last section named `name`, or none when `rewrite` keeps them.
+ * The splice that rewrites the content lines of the first section named `name`, or none when `rewrite` keeps them.
  * Each line is given as written, without its line feed; a carriage return stays at its end.
  */
 function sectionSplices(tokens: ChartFileTokens, name: string, rewrite: (lines: string[]) => string[]): Splice[] {
-	let index = -1
-	tokens.sections.forEach((section, i) => { if (section.name === name) index = i })
+	const index = tokens.sections.findIndex(section => section.name === name)
 	const lines = chartSectionLines(tokens, tokens.sections[index])
 	if (lines.length < 3) return [] // No content lines between the brace lines
 	// A section with bytes that aren't valid in the file's encoding is left as written: its decoded text can't be
@@ -166,15 +163,21 @@ function unquoted(lines: string[]): string[] {
 	})
 }
 
-/** Removes every section named `name` but the last, which is the one Clone Hero reads. */
+/**
+ * Removes every section named `name` but the first, which is the one a reader uses. A body written without a header of
+ * its own takes the name of the section before it, so a copy is removed from its header or, without one, from the line
+ * after the section before it.
+ */
 function repeatedSectionSplices(tokens: ChartFileTokens, name: string): Splice[] {
+	const lineStartAfter = (at: number) => {
+		const lineFeed = tokens.text.indexOf('\n', at)
+		return lineFeed === -1 ? tokens.text.length : lineFeed + 1
+	}
 	const indices = tokens.sections.flatMap((section, index) => section.name === name ? [index] : [])
-	return indices.slice(0, -1).flatMap(index => {
+	return indices.slice(1).map(index => {
 		const section = tokens.sections[index]
 		const header = tokens.text.lastIndexOf(`[${name}]`, section.bodyStart)
-		if (header === -1) return []
-		const start = tokens.text.lastIndexOf('\n', header) + 1
-		const lineFeed = tokens.text.indexOf('\n', section.bodyEnd)
-		return [{ start, end: lineFeed === -1 ? tokens.text.length : lineFeed + 1, text: '' }]
+		const start = Math.max(tokens.text.lastIndexOf('\n', header) + 1, lineStartAfter(tokens.sections[index - 1].bodyEnd))
+		return { start, end: lineStartAfter(section.bodyEnd), text: '' }
 	})
 }
