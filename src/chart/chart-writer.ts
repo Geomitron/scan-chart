@@ -71,11 +71,9 @@ function serializeSongSection(chart: ParsedChart): string[] {
 
 	lines.push(`  Resolution = ${chart.resolution}`)
 
-	// `[Song].Offset` is a .chart-only field — distinct from ini's `delay`,
-	// which games recognize only in song.ini. Read from `metadata.chart_offset`
-	// (populated by the parser from [Song].Offset) so that ini's `delay`
-	// never overrides it on the ini-wins merge. `PreviewStart` is seconds in
-	// the file, ms on ParsedChart.
+	// `[Song].Offset` pairs with ini's `delay`, which games read first: they use `Offset` only when `delay` is 0 or
+	// missing. Read from `metadata.chart_offset` (populated by the parser from [Song].Offset) so that ini's `delay`
+	// never overrides it on the ini-wins merge. `PreviewStart` is seconds in the file, ms on ParsedChart.
 	if (m.chart_offset != null && m.chart_offset !== 0) {
 		lines.push(`  Offset = ${m.chart_offset / 1000}`)
 	}

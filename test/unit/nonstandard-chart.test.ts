@@ -120,6 +120,13 @@ describe('parsing a nonstandard .chart file', () => {
 			const invalid = encode(chartText([['Song', [written]], ['SyncTrack', ['0 = B 120000']], ['ExpertSingle', ['0 = N 0 0']]]))
 			expect(() => parseChartFileCanonicalIdentity(invalid, 'chart')).toThrow('resolution not found')
 		}
+		// Read by its leading digits, as Clone Hero reads it. The frozen profile keeps scan-chart 8's reading.
+		const withResolution = (written: string) => encode(chartText([['Song', [written]], ['SyncTrack', ['0 = B 120000']], ['ExpertSingle', ['0 = N 0 0']]]))
+		expect(parseChartFileCanonicalIdentity(withResolution('Resolution = 480.5'), 'chart').resolution).toBe(480)
+		expect(parseChartFileCanonicalIdentity(withResolution('Resolution = 1e3'), 'chart').resolution).toBe(1)
+		expect(parseChartFileCanonicalIdentity(withResolution('Resolution = "480"'), 'chart').resolution).toBe(480)
+		expect(() => parseChartFileCanonicalIdentity(withResolution('Resolution = -192'), 'chart')).toThrow('resolution not found')
+		expect(parseChartFileFrozenLegacyIdentity(withResolution('Resolution = 480.5'), 'chart').resolution).toBe(480.5)
 		const offset = encode(chartText([['Song', ['Resolution = 192', 'Offset=0.5']], ['SyncTrack', ['0 = B 120000']], ['ExpertSingle', ['0 = N 0 0']]]))
 		expect(parseChartFileCanonicalIdentity(offset, 'chart').metadata.chart_offset).toBe(500)
 	})
