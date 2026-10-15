@@ -34,7 +34,7 @@ const standardTags = [
 	'video_end_time', 'cover',
 ]
 /** The tags a reader documents: the standard's, scan-chart's, and `explicit_lyrics`, which Clone Hero reads and the charting guidelines describe. */
-const knownTags = new Set([...standardTags, ...knownIniKeys, 'explicit_lyrics'])
+export const knownIniTags = new Set([...standardTags, ...knownIniKeys, 'explicit_lyrics'])
 /** The order the charting guidelines list tags in, which scan-chart writes them in. */
 const tagOrder = Object.keys(defaultMetadata)
 
@@ -47,7 +47,7 @@ export function songIniIssues(input: SongIniInput): MetadataFinding[] {
 	const isExtra = (key: string) => extraIniKeys.some(extra => typeof extra === 'string' ? toLowerInvariant(extra) === key : extra.test(key))
 	// A line starting with "//" is reported as a comment, though readers read one with "=" in it as a key.
 	const keys = Object.keys(songSection).filter(key => !key.startsWith('//'))
-	const known = keys.filter(key => knownTags.has(key) || isExtra(key))
+	const known = keys.filter(key => knownIniTags.has(key) || isExtra(key))
 	const unknown = keys.filter(key => !known.includes(key))
 	const issues = layoutIssues(tokens)
 
