@@ -104,6 +104,7 @@ The work that costs more is off by default. Turn it on with the second argument:
 | `competitiveHashes: true` | The leaderboard hashes. Pass `{ btracks: true }` to also get each track's BTrack. | `competitive` |
 | `fileHashes: true` | MD5 of the whole folder, a hash of the chart and its parse settings, and MD5 of the album art | `fileHashes` |
 | `albumArt: true` | The album art file, as written, and the issues found decoding it | `albumArt` |
+| `mediaIssues: true` | The issues found reading the audio, image and video files, such as an audio bitrate or the album art's size. It reads each audio and video file's headers, and the album art and background images whole | `issues` |
 | `styleNotes: true` | Style notes: nonstandard spellings that every program reads the same way | `issues` |
 | `metadataStyle: true` | Guesses about the metadata's style, such as credits joined with "and", which can be wrong | `issues` |
 
@@ -111,7 +112,7 @@ A result field you didn't ask for is `null`.
 
 These options adjust what's reported:
 
-- `albumArtSizes` lists the album art sizes `albumArt` accepts, as the side of a square in pixels. It's `[512]` by default, so art that isn't 512x512 is reported.
+- `albumArtSizes` lists the album art sizes `albumArt` and `mediaIssues` accept, as the side of a square in pixels. It's `[512]` by default, so art that isn't 512x512 is reported.
 - `extraFiles` lists the files your game reads that Clone Hero and YARG don't, as names or regular expressions, so they aren't reported as files no game reads (`unrecognizedFile`). Files an operating system made, such as `desktop.ini`, are reported anyway.
 - `extraIniKeys` lists the song.ini tags your game reads that the song.ini standard doesn't document, as names or regular expressions, so they aren't reported as unknown tags (`unknownIniTag`).
 
