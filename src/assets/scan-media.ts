@@ -1,5 +1,5 @@
 import type { FolderFinding } from '../issues'
-import { getBasename, getExtension, hasCrowdOrPreviewName } from '../shared/file-names'
+import { getBasename, getExtension, hasBackgroundImageName, hasCrowdOrPreviewName, hasGameVideoName, imageExtensions } from '../shared/file-names'
 import { readFileBytes, type SongFile } from '../song-files'
 import { type AudioInfo, contentType, type ContentType, readAudioInfo, readRange, readWebmVideoCodec } from './media-headers'
 import { imageSize } from './scan-image'
@@ -95,11 +95,8 @@ export async function scanMedia(files: readonly SongFile[], stemFiles: readonly 
 
 	for (const file of files) {
 		const lowercase = file.fileName.toLowerCase()
-		const [base, extension] = [getBasename(lowercase), getExtension(lowercase)]
-		const isAlbumArt = base === 'album' && ['png', 'jpg', 'jpeg'].includes(extension)
-		const isBackground = (base.startsWith('background') || base === 'bg') && ['png', 'jpg', 'jpeg'].includes(extension)
-		if (isAlbumArt) mismatch(file.fileName, contentType(await readRange(file, 0, 64)))
-		if (isBackground) {
+		if (getBasename(lowercase) === 'album' && imageExtensions.includes(getExtension(lowercase))) mismatch(file.fileName, contentType(await readRange(file, 0, 64)))
+		if (hasBackgroundImageName(file.fileName)) {
 			const bytes = await readFileBytes(file)
 			mismatch(file.fileName, contentType(bytes.subarray(0, 64)))
 			const size = imageSize(bytes)
@@ -111,12 +108,12 @@ export async function scanMedia(files: readonly SongFile[], stemFiles: readonly 
 				})
 			}
 		}
-		if (lowercase === 'video.webm') {
+		if (hasGameVideoName(file.fileName) && getExtension(lowercase) === 'webm') {
 			const codec = await readWebmVideoCodec(file)
 			if (codec !== null && codec !== 'V_VP8') {
 				folderIssues.push({
 					folderIssue: 'videoCodec',
-					description: `"${file.fileName}" uses the ${codec.replace(/^V_/, '')} codec, which Clone Hero can't play. Re-encode it with VP8.`,
+					description: `"${file.fileName}" uses the ${codec.replace(/^V_/, '')} codec. Clone Hero plays only VP8 in a .webm file: re-encode it with VP8.`,
 					file: file.fileName,
 				})
 			}

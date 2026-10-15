@@ -111,10 +111,11 @@ describe('files games don\'t read', () => {
 
 describe('file name letter case', () => {
 	it('reports an album art, background or video name that matches only in lowercase', async () => {
-		expect(await issuesOf(named('Album.png', 'BACKGROUND.jpg', 'Video.webm', 'Highway.png', 'Song.ogg'), ['fileNameCase'])).toEqual([
+		expect(await issuesOf(named('Album.png', 'BACKGROUND.jpg', 'Video.webm', 'Highway.png', 'Song.ogg', 'BG.png'), ['fileNameCase'])).toEqual([
 			['fileNameCase', 'Album.png', '"Album.png" should be named "album.png". Song folder file names are lowercase, and some games and tools find only lowercase names.'],
 			['fileNameCase', 'BACKGROUND.jpg', '"BACKGROUND.jpg" should be named "background.jpg". Song folder file names are lowercase, and some games and tools find only lowercase names.'],
 			['fileNameCase', 'Video.webm', '"Video.webm" should be named "video.webm". Song folder file names are lowercase, and some games and tools find only lowercase names.'],
+			['fileNameCase', 'BG.png', '"BG.png" should be named "bg.png". Song folder file names are lowercase, and some games and tools find only lowercase names.'],
 		])
 	})
 })

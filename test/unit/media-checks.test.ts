@@ -106,10 +106,13 @@ describe('media checks', () => {
 		])
 	})
 
-	it('warn about a .webm video that isn\'t VP8', async () => {
+	it('warn about a .webm video a game reads that isn\'t VP8, in any letter case, and in a subfolder', async () => {
 		const scanned = await scanSongFolder([{ fileName: 'notes.chart', data: chart }, file('video.webm', webm('V_VP9'))], { mediaIssues: true })
 		expect(scanned.issues.filter(issue => issue.code === 'videoCodec').map(issue => [issue.severity, issue.message]))
-			.toEqual([['warning', '"video.webm" uses the VP9 codec, which Clone Hero can\'t play. Re-encode it with VP8.']])
+			.toEqual([['warning', '"video.webm" uses the VP9 codec. Clone Hero plays only VP8 in a .webm file: re-encode it with VP8.']])
 		expect(await mediaIssues([file('video.webm', webm('V_VP8'))], ['videoCodec'])).toEqual([])
+		const names = ['Video.WEBM', 'bg_clean.webm', 'background.webm', 'extras/video.webm', 'other.webm', 'extras/bg.webm']
+		expect((await mediaIssues(names.map(name => file(name, webm('V_AV1'))), ['videoCodec'])).map(([, name]) => name))
+			.toEqual(['Video.WEBM', 'bg_clean.webm', 'background.webm', 'extras/video.webm'])
 	})
 })

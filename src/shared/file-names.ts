@@ -96,6 +96,30 @@ export function hasCrowdOrPreviewName(fileName: string) {
 	return ['crowd', 'preview'].includes(getBasename(fileName).toLowerCase())
 }
 
+/** The image formats Clone Hero reads; YARG reads them too. */
+export const imageExtensions = ['png', 'jpg', 'jpeg']
+
+/**
+ * @returns `true` if `fileName`, in any letter case, is a background image a game reads in a format both read:
+ * `background`, then anything, or YARG's `bg`, `bg_clean` and `bg_explicit`.
+ */
+export function hasBackgroundImageName(fileName: string) {
+	const base = getBasename(fileName.toLowerCase())
+	return (base.startsWith('background') || ['bg', 'bg_clean', 'bg_explicit'].includes(base)) && imageExtensions.includes(getExtension(fileName).toLowerCase())
+}
+
+/**
+ * @returns `true` if `fileName`, in any letter case, is a background video a game reads: Clone Hero's `video`, which
+ * it also finds in a subfolder, and YARG's `bg`, `background` and `video` with their clean and explicit versions.
+ */
+export function hasGameVideoName(fileName: string) {
+	const lowercase = fileName.toLowerCase()
+	if (/[/\\]/.test(lowercase)) return /[/\\]video\.(mp4|avi|webm|vp8|ogv|mpeg)$/.test(lowercase)
+	const [base, extension] = [getBasename(lowercase), getExtension(lowercase)]
+	return (base === 'video' && ['mp4', 'avi', 'webm', 'vp8', 'ogv', 'mpeg'].includes(extension))
+		|| (/^(bg|background|video)(_clean|_explicit)?$/.test(base) && ['mp4', 'mov', 'webm'].includes(extension))
+}
+
 /**
  * @returns `true` if `fileName` is a valid album fileName.
  */
