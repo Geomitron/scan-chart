@@ -13,6 +13,7 @@ import { wrapEventBrackets } from '../writer-shared'
 import {
 	addNoteOnOff,
 	addNoteOnOffWithChannel,
+	addVerbatimEvents,
 	addVersusPhrases,
 	computeLengthOverrides,
 	finalizeMidiTrack,
@@ -229,15 +230,7 @@ export function buildFretTrack(
 				})
 			}
 
-			let unrecSeq = 0
-			const unrecSeqBase = 4_000_000_000
-			for (const ev of td.unrecognizedMidiEvents) {
-				events.push({
-					tick: ev.deltaTime,
-					seq: unrecSeqBase + unrecSeq++,
-					event: { ...ev, deltaTime: 0 } as MidiEvent,
-				})
-			}
+			addVerbatimEvents(events, td.unrecognizedMidiEvents)
 		}
 	}
 

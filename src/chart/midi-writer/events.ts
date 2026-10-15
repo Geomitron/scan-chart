@@ -5,7 +5,7 @@ import type { MidiEvent } from '@geomitron/midi-file'
 
 import type { ParsedChart } from '../parse-chart-and-ini'
 import { codaTicksFromFreestyle, wrapEventBrackets } from '../writer-shared'
-import { finalizeMidiTrack, metaTextEvent, trackNameEvent } from './shared'
+import { addVerbatimEvents, finalizeMidiTrack, metaTextEvent, trackNameEvent } from './shared'
 import type { AbsoluteEvent } from './shared'
 
 
@@ -115,9 +115,7 @@ export function buildEventsTrack(chart: ParsedChart): MidiEvent[] {
 	// authoring tool happened to leave here. Events arrive with `deltaTime`
 	// already expanded to absolute-tick (per scan-chart's post-process);
 	// `finalizeMidiTrack` converts back to per-event delta below.
-	for (const ev of chart.unrecognized.eventsTrackMidiEvents) {
-		events.push({ tick: ev.deltaTime, event: { ...ev, deltaTime: 0 } })
-	}
+	addVerbatimEvents(events, chart.unrecognized.eventsTrackMidiEvents)
 
 	return finalizeMidiTrack(events)
 }
