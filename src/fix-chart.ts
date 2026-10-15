@@ -4,13 +4,16 @@ import { spliceChartText } from './chart/chart-edit'
 import { chartSectionTrack, ChartFileTokens, ChartSectionToken } from './chart/chart-file-parser'
 import { midiSourceTrackInstrument } from './chart/midi-file-parser'
 import { removeMidiTrackChunks } from './chart/midi-tokens'
-import type { ParsedChartFile } from './chart/parse-chart-file'
+import { parseChartSource, type ParsedChartFile } from './chart/parse-chart-file'
+import { parseRules } from './chart/parse-rules'
 import { EventType, eventTypes } from './chart/raw-types'
 import { NoteEvent, noteFlags, noteTypes } from './chart/types'
 import { FixRecord, hashChanges, hashNames } from './fix-report'
-import type { Issue, IssueCode } from './issues'
+import { asUtf8Ini, rewriteSongIni } from './ini/ini-edit'
+import type { IniTokens } from './ini/parse-ini'
+import type { Issue, IssueCode, MetadataFinding } from './issues'
 import { songContext } from './song-context'
-import { AuthoredElement, continueEdits, editSong, SongDocument } from './song-document'
+import { AuthoredElement, continueEdits, editSong, SongDocument, withSongIni } from './song-document'
 import { songHashes } from './song-save'
 import { Difficulty, getInstrumentType, Instrument, instrumentTypes } from './types'
 
@@ -410,4 +413,79 @@ function tickAtMs(chart: ParsedChartFile, ms: number): number {
 function msAtTick(chart: ParsedChartFile, tick: number): number {
 	const tempo = [...chart.tempos].reverse().find(candidate => candidate.tick <= tick) ?? chart.tempos[0]
 	return tempo.msTime + (tick - tempo.tick) * 60000 / (tempo.beatsPerMinute * chart.resolution)
+}
+
+/**
+ * Forces the notes whose HOPO or strum differs between song.ini's HOPO threshold and the format's own, so every note
+ * plays the same without `hopo_frequency` and `eighthnote_hopo`, then removes them from song.ini
+ * (`deprecatedIniTag`). A `.chart` note is forced by adding or removing its `N 5` line, which swaps HOPO and strum; a
+ * `.mid` note gets a one-tick force HOPO or force strum note on its difficulty. The rewrite is checked: every note,
+ * phrase and canonical hash stays, or it isn't made.
+ */
+export function fixHopoTags(song: SongDocument, issues: readonly Issue[], findings: readonly MetadataFinding[], record: FixRecord): SongDocument {
+	const reported = issues.some(issue => issue.code === 'deprecatedIniTag')
+		&& findings.some(finding => finding.metadataIssue === 'deprecatedIniTag' && finding.keys?.some(key => key === 'hopo_frequency' || key === 'eighthnote_hopo'))
+	const context = songContext(song)
+	const { chart, ini } = song
+	if (!reported || chart === null || ini === null || context.chart.kind !== 'parsed' || (chart.format === 'mid' && chart.tokens === null)) return song
+	const { settings } = context
+	// Without hopo_frequency, eighthnote_hopo = True would apply, so it goes too.
+	const keys = [...settings.hopo_frequency > 0 ? ['hopo_frequency'] : [], ...settings.eighthnote_hopo ? ['eighthnote_hopo'] : []]
+	const tags = keys.map(key => `"${key}"`).join(' and ')
+	const skip = (problem: string) => record.skip('deprecatedIniTag', ini.fileName, `Rewriting the chart to play the same without ${tags} ${problem}.`)
+	const withTags = context.chart.parsed
+	const without = parseChartSource(context.chart.source, { ...settings, hopo_frequency: 0, eighthnote_hopo: false }, parseRules.canonical20260801)
+
+	let forced = 0
+	let tokens: IniTokens
+	try {
+		tokens = rewriteSongIni(asUtf8Ini(ini.tokens), { layout: false, order: null, remove: new Set(keys), set: new Map() })
+	} catch {
+		record.skip('deprecatedIniTag', ini.fileName, 'song.ini can\'t be decoded, so it can\'t be rewritten.')
+		return song
+	}
+	let fixed: SongDocument
+	try {
+		const edited = editSong(song, batch => {
+			for (const track of withTags.trackData.filter(track => getInstrumentType(track.instrument) !== instrumentTypes.drums)) {
+				const plain = without.trackData.find(candidate => trackName(candidate) === trackName(track))
+				if (plain === undefined || plain.noteEventGroups.length !== track.noteEventGroups.length) throw new RangeError(`the ${trackName(track)} notes don't line up`)
+				track.noteEventGroups.forEach((group, index) => {
+					const hopoOrStrum = (flags: number) => flags & (noteFlags.hopo | noteFlags.strum)
+					const plainGroup = plain.noteEventGroups[index]
+					if (plainGroup[0].tick !== group[0].tick) throw new RangeError(`the ${trackName(track)} notes don't line up`)
+					if (hopoOrStrum(group[0].flags) === hopoOrStrum(plainGroup[0].flags)) return
+					forced++
+					const tick = group[0].tick
+					if (chart.format === 'chart') {
+						const section = chartAuthoredTracks(chart.tokens).find(candidate => candidate.isRead && trackName(candidate) === trackName(track))!
+						const unnatural = section.events.filter(event => event.tick === tick && event.type === eventTypes.forceUnnatural)
+						if (unnatural.length > 0) for (const event of unnatural) batch.remove(event)
+						else batch.addToChartSection(section.section, tick, eventTypes.forceUnnatural, 0)
+					} else {
+						const midiTrack = midiAuthoredTracks(chart.tokens!).find(candidate => candidate.isFirst && candidate.instrument === track.instrument)!
+						const type = group[0].flags & noteFlags.hopo ? eventTypes.forceHopo : eventTypes.forceStrum
+						batch.addToMidiTrack(midiTrack.chunk, track.difficulty, tick, type, 1)
+					}
+				})
+			}
+		})
+		fixed = continueEdits(edited, withSongIni(edited, tokens))
+	} catch (error) {
+		skip(`fails: ${error instanceof Error ? error.message : String(error)}`)
+		return song
+	}
+	const problem = keepsGameplay(song, fixed, true)
+	if (problem !== null) {
+		skip(problem)
+		return song
+	}
+	record.fixed.push({
+		code: 'deprecatedIniTag',
+		file: chart.fileName,
+		description: forced === 0
+			? `Removed ${tags}, without which every note reads the same.`
+			: `Forced ${forced} ${forced === 1 ? 'note' : 'notes'} to play the same without ${tags}, and removed ${keys.length === 1 ? 'it' : 'them'}.`,
+	})
+	return fixed
 }
