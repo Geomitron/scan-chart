@@ -28,9 +28,10 @@ A practice section marks where a part of the song starts, such as the intro or a
 <tick> = E "section <name>"
 ```
 
-- A space or `_` separates `section` from the name. The name must not be empty, or start or end with a space.
-- A tick must not hold two practice sections.
+- A space or `_` separates `section` from the name. **Recommended:** a space.
 - **Recommended:** at least one practice section in a chart.
+
+**Edge case: the names Clone Hero shows.** Clone Hero has a table of Rock Band section names, and shows a name from it when it finds one there, such as `Verse 1` for `verse_1`. It shows any other name with each `_` replaced by a space. It does the same in a `.mid` file.
 
 ## Lyrics
 
@@ -44,9 +45,9 @@ A lyric is one syllable or word of the vocals. Vocal phrases group lyrics into t
 
 - **A lyric** is `lyric`, a space, and the text.
 - **A phrase** runs from a `phrase_start` to the next `phrase_start` or `phrase_end`. It holds the lyrics from its start tick through its end tick.
-- **Every lyric** must be inside a phrase.
-- **The last phrase** must end with a `phrase_end`.
-- **On a tick where one phrase ends and the next starts,** a `phrase_end` is optional. If there is one, it must come before the `phrase_start`.
+- **Every lyric** is inside a phrase.
+- **The last phrase** ends with a `phrase_end`.
+- **On a tick where one phrase ends and the next starts,** a `phrase_end` is optional. If there is one, it comes before the `phrase_start`.
 
 A `.chart` file holds one set of lyrics, without pitches.
 
@@ -68,10 +69,15 @@ A `.chart` file holds one set of lyrics, without pitches.
 
 `end` ends the song before its audio does. When the audio runs on long past the last note, such as a long fade-out or a recording that keeps going, a scanner ends the song at `end` and shows the results sooner.
 
-- `end` must come at least one beat after the end of the last note, sustain included.
+- `end` comes at least one beat after the end of the last note, sustain included.
 - A chart should have at most one `end`.
 
-**Edge case:** Clone Hero 1.1 and later read `end` only from a `.mid` file, not from a `.chart` file, because of a bug.
+{/* review: Q1
+Should `end` count in a song's length? Each game has two lengths. The song list shows song.ini's `song_length`, the length of the audio: Clone Hero and YARG measure the audio when the key is missing. The length a song plays already stops at `end` in both games (in Clone Hero, for a .chart file, once its `end` fix is released). The canonical SongHash holds the chart's own length: the end of the last note, plus one beat. The legacy SongHash holds `song_length`. No hash holds `end`.
+- A. As now | `end` changes only when the song stops playing | None
+- B. SongHash's length ends at `end` when there is one | The canonical SongHash holds the time of `end` instead of the last note's end plus one beat | The canonical SongHash of every chart with an `end` changes, and Clone Hero's SongHash has to change to match. Two copies of one chart that differ only in `end` get different leaderboards
+Recommendation: A. A valid `end` comes at least a beat after the last note, so it cuts no note and changes no score: it only shows the results sooner. Putting it in SongHash would split leaderboards over a difference that changes no play, and the games don't agree on which `end` counts.
+*/}
 
 ## Deprecated
 
@@ -113,9 +119,9 @@ It has no effect.
 </Accordion>
 
 <Accordion title="More than one coda or end">
-A scanner uses the first.
+Clone Hero and scan-chart use the first `coda` and the first `end`. YARG looks for `end` among the song's last 10 song-wide events, and uses the last one it finds there. scan-chart reports `badEndEvent` for each `end` after the first, and saves them as written.
 </Accordion>
 
 <Accordion title="An end less than a beat after the last note ends">
-A scanner ignores it, and the song lasts as long as its audio.
+Clone Hero ignores it, and plays until the later of the end of the audio and the end of the last note. YARG uses it when it comes after the end of every note, phrase and lyric, with no one-beat margin. scan-chart reports `badEndEvent` when it comes before the last note starts, and saves it as written.
 </Accordion>
