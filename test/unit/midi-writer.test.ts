@@ -8,7 +8,7 @@
  * etc.) — the parser is the source of truth for observable behavior.
  */
 
-import type { MidiEvent } from '@geomitron/midi-file'
+import { type MidiEvent, parseMidi } from '@geomitron/midi-file'
 import { describe, expect, it } from 'vitest'
 
 import { createEmptyChart } from 'src/chart/create-chart'
@@ -686,6 +686,18 @@ describe('writeMidiFile round-trip: vocal tracks', () => {
 		expect(parts.harmony1.notePhrases[0].lyrics[0].text).toBe('harm1')
 		expect(parts.harmony2.staticLyricPhrases[0].lyrics.map(l => l.text)).toContain('harm2')
 		expect(parts.harmony3.staticLyricPhrases[0].lyrics.map(l => l.text)).toContain('harm3')
+	})
+
+	it('writes HARM2 phrases on note 105, so a HARM2 without HARM1 keeps its note phrases', () => {
+		const chart = createEmptyChart({ format: 'mid', resolution: 480 })
+		const harm2Phrase = phrase(0, 960, { lyrics: [{ tick: 0, text: 'harm2' }], notes: [{ tick: 0, length: 240, pitch: 62 }] })
+		chart.vocalTracks.parts.harmony2 = { ...EMPTY_VOCAL_PART, notePhrases: [harm2Phrase], staticLyricPhrases: [harm2Phrase] }
+		const written = writeMidiFile(chart)
+		const harm2Track = parseMidi(written).tracks.find(track => track.some(event => event.type === 'trackName' && event.text === 'HARM2'))!
+		expect(harm2Track.filter(event => event.type === 'noteOn').map(event => event.type === 'noteOn' && event.noteNumber)).toEqual([105, 62])
+		const harmony2 = roundTrip(chart).vocalTracks.parts.harmony2
+		expect(harmony2.notePhrases.map(p => [p.tick, p.length, p.notes.length])).toEqual([[0, 960, 1]])
+		expect(harmony2.staticLyricPhrases.map(p => [p.tick, p.length, p.notes.length])).toEqual([[0, 960, 1]])
 	})
 
 	it('preserves vocal star power on PART VOCALS', () => {
