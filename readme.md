@@ -29,7 +29,9 @@ interface SongFile {
 }
 ```
 
-`data` holds the file's bytes or a `ByteSource`, which reads the file on demand. scan-chart reads only the chart file, song.ini, and album art. Use a byte source for everything else, so the audio and video never have to fit in memory.
+`data` holds the file's bytes or a `ByteSource`, which reads the file on demand. scan-chart reads only the chart file, song.ini, and album art, and the headers of the other media files when you ask for their issues. Use a byte source for everything else, so the audio and video never have to fit in memory.
+
+`fileName` is the file's name in the folder. If you pass the files of subfolders too, name each by its path, such as `__MACOSX/._song.ini`: games don't read them, so they're reported as files no game reads.
 
 In Node, open each file as a `Blob` and wrap it with `byteSourceFromBlob`. The examples that follow use this `readSongFolder` function:
 
