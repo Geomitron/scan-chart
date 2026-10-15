@@ -28,12 +28,12 @@ One drums chart is written for one of three kinds of kit:
 
 A scanner decides a chart's type from `song.ini` and from the notes of every drums section, in this order:
 
-1. `five_lane_drums = true` in `song.ini`: 5-lane.
-2. `pro_drums = true`, or a cymbal marker in any drums section: pro.
+1. `five_lane_drums = True` in `song.ini`: 5-lane.
+2. `pro_drums = True`, or a cymbal marker in any drums section: pro.
 3. An `N 5` in any drums section: 5-lane.
 4. Otherwise: 4-lane.
 
-**Recommended:** leave both keys out of `song.ini` when the notes already give the type, and set one only when they don't. A `false` value means the same as leaving the key out.
+**Recommended:** leave both keys out of `song.ini` when the notes already give the type, and set one only when they don't. `False` means the same as leaving the key out.
 
 ### Playing one type on another kit
 
@@ -42,7 +42,7 @@ A game plays any type of chart on any kit:
 - **Pro on a 4-lane kit:** cymbals are played as plain pads.
 - **5-lane on a 4-lane or pro kit:** the five pads become red, a yellow cymbal, a blue tom, a green cymbal from `N 4`, and a green tom from `N 5`.
 
-**Edge case: `N 4` and `N 5` at one tick.** In a 5-lane chart played on a pro kit, Clone Hero and scan-chart give a green cymbal and a blue tom, and YARG a blue cymbal and a green tom. In a pro chart, a scanner moves the `N 5` to a blue tom. An exporter should not write them together in a pro chart.
+**Edge case: `N 4` and `N 5` at one tick.** In a 5-lane chart played on a pro kit, Clone Hero and scan-chart give a green cymbal and a blue tom, and YARG a blue cymbal and a green tom. In a pro chart, a scanner moves the `N 5` to a blue tom. **Recommended:** `N 4` and `N 5` on different ticks in a pro chart.
 
 ## Notes
 
@@ -62,8 +62,7 @@ A drum note's length has no effect. An exporter should write 0.
 
 `N 32` is a kick that a scanner plays only when the player has the double kick modifier enabled, because these kicks realistically need a double kick pedal to play properly. Charters alternate `N 0` and `N 32` in fast kick passages.
 
-- An exporter should write `N 32` only in `ExpertDrums`.
-- A tick must not hold both `N 0` and `N 32`.
+**Recommended:** `N 32` only in `ExpertDrums`.
 
 ## Modifiers
 
@@ -121,8 +120,10 @@ A `mix` event sets up the drum audio for one difficulty, and its `d` flag turns 
 ```
 
 - A flip lasts from its tick, notes on it included, until the event that turns it off, or the end of the track.
+- **Required:** a `d` flip turned off before a `dnoflip` event of its difficulty.
 - On pro drums, a scanner swaps red and yellow back: red becomes a yellow cymbal, and yellow becomes red. On 4-lane drums the notes don't change. The snare and the other drum audio swap instead, so yellow plays the snare.
-- Parts are separated by single spaces. An exporter should not write disco flip events in a 5-lane chart.
+- Parts are separated by single spaces.
+- **Recommended:** disco flip events only in 4-lane and pro charts.
 
 **Edge case:** a scanner also accepts `_` between the parts, and square brackets around the text.
 
@@ -134,7 +135,7 @@ A `mix` event sets up the drum audio for one difficulty, and its `d` flag turns 
 
 ## Invalid forms
 
-<Accordion title="Both five_lane_drums and pro_drums set to true">
+<Accordion title="Both five_lane_drums and pro_drums set to True">
 A scanner reads the chart as 5-lane.
 </Accordion>
 
@@ -143,5 +144,9 @@ Clone Hero merges them into one double kick, and scan-chart keeps the longer, or
 </Accordion>
 
 <Accordion title="Two mix events of one difficulty at one tick">
-A scanner uses an event that turns the flip off, then `d`, then `dnoflip`.
+Clone Hero and scan-chart use an event that turns the flip off, then `d`, then `dnoflip`. YARG uses the one written last.
+</Accordion>
+
+<Accordion title="A dnoflip while a d flip is on">
+Released Clone Hero keeps the flip on until an event turns it off. YARG and scan-chart start no-flip at the `dnoflip`. scan-chart saves the pair with an event that turns the flip off before the `dnoflip`.
 </Accordion>

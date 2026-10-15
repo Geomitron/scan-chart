@@ -19,6 +19,10 @@ A note whose sustain is no longer than the cutoff is read with no sustain. The c
 
 With `sustain_cutoff_threshold = 65`, a note of length 65 has no sustain, and a note of length 66 keeps it.
 
+**Recommended:** leave `sustain_cutoff_threshold` out of a new chart, and write each sustain at the length it should play. Charts that set it stay valid.
+
+**Edge case:** YARG cuts only a sustain shorter than the cutoff, so with `sustain_cutoff_threshold = 65`, a note of length 65 keeps its sustain there.
+
 ## Decide strums and HOPOs
 
 The player plays each guitar note one of two ways. A **strum** must be strummed. A **HOPO**, a hammer-on or pull-off, can be played by pressing the fret alone, without strumming. The chart doesn't say which a note is: a scanner decides from where the note is, as below, and then the note's [modifiers](/chart/modifiers) can change the result.
@@ -28,7 +32,7 @@ The player plays each guitar note one of two ways. A **strum** must be strummed.
 A note is a HOPO, called a natural HOPO, when all of these are true:
 
 - It isn't the track's first note.
-- It comes no more than the [HOPO threshold](#the-hopo-threshold) after the note or chord before it.
+- The distance (in ticks) between the note and the closest previous note is no more than the [HOPO threshold](#the-hopo-threshold).
 - It's a single note, not a chord. Notes of one fret at one tick count as one note.
 - If the note before it is a single note, the two are on different frets. An open note is a fret of its own for this rule.
 
@@ -60,14 +64,20 @@ Two deprecated `song.ini` keys change the threshold in older charts. See [Deprec
 
 `chord_snap_threshold` in `song.ini` merges notes that are very close together into chords. It's in ticks, and it's off when it's 0 or missing.
 
-- A note less than the threshold after an earlier note moves to that note's tick and joins its chord. It takes the chord's strum, HOPO or tap, and keeps its own length.
+- A note less than the threshold after an earlier note moves to that note's tick and joins its chord. It takes the strum, HOPO or tap of the notes already at that tick, and keeps its own length. The forced and tap modifiers on its written tick have no effect.
 - The earlier note is the first one not yet moved. Moving a note doesn't move the next one along: with a threshold of 10, notes at 100, 105 and 109 all move to 100, and a note at 112 stays.
 
-**Edge case:** strums and HOPOs are decided before snapping, from the ticks as written, and snapping doesn't change them, even when it makes two notes of one fret meet.
+So every note of a chord has one type, in every scanner that snaps.
+
+**Recommended:** leave `chord_snap_threshold` out of a new chart, and write the notes of each chord at one tick. Charts that set it stay valid.
+
+**Edge case: what still comes from the ticks as written.** Snapping decides no strum, HOPO or tap again. The notes that don't move keep the type they have at their written ticks, so a chord that snapping makes is a HOPO or tap chord when the note it joins is a single HOPO or tap note. A chord written at one tick is a strum unless a modifier changes it. The next note's natural HOPO is still measured from the tick where the moved note was written.
+
+**Edge case:** YARG doesn't read `chord_snap_threshold`, so it reads every note at its written tick.
 
 ## Remove duplicate notes
 
-After snapping, a track holds at most one note of each fret at a tick. When there are more, a scanner keeps the longest. An exporter must not write two notes of one fret at one tick: see [Notes at one tick](/chart/instrument-sections#notes-at-one-tick).
+After snapping, a track holds at most one note of each fret at a tick. When snapping makes two notes of one fret meet, a scanner keeps the longer one.
 
 ## Trim overlapping sustains
 
@@ -76,14 +86,18 @@ When a note starts before the sustain of an earlier note on the same fret has en
 - the earlier note's sustain ends where the later note starts;
 - the later note's sustain ends where the later of the two sustains ended.
 
-For example, blue at 400 with length 300, then blue at 500 with length 0, becomes blue at 400 with length 100 and blue at 500 with length 200. The sustain cutoff isn't applied again afterward. An exporter should not overlap sustains of one fret.
+For example, blue at 400 with length 300, then blue at 500 with length 0, becomes blue at 400 with length 100 and blue at 500 with length 200. The sustain cutoff isn't applied again afterward.
+
+**Recommended:** end each sustain at or before the next note on its fret.
+
+**Edge case:** YARG doesn't trim overlapping sustains: it keeps each note's length as written.
 
 ## Deprecated
 
 Two `song.ini` keys change the HOPO threshold. Older charts used them before the forced modifier was common. To make a note a strum or a HOPO, force it instead.
 
 - **`hopo_frequency`**, when it's more than 0: the threshold is that many ticks. It isn't scaled by the resolution: `hopo_frequency = 30` is 30 ticks at any resolution.
-- **`eighthnote_hopo = true`**: the threshold is half the resolution, rounded down, plus 1. It applies only when `hopo_frequency` doesn't.
+- **`eighthnote_hopo = True`**: the threshold is half the resolution, rounded down, plus 1. It applies only when `hopo_frequency` doesn't.
 
 | Resolution | With `eighthnote_hopo` |
 |---|---|
