@@ -192,14 +192,10 @@ function serializeSyncTrack(chart: ParsedChart): string[] {
 function serializeEventsSection(chart: ParsedChart): string[] {
 	const lines: string[] = ['[Events]', '{']
 
-	// Typed events: sections (UNWRAPPED as `section name`), endEvents.
-	// Moonscraper / Clone Hero's .chart parser requires the unwrapped form
-	// — it explicitly checks for `"section` (no leading bracket) at the
-	// start of the E-event payload. Bracketed `[section name]` text events
-	// fail that check and the section gets dropped on import. scan-chart's
-	// own parser accepts both forms via separate regexes that capture the
-	// full name (`.*` is greedy, so trailing `]` in a name like
-	// `section <b>...</b> [credits]` round-trips fine).
+	// Typed events: sections, written as `section name` without brackets, the
+	// standard form, and endEvents. Readers remove one pair of brackets only
+	// when the text starts with `[`, so a name ending in `]`, such as
+	// `section <b>...</b> [credits]`, reads back as written.
 	const events: { tick: number; text: string }[] = []
 	for (const s of chart.sections) events.push({ tick: s.tick, text: `section ${s.name}` })
 	for (const e of chart.endEvents) events.push({ tick: e.tick, text: 'end' })

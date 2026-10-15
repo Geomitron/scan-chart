@@ -96,7 +96,7 @@ export function resolveChartData(
 	const timedTempos = getTimedTempos(rawChartData.tempos, rawChartData.chartTicksPerBeat)
 	const drumType = chartDrumType(rawChartData.trackData, iniChartModifiers)
 
-	const normalizedVocalTracks = normalizeVocalTracks(rawChartData.vocalTracks, timedTempos, rawChartData.chartTicksPerBeat)
+	const normalizedVocalTracks = normalizeVocalTracks(rawChartData.vocalTracks, timedTempos, rawChartData.chartTicksPerBeat, format)
 	// Evaluate trackData first — normalizedVocalTracks is used below for phrase-level hasLyrics check.
 	const context: TrackResolutionContext = { timedTempos, drumType, iniChartModifiers, resolution: rawChartData.chartTicksPerBeat, format }
 	const resolvedTracks = rawChartData.trackData.map(track => resolveOne(track, context))
@@ -203,6 +203,7 @@ function normalizeVocalTracks(
 	vocalTracks: { [part: string]: VocalTrackData },
 	timedTempos: TimedTempos,
 	resolution: number,
+	format: 'chart' | 'mid',
 ): VocalTrack {
 	const entries = Object.entries(vocalTracks)
 	const parts: { [partName: string]: VocalPart } = {}
@@ -211,7 +212,7 @@ function normalizeVocalTracks(
 	const sourcePart = vocalTracks['vocals'] ?? vocalTracks['harmony1']
 
 	for (const [partName, data] of entries) {
-		parts[partName] = normalizeVocalPart(data, timedTempos, resolution, partName)
+		parts[partName] = normalizeVocalPart(data, timedTempos, resolution, partName, format)
 	}
 
 	return {
@@ -230,6 +231,7 @@ function normalizeVocalPart(
 	timedTempos: TimedTempos,
 	resolution: number,
 	partName: string,
+	format: 'chart' | 'mid',
 ): VocalPart {
 	const isPartVocals = partName === 'vocals'
 	const isHarm2or3 = partName === 'harmony2' || partName === 'harmony3'
@@ -269,7 +271,7 @@ function normalizeVocalPart(
 			phraseSourceByTick.set(p.tick, dedupedPhrases.find(d => d.tick === p.tick)!._source)
 		}
 
-		notePhrases = groupIntoPhrases(dedupedPhrases, data, timedTempos, resolution)
+		notePhrases = groupIntoPhrases(dedupedPhrases, data, timedTempos, resolution, format)
 
 		// Set player field
 		for (const phrase of notePhrases) {
@@ -281,9 +283,9 @@ function normalizeVocalPart(
 		staticLyricPhrases = notePhrases.map(p => ({ ...p }))
 	} else {
 		// Harmonies: separate 105/106 for lossless round-trip
-		notePhrases = groupIntoPhrases(data.vocalPhrases, data, timedTempos, resolution)
+		notePhrases = groupIntoPhrases(data.vocalPhrases, data, timedTempos, resolution, format)
 		staticLyricPhrases = data.staticLyricPhrases.length > 0
-			? groupIntoPhrases(data.staticLyricPhrases, data, timedTempos, resolution)
+			? groupIntoPhrases(data.staticLyricPhrases, data, timedTempos, resolution, format)
 			: []
 	}
 
@@ -310,6 +312,7 @@ function groupIntoPhrases(
 	data: VocalTrackData,
 	timedTempos: TimedTempos,
 	resolution: number,
+	format: 'chart' | 'mid',
 ): VocalPhrase[] {
 	// Dedup phrases by tick (both note 105 and 106 can create phrases at the same tick)
 	const dedupedPhrases: typeof phrases = []
@@ -341,8 +344,12 @@ function groupIntoPhrases(
 	let hasPreviousLyricNote = false
 
 	const result: VocalPhrase[] = []
-	for (const phrase of timedPhrases) {
+	for (const [phraseIndex, phrase] of timedPhrases.entries()) {
 		const phraseEnd = phrase.tick + phrase.length
+		// A .chart phrase holds the lyrics from its start tick through its end tick, unless the next phrase starts on
+		// its end tick, and a lyric outside every phrase is ignored, as Clone Hero reads them (Chart.cs:501-508). A
+		// .mid lyric belongs to the first phrase that ends after it, as YARG's MIDI vocals loader reads it.
+		const lyricEnd = format === 'chart' && timedPhrases[phraseIndex + 1]?.tick !== phraseEnd ? phraseEnd + 1 : phraseEnd
 
 		// Collect raw notes within this phrase
 		const rawNotes: typeof data.notes = []
@@ -365,11 +372,14 @@ function groupIntoPhrases(
 		// on round-trip. Note processing uses a local iterator (phraseLyricIdx)
 		// over this pre-collected list for flag detection.
 		const phraseLyrics: { tick: number; text: string; flags: number }[] = []
-		while (lyricIdx < sortedLyrics.length && sortedLyrics[lyricIdx].tick < phraseEnd) {
+		while (lyricIdx < sortedLyrics.length && sortedLyrics[lyricIdx].tick < lyricEnd) {
 			const lyric = sortedLyrics[lyricIdx]
 			lyricIdx++
+			if (format === 'chart' && lyric.tick < phrase.tick) continue
 			const text = lyric.text.replace(/^[\x00-\x20]+|[\x00-\x20]+$/g, '')
-			if (text.startsWith('[')) continue
+			// A bracketed .mid lyric is a control event, such as [idle]; a .chart lyric keeps its brackets, as Clone
+			// Hero reads `lyric [Everyone liked that]`.
+			if (format === 'mid' && text.startsWith('[')) continue
 			phraseLyrics.push({ tick: lyric.tick, text, flags: parseLyricFlags(text) })
 		}
 		if (rawNotes.length === 0) {

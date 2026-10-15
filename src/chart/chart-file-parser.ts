@@ -5,7 +5,7 @@ import { ChartEncoding, decodeChartText, detectChartEncoding } from './chart-enc
 import { ChartEventSection, chartLineSpelling, readableChartLines } from './chart-line-spelling'
 import type { ParseRules } from './parse-rules'
 import { EventType, eventTypes, RawChartData } from './raw-types'
-import { extractChartLyrics, extractChartVocalPhrases } from './lyric-parser'
+import { chartEventText, extractChartLyrics, extractChartVocalPhrases } from './lyric-parser'
 
 /* eslint-disable @typescript-eslint/naming-convention */
 type TrackName = keyof typeof trackNameMap
@@ -967,37 +967,36 @@ function scanEventsSection(eventLines: string[]): ChartEventsScanResult {
 		codaEvents: [],
 		unrecognizedTextEvents: [],
 	}
+	const sectionIndexes = new Map<number, number>()
 	for (const line of eventLines) {
 		const match = /^(\d+) = E "([^\r\n]*?)"$/.exec(line)
 		if (!match) continue
 		const tick = Number(match[1])
-		const text = match[2]
+		const text = chartEventText(match[2])
 
-		// Accept either `[section NAME]` (bracketed form — outer brackets are
-		// stripped) or `section NAME` (plain form — everything after the prefix
-		// is the name). Brackets must match as a pair: a trailing `]` is not
-		// stripped unless the text also started with `[`. This preserves section
-		// names that legitimately end in `]` (e.g. `section <b>…</b> [credits]`).
-		const bracketedSection = /^\[(?:section|prc)[ _](.*)\]$/.exec(text)
-		const plainSection = !bracketedSection && /^(?:section|prc)[ _](.*)$/.exec(text)
-		if (bracketedSection || plainSection) {
-			const name = (bracketedSection ?? plainSection as RegExpExecArray)[1]
-			result.sections.push({ tick, name })
+		// `section NAME` or `prc NAME`, with a space or `_` before the name, which is trimmed; a trailing `]` that the
+		// text didn't open with stays in the name (`section <b>…</b> [credits]`). An empty name isn't a section. A tick
+		// holds one section, so a later one replaces it, as Clone Hero reads them (`Song.cs:487-503`).
+		const name = /^(?:section|prc)[ _](.*)$/.exec(text)?.[1].trim()
+		if (name) {
+			const index = sectionIndexes.get(tick)
+			if (index === undefined) sectionIndexes.set(tick, result.sections.push({ tick, name }) - 1)
+			else result.sections[index] = { tick, name }
 			continue
 		}
-		if (/^\[?end\]?$/.test(text)) {
+		if (text === 'end') {
 			result.endEvents.push({ tick })
 			continue
 		}
-		if (/^\s*\[?coda\]?\s*$/.test(text)) {
+		if (text === 'coda') {
 			result.codaEvents.push({ tick })
 			continue
 		}
 		// Lyrics and phrase markers are extracted by the vocal parsing path — skip here
-		if (/^\s*lyric[ \t]/.test(text)) continue
-		if (/^(?:phrase_start|phrase_end)$/.test(text)) continue
+		if (text === 'lyric' || text.startsWith('lyric ')) continue
+		if (text === 'phrase_start' || text === 'phrase_end') continue
 
-		result.unrecognizedTextEvents.push({ tick, text })
+		result.unrecognizedTextEvents.push({ tick, text: match[2] })
 	}
 	return result
 }
