@@ -1,17 +1,11 @@
 import type { FolderFinding } from '../issues'
-import { getBasename, getExtension, hasAlbumName, hasAudioExtension, hasChartExtension, hasIniExtension, hasVideoName } from '../shared/file-names'
+import { getBasename, getExtension, hasAlbumName, hasAudioExtension, hasChartExtension, hasGameAudioName, hasIniExtension, hasVideoName } from '../shared/file-names'
 import { isByteSource, type SongFile } from '../song-files'
 
 /** Chorus Encore scans a chart folder only up to 3 GB. */
 const MAX_FOLDER_BYTES = 3e9
 
 // The names some game reads, matched in any letter case. Clone Hero's and the standard's, then YARG's additions.
-const audioStems = [
-	'song', 'guitar', 'bass', 'rhythm', 'keys', 'vocals', 'vocals_1', 'vocals_2', 'drums', 'drums_1', 'drums_2', 'drums_3', 'drums_4', 'crowd', 'preview',
-	'song_clean', 'vocals_clean', 'vocals_1_clean', 'vocals_2_clean', 'crowd_clean', 'preview_clean',
-	'vocals_explicit', 'vocals_1_explicit', 'vocals_2_explicit', 'crowd_explicit',
-]
-const audioExtensions = ['opus', 'ogg', 'mp3', 'wav', 'aiff']
 const chartImageExtensions = ['png', 'jpg', 'jpeg']
 const imageExtensions = [...chartImageExtensions, 'tga', 'bmp', 'psd', 'gif', 'pic']
 const videoExtensions = ['mp4', 'avi', 'webm', 'vp8', 'ogv', 'mpeg']
@@ -96,7 +90,7 @@ function isReadByGame(fileName: string) {
 	const [base, extension] = [getBasename(lowercase), getExtension(lowercase)]
 	return (base === 'notes' && ['chart', 'mid', 'midi', 'txt'].includes(extension))
 		|| lowercase === 'song.ini'
-		|| (audioStems.includes(base) && audioExtensions.includes(extension))
+		|| hasGameAudioName(lowercase)
 		|| (base === 'album' && imageExtensions.includes(extension))
 		// Clone Hero reads every image whose name has "background" in it; YARG reads `bg` and names starting with it.
 		|| (lowercase.includes('background') && chartImageExtensions.includes(extension))
