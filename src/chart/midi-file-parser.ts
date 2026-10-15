@@ -2,7 +2,7 @@ import { MidiData, MidiEvent, MidiSetTempoEvent, MidiTextEvent, MidiTimeSignatur
 
 import { difficulties, Difficulty, getInstrumentType, Instrument, InstrumentType, instrumentTypes } from '../types'
 import { midiTokensToMidiData, MidiTokens, readMidiTokens } from './midi-tokens'
-import { EventType, eventTypes, RawChartData, VocalTrackData } from './raw-types'
+import { DrumMixEvent, EventType, eventTypes, RawChartData, VocalTrackData } from './raw-types'
 import { IniChartModifiers } from './types'
 import { parseRules, ParseRules } from './parse-rules'
 import { scanVocalTrack } from './lyric-parser'
@@ -386,7 +386,7 @@ export function buildMidiInstrumentTrackData(
 ): RawChartData['trackData'] {
 	const out: RawChartData['trackData'] = []
 	const allocatesEmptyExpert = rules.midiTrackAllocation === 'difficultiesWithNotesAndExpert'
-	const { eventEnds, textEvents, versusPhrases, animations, unrecognizedEvents: trackUnrecognized } = scan
+	const { eventEnds, textEvents, versusPhrases, animations, unrecognizedEvents: trackUnrecognized, drumMixes } = scan
 	// distributeInstrumentEvents adds to and sorts these lists, and a classification can be shared by profiles
 	const distributed = distributeInstrumentEvents({
 		all: [...eventEnds.all],
@@ -417,6 +417,7 @@ export function buildMidiInstrumentTrackData(
 			versusPhrases,
 			animations,
 			unrecognizedMidiEvents: trackUnrecognized,
+			...(instrumentType === instrumentTypes.drums ? { drumMixes: drumMixes[difficulty] } : {}),
 		}
 
 		// Track "real content" flag inline so we don't need a second pass over
@@ -580,6 +581,8 @@ interface TrackScanResult {
 	animations: { tick: number; length: number; noteNumber: number }[]
 	/** MIDI events the typed parser didn't consume (verbatim). */
 	unrecognizedEvents: MidiEvent[]
+	/** Each difficulty's disco flip mix events, on a drum track. */
+	drumMixes: { [difficulty in Difficulty]: DrumMixEvent[] }
 }
 
 /**
@@ -624,6 +627,7 @@ function scanInstrumentTrack(
 	const animMax = instrumentType === instrumentTypes.drums ? 51 : 59
 	// Events the typed parser doesn't consume — preserved verbatim for round-trip.
 	const unrecognizedEvents: MidiEvent[] = []
+	const drumMixes: TrackScanResult['drumMixes'] = { expert: [], hard: [], medium: [], easy: [] }
 
 	for (let eventIndex = 0; eventIndex < events.length; eventIndex++) {
 		const event = events[eventIndex]
@@ -764,15 +768,13 @@ function scanInstrumentTrack(
 				if (discoFlipMatch) {
 					const difficulty = sysExDifficultyMap[Number(discoFlipMatch[1])]
 					const flag = discoFlipMatch[3] as 'd' | 'dnoflip' | 'easy' | 'easynokick' | ''
-					const eventType =
-						flag === '' ? eventTypes.discoFlipOff
-						: flag === 'd' ? eventTypes.discoFlipOn
-						: flag === 'dnoflip' ? eventTypes.discoNoFlipOn
-						: null
-					if (eventType) {
+					// An `easy` or `easynokick` event sets no disco flip, and stays a text event.
+					if (flag !== 'easy' && flag !== 'easynokick') {
+						const eventType = flag === '' ? eventTypes.discoFlipOff : flag === 'd' ? eventTypes.discoFlipOn : eventTypes.discoNoFlipOn
 						// Treat this like the other events that have a start and end, so it can be processed the same way later
 						eventEnds[difficulty].push({ tick: event.deltaTime, type: eventType, velocity: 127, channel: 1, isStart: true, eventIndex })
 						eventEnds[difficulty].push({ tick: event.deltaTime, type: eventType, velocity: 127, channel: 1, isStart: false, eventIndex })
+						drumMixes[difficulty].push({ tick: event.deltaTime, configuration: Number(discoFlipMatch[2]), flag })
 						consumedAsNote = true
 					}
 				}
@@ -807,7 +809,7 @@ function scanInstrumentTrack(
 
 	versusPhrases.sort((a, b) => a.tick - b.tick)
 	animations.sort((a, b) => a.tick - b.tick)
-	return { eventEnds, textEvents, versusPhrases, animations, unrecognizedEvents }
+	return { eventEnds, textEvents, versusPhrases, animations, unrecognizedEvents, drumMixes }
 }
 
 /** These apply to the entire instrument, not specific difficulties. */

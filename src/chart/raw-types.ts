@@ -128,7 +128,20 @@ export interface RawChartData {
 		versusPhrases: { tick: number; length: number; isPlayer2: boolean }[]
 		animations: { tick: number; length: number; noteNumber: number }[]
 		unrecognizedMidiEvents: MidiEvent[]
+		/** On a `.mid` drum track, its difficulty's mix events: see `DrumMixEvent`. */
+		drumMixes?: DrumMixEvent[]
 	}[]
+}
+
+/**
+ * A `.mid` `[mix <difficulty> drums<configuration><flag>]` event that sets a disco flip, as written. The notes' disco
+ * flags hold what it means; the drum stem configuration, which no game reads, is kept so that the `.mid` writer can
+ * write it back.
+ */
+export interface DrumMixEvent {
+	tick: number
+	configuration: number
+	flag: '' | 'd' | 'dnoflip'
 }
 
 export interface VocalTrackData {

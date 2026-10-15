@@ -171,6 +171,7 @@ export function resolveTrack(track: RawChartData['trackData'][number], context: 
 		versusPhrases: setEventMsTimes(track.versusPhrases, timedTempos, tpb),
 		animations: setEventMsTimes(track.animations, timedTempos, tpb),
 		unrecognizedMidiEvents: track.unrecognizedMidiEvents,
+		...(track.drumMixes === undefined ? {} : { drumMixes: track.drumMixes }),
 		noteEventGroups: setEventGroupMsTimes(snapped, timedTempos, tpb),
 	}
 }
