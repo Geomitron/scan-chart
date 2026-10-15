@@ -95,7 +95,7 @@ describe('song.ini\'s ignored_issues', () => {
 	const codes = (issues: readonly { code: string }[]) => [...new Set(issues.map(issue => issue.code))]
 
 	it('moves the issues of the codes it lists to ignoredIssues, and is a tag scan-chart reads', async () => {
-		const unignored = await scan('')
+		const unignored = await scan('', { styleNotes: true })
 		expect(codes(unignored.issues)).toEqual(expect.arrayContaining(['discouragedAudio', 'fileNameCase', 'audioFormat']))
 		const scanned = await scan('ignored_issues = discouragedAudio ,fileNameCase,, audioFormat', { styleNotes: true })
 		expect(codes(scanned.ignoredIssues)).toEqual(['audioFormat', 'discouragedAudio', 'fileNameCase'])
@@ -114,5 +114,14 @@ describe('song.ini\'s ignored_issues', () => {
 		expect(error.issues.filter(issue => issue.code === 'invalidValue').map(issue => issue.message)).toEqual([
 			'The "ignored_issues" value in "song.ini" lists "noAudio", an error, which can\'t be ignored.',
 		])
+	})
+
+	it('never hides its own issues, even when it lists invalidValue', async () => {
+		const scanned = await scan('multiplier_note = 5\r\nignored_issues = invalidValue, noAudio, Unknown')
+		expect(scanned.issues.filter(issue => issue.code === 'invalidValue').map(issue => issue.message)).toEqual([
+			'The "ignored_issues" value in "song.ini" lists "noAudio", an error, which can\'t be ignored.',
+			'The "ignored_issues" value in "song.ini" lists "Unknown", which isn\'t an issue code.',
+		])
+		expect(scanned.ignoredIssues.map(issue => issue.message)).toEqual(['The "multiplier_note" value in "song.ini" is "5", which is not a valid value.'])
 	})
 })
