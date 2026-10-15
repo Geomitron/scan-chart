@@ -93,7 +93,6 @@ The 6-fret frets are in two rows: three black frets on top and three white frets
 
 - Notes of different values at one tick form a chord. Each note of a chord keeps its own length, so a chord's sustains can end at different ticks.
 - An open note may be in a chord with fret notes. The player holds the fret notes and strums.
-- A track must not hold two notes of one value at one tick.
 
 ## Tracks
 
@@ -109,5 +108,5 @@ A section is a track only if it holds at least one note. [How notes resolve](/ch
 ## Invalid forms
 
 <Accordion title="Two notes of one value at one tick">
-A scanner uses the one with the longer sustain.
+Clone Hero and scan-chart use the note with the longer sustain. YARG uses the one written first. On guitar, it counts the two as a chord when it decides strums and HOPOs, so the note is a strum there unless a modifier changes it. When scan-chart saves an edited song, it removes a line written twice, and keeps notes of different lengths as written.
 </Accordion>

@@ -41,9 +41,8 @@ A [solo](#solos) is written as two text events instead, and covers both of its t
 
 ## Rules for every phrase
 
-- A track must not hold two phrases of one type at one tick.
-- Phrases of one type must not overlap, except lanes.
-- A phrase should cover at least one note, and an exporter should give every phrase a length.
+- **Required:** at least one note in each phrase.
+- **Recommended:** a length of at least one tick for each phrase.
 
 **Edge case: a phrase of length 0.** It covers the notes on its tick.
 
@@ -64,7 +63,7 @@ A solo is marked by two text events, `solo` and `soloend`, written without quota
 6144 = E soloend
 ```
 
-A `soloend` ends the most recent `solo` that hasn't ended. Solos must not be nested.
+Each `solo` has its `soloend` before the next `solo`.
 
 ## Drum fills
 
@@ -73,6 +72,8 @@ A drum fill marks a stretch where the drummer can play freely and activate star 
 A drum fill whose tick is at or after the [`coda`](/chart/events#the-coda) is a Big Rock Ending instead: a closing freestyle section with no star power activation.
 
 On 5-fret guitar, bass and keys, an `S 64` at or after the `coda` is a Big Rock Ending, and has no meaning before it.
+
+**Edge case: where a Big Rock Ending ends.** A drum fill covers its end tick, but Clone Hero's Big Rock Ending doesn't: a note on its end tick comes after it. **Recommended:** end a Big Rock Ending before the note that closes it.
 
 ## Lanes
 
@@ -93,15 +94,19 @@ A lane should cover at least two notes, and only notes that fit its pattern: YAR
 ## Invalid forms
 
 <Accordion title="Two phrases of one type at one tick">
-A scanner uses the longer phrase.
+Clone Hero and scan-chart use the longer phrase, and YARG the one written later. scan-chart keeps both when saving.
 </Accordion>
 
-<Accordion title="Overlapping phrases of one type">
-A scanner cuts the earlier one where the later starts, and extends the later one to whichever ends last.
+<Accordion title="Overlapping phrases of one type, other than lanes">
+Clone Hero and scan-chart cut the earlier phrase where the later starts, and extend the later one to whichever ends last. YARG gives each note to the latest phrase that started at or before it, so the rest of a longer earlier phrase is lost. scan-chart keeps the phrases as written when saving.
+</Accordion>
+
+<Accordion title="Nested solos">
+At each `soloend`, every scanner ends the most recent `solo` that hasn't ended. The two solos then overlap, and each scanner reads them as overlapping phrases of one type. scan-chart keeps them as written when saving.
 </Accordion>
 
 <Accordion title="A phrase that covers no notes">
-A scanner ignores it. scan-chart reports an empty star power phrase, solo or lane.
+A scanner ignores it. scan-chart reports an empty star power phrase, solo or lane, and `fixIssues` removes it.
 </Accordion>
 
 <Accordion title="A soloend with no open solo, or a solo that never ends">
