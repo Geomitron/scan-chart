@@ -1,11 +1,59 @@
 ---
 title: "Charting guidelines"
-description: "The Chorus Encore guidelines' recommendations for a chart's notes: timing, difficulties, sustains and phrases."
+description: "How to make a song folder that plays well and is easy to find: its files, audio and art, its song.ini values, and the chart's notes."
 ---
 
-The [Chorus Encore Application Guidelines](https://docs.google.com/document/d/1XrLKnpL0xawaC90M4lLnhqhExwXM_3JpJnzNqlB_agM) describe how to make and share charts. This page gives their recommendations for a chart's notes, and [Metadata conventions](/metadata-conventions) their style for `song.ini`. Each is a recommendation: a chart that doesn't follow one is still valid.
+These guidelines say how to make a song folder: the files it holds, its audio and art, its `song.ini` values, and the chart's notes. Each one is a recommendation. A song that misses one is still valid, but a song that follows them all plays well, reads alike with other songs in the song list, and downloads quickly. The reference pages hold the rules this page builds on, and it links to them.
 
-A chart that follows them starts like this:
+A finished song folder:
+
+```text
+My Song/
+  notes.chart
+  song.ini
+  song.opus
+  guitar.opus
+  album.png
+  background.jpg
+```
+
+scan-chart reports where a song misses a guideline, and the sections below name each report. It gives each report a severity. Where a check has two thresholds, it reports a song that misses the lower one as a **warning**, and a song that misses only the value on this page as a **recommendation**.
+
+## Files
+
+- One chart, `notes.chart` or `notes.mid`, one `song.ini`, the audio and the album art, each named in lowercase as [Files in a song folder](/song-folders) gives.
+- Only the files a game reads. Alternate album art, charter icons, backups, editor projects, `ch.dat`, `desktop.ini` and `__MACOSX` do nothing in a song folder. The archive tool built into macOS adds a `__MACOSX` folder to a `.zip` file. scan-chart reports a file no game reads as `unrecognizedFile`.
+- **Recommended:** share a finished song as a `.sng` file, which holds the whole folder in one file: see [.sng files](/sng). SngCli packs song folders into `.sng` files, and can convert their audio to Opus.
+- Chorus Encore scans a song only up to 3 GB. A song with a background video, or a chart pack, can pass that: also share a version without the video. scan-chart reports a larger song as `folderSize`.
+
+## Audio
+
+- At least one audio file, named for what it holds: `song` for a song without stems. [Audio](/song-folders#audio) gives the names of the stems. scan-chart reports a lone audio file named neither `song` nor `guitar` as `singleAudioName`.
+- **Recommended:** `.opus`, at about 80 kbps: it's the smallest at the same quality. An `.ogg` file is between 192 and 320 kbps. scan-chart reports another format as `audioFormat`, and, when it reads the media files, a bitrate outside these as `audioBitrate`.
+- Audio from the best source available, such as a purchased download or a CD. Audio taken from a video site sounds noticeably worse. In a spectrogram, such as Spek's, good audio reaches about 19 to 20 kHz.
+- No `crowd` or `preview` audio. Set `preview_start_time` and `preview_end_time` for the preview instead. scan-chart reports them as `discouragedAudio`.
+- Enough silence at the start of the audio for the first note: see [Leading silence](#leading-silence).
+
+## Art and video
+
+- **Album art:** `album.png`, 512x512 pixels, or `album.jpg` for art that started as a JPEG. See [Art and video](/song-folders#art-and-video). For extremely explicit album art, use another cover of the album, or a censored version. scan-chart reports a song without album art as `noAlbumArt`, and, when it reads the album art, art of another size as `albumArtSize`.
+- **Background images:** names that start with `background`, at least 1280x720 pixels. scan-chart reports a smaller one as `backgroundSize` when it reads the media files.
+- **Video:** `video.webm`, with the VP8 codec. scan-chart reports another codec as `videoCodec` when it reads the media files.
+
+## song.ini
+
+- A `song.ini` written as [Syntax](/ini/reading-rules) gives: `[song]` on the first line, comments that start with `;`, and the keys in the recommended order.
+- A key only for a value that's set: no blank values, no `-1`, and no `False` or `0` that changes nothing.
+- `name`, `artist`, `album`, `genre`, `year` and `charter`, each in the style [Metadata](/ini/metadata) gives.
+- Credit for everyone who placed notes in `charter`, and for other work in `charter` or `loading_phrase`: see [charter](/ini/metadata#charter).
+- `song_length`, a difficulty for each instrument, `diff_band` for a song with more than one instrument part, `album_track` for a song on an album, and the preview times: see [Metadata](/ini/metadata).
+- `explicit_lyrics = True` when the lyrics are explicit.
+- `five_lane_drums` or `pro_drums` only when the notes don't show the drum type, and no `sustain_cutoff_threshold` or `chord_snap_threshold` in a new chart: see [Settings](/ini/settings).
+- No deprecated key, and no `end_events`: see [Deprecated](/ini/settings#deprecated).
+
+## The chart
+
+A chart that follows these guidelines starts like this:
 
 ```text
 [Song]
@@ -33,98 +81,97 @@ A chart that follows them starts like this:
 
 There's no `Offset`. The first note comes two measures in, about 3.4 seconds after the start of the audio. Its sustain ends 32 ticks, about 71 milliseconds, before the next note.
 
-| Recommendation | scan-chart reports |
+| Guideline | scan-chart reports |
 |---|---|
 | [A tempo map in sync with the audio](#tempo-map-and-sync) | `isDefaultBPM`, for a tempo map that was never set |
-| [No Offset](#offset) | Nothing |
+| [No Offset](#offset) | `chartOffset` |
 | [Silence before the first note](#leading-silence) | `smallLeadingSilence` |
 | [Expert on every instrument](#expert) | `noExpert` |
+| [Reduced lower difficulties](#lower-difficulties) | `difficultyNotReduced` and `difficultyForbiddenNote` |
 | [Accurate note placement](#note-placement) | Some mistakes, such as `brokenNote` |
 | [Sustain gaps of at least 60 milliseconds](#sustain-gaps) | `badSustainGap` |
 | [No sustains shorter than 200 milliseconds](#short-sustains) | `babySustain` |
 | [Practice sections](#practice-sections) | `noSections`, for a chart with none |
 | [Star power](#star-power) | `noStarPower` |
 | [Solos](#solos) | Nothing |
-
-scan-chart gives each issue a severity. Where a check has two thresholds, it reports a chart that misses the lower one as a **warning**, and a chart that misses only the guidelines' value as a **recommendation**.
+| [Drum fills](#drum-fills) | `noDrumActivationLanes` |
+| [An end for a long outro](#the-end-of-the-song) | `badEndEvent`, for an `end` in the wrong place |
 
 ## Timing
 
 ### Tempo map and sync
 
-A chart should be tempo-mapped, and in sync with its audio: its tempo markers put the chart's beats where the song's beats are, so that notes placed on the beat line up with the music.
+A chart is tempo-mapped, and in sync with its audio: its tempo markers put the chart's beats where the song's beats are, so that notes placed on the beat line up with the music.
 
 - Before the first tempo marker, a scanner plays at 120 BPM: see [[SyncTrack]](/chart/sync-track).
 - scan-chart reports a tempo map that was never set, a single tempo marker at 120 BPM and a single 4/4 time signature, as `isDefaultBPM`, a warning. It can't check that a chart is in sync. It reports a time signature that isn't at the start of a measure as `misalignedTimeSignature`.
 
 ### Offset
 
-A `.chart` file's `Offset` should be 0, or left out. The notes line up with the audio through the tempo map and the audio's leading silence instead. [[Song]](/chart/song) deprecates any other `Offset`, and [Settings](/ini/settings#deprecated) deprecates `delay`.
+A `.chart` file's `Offset` is 0, or left out. The notes line up with the audio through the tempo map and the audio's leading silence instead. [[Song]](/chart/song) deprecates any other `Offset`, and [Settings](/ini/settings#deprecated) deprecates `delay`.
 
 - Changing an `Offset` to 0 moves every note in time, so the audio's leading silence has to change with it.
-- scan-chart doesn't report it.
+- scan-chart reports an `Offset` other than 0 as `chartOffset`, a recommendation.
 
 ### Leading silence
 
-The chart's first note should come at least 2 seconds after the start of the audio, or two measures after it if that's sooner. If the notes start earlier, add silence to the start of the audio file, and keep the chart in sync with it.
+The chart's first note comes at least 2 seconds after the start of the audio, or two measures after it if that's sooner. When the notes start earlier, add silence to the start of the audio file, in an audio editor such as Audacity, and keep the chart in sync with it.
 
 - The first note is the first note of any track, vocals included.
 - The two measures are at the chart's first tempo and time signature: `2 × numerator × 4 ÷ denominator` beats. In 4/4, they're shorter than 2 seconds only above 240 BPM.
 - The start of the audio is the chart's tick 0, since the chart has no `Offset` or `delay`.
-- scan-chart reports `smallLeadingSilence` for each track whose first note is too early: a warning before 1 second, and a recommendation before the guidelines' time.
+- scan-chart reports `smallLeadingSilence` for each track whose first note is too early: a warning before 1 second, and a recommendation before the time above.
 
 ## Difficulties
 
 ### Expert
 
-Every instrument the chart has should have an Expert difficulty.
+Each instrument the chart has includes an Expert difficulty.
 
 - A scanner reads double kicks only from `ExpertDrums`: see [Double kicks](/chart/drums#double-kicks).
 - scan-chart reports an instrument with no Expert as `noExpert`, a warning.
 
+### Lower difficulties
+
+Each lower difficulty is reduced from the one above it, with fewer and simpler notes, so that a player can learn the song one step at a time.
+
+- On 5-fret guitar, Easy uses green, red and yellow. Medium adds blue, without a green and blue chord. Hard adds orange, without a green and orange chord.
+- On drums, only Expert has double kicks, and Easy has no kick together with two pads.
+- Each track has notes. A section with no notes isn't a track, and games don't list it.
+- scan-chart reports a lower difficulty with the same notes as Expert as `difficultyNotReduced`, and a note its difficulty shouldn't have as `difficultyForbiddenNote`. Both are warnings. It reports a track with no notes as `emptyTrack`, and `fixIssues` removes it.
+
 ## Note placement
 
-Notes should be placed accurately, by their timing and their relative pitch. The guidelines call this one of the most important rules, and the most subjective. Good note placement balances accuracy, playability and readability: many choices are plainly wrong, but the best way to chart a passage is often a matter of judgment. The guidelines point to the Charting section of the CSC website, the #charting-discussion channel of the Clone Hero Discord server, and the charts of experienced charters.
-
-The guidelines also ask a chart to follow "the standard charting guidelines" in general, which they don't list.
+Notes are placed accurately, by their timing and their relative pitch. This is one of the most important parts of a chart, and the most subjective. Good note placement balances accuracy, playability and readability: many choices are plainly wrong, but the best way to chart a passage is often a matter of judgment. It takes practice to learn. The Charting section of the CSC website, the #charting-discussion channel of the Clone Hero Discord server, and the charts of experienced charters show how it's done.
 
 scan-chart can't judge note placement. It reports some plain mistakes, each as a warning:
 
 - `brokenNote`: a note 15 milliseconds or less after the one before it;
-- `invalidChord`: a chord such as all five frets, or three or more drum pads;
-- `difficultyForbiddenNote`: a note a lower difficulty shouldn't have, such as orange on Easy;
-- `difficultyNotReduced`: a lower difficulty with the same notes as a higher one.
+- `invalidChord`: a chord such as all five frets, or three or more drum pads.
 
 ## Sustains
 
 ### Sustain gaps
 
-When a sustain ends, the next note should start at least 60 milliseconds later. Where a sustain is cut short to make room for the next note, the gap should be 70 to 85 milliseconds.
+When a sustain ends, the next note starts at least 60 milliseconds later. Where a sustain is cut short to make room for the next note, the gap is 70 to 85 milliseconds.
 
 - The next note is the next note on any lane of the track.
 - No game reads the gap: it's a convention for playing comfortably.
-- Moonscraper can leave the gap for you. Its Sustain Gap setting, off by default, shortens each sustain to end the gap before the next note. It measures the gap in ticks, a 1/16 note by default, or in milliseconds.
-- scan-chart reports `badSustainGap`: a warning under 40 milliseconds, and a recommendation under 60. It doesn't check open sustains or drums, and doesn't report the 70 to 85 milliseconds.
+- Moonscraper can leave the gap. Its Sustain Gap setting, off by default, shortens each sustain to end the gap before the next note. It measures the gap in ticks, a 1/16 note by default, or in milliseconds.
+- scan-chart reports `badSustainGap`: a warning under 40 milliseconds, and a recommendation under 60. It doesn't check open sustains or drums, and doesn't report the 70 to 85 milliseconds. With `changeHashes`, `fixIssues` shortens each sustain to leave the gap.
 
 ### Short sustains
 
-A sustain should be at least 200 milliseconds long, as a scanner reads it, after the [sustain cutoff](/chart/note-resolution#cut-off-short-sustains).
+A sustain is at least 200 milliseconds long, as a scanner reads it, after the [sustain cutoff](/chart/note-resolution#cut-off-short-sustains).
 
 - Neither game has a minimum in milliseconds. A `.chart` file has no cutoff by default, and a `.mid` file has a cutoff of about a third of a beat: about 169 milliseconds at 120 BPM in Clone Hero.
-- scan-chart reports `babySustain`: a warning under 100 milliseconds, and a recommendation under 200. It doesn't check drums, or a sustain that an open HOPO or tap starts inside.
+- scan-chart reports `babySustain`: a warning under 100 milliseconds, and a recommendation under 200. It doesn't check drums, or a sustain that an open HOPO or tap starts inside. With `changeHashes`, `fixIssues` removes each sustain that's too short.
 
-{/* review: Q12
-How are leading silence, sustain gaps and short sustains measured? The guidelines don't say whether the first note is the chart's or each track's, which note ends a sustain gap, or whether a short sustain is measured as written or as read. scan-chart measures the silence per track, and skips two cases the guidelines don't mention: open sustains for the gap, and a short sustain that an open HOPO or tap starts inside. Their reasons aren't recorded.
-- A. As this page says | The chart's first note, vocals included; the next note on any lane; the sustain as read, after the cutoff; no exceptions | scan-chart's two exceptions stay as scan-chart behaviour, unless you confirm a reason, which then goes on this page as an edge case
-- B. As scan-chart measures | Per track, with both exceptions | The page states rules whose reasons aren't known
-Recommendation: A. It's what the sentences say, and Moonscraper's gap setting measures the same way.
-*/}
-
-## Phrases and sections
+## Phrases and events
 
 ### Practice sections
 
-A chart should have practice sections where they fit the song.
+Practice sections where they fit the song, such as one for each verse, chorus and solo.
 
 - [Practice sections](/chart/events#practice-sections) recommends at least one.
 - With none, Clone Hero makes ten sections, named `0% - 10%` and so on. YARG makes none.
@@ -132,21 +179,26 @@ A chart should have practice sections where they fit the song.
 
 ### Star power
 
-A chart should have star power where it fits. A drums chart doesn't need it.
+Star power where it fits. A drums chart doesn't need it.
 
 - Neither game adds star power to a chart that has none: see [Star power](/chart/phrases#star-power).
 - scan-chart reports a track with no star power as `noStarPower`, a warning, when it isn't drums and has more than 50 notes or chords over more than 60 seconds. It reports a star power phrase with no notes as `emptyStarPower`.
 
 ### Solos
 
-A chart should have solo sections where they fit: see [Solos](/chart/phrases#solos).
+Solo sections where they fit: see [Solos](/chart/phrases#solos).
 
 - scan-chart can't check it. It reports a solo with no notes as `emptySoloSection`.
 
-## Differences from the guidelines
+### Drum fills
 
-The guidelines' rules for a song folder's files are on [Files in a song folder](/song-folders), and their rules for the layout of `song.ini` on [song.ini syntax](/ini/reading-rules). Those pages differ from the guidelines in three places:
+A drums chart with star power has drum fills, which mark where the player can use it: see [Drum fills](/chart/phrases#drum-fills).
 
-- **Background images.** The guidelines say Clone Hero cycles through them in alphabetical order. Both games pick one at random each time the chart is played.
-- **Album art.** The guidelines prefer `.jpg`, for its smaller files. This specification recommends `.png`, keeps art that started as a JPEG as `.jpg`, and also allows `.jpeg`.
-- **Video.** The guidelines prefer `.webm` or `.vp8`, and allow `.ogv`. YARG doesn't read `.vp8` or `.ogv`, so this specification recommends only `video.webm`.
+- Without them, the games make their own.
+- scan-chart reports a drums track with star power and no drum fills as `noDrumActivationLanes`, a warning, when it has more than 50 notes or chords over more than 60 seconds.
+
+### The end of the song
+
+When the audio runs on long after the last note, such as a long fade-out, an `end` event ends the song there, and shows the results sooner: see [The end of the song](/chart/events#the-end-of-the-song).
+
+- scan-chart reports an `end` before the last note, and every `end` after the first, as `badEndEvent`.
