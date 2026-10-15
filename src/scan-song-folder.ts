@@ -160,16 +160,23 @@ export async function scanSong(song: SongDocument, options: ScanOptions = {}): P
 	folderIssues.push(...video.folderIssues)
 	folderIssues.push(...scanFolderFiles(files, { chartFile: chartFile ?? null, songSection: context.ini.songSection, extraFiles: options.extraFiles ?? [] }))
 
+	// An issue about ignored_issues itself is never ignored.
+	const aboutTag = new Set<Issue>()
 	const issues = [
 		...folderIssues.map(folderIssue),
-		...metadataIssues.map(issue => metadataIssue({ ...issue, file: song.ini?.fileName })),
+		...metadataIssues.map(finding => {
+			const issue = metadataIssue({ ...finding, file: song.ini?.fileName })
+			if (ignored?.issues.includes(finding)) aboutTag.add(issue)
+			return issue
+		}),
 		...songIniSpellingIssues(song.ini),
 		...chartIssues,
 	]
+	const isIgnored = (issue: Issue) => ignored !== null && ignored.codes.has(issue.code) && !aboutTag.has(issue)
 	const scanned: ScannedSong = {
 		metadata,
-		issues: issues.filter(issue => !ignored?.codes.has(issue.code)),
-		ignoredIssues: issues.filter(issue => ignored?.codes.has(issue.code)),
+		issues: issues.filter(issue => !isIgnored(issue)),
+		ignoredIssues: issues.filter(isIgnored),
 		playable: context.chart.kind === 'parsed' && !audio.folderIssues.some(issue => issue.folderIssue === 'noAudio'),
 		hasVideoBackground: video.hasVideoBackground,
 		stats,
