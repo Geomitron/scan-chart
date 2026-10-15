@@ -152,6 +152,14 @@ Which keys do these pages list, and what about the keys only YARG reads? The gui
 Recommendation: A, with `preview_end_time` in the main table, since the [Song] page already pairs it with `PreviewEnd`.
 */}
 
+## Read by tools
+
+| Key | What it holds |
+|---|---|
+| `ignored_issues` | Issue codes a tool such as scan-chart doesn't report for this song, separated by commas: `ignored_issues = discouragedAudio, albumArtSize`. A charter writes it to keep a recommendation or warning they've chosen not to follow, such as an intended `preview` audio file, out of the issue list. Games ignore it |
+
+**Edge case:** an issue that means games read the file differently can't be ignored: scan-chart reports such a code, and an unknown code, in `ignored_issues` itself.
+
 ## Deprecated
 
 - **`frets`**, an older name for `charter`. A scanner reads it only when there's no `charter` line. Write `charter` instead. `frets = 0`, common in older files, shows the charter as "0" when there's no `charter` line.
