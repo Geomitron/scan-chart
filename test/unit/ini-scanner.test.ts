@@ -152,6 +152,25 @@ describe('scanIni: unknownIniValues', () => {
 		expect(result.metadata).toBeNull()
 	})
 
+	it('reads charter and album_track whenever they\'re in the file, and frets and track only when they aren\'t', () => {
+		const read = (lines: string[]) => scanIni(buildIni(['[Song]', ...lines])).metadata!
+		expect(read(['charter =', 'frets = Someone']).charter).toBe('Unknown Charter')
+		expect(read(['charter = 0', 'frets = Someone']).charter).toBe('0')
+		expect(read(['charter = -1', 'frets = Someone']).charter).toBe('-1')
+		expect(read(['frets = Someone']).charter).toBe('Someone')
+		expect(read(['frets = 0']).charter).toBe('0')
+		for (const albumTrack of ['', '-1', 'abc']) expect(read([`album_track = ${albumTrack}`, 'track = 3']).album_track).toBe(16000)
+		expect(read(['track = 3']).album_track).toBe(3)
+		expect(read(['track = -1']).album_track).toBe(16000)
+	})
+
+	it('reads text 0 and -1 as text, and a blank number or -1 as not set', () => {
+		const { metadata, metadataIssues } = scanIni(buildIni(['[Song]', 'name = 0', 'artist = -1', 'album =', 'diff_guitar =', 'diff_bass = -1', 'delay = -1', 'playlist_track = -1']))
+		expect(metadata).toMatchObject({ name: '0', artist: '-1', album: 'Unknown Album', diff_guitar: -1, diff_bass: -1, delay: 0, playlist_track: 16000 })
+		expect(metadataIssues.map(issue => issue.description).filter(description => /"(name|artist|album)"/.test(description)))
+			.toEqual(['Metadata is missing the "album" property.'])
+	})
+
 	it('preserves values with special characters', () => {
 		const files = buildIni([
 			'[Song]',

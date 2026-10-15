@@ -47,7 +47,7 @@ export interface ScanOptions {
 	readonly extraIniKeys?: readonly (string | RegExp)[]
 	/**
 	 * Style notes: what every reader reads alike. These are nonstandard spellings, such as a repeated `.chart` line, and
-	 * song.ini lines: tags out of the standard order, `-1` and blank text values, and lines that change nothing. Default: `false`.
+	 * song.ini lines: tags out of the standard order, `-1` numbers and blank text values, and lines that change nothing. Default: `false`.
 	 */
 	readonly styleNotes?: boolean
 	/** Guesses about the metadata's style, such as credits joined with "and", which can be wrong. Default: `false`. */

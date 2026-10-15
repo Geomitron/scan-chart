@@ -153,6 +153,13 @@ function fixSongIni(
 	for (const code of ['blankIniValue', 'blankIniNumber', 'defaultIniValue', 'redundantDrumType'] as const) {
 		for (const key of keysOf(code)) fixes.push({ code, subject: code === 'defaultIniValue' ? `${key} = ${songSection[key]}` : key, remove: [key] })
 	}
+	// Games read frets and track only without a charter or album_track line, so a blank one goes only with them.
+	for (const [key, older] of [['charter', 'frets'], ['album_track', 'track']] as const) {
+		const blank = fixes.find(fix => fix.remove?.includes(key))
+		if (blank === undefined || songSection[older] === undefined || fixes.some(fix => fix.remove?.includes(older))) continue
+		fixes.splice(fixes.indexOf(blank), 1)
+		record.skip(blank.code, ini.fileName, `Removing "${key}" would make games read "${older}" instead: remove "${older}" too.`)
+	}
 	for (const key of keysOf('quotedIniValue')) {
 		const unquoted = trimDotnet(songSection[key].slice(1, -1))
 		// Games read a quoted number or boolean as not set, so unquoting it would change what they read.

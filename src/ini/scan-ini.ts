@@ -262,10 +262,17 @@ export function extractSongMetadata(songSection: { readonly [key: string]: strin
 }
 
 /**
- * @returns the value in `songSection` at `key`, parsed as a string.
- * Falls back to `legacyKey` if not found or invalid.
- * Then falls back to the default value if `legacyKey` is not found or invalid.
- * Style tags are removed from the string when `removeTags` is set.
+ * The line games read of `key`: its own whenever it's in the file, whatever its value, as Clone Hero and YARG read
+ * `charter` over `frets`, and Clone Hero `album_track` over `track`. `legacyKey` is read only when `key` isn't.
+ */
+function writtenValue(songSection: { readonly [key: string]: string }, key: string, legacyKey: string | undefined): string | undefined {
+	return songSection[key] ?? (legacyKey === undefined ? undefined : songSection[legacyKey])
+}
+
+/**
+ * @returns the value in `songSection` at `key`, or at `legacyKey` when `key` isn't in the file, as a string, or the
+ * default value when it's blank or not there. Text `0` and `-1` are text. Style tags are removed from the string when
+ * `removeTags` is set.
  */
 function getIniString(
 	songSection: { readonly [key: string]: string },
@@ -273,37 +280,18 @@ function getIniString(
 	legacyKey: Exclude<InputMetaStringKey, MetaStringKey> | undefined,
 	removeTags: boolean,
 ) {
-	const clean = (value: string) => removeTags ? removeStyleTags(value) : value
-	const value = songSection[key]
-	if (value && value !== '0' && value !== '-1') {
-		return clean(value)
-	} else if (legacyKey) {
-		const legacyValue = songSection[legacyKey]
-		if (legacyValue && legacyValue !== '0' && legacyValue !== '-1') {
-			return clean(legacyValue)
-		}
-	}
-
-	return defaultMetadata[key]
+	const value = writtenValue(songSection, key, legacyKey)
+	if (!value) return defaultMetadata[key]
+	return removeTags ? removeStyleTags(value) : value
 }
 
 /**
- * @returns the value in `songSection` at `key`, parsed as an integer.
- * Falls back to `legacyKey` if not found or invalid.
- * Then falls back to the default value if `legacyKey` is not found or invalid.
+ * @returns the value in `songSection` at `key`, or at `legacyKey` when `key` isn't in the file, parsed as an integer,
+ * or the default value when it's blank, -1, not a number, or not there.
  */
 function getIniInteger(songSection: { readonly [key: string]: string }, key: MetaNumberKey, legacyKey?: Exclude<InputMetaNumberKey, MetaNumberKey>) {
-	const value = parseFloat(songSection[key])
-	if (!isNaN(value) && value !== -1) {
-		return value
-	} else if (legacyKey) {
-		const legacyValue = parseFloat(songSection[legacyKey])
-		if (!isNaN(legacyValue) && legacyValue !== -1) {
-			return legacyValue
-		}
-	}
-
-	return defaultMetadata[key]
+	const value = parseFloat(writtenValue(songSection, key, legacyKey) ?? '')
+	return !isNaN(value) && value !== -1 ? value : defaultMetadata[key]
 }
 
 /**
