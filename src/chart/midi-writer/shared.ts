@@ -5,6 +5,7 @@
  */
 import type { MidiEvent } from '@geomitron/midi-file'
 
+import type { Difficulty } from '../../types'
 import type { NoteType } from '../types'
 import type { ParsedChart } from '../parse-chart-and-ini'
 
@@ -198,6 +199,9 @@ export function stretchUnsustainedNotes(events: AbsoluteEvent[], cutoff: number)
 	}
 }
 
+/** The first sequence number of verbatim events, after every other one. */
+const verbatimSeq = 4_000_000_000
+
 /**
  * Adds events kept verbatim, each at its tick (its `deltaTime`), in their order, after the events written from the
  * chart at that tick. A note-off that ends a note begun at an earlier tick, paired as Clone Hero pairs them (the latest
@@ -223,8 +227,29 @@ export function addVerbatimEvents(events: AbsoluteEvent[], verbatim: readonly Mi
 	})
 }
 
-/** The first sequence number of verbatim events, after every other one. */
-const verbatimSeq = 4_000_000_000
+/**
+ * Adds an instrument's lanes (126 single, 127 double) from its difficulty tracks. A lane on several difficulties is
+ * written once, with the velocity of the easiest of them, which the reader turns back into the difficulties it applies
+ * to (`fixFlexLaneLds`). Written with `addNoteOnOff`, a lane that ends where another of its number starts ends first.
+ */
+export function addFlexLanes(events: AbsoluteEvent[], tracks: readonly ParsedTrack[]): void {
+	const velocities = new Map<string, number>()
+	for (const track of tracks) {
+		for (const lane of track.flexLanes) {
+			const key = `${lane.tick}:${lane.length}:${lane.isDouble ? 127 : 126}`
+			const velocity = laneVelocities[track.difficulty]
+			const existing = velocities.get(key)
+			if (existing === undefined || velocity < existing) velocities.set(key, velocity)
+		}
+	}
+	for (const [key, velocity] of velocities) {
+		const [tick, length, noteNumber] = key.split(':').map(Number)
+		addNoteOnOff(events, tick, length, noteNumber, velocity, true)
+	}
+}
+
+/** The lane velocity each difficulty writes, within the range the reader keeps for it. */
+const laneVelocities: Record<Difficulty, number> = { easy: 25, medium: 35, hard: 45, expert: 100 }
 
 /** Adds an instrument track's versus phrases: player 1's on note 105 and player 2's on 106. A zero-length one is kept. */
 export function addVersusPhrases(events: AbsoluteEvent[], versusPhrases: ParsedTrack['versusPhrases']): void {
@@ -266,7 +291,7 @@ export function mergeDifficultySections<T extends { tick: number; length: number
  * The sustain cutoff the written file will be read with: `options.sustainCutoff`, or else the chart's song.ini setting,
  * or `.mid`'s default when it sets none.
  */
-export function readSustainCutoff(chart: ParsedChart, options: MidiWriteOptions): number {
+export function computeSustainCutoff(chart: ParsedChart, options: MidiWriteOptions): number {
 	if (options.sustainCutoff !== undefined) return options.sustainCutoff
 	const setCutoff = chart.iniChartModifiers.sustain_cutoff_threshold
 	return setCutoff >= 0 ? setCutoff : Math.floor(chart.resolution / 3) + 1
