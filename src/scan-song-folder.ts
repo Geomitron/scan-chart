@@ -128,20 +128,7 @@ export async function scanSong(song: SongDocument, options: ScanOptions = {}): P
 		if (context.ini.metadata !== null) metadataIssues.push(...difficultyIssues(metadata, stats))
 	}
 	if (song.ini !== null && context.ini.metadata !== null && context.ini.songSection !== null) {
-		const { chart, settings } = context
-		iniFindings = songIniIssues({
-			tokens: song.ini.tokens,
-			songSection: context.ini.songSection,
-			metadata: context.ini.metadata,
-			requiredKeys: stats === null ? [] : chartedDifficultyKeys(stats),
-			chart: chart.kind !== 'parsed' || stats === null ? null : {
-				format: chart.source.format,
-				drumType: stats.instruments.includes('drums') ? chart.parsed.drumType : null,
-				detectedDrumType: () => parseChartSource(chart.source, { ...settings, pro_drums: false, five_lane_drums: false }, parseRules.canonical20260801).drumType,
-			},
-			extraIniKeys: options.extraIniKeys ?? [],
-			styleNotes: options.styleNotes ?? false,
-		})
+		iniFindings = songIniFindings(song, stats, options)
 		metadataIssues.push(...iniFindings)
 		if (options.metadataStyle) metadataIssues.push(...metadataStyleIssues(context.ini.metadata))
 	}
@@ -191,6 +178,25 @@ export async function scanSong(song: SongDocument, options: ScanOptions = {}): P
 		albumArt,
 	}
 	return { scanned, iniFindings }
+}
+
+/** The song.ini checks' findings, given the chart's statistics; none when Clone Hero reads no song.ini `[song]` section. */
+export function songIniFindings(song: SongDocument, stats: ChartStats | null, options: ScanOptions): MetadataFinding[] {
+	const { chart, ini, settings } = songContext(song)
+	if (song.ini === null || ini.metadata === null || ini.songSection === null) return []
+	return songIniIssues({
+		tokens: song.ini.tokens,
+		songSection: ini.songSection,
+		metadata: ini.metadata,
+		requiredKeys: stats === null ? [] : chartedDifficultyKeys(stats),
+		chart: chart.kind !== 'parsed' || stats === null ? null : {
+			format: chart.source.format,
+			drumType: stats.instruments.includes('drums') ? chart.parsed.drumType : null,
+			detectedDrumType: () => parseChartSource(chart.source, { ...settings, pro_drums: false, five_lane_drums: false }, parseRules.canonical20260801).drumType,
+		},
+		extraIniKeys: options.extraIniKeys ?? [],
+		styleNotes: options.styleNotes ?? false,
+	})
 }
 
 /** Each instrument's song.ini difficulty rating. */
