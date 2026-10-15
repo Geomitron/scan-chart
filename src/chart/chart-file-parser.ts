@@ -606,6 +606,51 @@ export function chartSectionLines(tokens: ChartFileTokens, section: ChartSection
 	return out
 }
 
+/** Whether a character is one `.chart` lines are read without at either end: a space, a tab or a carriage return. */
+export const isChartLineBlank = (code: number) => code === 32 || code === 9 || code === 13
+
+/**
+ * Reads the lines of a `.chart` file's text from `start` to `end` without slicing it, as `chartSectionLines` splits
+ * them: `visit` gets each line's start, where its text starts after spaces, tabs and carriage returns, and where it
+ * ends, at its line feed or at `end`. Reading stops when `visit` returns `false`. Every line of every chart is read on
+ * every analysis, so each is read a character at a time.
+ */
+export function forEachChartLine(text: string, start: number, end: number, visit: (lineStart: number, textStart: number, lineEnd: number) => boolean | void): void {
+	for (let position = start; position < end;) {
+		const lineFeed = text.indexOf('\n', position)
+		const lineEnd = lineFeed === -1 || lineFeed > end ? end : lineFeed
+		let textStart = position
+		while (textStart < lineEnd && isChartLineBlank(text.charCodeAt(textStart))) textStart++
+		if (visit(position, textStart, lineEnd) === false) return
+		position = lineEnd + 1
+	}
+}
+
+/**
+ * Whether the line from `at`, just after its tick, to `lineEnd` is ` = N <value> <length>` or the same with `S`, with
+ * only spaces, tabs and a carriage return after it: the standard note and phrase lines, without a pattern match.
+ */
+export function isStandardNoteLine(text: string, at: number, lineEnd: number): boolean {
+	if (text.charCodeAt(at) !== 32 || text.charCodeAt(at + 1) !== 61 || text.charCodeAt(at + 2) !== 32) return false
+	const type = text.charCodeAt(at + 3)
+	if ((type !== 78 && type !== 83) || text.charCodeAt(at + 4) !== 32) return false
+	let index = at + 5
+	for (let value = 0; value < 2; value++) {
+		if (value === 1) {
+			if (text.charCodeAt(index) !== 32) return false
+			index++
+		}
+		const digits = index
+		while (index < lineEnd && text.charCodeAt(index) >= 48 && text.charCodeAt(index) <= 57) index++
+		if (index === digits) return false
+	}
+	for (; index < lineEnd; index++) {
+		const code = text.charCodeAt(index)
+		if (!isChartLineBlank(code)) return false
+	}
+	return true
+}
+
 function splitTrimmedNonEmptyLines(source: string, start: number, end: number): string[] {
 	const out: string[] = []
 	let lineStart = start

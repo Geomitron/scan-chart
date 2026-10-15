@@ -108,7 +108,7 @@ export const issueSeverities: { readonly [code in IssueCode]: IssueSeverity } = 
 	unreadableChartLine: 'error',
 	nonstandardChartSections: 'error',
 	discoNoflipDuringFlip: 'error',
-	chartModifierWithoutNote: 'warning',
+	chartModifierWithoutNote: 'recommendation',
 }
 
 /** A problem found in a song folder. Every issue has this shape, whatever its scope. */

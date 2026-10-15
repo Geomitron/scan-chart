@@ -1,4 +1,13 @@
-import { chartEventSection, ChartFileTokens, chartSectionLines, chartSectionTrack, ChartSectionToken } from './chart/chart-file-parser'
+import {
+	chartEventSection,
+	ChartFileTokens,
+	chartSectionLines,
+	chartSectionTrack,
+	ChartSectionToken,
+	forEachChartLine,
+	isChartLineBlank,
+	isStandardNoteLine,
+} from './chart/chart-file-parser'
 import { ChartEventSection, ChartLineSpelling, chartSectionSpellings, chartSongSpellings } from './chart/chart-line-spelling'
 import { chartModifiersWithoutNotes } from './chart/chart-modifiers'
 import { chartSectionNoflips, midiTrackNoflips, type NoflipDuringFlip } from './chart/disco-flip'
@@ -46,7 +55,7 @@ export const spellingIssueMessages: { readonly [code in SpellingIssueType]: stri
 	unreadableChartLine: 'A line in this section can\'t be read, so scan-chart ignores it. Saving an edit removes it.',
 	nonstandardChartSections: 'The chart\'s [Song] and [SyncTrack] sections aren\'t written the standard way. Saving an edit fixes them.',
 	discoNoflipDuringFlip: 'A "dnoflip" mix event comes while a "d" disco flip is on. Clone Hero 1.1 keeps the flip on, and other programs start no-flip there. Saving an edit turns the flip off first.',
-	chartModifierWithoutNote: 'A modifier in this section, such as a forced, tap, cymbal, accent or ghost marker, has no note at its tick to apply to. Games ignore it, and saving an edit removes it.',
+	chartModifierWithoutNote: 'A modifier in this section, such as a forced, tap, cymbal, accent or ghost marker, has no note at its tick to apply to. Games ignore it, but a cymbal marker still makes the chart pro. Saving an edit removes it, unless it\'s a cymbal marker the drum type may depend on.',
 }
 
 /** The nonstandard spellings of a chart file, one issue per section or track; style notes only when `styleNotes`. */
@@ -62,8 +71,9 @@ export function chartSpellingIssues(source: ChartSource, styleNotes: boolean): I
 		// The normalizations read the first section of each name, which a reader uses.
 		const firstOfName = new Map<string, (typeof tokens.sections)[number]>()
 		for (const section of tokens.sections) if (!firstOfName.has(section.name)) firstOfName.set(section.name, section)
-		for (const [name, lines] of chartModifiersWithoutNotes(tokens)) {
-			respelled.push(['chartModifierWithoutNote', name, modifierMessage(lines.map(({ start, end }) => tokens.text.slice(start, end).trim()))])
+		for (const [name, { removed, kept }] of styleNotes ? chartModifiersWithoutNotes(tokens) : []) {
+			const lines = [...removed, ...kept].sort((a, b) => a.start - b.start).map(({ start, end }) => tokens.text.slice(start, end).trim())
+			respelled.push(['chartModifierWithoutNote', name, modifierMessage(lines, kept.length)])
 		}
 		for (const section of tokens.sections) {
 			const track = chartSectionTrack(section.name)
@@ -112,14 +122,27 @@ export function chartSpellingIssues(source: ChartSource, styleNotes: boolean): I
 	return issues
 }
 
-/** The message about a section's modifier lines with no note to apply to, naming the first. */
-function modifierMessage(lines: readonly string[]): string {
+/**
+ * The message about a section's modifier lines with no note to apply to, naming the first, of which `kept` are cymbal
+ * markers that saving keeps, since they may decide the drum type.
+ */
+function modifierMessage(lines: readonly string[], kept: number): string {
 	const quote = (line: string) => `"${line.length > 80 ? `${line.slice(0, 77)}...` : line}"`
-	return lines.length === 1
-		? `The line ${quote(lines[0])} is a modifier with no note at its tick to apply to, which games ignore. Saving an edit removes it: `
-			+ 'move it to its note\'s tick first to keep what it meant.'
-		: `${lines.length.toLocaleString('en-US')} lines, such as ${quote(lines[0])}, are modifiers with no note at their tick to apply to, which games ignore. `
-			+ 'Saving an edit removes them: move them to their notes\' ticks first to keep what they meant.'
+	const one = lines.length === 1
+	const which = one ? `The line ${quote(lines[0])} is` : `${lines.length.toLocaleString('en-US')} lines, such as ${quote(lines[0])}, are`
+	const tick = one ? 'its tick' : 'their tick'
+	if (kept === lines.length) {
+		return `${which} ${one ? 'a cymbal marker' : 'cymbal markers'} with no note at ${tick} to apply to. ${one ? 'It still makes' : 'They still make'} `
+			+ `the chart pro, so saving an edit keeps ${one ? 'it' : 'them'}.`
+	}
+	const moveFirst = (them: string, their: string, they: string) => `move ${them} to ${their} first to keep what ${they} meant.`
+	if (kept === 0) {
+		return `${which} ${one ? 'a modifier' : 'modifiers'} with no note at ${tick} to apply to, which games ignore. Saving an edit removes `
+			+ (one ? `it: ${moveFirst('it', 'its note\'s tick', 'it')}` : `them: ${moveFirst('them', 'their notes\' ticks', 'they')}`)
+	}
+	return `${which} modifiers with no note at their tick to apply to. Games ignore them, but ${kept} of them, `
+		+ `${kept === 1 ? 'a cymbal marker, still makes' : 'cymbal markers, still make'} the chart pro. Saving an edit removes the others: `
+		+ moveFirst('them', 'their notes\' ticks', 'they')
 }
 
 /** The message about one difficulty's `dnoflip` mix events that come while a `d` flip is on, naming the first. */
@@ -206,13 +229,10 @@ const standardLineAt: { readonly [section in ChartEventSection]: RegExp } = {
 function scanSectionLines(text: string, start: number, end: number, checkOrder: boolean, checkQuoted: boolean, spelling: ChartEventSection | null) {
 	let unsorted = false, quoted = false, nonstandard = false, lastTick = 0
 	const standard = spelling === null ? null : standardLineAt[spelling]
-	const isBlank = (code: number) => code === 32 || code === 9 || code === 13
-	for (let position = start; position < end && ((checkOrder && !unsorted) || (checkQuoted && !quoted) || (standard !== null && !nonstandard));) {
-		const lineFeed = text.indexOf('\n', position)
-		const lineEnd = lineFeed === -1 || lineFeed > end ? end : lineFeed
-		let index = position
-		while (index < lineEnd && isBlank(text.charCodeAt(index))) index++
-		const digitsStart = index
+	const checking = () => (checkOrder && !unsorted) || (checkQuoted && !quoted) || (standard !== null && !nonstandard)
+	if (!checking()) return { unsorted, quoted, nonstandard }
+	forEachChartLine(text, start, end, (_, digitsStart, lineEnd) => {
+		let index = digitsStart
 		let tick = 0
 		while (index < lineEnd && text.charCodeAt(index) >= 48 && text.charCodeAt(index) <= 57) tick = tick * 10 + text.charCodeAt(index++) - 48
 		// Most lines are notes, checked here a character at a time; any other nonblank line by its pattern.
@@ -222,7 +242,7 @@ function scanSectionLines(text: string, start: number, end: number, checkOrder: 
 		}
 		if (index > digitsStart) {
 			let equals = index
-			while (equals < lineEnd && isBlank(text.charCodeAt(equals))) equals++
+			while (equals < lineEnd && isChartLineBlank(text.charCodeAt(equals))) equals++
 			if (text.charCodeAt(equals) === 61) {
 				if (checkOrder && !unsorted) {
 					if (tick < lastTick) unsorted = true
@@ -233,34 +253,9 @@ function scanSectionLines(text: string, start: number, end: number, checkOrder: 
 				}
 			}
 		}
-		position = lineEnd + 1
-	}
+		return checking()
+	})
 	return { unsorted, quoted, nonstandard }
-}
-
-/**
- * Whether the line from `at`, just after its tick, to `lineEnd` is ` = N <value> <length>` or the same with `S`, with
- * only spaces, tabs and a carriage return after it: `standardLineAt.track`'s note lines, without a pattern match.
- */
-function isStandardNoteLine(text: string, at: number, lineEnd: number): boolean {
-	if (text.charCodeAt(at) !== 32 || text.charCodeAt(at + 1) !== 61 || text.charCodeAt(at + 2) !== 32) return false
-	const type = text.charCodeAt(at + 3)
-	if ((type !== 78 && type !== 83) || text.charCodeAt(at + 4) !== 32) return false
-	let index = at + 5
-	for (let value = 0; value < 2; value++) {
-		if (value === 1) {
-			if (text.charCodeAt(index) !== 32) return false
-			index++
-		}
-		const digits = index
-		while (index < lineEnd && text.charCodeAt(index) >= 48 && text.charCodeAt(index) <= 57) index++
-		if (index === digits) return false
-	}
-	for (; index < lineEnd; index++) {
-		const code = text.charCodeAt(index)
-		if (code !== 32 && code !== 9 && code !== 13) return false
-	}
-	return true
 }
 
 /** The nonstandard spellings of the song.ini Clone Hero reads; none for another `.ini` file, which it doesn't read. */
