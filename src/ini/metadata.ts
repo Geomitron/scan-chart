@@ -27,7 +27,10 @@ export const defaultMetadata = {
 	loading_phrase: '',
 	album_track: 16000,
 	playlist_track: 16000,
+	playlist: '',
+	sub_playlist: '',
 	modchart: false,
+	explicit_lyrics: false,
 	/** Units of ms */ delay: 0,
 	hopo_frequency: 0,
 	eighthnote_hopo: false,
@@ -52,7 +55,7 @@ export function tagRank(key: string): number {
 }
 
 const numberTags = new Set([...tagOrder.filter(key => typeof defaultMetadata[key as MetadataKey] === 'number'), 'track', 'video_end_time'])
-const booleanTags = new Set([...tagOrder.filter(key => typeof defaultMetadata[key as MetadataKey] === 'boolean'), 'explicit_lyrics', 'video_loop'])
+const booleanTags = new Set([...tagOrder.filter(key => typeof defaultMetadata[key as MetadataKey] === 'boolean'), 'video_loop'])
 
 /** Whether games read a tag as a number: a number above, any `diff_` tag, `track` or `video_end_time`. */
 export function isNumberTag(key: string): boolean {

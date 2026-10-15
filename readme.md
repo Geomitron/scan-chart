@@ -76,7 +76,7 @@ for (const issue of issues) console.log(`${issue.code}: ${issue.message}`)
 
 - The values come from song.ini when the song has one, and from the `.chart` `[Song]` section only when it doesn't.
 - A value that isn't set is Clone Hero's default, such as `Unknown Artist`, or `-1` for a difficulty.
-- Text is as the file writes it, including style tags such as `<b>` and `<color=#AEFFFF>`, which Clone Hero shows as formatting. To show plain text, pass `{ removeStyleTags: true }`, as the example does. `songMetadata` and `scanSongFolder` take the same option.
+- Text is as the file writes it, including style tags such as `<b>` and `<color=#AEFFFF>`, which Clone Hero shows as formatting. `icon`, `playlist` and `sub_playlist` are in lowercase, as Clone Hero reads them. To show plain text, pass `{ removeStyleTags: true }`, as the example does. `songMetadata` and `scanSongFolder` take the same option.
 - The keys are song.ini's keys, so the guitar difficulty is `diff_guitar` and the song length is `song_length`, in milliseconds.
 
 `issues` lists problems with the folder and its metadata, such as a missing song.ini or a misnamed chart file.

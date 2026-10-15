@@ -118,11 +118,14 @@ describe('writeIniFile round-trip', () => {
 			hopo_frequency: 170,
 			eighthnote_hopo: true,
 			multiplier_note: 116,
+			playlist: 'test',
+			sub_playlist: 'favorites',
 			modchart: false,
+			explicit_lyrics: true,
 			pro_drums: true,
 			five_lane_drums: false,
 			end_events: true,
-			extraIniFields: { rating: '2', playlist: 'Test' },
+			extraIniFields: { rating: '2', tags: 'cover' },
 		}
 		const out = roundTrip(input)
 		for (const key of Object.keys(input) as (keyof typeof input)[]) {
