@@ -1,6 +1,6 @@
 import { isNameListed, toLowerInvariant, trimDotnet } from '../shared/text'
 import { undelayedSyncAdvice } from '../shared/time'
-import type { MetadataFinding } from '../issues'
+import { type IssueCode, issueSeverities, type MetadataFinding } from '../issues'
 import { type DrumType, drumTypes, type MetadataIssueType } from '../types'
 import { defaultMetadata } from './metadata'
 import { marksSingle } from './metadata-style'
@@ -52,8 +52,10 @@ const gameTags = [
 	'scores_ext', 'sub_genre', 'sysex_high_hat_ctrl', 'sysex_open_bass', 'sysex_pro_slide', 'sysex_rimshot', 'sysex_slider', 'tags', 'tutorial',
 	'unlock_completed', 'unlock_id', 'unlock_require', 'unlock_text', 'venue_hint', 'vocal_character_hint',
 ]
+/** scan-chart's own tag: the issue codes a chart means to have. */
+const ignoredIssuesTag = 'ignored_issues'
 /** The tags some game reads, or the standard or scan-chart documents. */
-const knownTags = new Set([...standardTags, ...knownIniKeys, ...gameTags])
+const knownTags = new Set([...standardTags, ...knownIniKeys, ...gameTags, ignoredIssuesTag])
 /** The order the charting guidelines list tags in, which scan-chart writes them in. */
 const tagOrder = Object.keys(defaultMetadata)
 /** The tags games read as numbers, besides every `diff_` tag. */
@@ -81,7 +83,7 @@ export function songIniIssues(input: SongIniInput): MetadataFinding[] {
 	}
 
 	const values = valueIssues(input)
-	const blank: string[] = keys.filter(key => isBlank(key, songSection[key]) && !input.requiredKeys.includes(key) && !values.missing.includes(key))
+	const blank: string[] = keys.filter(key => key !== ignoredIssuesTag && isBlank(key, songSection[key]) && !input.requiredKeys.includes(key) && !values.missing.includes(key))
 	// Clone Hero reads a blank number as not set, and YARG as 0; every reader reads a -1 or a blank text value as not set.
 	const blankNumbers = blank.filter(key => songSection[key] === '' && (key.startsWith('diff_') || numberTags.has(key)))
 	const blankStyle = blank.filter(key => !blankNumbers.includes(key))
@@ -240,6 +242,28 @@ function deprecatedTagIssues(songSection: SongSection, metadata: typeof defaultM
 		add('"song.ini" gives the album track with "track", a tag for older charts. Write "album_track" instead.')
 	}
 	return issues
+}
+
+/**
+ * The issue codes song.ini's `ignored_issues` lists, separated by commas: the ones a chart can ignore, a warning's or a
+ * recommendation's, and an issue for each other code listed, which isn't an issue code or is an error's.
+ */
+export function ignoredIssueCodes(songSection: SongSection): { codes: ReadonlySet<IssueCode>; issues: MetadataFinding[] } {
+	const codes = new Set<IssueCode>()
+	const issues: MetadataFinding[] = []
+	const listed = (songSection[ignoredIssuesTag] ?? '').split(',').map(trimDotnet).filter(code => code !== '')
+	for (const code of listed) {
+		const severity = Object.prototype.hasOwnProperty.call(issueSeverities, code) ? issueSeverities[code as IssueCode] : null
+		if (severity === null || severity === 'error') {
+			issues.push({
+				metadataIssue: 'invalidValue',
+				description: `The "${ignoredIssuesTag}" value in "song.ini" lists "${code}", ${severity === null ? 'which isn\'t an issue code' : 'an error, which can\'t be ignored'}.`,
+			})
+		} else {
+			codes.add(code as IssueCode)
+		}
+	}
+	return { codes, issues }
 }
 
 /** A line before `[song]`, a section other than `[song]`, and comments that don't start with ";": the first of each kind. */

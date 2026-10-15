@@ -88,3 +88,31 @@ describe('scanning a song folder', () => {
 			parseChartAndIni([files[0], files[1]])).md5)
 	})
 })
+
+describe('song.ini\'s ignored_issues', () => {
+	const scan = (ini: string, options = {}) => scanSongFolder([files[0], { fileName: 'song.ini', data: encode(`[song]\r\nname = Song\r\n${ini}\r\n`) }, files[2],
+		{ fileName: 'preview.ogg', data: new Uint8Array(1) }, { fileName: 'Album.png', data: new Uint8Array(1) }], options)
+	const codes = (issues: readonly { code: string }[]) => [...new Set(issues.map(issue => issue.code))]
+
+	it('moves the issues of the codes it lists to ignoredIssues, and is a tag scan-chart reads', async () => {
+		const unignored = await scan('')
+		expect(codes(unignored.issues)).toEqual(expect.arrayContaining(['discouragedAudio', 'fileNameCase', 'audioFormat']))
+		const scanned = await scan('ignored_issues = discouragedAudio ,fileNameCase,, audioFormat', { styleNotes: true })
+		expect(codes(scanned.ignoredIssues)).toEqual(['audioFormat', 'discouragedAudio', 'fileNameCase'])
+		expect(scanned.issues).toEqual(unignored.issues.filter(issue => !['discouragedAudio', 'fileNameCase', 'audioFormat'].includes(issue.code)))
+		expect(codes((await scan('ignored_issues =', { styleNotes: true })).issues)).not.toContain('blankIniValue')
+	})
+
+	it('keeps an error listed, and reports it and a code that isn\'t one', async () => {
+		const scanned = await scan('ignored_issues = missingValue, DiscouragedAudio, multipleChart')
+		expect(codes(scanned.ignoredIssues)).toEqual(['missingValue'])
+		expect(scanned.issues.filter(issue => issue.code === 'invalidValue').map(issue => issue.message)).toEqual([
+			'The "ignored_issues" value in "song.ini" lists "DiscouragedAudio", which isn\'t an issue code.',
+		])
+		const error = await scanSongFolder([files[0], { fileName: 'song.ini', data: encode('[song]\r\nignored_issues = noAudio\r\n') }])
+		expect(error.issues.map(issue => issue.code)).toContain('noAudio')
+		expect(error.issues.filter(issue => issue.code === 'invalidValue').map(issue => issue.message)).toEqual([
+			'The "ignored_issues" value in "song.ini" lists "noAudio", an error, which can\'t be ignored.',
+		])
+	})
+})

@@ -11,7 +11,7 @@ import { parseChartSource } from './chart/parse-chart-file'
 import { parseRules } from './chart/parse-rules'
 import { calculateCompetitiveHashes, CompetitiveHashes } from './competitive'
 import { resolveChart } from './gameplay-chart'
-import { songIniIssues } from './ini/ini-checks'
+import { ignoredIssueCodes, songIniIssues } from './ini/ini-checks'
 import { metadataStyleIssues } from './ini/metadata-style'
 import { defaultMetadata } from './ini/metadata'
 import { FolderFinding, folderIssue, Issue, metadataIssue } from './issues'
@@ -59,8 +59,10 @@ export interface ScanOptions {
 /** A song folder, scanned. What wasn't asked for is `null`. */
 export interface ScannedSong {
 	readonly metadata: SongMetadata
-	/** Every issue found: the folder's, then the metadata's, then the chart's. */
+	/** Every issue found, but those song.ini's `ignored_issues` lists: the folder's, then the metadata's, then the chart's. */
 	readonly issues: readonly Issue[]
+	/** The issues found whose codes song.ini's `ignored_issues` lists, in the same order. */
+	readonly ignoredIssues: readonly Issue[]
 	/** Whether the song can be played: it has a readable chart and an audio file. */
 	readonly playable: boolean
 	readonly hasVideoBackground: boolean
@@ -135,6 +137,8 @@ export async function scanSongFolder(files: readonly SongFile[], options: ScanOp
 		}))
 		if (options.metadataStyle) metadataIssues.push(...metadataStyleIssues(context.ini.metadata))
 	}
+	const ignored = context.ini.songSection === null ? null : ignoredIssueCodes(context.ini.songSection)
+	metadataIssues.push(...ignored?.issues ?? [])
 
 	// The album art's names are always checked. The art is read only when it's asked for, hashed, or checked.
 	const album = findAlbumArt(song.files)
@@ -161,14 +165,16 @@ export async function scanSongFolder(files: readonly SongFile[], options: ScanOp
 	folderIssues.push(...video.folderIssues)
 	folderIssues.push(...scanFolderFiles(song.files, { chartFile: chartFile ?? null, songSection: context.ini.songSection, extraFiles: options.extraFiles ?? [] }))
 
+	const issues = [
+		...folderIssues.map(folderIssue),
+		...metadataIssues.map(issue => metadataIssue({ ...issue, file: song.ini?.fileName })),
+		...songIniSpellingIssues(song.ini),
+		...chartIssues,
+	]
 	return {
 		metadata,
-		issues: [
-			...folderIssues.map(folderIssue),
-			...metadataIssues.map(issue => metadataIssue({ ...issue, file: song.ini?.fileName })),
-			...songIniSpellingIssues(song.ini),
-			...chartIssues,
-		],
+		issues: issues.filter(issue => !ignored?.codes.has(issue.code)),
+		ignoredIssues: issues.filter(issue => ignored?.codes.has(issue.code)),
 		playable: context.chart.kind === 'parsed' && !audio.folderIssues.some(issue => issue.folderIssue === 'noAudio'),
 		hasVideoBackground: video.hasVideoBackground,
 		stats,
