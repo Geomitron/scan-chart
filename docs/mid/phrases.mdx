@@ -37,11 +37,10 @@ A `.chart` file writes these phrases as `S` events, and solos as text events. Se
 ## Rules for every phrase
 
 - A phrase applies to every difficulty of its track, except a lane, whose velocity gives its difficulties. A `.chart` file gives each difficulty its own phrases.
-- A track must not hold two phrases of one type at one tick.
-- Phrases of one type must not overlap, except lanes.
-- A phrase should cover at least one note of each difficulty, and an exporter should give every phrase a length.
+- **Required:** at least one note in each phrase.
+- **Recommended:** a note of each difficulty in each phrase, and a length of at least one tick for each phrase.
 
-**Edge case: a phrase of length 0.** A note-on and its note-off at one tick: the phrase covers the notes on its tick. A solo must not have length 0. See [Solos](#solos).
+**Edge case: a phrase of length 0.** A note-on and its note-off at one tick: the phrase covers the notes on its tick.
 
 **Edge case: a phrase without notes on one difficulty.** A phrase can cover notes on Expert and none on Easy, because it applies to both. Clone Hero ignores it on the difficulties where it covers no note, and scan-chart reports it there.
 
@@ -49,42 +48,21 @@ A `.chart` file writes these phrases as `S` events, and solos as text events. Se
 
 Note 116 marks notes the player can earn star power from: hitting every note in it fills the star power meter.
 
-**Edge case: solos read as star power.** In a 5-fret, keys or 6-fret track with two or more solos and no star power, Clone Hero reads the solos as star power, unless `song.ini` has `multiplier_note = 116`. scan-chart reads them as Clone Hero does, and YARG reads them as solos. An exporter gives such a track star power, or writes `multiplier_note = 116`. See [Settings](/ini/settings#deprecated).
-
 ## Solos
 
-Note 103 marks a solo. It covers its notes from its note-on up to, but not including, its note-off:
-
-- A solo must have a length: its note-off must come after its note-on's tick.
-- Solos must not be nested.
+Note 103 marks a solo. It covers its notes from its note-on up to, but not including, its note-off.
 
 Unlike a `.chart` solo, which covers its `soloend` tick, a `.mid` solo doesn't cover the tick of its note-off. To cover the same notes as a `.chart` solo, its note-off comes one tick after the `soloend` tick.
-
-{/* review: Q6
-A solo's end tick, and a solo of length 0. Every scanner reads a .mid solo as covering its notes up to, but not including, its note-off's tick, while a .chart solo covers its `soloend` tick. A solo whose note-on and note-off share a tick makes Clone Hero stop with an error while it builds the chart. YARG and scan-chart read it as covering the notes on its tick.
-- A. End excluded, length 0 invalid | As every scanner reads the end. Other phrases of length 0 stay an edge case, as in .chart | A solo converted from .chart needs its note-off a tick after the soloend, as scan-chart's export writes it
-- B. End excluded, every phrase of length 0 invalid | Stricter | scan-chart's converter writes star power of length 0 on purpose
-- C. End excluded, length 0 an edge case | As the .chart page treats a phrase of length 0 | A valid file fails in Clone Hero
-Recommendation: A. Clone Hero can't load a solo of length 0, and other phrases of length 0 read in a .mid file as they do in a .chart file.
-*/}
 
 ## Drum fills
 
 A drum fill marks a stretch where the drummer can play freely and activate star power by hitting the fill's last note. It includes its end tick. An exporter should put a note on the fill's end tick.
 
-A drum fill whose tick is at or after the `[coda]` is a Big Rock Ending instead: a closing freestyle section with no star power activation. See [The coda](/mid/events#the-coda). On 5-fret guitar, bass and keys, note 120 at or after the `[coda]` is a Big Rock Ending, and has no meaning before it.
+A drum fill whose tick is at or after the `coda` is a Big Rock Ending instead: a closing freestyle section with no star power activation. See [The coda](/mid/events#the-coda). On 5-fret guitar, bass and keys, note 120 at or after the `coda` is a Big Rock Ending, and has no meaning before it.
 
-**Edge case: where a Big Rock Ending ends.** YARG counts a note on a Big Rock Ending's end tick as part of it, and Clone Hero doesn't. A Big Rock Ending should end before the note that closes it.
+**Edge case: where a Big Rock Ending ends.** YARG counts a note on a Big Rock Ending's end tick as part of it, and Clone Hero doesn't. **Recommended:** end a Big Rock Ending before the note that closes it.
 
-Rock Band charts write each drum fill and Big Rock Ending as five notes, 120 to 124. Note 120 is the phrase. Notes 121 to 124 may come with it, and must then start and end where it does. Clone Hero and scan-chart read only 120. YARG reads each of 120 to 124 as a drum fill on drums, which gives the same fill when they match.
-
-{/* review: Q7
-What are notes 121 to 124? Rock Band charts mark each drum fill and Big Rock Ending with five notes, 120 to 124. Clone Hero and scan-chart read only 120. YARG reads each of 120 to 124 as a drum fill on drums, and only 120 on other instruments. GuitarGame_ChartFormats requires all five for a Big Rock Ending, and notes that charts exported by older versions of Moonscraper write only 120.
-- A. Optional, matching 120 | 120 is the phrase. 121 to 124 may come with it, with the same start and end. One without a matching 120 is invalid | None: scan-chart already keeps them as written
-- B. Ignored | An exporter writes only 120 | A 121 alone is valid, but YARG reads it as a drum fill
-- C. All five required | As GuitarGame_ChartFormats says | Charts exported by Moonscraper become invalid
-Recommendation: A. Every scanner reads 120, and Rock Band charts stay valid.
-*/}
+Rock Band charts write each drum fill and Big Rock Ending as five notes, 120 to 124. Note 120 is the phrase. Notes 121 to 124 may come with it, each starting and ending where 120 does. Clone Hero and scan-chart read only 120. YARG reads each of 120 to 124 as a drum fill on drums, which gives the same fill when they match.
 
 ## Lanes
 
@@ -124,16 +102,12 @@ A lane should cover at least two notes, and only notes that fit its pattern, as 
 Clone Hero and scan-chart use the longer phrase, as in a `.chart` file. YARG keeps the shorter.
 </Accordion>
 
-<Accordion title="Overlapping phrases of one type, or nested solos">
+<Accordion title="Overlapping phrases of one type, other than lanes">
 Clone Hero and scan-chart cut the earlier phrase where the later starts, and extend the later one to whichever ends last, as in a `.chart` file. Overlapping notes of one number pair first, as [Note pairing](/mid/note-pairing#invalid-forms) says. YARG gives each note to the latest phrase that started before it, so the rest of a longer earlier phrase is lost. scan-chart's export writes the cut and extended phrases.
 </Accordion>
 
-<Accordion title="A solo of length 0">
-Clone Hero stops with an error while it builds the chart. YARG and scan-chart read the solo as covering the notes on its tick, and scan-chart's export writes it one tick long.
-</Accordion>
-
 <Accordion title="A phrase that covers no notes">
-A scanner ignores it on each difficulty where it covers no note. scan-chart reports an empty star power phrase, solo or lane on each such difficulty.
+A scanner ignores it. scan-chart reports an empty star power phrase, solo or lane on each difficulty.
 </Accordion>
 
 <Accordion title="Notes 121 to 124 without a matching 120">
