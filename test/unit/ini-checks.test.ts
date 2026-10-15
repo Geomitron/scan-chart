@@ -38,6 +38,8 @@ describe('song.ini tags', () => {
 	it('reports the first tag out of the standard order', async () => {
 		expect(await iniIssues(['[song]', 'name = Song', 'charter = Me', 'artist = Band', 'year = 2001'], ['iniTagOrder']))
 			.toEqual([['iniTagOrder', 'In "song.ini", "artist" should come before "charter".']])
+		expect(await iniIssues(['[song]', 'name = Song', 'explicit_lyrics = True', 'playlist = Pack', 'modchart = True'], ['iniTagOrder']))
+			.toEqual([['iniTagOrder', 'In "song.ini", "playlist" should come before "explicit_lyrics".']])
 		expect(await iniIssues(['[song]', 'name = Song', 'rating = 1', 'artist = Band', 'pro_drums = True'], ['iniTagOrder'])).toEqual([])
 	})
 
@@ -99,7 +101,7 @@ describe('song.ini tags', () => {
 
 	it('reports tags no game reads, unless extraIniKeys lists them', async () => {
 		// explicit_lyrics is Clone Hero's, video_loop the standard's, and link_name_a and sysex_slider YARG's.
-		const lines = ['[song]', 'name = Song', 'explicit_lyrics = True', 'video_loop = True', 'link_name_a = Site', 'sysex_slider = 1', 'Custom = 1', 'last_play = 2']
+		const lines = ['[song]', 'name = Song', 'playlist = Pack', 'sub_playlist = Disc 1', 'explicit_lyrics = True', 'video_loop = True', 'link_name_a = Site', 'sysex_slider = 1', 'Custom = 1', 'last_play = 2']
 		expect(await iniIssues(lines, ['unknownIniTag'])).toEqual([['unknownIniTag',
 			'"song.ini" has tags no game reads: "custom" and "last_play". Remove them, unless your game reads them.']])
 		expect(await iniIssues(lines, ['unknownIniTag'], { extraIniKeys: ['CUSTOM', /^last_/] })).toEqual([])

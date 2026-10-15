@@ -194,7 +194,10 @@ export function extractSongMetadata(songSection: { readonly [key: string]: strin
 		loading_phrase: text('loading_phrase'),
 		album_track: getIniInteger(songSection, 'album_track', 'track'),
 		playlist_track: getIniInteger(songSection, 'playlist_track'),
+		playlist: text('playlist'),
+		sub_playlist: text('sub_playlist'),
 		modchart: getIniBoolean(songSection, 'modchart'),
+		explicit_lyrics: getIniBoolean(songSection, 'explicit_lyrics'),
 		delay: getIniInteger(songSection, 'delay'),
 		// Clone Hero clamps hopo_frequency and reads no legacy alias for it or multiplier_note (SongGameMetadata.ParseFromIni).
 		hopo_frequency: Math.min(Math.max(getChartModifierInteger(songSection, 'hopo_frequency'), 0), 65535),
@@ -209,6 +212,9 @@ export function extractSongMetadata(songSection: { readonly [key: string]: strin
 	}
 
 	metadata.icon = metadata.icon.toLowerCase() // Icons are interpreted as lowercase in CH
+	// So are playlists
+	metadata.playlist = metadata.playlist.toLowerCase()
+	metadata.sub_playlist = metadata.sub_playlist.toLowerCase()
 	if (metadata.icon === metadata.charter.toLowerCase()) {
 		// Setting `icon` can be redundant
 		metadata.icon = ''

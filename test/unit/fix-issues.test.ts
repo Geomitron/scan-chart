@@ -79,14 +79,14 @@ describe('fixIssues: song.ini', () => {
 	})
 
 	it('removes blank, -1, unneeded and redundant lines, and quotes, keeping the hashes', async () => {
-		const result = await fix(folder(['[song]', 'name = Song', 'icon =', 'diff_bass =', 'diff_keys = -1', 'loading_phrase = "Hi"', 'delay = 0', 'modchart = False', 'pro_drums = True']))
+		const result = await fix(folder(['[song]', 'name = Song', 'icon =', 'diff_bass =', 'diff_keys = -1', 'loading_phrase = "Hi"', 'delay = 0', 'modchart = False', 'explicit_lyrics = False', 'pro_drums = True']))
 		expect(result.ini).toBe('[song]\r\nname = Song\r\nloading_phrase = Hi\r\n')
 		expect(result.report.fixed.map(({ code, description }) => [code, description])).toEqual([
 			['iniTagOrder', 'Put the tags in the standard order.'],
 			['blankIniValue', 'Removed "icon" and "diff_keys", which were blank or -1.'],
 			['blankIniNumber', 'Removed "diff_bass", which was blank.'],
 			['quotedIniValue', 'Removed the quotes around "loading_phrase".'],
-			['defaultIniValue', 'Removed "delay = 0" and "modchart = False", which changed nothing.'],
+			['defaultIniValue', 'Removed "delay = 0", "modchart = False" and "explicit_lyrics = False", which changed nothing.'],
 			['redundantDrumType', 'Removed "pro_drums", which games read the drums the same without.'],
 		])
 		for (const code of ['blankIniValue', 'blankIniNumber', 'quotedIniValue', 'defaultIniValue', 'redundantDrumType']) expect(result.codes).not.toContain(code)

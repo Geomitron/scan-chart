@@ -110,8 +110,9 @@ describe('scanIni: unknownIniValues', () => {
 		])
 
 		const result = scanIni(files)
-		// All 38 non-standard keys should be preserved
-		expect(Object.keys(result.unknownIniValues).length).toBeGreaterThanOrEqual(36)
+		// Every key but name and the three Clone Hero reads, playlist, sub_playlist and explicit_lyrics, is preserved
+		expect(Object.keys(result.unknownIniValues)).toHaveLength(35)
+		expect(result.metadata).toMatchObject({ playlist: 'my setlist', sub_playlist: 'favorites', explicit_lyrics: true })
 		expect(result.unknownIniValues.diff_vocals_harm).toBe('3')
 		expect(result.unknownIniValues.diff_guitar_real).toBe('5')
 		expect(result.unknownIniValues.sysex_slider).toBe('True')
@@ -119,7 +120,6 @@ describe('scanIni: unknownIniValues', () => {
 		expect(result.unknownIniValues.real_guitar_tuning).toBe('0 0 0 0 0 0')
 		expect(result.unknownIniValues.vocal_gender).toBe('male')
 		expect(result.unknownIniValues.rating).toBe('1')
-		expect(result.unknownIniValues.playlist).toBe('My Setlist')
 		expect(result.unknownIniValues.link_name_a).toBe('YouTube')
 		expect(result.unknownIniValues.banner_link_a).toBe('https://youtube.com')
 	})
@@ -169,6 +169,13 @@ describe('scanIni: unknownIniValues', () => {
 		expect(metadata).toMatchObject({ name: '0', artist: '-1', album: 'Unknown Album', diff_guitar: -1, diff_bass: -1, delay: 0, playlist_track: 16000 })
 		expect(metadataIssues.map(issue => issue.description).filter(description => /"(name|artist|album)"/.test(description)))
 			.toEqual(['Metadata is missing the "album" property.'])
+	})
+
+	it('reads playlist and sub_playlist in lowercase, as Clone Hero does, and explicit_lyrics as true or false', () => {
+		const read = (lines: string[]) => scanIni(buildIni(['[Song]', ...lines])).metadata!
+		expect(read(['playlist = My <b>Setlist</b>', 'sub_playlist = Favorites', 'explicit_lyrics = True']))
+			.toMatchObject({ playlist: 'my setlist', sub_playlist: 'favorites', explicit_lyrics: true })
+		expect(read(['playlist =', 'explicit_lyrics = maybe'])).toMatchObject({ playlist: '', sub_playlist: '', explicit_lyrics: false })
 	})
 
 	it('preserves values with special characters', () => {
