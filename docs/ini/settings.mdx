@@ -59,7 +59,7 @@ Older charts use these keys, and a scanner still reads them, so that those chart
 
 - **`delay`**, in milliseconds: Clone Hero moves every note this much later against the audio, or earlier when it's negative. YARG reads it too. A `delay` of 0 means not set, and a `.chart` file's `Offset` applies instead: see [[Song]](/chart/song). Line the notes up with the tempo map and the audio's leading silence instead. Removing `delay` moves every note in time, so the chart or the audio has to change with it. Clone Hero's song settings menu writes `delay` when a player changes the song's offset.
 - **`hopo_frequency`** and **`eighthnote_hopo`** change the HOPO threshold: see [How notes resolve](/chart/note-resolution#deprecated). A `hopo_frequency` of 0 or less means not set. Force the notes that should be strums or HOPOs instead. Removing them changes which notes are HOPOs, unless every note that changes is forced.
-- **`multiplier_note`**, `103` or `116`: the MIDI note that marks star power in a `.mid` file's guitar and keys tracks. A `.chart` file ignores it.
+- **`multiplier_note`**, `103` or `116`: the MIDI note that marks star power in a `.mid` file's 5-fret, 6-fret and keys tracks, and in YARG also its drums track. A `.chart` file ignores it.
   - Clone Hero uses that note in every track. Without the key, or with any other value, it decides for each track: in a track with two or more notes 103 and no note 116, it reads the notes 103 as star power.
   - YARG uses note 103 for `103`, and note 116 for anything else. It never decides for each track.
   - Instead of `multiplier_note = 103`, move the star power phrases to note 116.
