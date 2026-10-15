@@ -57,7 +57,7 @@
 					},
 					{
 						"group": "Guidelines",
-						"pages": ["charting-guidelines", "metadata-conventions"]
+						"pages": ["charting-guidelines"]
 					},
 					{
 						"group": "Converting",
