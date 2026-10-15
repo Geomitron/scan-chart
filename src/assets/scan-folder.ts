@@ -1,15 +1,24 @@
 import type { FolderFinding } from '../issues'
-import { getBasename, getExtension, hasAlbumName, hasAudioExtension, hasChartExtension, hasGameAudioName, hasIniExtension, hasVideoName } from '../shared/file-names'
+import {
+	getBasename,
+	getExtension,
+	hasAlbumName,
+	hasAudioExtension,
+	hasBackgroundImageName,
+	hasChartExtension,
+	hasGameAudioName,
+	hasGameVideoName,
+	hasIniExtension,
+	hasVideoName,
+	imageExtensions,
+} from '../shared/file-names'
 import { isByteSource, type SongFile } from '../song-files'
 
 /** Chorus Encore scans a chart folder only up to 3 GB. */
 const MAX_FOLDER_BYTES = 3e9
 
-// The names some game reads, matched in any letter case. Clone Hero's and the standard's, then YARG's additions.
-const chartImageExtensions = ['png', 'jpg', 'jpeg']
-const imageExtensions = [...chartImageExtensions, 'tga', 'bmp', 'psd', 'gif', 'pic']
-const videoExtensions = ['mp4', 'avi', 'webm', 'vp8', 'ogv', 'mpeg']
-const yargVideoExtensions = ['mp4', 'mov', 'webm']
+/** The image formats YARG reads for album art and backgrounds. */
+const yargImageExtensions = [...imageExtensions, 'tga', 'bmp', 'psd', 'gif', 'pic']
 /** Files an operating system makes: Windows' folder settings and thumbnails, and macOS's folder settings and resource forks. */
 const systemFiles = ['desktop.ini', 'thumbs.db', '.ds_store']
 
@@ -48,7 +57,7 @@ export function scanFolderFiles(files: readonly SongFile[], options: {
 			})
 		}
 		const lowercase = fileName.toLowerCase()
-		if (fileName !== lowercase && (hasAlbumName(lowercase) || hasVideoName(lowercase) || isBackgroundImage(lowercase))) {
+		if (fileName !== lowercase && (hasAlbumName(lowercase) || hasVideoName(lowercase) || hasBackgroundImageName(lowercase))) {
 			folderIssues.push({
 				folderIssue: 'fileNameCase',
 				description: `"${fileName}" should be named "${lowercase}". Song folder file names are lowercase, and some games and tools find only lowercase names.`,
@@ -74,11 +83,6 @@ export function isSystemFile(fileName: string) {
 	return systemFiles.includes(name) || name.startsWith('._') || path.includes('__macosx')
 }
 
-/** Whether a background image is named so Clone Hero and YARG both read it: `background`, then anything, then .png, .jpg or .jpeg. */
-function isBackgroundImage(lowercase: string) {
-	return lowercase.startsWith('background') && chartImageExtensions.includes(getExtension(lowercase))
-}
-
 /**
  * Whether Clone Hero or YARG reads a file of this name, in any letter case: the chart, song.ini, audio, album art,
  * background images and videos, and Clone Hero's highway image. A `.sng` file is another song both read.
@@ -86,18 +90,17 @@ function isBackgroundImage(lowercase: string) {
 function isReadByGame(fileName: string) {
 	const lowercase = fileName.toLowerCase()
 	// Of the files in subfolders, only Clone Hero reads one: the first video it finds.
-	if (/[/\\]/.test(lowercase)) return /(^|[/\\])video\.(mp4|avi|webm|vp8|ogv|mpeg)$/.test(lowercase)
+	if (/[/\\]/.test(lowercase)) return hasGameVideoName(lowercase)
 	const [base, extension] = [getBasename(lowercase), getExtension(lowercase)]
 	return (base === 'notes' && ['chart', 'mid', 'midi', 'txt'].includes(extension))
 		|| lowercase === 'song.ini'
 		|| hasGameAudioName(lowercase)
-		|| (base === 'album' && imageExtensions.includes(extension))
+		|| (base === 'album' && yargImageExtensions.includes(extension))
 		// Clone Hero reads every image whose name has "background" in it; YARG reads `bg` and names starting with it.
-		|| (lowercase.includes('background') && chartImageExtensions.includes(extension))
-		|| ((base.startsWith('background') || ['bg', 'bg_clean', 'bg_explicit'].includes(base)) && imageExtensions.includes(extension))
-		|| (base === 'video' && videoExtensions.includes(extension))
-		|| (/^(bg|background|video)(_clean|_explicit)?$/.test(base) && yargVideoExtensions.includes(extension))
+		|| (lowercase.includes('background') && imageExtensions.includes(extension))
+		|| ((base.startsWith('background') || ['bg', 'bg_clean', 'bg_explicit'].includes(base)) && yargImageExtensions.includes(extension))
+		|| hasGameVideoName(lowercase)
 		|| lowercase === 'bg.yarground'
-		|| (base === 'highway' && chartImageExtensions.includes(extension))
+		|| (base === 'highway' && imageExtensions.includes(extension))
 		|| extension === 'sng'
 }
