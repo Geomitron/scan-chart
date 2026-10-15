@@ -7,10 +7,9 @@ import type { Difficulty } from '../../types'
 import { drumTypes } from '../../types'
 import type { NoteType } from '../types'
 import { noteFlags, noteTypes } from '../types'
-import type { DrumMixEvent } from '../raw-types'
 import { drumsDiffStarts } from '../midi-note-numbers'
 import type { ParsedChart } from '../parse-chart-and-ini'
-import { wrapEventBrackets } from '../writer-shared'
+import { drumMixEvents, wrapEventBrackets } from '../writer-shared'
 import {
 	addNoteOnOff,
 	addNoteOnOffWithChannel,
@@ -255,40 +254,6 @@ export function buildDrumTrack(
 
 	if (options.sustainCutoff !== undefined) stretchUnsustainedNotes(events, options.sustainCutoff)
 	return finalizeMidiTrack(events)
-}
-
-/**
- * The disco flip mix events to write for a drum track: each one it was read with, as written, and one at each tick
- * whose red and yellow notes need another flip than the last event gives, which replaces an event read at that tick. An
- * added event has the stem configuration of the last event read before it, or else of the first one, or 0.
- */
-function drumMixEvents(td: ParsedTrack): DrumMixEvent[] {
-	const read = td.drumMixes ?? []
-	const written: DrumMixEvent[] = []
-	let readIndex = 0
-	let configuration = read[0]?.configuration ?? 0
-	let flag: DrumMixEvent['flag'] = ''
-	const write = (event: DrumMixEvent) => {
-		configuration = event.configuration
-		flag = event.flag
-		if (written[written.length - 1]?.tick === event.tick) written[written.length - 1] = event
-		else written.push(event)
-	}
-	for (const group of td.noteEventGroups) {
-		// The flip of the group's red and yellow notes. A group without them reads no flip, and keeps the last one.
-		let groupFlag: DrumMixEvent['flag'] | null = null
-		for (const note of group) {
-			if (note.type !== noteTypes.redDrum && note.type !== noteTypes.yellowDrum) continue
-			groupFlag = note.flags & noteFlags.discoNoflip ? 'dnoflip' : note.flags & noteFlags.disco ? 'd' : ''
-			if (groupFlag !== '') break
-		}
-		if (groupFlag === null) continue
-		const tick = group[0].tick
-		while (readIndex < read.length && read[readIndex].tick <= tick) write(read[readIndex++])
-		if (groupFlag !== flag) write({ tick, configuration, flag: groupFlag })
-	}
-	while (readIndex < read.length) write(read[readIndex++])
-	return written
 }
 
 function emitDrumNotes(
