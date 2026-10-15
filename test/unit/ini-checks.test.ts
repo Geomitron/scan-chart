@@ -8,8 +8,8 @@ const chartFile = (sections: string[] = [], song: string[] = []) => encode(['[So
 	'[SyncTrack]', '{', '  0 = TS 4', '  0 = B 120000', '}', '[Events]', '{', '}',
 	'[ExpertSingle]', '{', '  768 = N 0 0', '}', ...sections].join('\r\n') + '\r\n')
 
-/** The song.ini issues of a `.chart` song whose song.ini has `lines`, as `[code, message]`, for the codes asked for. */
-async function iniIssues(lines: string[], codes: readonly string[], options: ScanOptions = {}, chart = chartFile()) {
+/** The song.ini issues of a `.chart` song whose song.ini has `lines`, as `[code, message]`, for the codes asked for, with style notes. */
+async function iniIssues(lines: string[], codes: readonly string[], options: ScanOptions = { styleNotes: true }, chart = chartFile()) {
 	const scanned = await scanSongFolder([{ fileName: 'notes.chart', data: chart }, { fileName: 'song.ini', data: encode(lines.join('\r\n') + '\r\n') }], options)
 	const issues = scanned.issues.filter(issue => codes.includes(issue.code))
 	for (const issue of issues) expect(issue).toMatchObject({ scope: 'metadata', file: 'song.ini' })
@@ -52,6 +52,26 @@ describe('song.ini tags', () => {
 			.toEqual([['blankIniValue', 'In "song.ini", "icon" and "diff_keys" are blank or -1. Remove those lines instead.']])
 		expect(await iniIssues(['[song]', 'name = Song', 'loading_phrase ='], ['blankIniValue']))
 			.toEqual([['blankIniValue', 'In "song.ini", "loading_phrase" is blank or -1. Remove that line instead.']])
+	})
+
+	it('reports tag order, -1 and blank text values, and lines that change nothing only as style notes', async () => {
+		const lines = ['[song]', 'name = Song', 'charter = Me', 'artist = Band', 'icon =', 'diff_keys = -1', 'delay = 0']
+		const codes = ['iniTagOrder', 'blankIniValue', 'defaultIniValue']
+		expect(await iniIssues(lines, codes, {})).toEqual([])
+		expect((await iniIssues(lines, codes)).map(([code]) => code)).toEqual(codes)
+	})
+
+	it('reports a blank number without style notes, as a warning of its own', async () => {
+		const scanned = await scanSongFolder([{ fileName: 'notes.chart', data: chartFile() },
+			{ fileName: 'song.ini', data: encode('[song]\r\nname = Song\r\ndiff_bass =\r\ntrack =\r\nicon =\r\ndiff_drums = -1\r\n') }])
+		expect(scanned.issues.filter(issue => issue.code.startsWith('blankIni')).map(issue => [issue.code, issue.severity, issue.message])).toEqual([[
+			'blankIniNumber', 'warning',
+			'In "song.ini", "diff_bass" and "track" are blank. Clone Hero reads them as not set, and YARG as 0: remove those lines, or give them values.',
+		]])
+		expect(await iniIssues(['[song]', 'name = Song', 'video_end_time =', 'icon ='], ['blankIniNumber', 'blankIniValue'])).toEqual([
+			['blankIniNumber', 'In "song.ini", "video_end_time" is blank. Clone Hero reads it as not set, and YARG as 0: remove that line, or give it a value.'],
+			['blankIniValue', 'In "song.ini", "icon" is blank or -1. Remove that line instead.'],
+		])
 	})
 
 	it('reports a quoted value as a warning', async () => {
@@ -102,7 +122,7 @@ function midi(tracks: Record<string, readonly { tick: number; noteNumber: number
 
 describe('song.ini values', () => {
 	const values = (lines: string[], codes: readonly string[], chart: Uint8Array = chartFile(), fileName = 'notes.chart') =>
-		scanSongFolder([{ fileName, data: chart }, { fileName: 'song.ini', data: encode(['[song]', ...lines].join('\r\n') + '\r\n') }])
+		scanSongFolder([{ fileName, data: chart }, { fileName: 'song.ini', data: encode(['[song]', ...lines].join('\r\n') + '\r\n') }], { styleNotes: true })
 			.then(scanned => scanned.issues.filter(issue => codes.includes(issue.code)).map(issue => [issue.code, issue.message]))
 
 	it('recommends song_length, and reports a blank one as missing only', async () => {
@@ -182,7 +202,7 @@ describe('song.ini values', () => {
 
 describe('song.ini default values', () => {
 	const unneeded = async (lines: string[], chart: Uint8Array = chartFile(), fileName = 'notes.chart') => {
-		const scanned = await scanSongFolder([{ fileName, data: chart }, { fileName: 'song.ini', data: encode(['[song]', ...lines].join('\r\n') + '\r\n') }])
+		const scanned = await scanSongFolder([{ fileName, data: chart }, { fileName: 'song.ini', data: encode(['[song]', ...lines].join('\r\n') + '\r\n') }], { styleNotes: true })
 		return scanned.issues.filter(issue => issue.code === 'defaultIniValue').map(issue => issue.message)
 	}
 

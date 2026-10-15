@@ -107,7 +107,7 @@ The work that costs more is off by default. Turn it on with the second argument:
 | `fileHashes: true` | MD5 of the whole folder, a hash of the chart and its parse settings, and MD5 of the album art | `fileHashes` |
 | `albumArt: true` | The album art file, as written, and the issues found decoding it | `albumArt` |
 | `mediaIssues: true` | The issues found reading the audio, image and video files, such as an audio bitrate or the album art's size. It reads each audio and video file's headers, and the album art and background images whole | `issues` |
-| `styleNotes: true` | Style notes: nonstandard spellings that every program reads the same way | `issues` |
+| `styleNotes: true` | Style notes: what every program reads the same way, such as a nonstandard spelling or a song.ini line that changes nothing | `issues` |
 | `metadataStyle: true` | Guesses about the metadata's style, such as credits joined with "and", which can be wrong | `issues` |
 
 A result field you didn't ask for is `null`.
@@ -147,7 +147,7 @@ The severity says how much an issue matters:
 Some issues are about how a file is written rather than what it plays. They come in two kinds:
 
 - **Compatibility issues** are on by default. They describe spellings that Clone Hero or another program reads differently, or can't read at all. For example, Clone Hero refuses a `.chart` file whose tick numbers go backwards (`unsortedChartLines`).
-- **Style notes** are off by default. They describe spellings that every program reads the same way, such as a `.chart` line written twice (`duplicateChartLine`).
+- **Style notes** are off by default. They describe spellings that every program reads the same way, such as a `.chart` line written twice (`duplicateChartLine`). In song.ini, they're tags out of the standard order (`iniTagOrder`), `-1` and blank text values (`blankIniValue`), and lines that change nothing, such as `delay = 0` (`defaultIniValue`). A blank number is reported without them, as `blankIniNumber`, since Clone Hero reads it as not set and YARG as 0.
 
 ### Check it step by step
 
