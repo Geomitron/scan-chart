@@ -107,7 +107,7 @@ export const issueSeverities: { readonly [code in IssueCode]: IssueSeverity } = 
 	nonstandardChartLine: 'error',
 	unreadableChartLine: 'error',
 	nonstandardChartSections: 'error',
-	discoNoflipDuringFlip: 'warning',
+	discoNoflipDuringFlip: 'error',
 	chartModifierWithoutNote: 'warning',
 }
 
