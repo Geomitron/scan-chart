@@ -3,7 +3,7 @@
  */
 import type { MidiEvent } from '@geomitron/midi-file'
 
-import type { VocalPart, VocalTrack } from '../types'
+import type { VocalNote, VocalPart, VocalTrack } from '../types'
 import { addNoteOnOff, finalizeMidiTrack, lyricsEvent, metaTextEvent, noteOffEvent, noteOnEvent, trackNameEvent } from './shared'
 import type { AbsoluteEvent } from './shared'
 
@@ -22,8 +22,10 @@ import type { AbsoluteEvent } from './shared'
  *
  *   - PART VOCALS emits `notePhrases` at note 105 / 106 (player field decides)
  *   - HARM1 emits `notePhrases` as note 105, `staticLyricPhrases` as note 106
- *   - HARM2 emits only `staticLyricPhrases` as note 106 (note 105 comes from
- *     HARM1 via CopyDown on re-parse)
+ *   - HARM2 emits only `staticLyricPhrases`, as note 105, where Rock Band and
+ *     GGCF put HARM2's phrases (its scoring phrases come from HARM1 via
+ *     CopyDown on re-parse, and its 105 and 106 notes both read as static
+ *     lyric phrases)
  *   - HARM3 emits no phrase markers at all
  *
  * Lyric and note events are union'd across both phrase sets (note 105 and
@@ -58,7 +60,7 @@ export function buildVocalPartTrack(
 		// no-op: all phrases come from CopyDown on re-parse.
 	} else if (isHarm2) {
 		for (const phrase of part.staticLyricPhrases) {
-			addNoteOnOff(events, phrase.tick, Math.max(phrase.length, 1), 106, 100)
+			addNoteOnOff(events, phrase.tick, Math.max(phrase.length, 1), 105, 100)
 		}
 	} else if (isPartVocals) {
 		for (const phrase of part.notePhrases) {
@@ -91,17 +93,9 @@ export function buildVocalPartTrack(
 			}
 		}
 	}
-	allLyrics.sort((a, b) => a.tick - b.tick)
-	for (const lyric of allLyrics) {
-		events.push({
-			tick: lyric.tick,
-			event: lyricsEvent(lyric.text),
-		})
-	}
-
 	// Union notes across the same two phrase sets.
 	const seenNoteKeys = new Set<string>()
-	const allNotes: { tick: number; length: number; pitch: number; type: 'pitched' | 'percussion' }[] = []
+	const allNotes: VocalNote[] = []
 	for (const phrases of [part.notePhrases, part.staticLyricPhrases]) {
 		for (const phrase of phrases) {
 			for (const note of phrase.notes) {
@@ -114,6 +108,22 @@ export function buildVocalPartTrack(
 		}
 	}
 	allNotes.sort((a, b) => a.tick - b.tick)
+
+	// A pitch slide's `+` on its own isn't kept as a lyric: it's written on the note, unless the note has a lyric.
+	const lyricTicks = new Set(allLyrics.map(lyric => lyric.tick))
+	for (const note of allNotes) {
+		if (note.pitchSlide && !lyricTicks.has(note.tick)) {
+			lyricTicks.add(note.tick)
+			allLyrics.push({ tick: note.tick, text: '+' })
+		}
+	}
+	allLyrics.sort((a, b) => a.tick - b.tick)
+	for (const lyric of allLyrics) {
+		events.push({
+			tick: lyric.tick,
+			event: lyricsEvent(lyric.text),
+		})
+	}
 
 	let vocalNoteSeq = 1_000_000
 	for (const note of allNotes) {

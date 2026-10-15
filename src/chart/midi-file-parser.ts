@@ -2,7 +2,7 @@ import { MidiData, MidiEvent, MidiSetTempoEvent, MidiTextEvent, MidiTimeSignatur
 
 import { difficulties, Difficulty, getInstrumentType, Instrument, InstrumentType, instrumentTypes } from '../types'
 import { midiTokensToMidiData, MidiTokens, readMidiTokens } from './midi-tokens'
-import { EventType, eventTypes, RawChartData, VocalTrackData } from './raw-types'
+import { DrumMixEvent, EventType, eventTypes, RawChartData, VocalTrackData } from './raw-types'
 import { IniChartModifiers } from './types'
 import { parseRules, ParseRules } from './parse-rules'
 import { scanVocalTrack } from './lyric-parser'
@@ -87,6 +87,27 @@ export function midiSourceTrackInstrument(sourceName: string): Instrument | null
 	return trackName === undefined ? null : midiTrackInstrument(trackName)
 }
 
+/** The tracks of a `.mid` file that Clone Hero's names make an instrument's, in file order, each with its name as written. */
+export function midiInstrumentTracks(tokens: MidiTokens): { name: string; instrument: Instrument }[] {
+	const tracks: { name: string; instrument: Instrument }[] = []
+	// The first track is the conductor track. A track is named by its last name at tick 0.
+	for (const chunk of tokens.chunks.filter(chunk => chunk.kind === 'track').slice(1)) {
+		if (chunk.kind !== 'track') continue
+		const names = chunk.events.filter(({ tick, event }) => tick === 0 && event.type === 'trackName').map(({ event }) => (event as { text: string }).text)
+		const name = names[names.length - 1]
+		const instrument = name === undefined ? null : midiSourceTrackInstrument(name)
+		if (instrument !== null) tracks.push({ name, instrument })
+	}
+	return tracks
+}
+
+/** The instruments a `.mid` file has more than one track for, of which Clone Hero reads only the first. */
+export function repeatedMidiInstruments(tokens: MidiTokens): Instrument[] {
+	const trackCounts = new Map<Instrument, number>()
+	for (const { instrument } of midiInstrumentTracks(tokens)) trackCounts.set(instrument, (trackCounts.get(instrument) ?? 0) + 1)
+	return [...trackCounts].filter(([, count]) => count > 1).map(([instrument]) => instrument)
+}
+
 const sysExDifficultyMap = ['easy', 'medium', 'hard', 'expert'] as const
 const discoFlipDifficultyMap = ['easy', 'medium', 'hard', 'expert'] as const
 const fiveFretDiffStarts = { easy: 59, medium: 71, hard: 83, expert: 95 }
@@ -113,6 +134,11 @@ export interface TrackEventEnd {
 	chartDynamics?: boolean
 	/** The index in its MIDI track of the event this came from. */
 	eventIndex: number
+	/**
+	 * On a Phase Shift SysEx event, its difficulty byte. A SysEx start and end pair only when the byte is the same, and
+	 * never with a note, as Clone Hero keeps a stack for each SysEx phrase and difficulty (TrackChunk).
+	 */
+	sysExDifficulty?: number
 }
 
 // Necessary because .mid stores some additional modifiers and information using velocity
@@ -199,6 +225,7 @@ export interface ClassifiedMidi {
 
 /** Classifies a read `.mid` file's tracks and events. No rule profile is involved. */
 export function classifyMidiFile(midiFile: MidiData): ClassifiedMidi {
+	checkPhaseShiftSysExStacks(midiFile)
 	const { tracks, unrecognizedMidiTracks } = getTracks(midiFile)
 
 	// Build vocalTracks from PART VOCALS and HARM1/HARM2/HARM3.
@@ -278,6 +305,27 @@ export function classifyMidiFile(midiFile: MidiData): ClassifiedMidi {
 		eventsScan,
 		instrumentTracks,
 		unrecognizedMidiTracks,
+	}
+}
+
+/**
+ * Throws for a Phase Shift SysEx event Clone Hero's MIDI reader can't read. It pairs each one in a stack for its phrase
+ * and difficulty, numbered phrase × 5 + difficulty (4 for all difficulties), and has 100 (TrackChunk), so a higher
+ * number throws, on any track, with or without an end: HashScanTool fails to load a chart with phrase 19 and difficulty
+ * 5, phrase 20 and difficulty 0 or 0xFF, or a tap with difficulty 200, and loads phrase 19 with difficulty 4. It reads
+ * an event as Phase Shift SysEx when it is 8 bytes, `50 53 00 00 <difficulty> <phrase> <status> F7`.
+ */
+function checkPhaseShiftSysExStacks(midiFile: MidiData): void {
+	for (const track of midiFile.tracks) {
+		for (const event of track) {
+			if (event.type !== 'sysEx' && event.type !== 'endSysEx') continue
+			const { data } = event
+			if (data.length !== 8 || data[0] !== 0x50 || data[1] !== 0x53 || data[2] !== 0x00 || data[3] !== 0x00 || data[7] !== 0xf7) continue
+			const [difficulty, phrase] = [data[4], data[5]]
+			if (phrase * 5 + (difficulty === 0xff ? 4 : difficulty) >= 100) {
+				throw `Invalid .mid file: The Phase Shift SysEx event at tick ${event.deltaTime} has phrase ${phrase} and difficulty ${difficulty}, which Clone Hero can't read.`
+			}
+		}
 	}
 }
 
@@ -386,7 +434,11 @@ export function buildMidiInstrumentTrackData(
 ): RawChartData['trackData'] {
 	const out: RawChartData['trackData'] = []
 	const allocatesEmptyExpert = rules.midiTrackAllocation === 'difficultiesWithNotesAndExpert'
-	const { eventEnds, textEvents, versusPhrases, animations, unrecognizedEvents: trackUnrecognized } = scan
+	const { eventEnds, textEvents, versusPhrases, animations, unrecognizedEvents: trackUnrecognized, drumMixes, unloadableSysEx } = scan
+	if (unloadableSysEx !== null && (instrumentType === instrumentTypes.fiveFret || instrumentType === instrumentTypes.sixFret)) {
+		const phrase = unloadableSysEx.type === eventTypes.forceTap ? 'tap' : 'open'
+		throw `Invalid .mid file: The ${phrase} SysEx phrase at tick ${unloadableSysEx.tick} has difficulty ${unloadableSysEx.sysExDifficulty}, which isn't 0 to 3 or 255.`
+	}
 	// distributeInstrumentEvents adds to and sorts these lists, and a classification can be shared by profiles
 	const distributed = distributeInstrumentEvents({
 		all: [...eventEnds.all],
@@ -417,6 +469,7 @@ export function buildMidiInstrumentTrackData(
 			versusPhrases,
 			animations,
 			unrecognizedMidiEvents: trackUnrecognized,
+			...(instrumentType === instrumentTypes.drums ? { drumMixes: drumMixes[difficulty] } : {}),
 		}
 
 		// Track "real content" flag inline so we don't need a second pass over
@@ -467,8 +520,10 @@ function extractTempos(conductorTrack: MidiEvent[]): { tick: number; beatsPerMin
 			beatsPerMinute: 60000000 / (e as MidiSetTempoEvent).microsecondsPerBeat,
 		})
 	}
+	// A tempo of 0 microseconds per beat is an infinite BPM, which Clone Hero refuses (Song.AddTempo), as a .chart's
+	// tempo of 0 is refused.
 	for (const tempo of tempos) {
-		if (tempo.beatsPerMinute === 0) {
+		if (!Number.isFinite(tempo.beatsPerMinute)) {
 			throw `Invalid .mid file: Tempo at tick ${tempo.tick} was zero.`
 		}
 	}
@@ -578,8 +633,20 @@ interface TrackScanResult {
 	textEvents: { tick: number; text: string }[]
 	versusPhrases: { tick: number; length: number; isPlayer2: boolean }[]
 	animations: { tick: number; length: number; noteNumber: number }[]
-	/** MIDI events the typed parser didn't consume (verbatim). */
+	/**
+	 * MIDI events kept verbatim for writers: those the typed parser didn't consume, and on a drum track the events of each
+	 * tom marker that covers no note (`withUncoveredTomMarkers`), which change no note but which Clone Hero 1.1 reads.
+	 */
 	unrecognizedEvents: MidiEvent[]
+	/** Each difficulty's disco flip mix events, on a drum track. */
+	drumMixes: { [difficulty in Difficulty]: DrumMixEvent[] }
+	/**
+	 * The start of the first tap or open SysEx phrase with a difficulty byte other than 0-3 or 0xFF that has an end.
+	 * Clone Hero can't load a 5- or 6-fret track with one (Song.GetOrCreateTrack throws for its difficulty; HashScanTool
+	 * fails to load such a tap or open with difficulty 4, 5 or 200), and YARG throws on one too. It loads such a phrase
+	 * on a drum track, and a start with no end.
+	 */
+	unloadableSysEx: TrackEventEnd | null
 }
 
 /**
@@ -624,6 +691,8 @@ function scanInstrumentTrack(
 	const animMax = instrumentType === instrumentTypes.drums ? 51 : 59
 	// Events the typed parser doesn't consume — preserved verbatim for round-trip.
 	const unrecognizedEvents: MidiEvent[] = []
+	const drumMixes: TrackScanResult['drumMixes'] = { expert: [], hard: [], medium: [], easy: [] }
+	const otherDifficultySysEx: TrackEventEnd[] = []
 
 	for (let eventIndex = 0; eventIndex < events.length; eventIndex++) {
 		const event = events[eventIndex]
@@ -745,7 +814,8 @@ function scanInstrumentTrack(
 					: d === 0 ? eeEasy
 					: d === 1 ? eeMedium
 					: d === 2 ? eeHard
-					: eeExpert
+					: d === 3 ? eeExpert
+					: otherDifficultySysEx
 				arr.push({
 					tick: event.deltaTime,
 					type,
@@ -753,6 +823,7 @@ function scanInstrumentTrack(
 					velocity: 127,
 					isStart: event.data[6] === 0x01,
 					eventIndex,
+					sysExDifficulty: d,
 				})
 			} else {
 				unrecognizedEvents.push(event)
@@ -764,15 +835,13 @@ function scanInstrumentTrack(
 				if (discoFlipMatch) {
 					const difficulty = sysExDifficultyMap[Number(discoFlipMatch[1])]
 					const flag = discoFlipMatch[3] as 'd' | 'dnoflip' | 'easy' | 'easynokick' | ''
-					const eventType =
-						flag === '' ? eventTypes.discoFlipOff
-						: flag === 'd' ? eventTypes.discoFlipOn
-						: flag === 'dnoflip' ? eventTypes.discoNoFlipOn
-						: null
-					if (eventType) {
+					// An `easy` or `easynokick` event sets no disco flip, and stays a text event.
+					if (flag !== 'easy' && flag !== 'easynokick') {
+						const eventType = flag === '' ? eventTypes.discoFlipOff : flag === 'd' ? eventTypes.discoFlipOn : eventTypes.discoNoFlipOn
 						// Treat this like the other events that have a start and end, so it can be processed the same way later
 						eventEnds[difficulty].push({ tick: event.deltaTime, type: eventType, velocity: 127, channel: 1, isStart: true, eventIndex })
 						eventEnds[difficulty].push({ tick: event.deltaTime, type: eventType, velocity: 127, channel: 1, isStart: false, eventIndex })
+						drumMixes[difficulty].push({ tick: event.deltaTime, configuration: Number(discoFlipMatch[2]), flag })
 						consumedAsNote = true
 					}
 				}
@@ -807,7 +876,38 @@ function scanInstrumentTrack(
 
 	versusPhrases.sort((a, b) => a.tick - b.tick)
 	animations.sort((a, b) => a.tick - b.tick)
-	return { eventEnds, textEvents, versusPhrases, animations, unrecognizedEvents }
+	const unrecognized = instrumentType === instrumentTypes.drums ? withUncoveredTomMarkers(events, eventEnds, unrecognizedEvents) : unrecognizedEvents
+	const unloadableSysEx = pairEventEnds(otherDifficultySysEx)[0]?.start ?? null
+	return { eventEnds, textEvents, versusPhrases, animations, unrecognizedEvents: unrecognized, drumMixes, unloadableSysEx }
+}
+
+const drumNoteEventTypes: EventType[] = [
+	eventTypes.kick, eventTypes.kick2x, eventTypes.redDrum, eventTypes.yellowDrum, eventTypes.blueDrum, eventTypes.fiveOrangeFourGreenDrum, eventTypes.fiveGreenDrum,
+]
+
+/**
+ * A drum track's unrecognized events, with the events of each tom marker that covers no drum note on any difficulty,
+ * in track order. Such a marker changes no note and doesn't make the chart pro drums here, as in the canonical rules,
+ * but Clone Hero 1.1 reads any tom marker as pro drums, so the `.mid` writer writes it back.
+ */
+function withUncoveredTomMarkers(events: MidiEvent[], eventEnds: TrackScanResult['eventEnds'], unrecognizedEvents: MidiEvent[]): MidiEvent[] {
+	const tomMarkers = eventEnds.all.filter(end => end.type === eventTypes.yellowTomMarker || end.type === eventTypes.blueTomMarker || end.type === eventTypes.greenTomMarker)
+	if (tomMarkers.length === 0) return unrecognizedEvents
+	const noteTicks = difficulties
+		.flatMap(difficulty => eventEnds[difficulty].filter(end => end.isStart && drumNoteEventTypes.includes(end.type)).map(end => end.tick))
+		.sort((a, b) => a - b)
+	const uncovered = new Set<number>()
+	let next = 0
+	// Pairs come in start order, so the first note at or after each start only moves forward.
+	for (const { start, end } of pairEventEnds(tomMarkers)) {
+		while (next < noteTicks.length && noteTicks[next] < start.tick) next++
+		// A marker covers the notes from its start up to its end, or its own tick when it has no length.
+		const covered = next < noteTicks.length && (noteTicks[next] < end.tick || noteTicks[next] === start.tick)
+		if (!covered) uncovered.add(start.eventIndex).add(end.eventIndex)
+	}
+	if (uncovered.size === 0) return unrecognizedEvents
+	const unrecognized = new Set(unrecognizedEvents)
+	return events.filter((event, index) => unrecognized.has(event) || uncovered.has(index))
 }
 
 /** These apply to the entire instrument, not specific difficulties. */
@@ -936,6 +1036,7 @@ function distributeInstrumentEvents(eventEnds: { [difficulty in Difficulty | 'al
 				channel: instrumentEvent.channel,
 				isStart: instrumentEvent.isStart,
 				eventIndex: instrumentEvent.eventIndex,
+				...(instrumentEvent.sysExDifficulty === undefined ? {} : { sysExDifficulty: instrumentEvent.sysExDifficulty }),
 			})
 		}
 	}
@@ -962,8 +1063,8 @@ export interface PairedEventEnds {
 }
 
 /**
- * Pairs each start event with an end event of its type, the most recent unpaired start on the same channel, in start
- * order. A start with no end is left out.
+ * Pairs each start event with an end event of its type, the most recent unpaired start on the same channel (and, for a
+ * SysEx event, of the same SysEx difficulty), in start order. A start with no end is left out.
  */
 export function pairEventEnds(ends: readonly TrackEventEnd[]): PairedEventEnds[] {
 	const pairs: { start: TrackEventEnd; end: TrackEventEnd | null }[] = []
@@ -981,7 +1082,7 @@ export function pairEventEnds(ends: readonly TrackEventEnd[]): PairedEventEnds[]
 			pairs.push(pair)
 		} else if (unpaired !== undefined && unpaired.length) {
 			let index = unpaired.length - 1
-			while (index >= 0 && unpaired[index].start.channel !== end.channel) {
+			while (index >= 0 && (unpaired[index].start.channel !== end.channel || unpaired[index].start.sysExDifficulty !== end.sysExDifficulty)) {
 				index-- // Find the most recent unpaired start on the same channel
 			}
 			if (index >= 0) {

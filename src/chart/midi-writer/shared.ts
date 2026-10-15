@@ -5,6 +5,8 @@
  */
 import type { MidiEvent } from '@geomitron/midi-file'
 
+import type { Difficulty } from '../../types'
+import { midiPitchKey } from '../midi-note-numbers'
 import type { NoteType } from '../types'
 import type { ParsedChart } from '../parse-chart-and-ini'
 
@@ -175,7 +177,7 @@ export function stretchUnsustainedNotes(events: AbsoluteEvent[], cutoff: number)
 	const notesByPitch = new Map<number, AbsoluteEvent[]>()
 	for (const event of events) {
 		if (event.event.type !== 'noteOn' || event.pairOff === undefined) continue
-		const pitch = event.event.channel * 128 + event.event.noteNumber
+		const pitch = midiPitchKey(event.event)
 		const notes = notesByPitch.get(pitch)
 		if (notes === undefined) notesByPitch.set(pitch, [event])
 		else notes.push(event)
@@ -196,6 +198,63 @@ export function stretchUnsustainedNotes(events: AbsoluteEvent[], cutoff: number)
 			coveredUntil = Math.max(coveredUntil, note.pairOff!.tick)
 		})
 	}
+}
+
+/** The first sequence number of verbatim events, after every other one. */
+const verbatimSeq = 4_000_000_000
+
+/**
+ * Adds events kept verbatim, each at its tick (its `deltaTime`), in their order, after the events written from the
+ * chart at that tick. A note-off that ends a note begun at an earlier tick, paired as Clone Hero pairs them (the latest
+ * open note of its pitch and channel), instead sorts with the other note-offs, before any note-on of its tick.
+ */
+export function addVerbatimEvents(events: AbsoluteEvent[], verbatim: readonly MidiEvent[]): void {
+	const openNoteTicks = new Map<number, number[]>()
+	verbatim.forEach((source, index) => {
+		const tick = source.deltaTime
+		const event = { ...source, deltaTime: 0 } as MidiEvent
+		if (event.type === 'noteOn' || event.type === 'noteOff') {
+			const pitch = midiPitchKey(event)
+			const openTicks = openNoteTicks.get(pitch) ?? []
+			openNoteTicks.set(pitch, openTicks)
+			if (event.type === 'noteOn' && event.velocity > 0) {
+				openTicks.push(tick)
+			} else if (openTicks.length > 0 && openTicks.pop()! < tick) {
+				events.push({ tick, event })
+				return
+			}
+		}
+		events.push({ tick, seq: verbatimSeq + index, event })
+	})
+}
+
+/**
+ * Adds an instrument's lanes (126 single, 127 double) from its difficulty tracks. A lane on several difficulties is
+ * written once, with the velocity of the easiest of them, which the reader turns back into the difficulties it applies
+ * to (`fixFlexLaneLds`). Written with `addNoteOnOff`, a lane that ends where another of its number starts ends first.
+ */
+export function addFlexLanes(events: AbsoluteEvent[], tracks: readonly ParsedTrack[]): void {
+	const velocities = new Map<string, number>()
+	for (const track of tracks) {
+		for (const lane of track.flexLanes) {
+			const key = `${lane.tick}:${lane.length}:${lane.isDouble ? 127 : 126}`
+			const velocity = laneVelocities[track.difficulty]
+			const existing = velocities.get(key)
+			if (existing === undefined || velocity < existing) velocities.set(key, velocity)
+		}
+	}
+	for (const [key, velocity] of velocities) {
+		const [tick, length, noteNumber] = key.split(':').map(Number)
+		addNoteOnOff(events, tick, length, noteNumber, velocity, true)
+	}
+}
+
+/** The lane velocity each difficulty writes, within the range the reader keeps for it. */
+const laneVelocities: Record<Difficulty, number> = { easy: 25, medium: 35, hard: 45, expert: 100 }
+
+/** Adds an instrument track's versus phrases: player 1's on note 105 and player 2's on 106. A zero-length one is kept. */
+export function addVersusPhrases(events: AbsoluteEvent[], versusPhrases: ParsedTrack['versusPhrases']): void {
+	for (const phrase of versusPhrases) addNoteOnOff(events, phrase.tick, phrase.length, phrase.isPlayer2 ? 106 : 105, 100, true)
 }
 
 /** The phrases a MIDI track holds for an instrument, from its difficulty tracks, as `options` asks (r4 Q4). */
@@ -230,13 +289,23 @@ export function mergeDifficultySections<T extends { tick: number; length: number
 }
 
 /**
- * Precompute length overrides to prevent scan-chart's `trimSustains` from
- * collapsing short-sustain note chains. When N same-type drum notes are
- * directly adjacent (tick[i] + length[i] === tick[i+1]), we attribute the
- * combined chain length to the first note and set subsequent ones to 0 so
- * the trim threshold doesn't bite.
+ * The sustain cutoff the written file will be read with: `options.sustainCutoff`, or else the chart's song.ini setting,
+ * or `.mid`'s default when it sets none.
  */
-export function computeLengthOverrides(td: ParsedTrack): Map<string, number> {
+export function computeSustainCutoff(chart: ParsedChart, options: MidiWriteOptions): number {
+	if (options.sustainCutoff !== undefined) return options.sustainCutoff
+	const setCutoff = chart.iniChartModifiers.sustain_cutoff_threshold
+	return setCutoff >= 0 ? setCutoff : Math.floor(chart.resolution / 3) + 1
+}
+
+/**
+ * Length overrides for runs of back-to-back notes of one type (`tick[i] + length[i] === tick[i + 1]`) that the sustain
+ * cutoff would otherwise cut. Each note is written with its own note-off, before the next note-on, except in a run
+ * where a sustain is at or below `cutoff`, which the overlap step left and which would read back as no sustain: that
+ * run is written as its first note sustained over the whole run, with each later note a zero-length link, so the
+ * overlap step gives every note its length back.
+ */
+export function computeLengthOverrides(td: ParsedTrack, cutoff: number): Map<string, number> {
 	const overrides = new Map<string, number>()
 	const byType = new Map<NoteType, { tick: number; length: number }[]>()
 	for (const g of td.noteEventGroups) {
@@ -248,17 +317,20 @@ export function computeLengthOverrides(td: ParsedTrack): Map<string, number> {
 	}
 	for (const [type, notes] of byType) {
 		notes.sort((a, b) => a.tick - b.tick)
+		const isCut = (length: number) => length > 0 && length <= cutoff
 		let i = 0
 		while (i < notes.length) {
 			let j = i
 			let chainSum = notes[i].length
+			let anyCut = isCut(notes[i].length)
 			while (j + 1 < notes.length
 				&& notes[j].tick + notes[j].length === notes[j + 1].tick
 				&& notes[j + 1].length > 0) {
 				chainSum += notes[j + 1].length
 				j++
+				anyCut ||= isCut(notes[j].length)
 			}
-			if (j > i) {
+			if (j > i && anyCut && chainSum > cutoff) {
 				overrides.set(`${notes[i].tick}:${type}`, chainSum)
 				for (let k = i + 1; k <= j; k++) overrides.set(`${notes[k].tick}:${type}`, 0)
 			}

@@ -7,22 +7,24 @@ import { scanSongFolder } from 'src/scan-song-folder'
 import { parseSongFiles } from 'src/song-document'
 import { parseSongMetadata } from 'src/song-metadata'
 
+import { midiFile, midiNote } from './helpers/midi-files'
+
 const encode = (text: string) => new TextEncoder().encode(text)
-const spelling = new Set(['unsortedChartLines', 'quotedChartTrackEvent', 'multipleMidiTrackNames', 'overlappingMidiNotes', 'duplicateIniKey', 'duplicateChartLine'])
+const spelling = new Set(['unsortedChartLines', 'quotedChartTrackEvent', 'multipleMidiTrackNames', 'multipleMidiTracks', 'overlappingMidiNotes', 'duplicateIniKey', 'duplicateChartLine'])
 const chartIssues = (expertLines: string[], styleNotes = false) => {
 	const chart = ['[Song]', '{', '  Resolution = 192', '}', '[SyncTrack]', '{', '  0 = B 120000', '}', '[Events]', '{', '}',
 		'[ExpertSingle]', '{', ...expertLines.map(line => `  ${line}`), '}', ''].join('\r\n')
 	const { issues } = analyzeChart(resolveChart(parseSongFiles([{ fileName: 'notes.chart', data: encode(chart) }])), { styleNotes })
 	return issues.filter(issue => spelling.has(issue.code)).map(({ code, instrument, difficulty, tick }) => ({ code, instrument, difficulty, tick }))
 }
-const midiIssues = (guitarEvents: Parameters<typeof writeMidi>[0]['tracks'][number]) => {
-	const midi = writeMidi({
-		header: { format: 1, numTracks: 2, ticksPerBeat: 480 },
-		tracks: [[{ deltaTime: 0, type: 'setTempo', microsecondsPerBeat: 500000 }, { deltaTime: 0, type: 'endOfTrack' }], guitarEvents],
-	})
-	const { issues } = analyzeChart(resolveChart(parseSongFiles([{ fileName: 'notes.mid', data: new Uint8Array(midi) }])))
-	return issues.filter(issue => spelling.has(issue.code)).map(({ code, instrument }) => ({ code, instrument }))
+const midiFileIssues = (midi: Uint8Array) => {
+	const { issues } = analyzeChart(resolveChart(parseSongFiles([{ fileName: 'notes.mid', data: midi }])))
+	return issues.filter(issue => spelling.has(issue.code)).map(({ code, instrument, file, severity }) => ({ code, instrument, file, severity }))
 }
+const midiIssues = (guitarEvents: Parameters<typeof writeMidi>[0]['tracks'][number]) => midiFileIssues(new Uint8Array(writeMidi({
+	header: { format: 1, numTracks: 2, ticksPerBeat: 480 },
+	tracks: [[{ deltaTime: 0, type: 'setTempo', microsecondsPerBeat: 500000 }, { deltaTime: 0, type: 'endOfTrack' }], guitarEvents],
+})))
 
 describe('nonstandard spelling issues', () => {
 	it('report .chart lines out of tick order and quoted track events, for the section\'s track', () => {
@@ -48,7 +50,7 @@ describe('nonstandard spelling issues', () => {
 			{ deltaTime: 0, type: 'noteOn', channel: 0, noteNumber: 96, velocity: 100 },
 			{ deltaTime: 10, type: 'noteOff', channel: 0, noteNumber: 96, velocity: 0 },
 			{ deltaTime: 0, type: 'endOfTrack' },
-		])).toEqual([{ code: 'multipleMidiTrackNames', instrument: 'guitar' }])
+		])).toEqual([{ code: 'multipleMidiTrackNames', instrument: 'guitar', file: null, severity: 'error' }])
 		expect(midiIssues([
 			{ deltaTime: 0, type: 'trackName', text: 'PART GUITAR' },
 			{ deltaTime: 0, type: 'noteOn', channel: 0, noteNumber: 96, velocity: 100 },
@@ -56,7 +58,15 @@ describe('nonstandard spelling issues', () => {
 			{ deltaTime: 10, type: 'noteOff', channel: 0, noteNumber: 96, velocity: 0 },
 			{ deltaTime: 10, type: 'noteOff', channel: 0, noteNumber: 96, velocity: 0 },
 			{ deltaTime: 0, type: 'endOfTrack' },
-		])).toEqual([{ code: 'overlappingMidiNotes', instrument: 'guitar' }])
+		])).toEqual([{ code: 'overlappingMidiNotes', instrument: 'guitar', file: null, severity: 'error' }])
+	})
+
+	it('report a .mid file with more than one track for an instrument, of which Clone Hero reads only the first', () => {
+		const tracks = (...names: string[]) => midiFile(names.map(name => ({ name, events: midiNote(0, 96, 10) })))
+		// T1 GEMS is another name for guitar, matched in any letter case.
+		expect(midiFileIssues(tracks('PART GUITAR', 'PART DRUMS', 't1 gems', 'PART BASS')))
+			.toEqual([{ code: 'multipleMidiTracks', instrument: 'guitar', file: null, severity: 'error' }])
+		expect(midiFileIssues(tracks('PART GUITAR', 'PART BASS'))).toEqual([])
 	})
 
 	it('report a song.ini key set twice, in the song.ini Clone Hero reads', async () => {

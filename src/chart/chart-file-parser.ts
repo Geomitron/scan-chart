@@ -1,10 +1,10 @@
-import { Difficulty, Instrument } from '../types'
+import { Difficulty, getInstrumentType, Instrument, instrumentTypes } from '../types'
 import { decodeCloneHeroText } from '../shared/decode-text'
 import { trimDotnet } from '../shared/text'
 import { ChartEncoding, decodeChartText, detectChartEncoding } from './chart-encoding'
 import { ChartEventSection, chartLineSpelling, readableChartLines } from './chart-line-spelling'
 import type { ParseRules } from './parse-rules'
-import { EventType, eventTypes, RawChartData } from './raw-types'
+import { DrumMixEvent, EventType, eventTypes, RawChartData } from './raw-types'
 import { chartEventText, extractChartLyrics, extractChartVocalPhrases } from './lyric-parser'
 
 /* eslint-disable @typescript-eslint/naming-convention */
@@ -511,6 +511,9 @@ export function classifyChartTrackSection(
 			result.versusPhrases.push({ tick: event.tick, length: event.length, isPlayer2: event.isPlayer2 })
 		}
 	}
+	if (getInstrumentType(instrument) === instrumentTypes.drums) {
+		result.drumMixes = parsedEvents.flatMap(event => event.kind === 'note' && event.drumMix !== undefined ? [event.drumMix] : [])
+	}
 
 	return result
 }
@@ -709,7 +712,7 @@ function parseChartUnrecognizedSyncTrackEvents(lines: string[]): { tick: number;
  * `trackEvents` and friends via the distribution loop; text and versus events
  * have extra data and go into their dedicated arrays.
  */
-type ParsedNoteEvent = { kind: 'note'; tick: number; type: EventType; length: number }
+type ParsedNoteEvent = { kind: 'note'; tick: number; type: EventType; length: number; drumMix?: DrumMixEvent }
 type ParsedTextEvent = { kind: 'text'; tick: number; text: string }
 type ParsedVersusEvent = { kind: 'versus'; tick: number; length: number; isPlayer2: boolean }
 export type ParsedTrackLine = ParsedNoteEvent | ParsedTextEvent | ParsedVersusEvent
@@ -756,7 +759,9 @@ export function parseTrackLine(
 	if (eMatch && (quoted !== null || nonstandardLines === 'ignored' || !/^[ \t]/.test(eMatch[2]))) {
 		const tick = Number(eMatch[1])
 		const value = eMatch[2]
-		const recognizedType = getEEventType(value, difficulty)
+		const drumMix = chartDrumMix(value, difficulty, tick)
+		if (drumMix !== null) return { kind: 'note', tick, type: discoFlipEventTypes[drumMix.flag], length: 0, drumMix }
+		const recognizedType = getEEventType(value)
 		if (recognizedType !== null) return { kind: 'note', tick, type: recognizedType, length: 0 }
 		// Disco flip events for other difficulties: consumed (not stored as text)
 		if (chartDiscoFlipRegex.test(value)) return null
@@ -771,26 +776,28 @@ export function parseTrackLine(
 	return spelling?.kind === 'respelled' ? parseTrackLine(spelling.line, instrument, difficulty) : null
 }
 
-function getEEventType(value: string, difficulty: Difficulty): EventType | null {
+function getEEventType(value: string): EventType | null {
 	switch (value) {
 		case 'solo':
 			return eventTypes.soloSectionStart
 		case 'soloend':
 			return eventTypes.soloSectionEnd
 	}
-	const match = value.match(/^\s*\[?mix[ _]([0-3])[ _]drums([0-5])(d|dnoflip|easy|easynokick|)\]?\s*$/)
-	if (match) {
-		const diff = discoFlipDifficultyMap[Number(match[1])]
-		const flag = match[3] as 'd' | 'dnoflip' | 'easy' | 'easynokick' | ''
-		if ((flag === '' || flag === 'd' || flag === 'dnoflip') && difficulty === diff) {
-			return (
-				flag === '' ? eventTypes.discoFlipOff
-				: flag === 'd' ? eventTypes.discoFlipOn
-				: eventTypes.discoNoFlipOn
-			)
-		}
-	}
 	return null
+}
+
+const discoFlipEventTypes: { readonly [flag in DrumMixEvent['flag']]: EventType } = {
+	'': eventTypes.discoFlipOff,
+	d: eventTypes.discoFlipOn,
+	dnoflip: eventTypes.discoNoFlipOn,
+}
+
+/** The disco flip `mix <difficulty> drums<configuration><flag>` event `value` is, at `tick`, if it's one of `difficulty`. */
+function chartDrumMix(value: string, difficulty: Difficulty, tick: number): DrumMixEvent | null {
+	const match = chartLineDiscoFlipE.exec(value)
+	if (match === null || discoFlipDifficultyMap[Number(match[1])] !== difficulty) return null
+	const flag = match[3]
+	return flag === '' || flag === 'd' || flag === 'dnoflip' ? { tick, configuration: Number(match[2]), flag } : null
 }
 
 export function getSEventType(value: string): EventType | null {
