@@ -1,7 +1,8 @@
-import { MidiData, writeMidi } from '@geomitron/midi-file'
 import { describe, expect, it } from 'vitest'
 
 import { scanSongFolder, type ScanOptions } from 'src/scan-song-folder'
+
+import { midi } from './helpers/chart-files'
 
 const encode = (text: string) => new TextEncoder().encode(text)
 const chartFile = (sections: string[] = [], song: string[] = []) => encode(['[Song]', '{', '  Resolution = 192', ...song.map(line => `  ${line}`), '}',
@@ -107,27 +108,6 @@ describe('song.ini tags', () => {
 			.toEqual([['blankIniValue', 'In "song.ini", "icon", "year", "album" and 2 more are blank or -1. Remove those lines instead.']])
 	})
 })
-
-type MidiTrack = MidiData['tracks'][number]
-
-/** A `.mid` file with a 120 BPM conductor track and one track for each name, holding its notes. */
-function midi(tracks: Record<string, readonly { tick: number; noteNumber: number }[]>): Uint8Array {
-	const midiTracks = Object.entries(tracks).map(([name, notes]): MidiTrack => {
-		const timed = notes.flatMap(note => [
-			{ tick: note.tick, event: { type: 'noteOn', channel: 0, noteNumber: note.noteNumber, velocity: 100 } as const },
-			{ tick: note.tick + 10, event: { type: 'noteOff', channel: 0, noteNumber: note.noteNumber, velocity: 0 } as const },
-		]).sort((left, right) => left.tick - right.tick)
-		const events: MidiTrack = [{ deltaTime: 0, type: 'trackName', text: name }]
-		let previous = 0
-		for (const { tick, event } of timed) {
-			events.push({ ...event, deltaTime: tick - previous })
-			previous = tick
-		}
-		return [...events, { deltaTime: 0, type: 'endOfTrack' }]
-	})
-	const conductor: MidiTrack = [{ deltaTime: 0, type: 'setTempo', microsecondsPerBeat: 500000 }, { deltaTime: 0, type: 'endOfTrack' }]
-	return new Uint8Array(writeMidi({ header: { format: 1, numTracks: midiTracks.length + 1, ticksPerBeat: 480 }, tracks: [conductor, ...midiTracks] }))
-}
 
 describe('song.ini values', () => {
 	const values = (lines: string[], codes: readonly string[], chart: Uint8Array = chartFile(), fileName = 'notes.chart') =>
