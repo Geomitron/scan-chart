@@ -8,8 +8,6 @@ export interface FixReport {
 	readonly skipped: readonly { readonly code: IssueCode; readonly file: string | null; readonly reason: string }[]
 	/** Files renamed. Writing the song back to its folder, remove each `from` file. */
 	readonly renamed: readonly { readonly from: string; readonly to: string }[]
-	/** Files removed. */
-	readonly removed: readonly string[]
 	/** Each hash the fixes changed, with its value before and after, or `null` where the song had or has no such hash. */
 	readonly hashes: readonly { readonly key: string; readonly before: string | null; readonly after: string | null }[]
 }
@@ -18,7 +16,6 @@ export interface FixReport {
 export interface FixRecord {
 	readonly fixed: FixReport['fixed'][number][]
 	readonly renamed: { from: string; to: string }[]
-	readonly removed: string[]
 	skip(code: IssueCode, file: string | null, reason: string): void
 }
 

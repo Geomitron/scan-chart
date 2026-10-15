@@ -83,7 +83,6 @@ export async function fixIssues(song: SongDocument, options: FixOptions = {}): P
 	const record: FixRecord = {
 		fixed: [],
 		renamed: [],
-		removed: [],
 		skip: (code, file, reason) => {
 			if (!skipped.some(entry => entry.code === code && entry.file === file && entry.reason === reason)) skipped.push({ code, file, reason })
 		},
@@ -122,7 +121,7 @@ export async function fixIssues(song: SongDocument, options: FixOptions = {}): P
 	const fixed = await fixFiles(fixedIni, issues, options, record)
 	return {
 		song: fixed,
-		report: { fixed: record.fixed, skipped, renamed: record.renamed, removed: record.removed, hashes: hashChanges(songHashes(song), songHashes(fixed)) },
+		report: { fixed: record.fixed, skipped, renamed: record.renamed, hashes: hashChanges(songHashes(song), songHashes(fixed)) },
 	}
 }
 

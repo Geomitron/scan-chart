@@ -305,7 +305,7 @@ const plan = serializeSong(fixed)
 - `codes` limits it to some codes. It doesn't fix a code song.ini's `ignored_issues` lists.
 - scan-chart has no image codec, so to resize square album art, pass `resizeImage`: a function that resizes an image to a square of the given side with your app's image library, such as sharp or a canvas, and returns a PNG or JPEG image. `albumArtSizes` gives the sizes it accepts, as for `scanSongFolder`, and art is resized to the first.
 - It reads the media files as `mediaIssues` does: the audio files' headers, which also give the `song_length` it writes, and the album art and background images whole.
-- The report lists each fix made, each issue left and why, the files renamed and removed, and each hash that changed. A renamed file has its new name in the song's files: when you write the song back to its folder, remove the old file.
+- The report lists each fix made, each issue left and why, the files renamed, and each hash that changed. A renamed file has its new name in the song's files: when you write the song back to its folder, remove the old file.
 
 ### Convert between `.chart` and `.mid`
 
