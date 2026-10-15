@@ -80,6 +80,8 @@ export const issueSeverities: { readonly [code in IssueCode]: IssueSeverity } = 
 	invalidLyric: 'error',
 	invalidPhraseStart: 'error',
 	invalidPhraseEnd: 'error',
+	chartOffset: 'recommendation',
+	emptyTrack: 'warning',
 	// Spelling issues: other programs read these differently, unless they're style notes.
 	unsortedChartLines: 'error',
 	quotedChartTrackEvent: 'error',

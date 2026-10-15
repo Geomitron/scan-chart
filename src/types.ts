@@ -304,6 +304,8 @@ export type ChartIssueType =
 	| 'invalidLyric' // A lyric event was found on the EVENTS track in a .mid chart and will not be displayed
 	| 'invalidPhraseStart' // A phrase_start text event was found on the EVENTS track in a .mid chart (vocal phrases use MIDI notes 105/106 on PART VOCALS, not text events)
 	| 'invalidPhraseEnd' // A phrase_end text event was found on the EVENTS track in a .mid chart (vocal phrases use MIDI notes 105/106 on PART VOCALS, not text events)
+	| 'chartOffset' // The .chart [Song] Offset isn't 0
+	| 'emptyTrack' // This instrument section or track has no notes, so games don't list it
 
 export type FolderIssueType =
 	| 'noMetadata' // This chart doesn't have "song.ini"

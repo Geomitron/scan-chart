@@ -132,6 +132,8 @@ export interface GameplayChartSource {
 	readonly format: ChartFormat
 	/** The chart file as read, for the issues its spelling raises. */
 	readonly source: ChartSource
+	/** song.ini's delay, in milliseconds. Clone Hero reads the `.chart` Offset only when it's 0. */
+	readonly delay: number
 }
 
 const sources = new ObjectCache<GameplayChart, GameplayChartSource>('gameplayChartSource')
@@ -139,14 +141,15 @@ const charts = new ObjectCache<ParsedChartFile, GameplayChart>('gameplayChart')
 
 /** The chart of a song as Clone Hero plays it. Throws `ChartReadError` if the song has no chart or it can't be read. */
 export function resolveChart(song: SongDocument): GameplayChart {
-	const { chart, settings } = songContext(song)
+	const { chart, settings, ini } = songContext(song)
 	if (chart.kind === 'none') throw new ChartReadError('The song has no chart file.')
 	if (chart.kind === 'failed') throw new ChartReadError(chart.error)
 	let gameplay = charts.get(chart.parsed)
 	if (gameplay === undefined) {
 		gameplay = gameplayChart(chart.parsed, settings, chart.source.format)
 		charts.set(chart.parsed, gameplay)
-		sources.set(gameplay, { parsed: chart.parsed, settings, format: chart.source.format, source: chart.source })
+		const delay = ini.metadata !== null && ini.songSection !== null ? ini.metadata.delay : 0
+		sources.set(gameplay, { parsed: chart.parsed, settings, format: chart.source.format, source: chart.source, delay })
 	}
 	return gameplay
 }
