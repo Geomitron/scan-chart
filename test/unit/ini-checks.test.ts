@@ -60,6 +60,8 @@ describe('song.ini tags', () => {
 		expect(await iniIssues(lines, ['unknownIniTag'])).toEqual([['unknownIniTag',
 			'"song.ini" has tags that aren\'t in the song.ini standard: "link_name_a", "banner_link_a" and "custom". Remove them, unless a game you chart for reads them.']])
 		expect(await iniIssues(lines, ['unknownIniTag'], { extraIniKeys: ['CUSTOM', /^(link|banner)_/] })).toEqual([])
+		expect(await iniIssues(lines, ['unknownIniTag'], { extraIniKeys: [/^(link|banner)_/] })).toEqual([['unknownIniTag',
+			'"song.ini" has a tag that isn\'t in the song.ini standard: "custom". Remove it, unless a game you chart for reads it.']])
 	})
 
 	it('names up to four tags, then counts the rest', () => {

@@ -73,9 +73,10 @@ export function songIniIssues(input: SongIniInput): MetadataFinding[] {
 		})
 	}
 	if (unknown.length > 0) {
+		const [tags, them] = unknown.length === 1 ? ['a tag that isn\'t', 'it'] : ['tags that aren\'t', 'them']
 		issues.push({
 			metadataIssue: 'unknownIniTag',
-			description: `"song.ini" has tags that aren't in the song.ini standard: ${keyList(unknown)}. Remove them, unless a game you chart for reads them.`,
+			description: `"song.ini" has ${tags} in the song.ini standard: ${keyList(unknown)}. Remove ${them}, unless a game you chart for reads ${them}.`,
 		})
 	}
 	return [...issues, ...values.issues]
