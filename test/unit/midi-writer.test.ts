@@ -302,6 +302,21 @@ describe('writeMidiFile round-trip: drum tracks', () => {
 		expect(notes[5].flags & noteFlags.tom).toBeTruthy()
 	})
 
+	it('keeps a pro chart pro when every yellow, blue and green note is a cymbal and no tick has only kick or red', () => {
+		const chart = createEmptyChart({ format: 'mid' })
+		chart.drumType = drumTypes.fourLanePro
+		const td = emptyDrumTrack('expert')
+		td.noteEventGroups.push(
+			[note(0, noteTypes.kick), note(0, noteTypes.yellowDrum, noteFlags.cymbal), note(0, noteTypes.greenDrum, noteFlags.cymbal)],
+			[note(480, noteTypes.redDrum, noteFlags.tom), note(480, noteTypes.yellowDrum, noteFlags.cymbal)],
+			[note(960, noteTypes.kick), note(960, noteTypes.blueDrum, noteFlags.cymbal)],
+		)
+		chart.trackData.push(td)
+		const re = roundTrip(chart)
+		expect(re.drumType).toBe(drumTypes.fourLanePro)
+		expect(flatNotes(findTrack(re, 'drums'))).toEqual(flatNotes(td))
+	})
+
 	it('preserves the flam flag on a chord group', () => {
 		const chart = createEmptyChart({ format: 'mid' })
 		const td = emptyDrumTrack('expert')
