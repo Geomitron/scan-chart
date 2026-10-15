@@ -398,6 +398,13 @@ describe('fixIssues: sustains', () => {
 		expect(both.codes.filter(code => code === 'badSustainGap' || code === 'babySustain')).toEqual([])
 	})
 
+	it('leaves a sustain whose note the parser moved, such as a snapped chord\'s', async () => {
+		const snapped = await fix(folder(['[song]', 'name = Song', 'chord_snap_threshold = 5'], expert('768 = N 0 30', '770 = N 1 30', '1152 = N 2 0')),
+			{ codes: ['babySustain'], changeHashes: true })
+		expect(chartText(snapped)).toContain('768 = N 0 0\r\n  770 = N 1 30\r\n')
+		expect(snapped.report.skipped).toEqual([{ code: 'babySustain', file: 'notes.chart', reason: 'The expert guitar note at tick 768 isn\'t written as a note of its type and tick.' }])
+	})
+
 	it('removes a short .mid sustain on its difficulty', async () => {
 		const mid = midi({ 'PART GUITAR': [{ tick: 0, noteNumber: 96, length: 180 }, { tick: 960, noteNumber: 97 }, { tick: 0, noteNumber: 84, length: 180 }, { tick: 960, noteNumber: 85 }] })
 		const result = await fix(folder(ini, mid, 'notes.mid'), { codes: ['babySustain'], changeHashes: true })
