@@ -191,7 +191,8 @@ export function buildDrumTrack(
 	// emitted (e.g. all yellow/blue defaulted to cymbal and green-toms used
 	// the offset-5 encoding), scan-chart's drumType detection falls through
 	// to fourLane. Emit a greenTomMarker at a tick where it attaches only to
-	// non-affected notes (kick, red, or fiveGreenDrum — which are always tom).
+	// non-affected notes (kick, red, or fiveGreenDrum — which are always tom),
+	// or else a marker of a color no note at its tick is a cymbal of.
 	if (chart.drumType === drumTypes.fourLanePro && emittedTomMarker.size === 0) {
 		let markerTick: number | null = null
 		// Prefer a green-tom tick.
@@ -228,7 +229,28 @@ export function buildDrumTrack(
 				}
 			}
 		}
-		if (markerTick !== null) addNoteOnOff(events, markerTick, 1, 112, 100)
+		let markerNote = 112
+		if (markerTick === null) {
+			// Last: a marker of a color none of the tick's notes on any difficulty is a cymbal of, which turns no note
+			// into a tom, at the first tick with a note.
+			const cymbalColors = new Map<number, Set<NoteType>>()
+			for (const td of trackDataEntries) {
+				for (const g of td.noteEventGroups) {
+					const colors = cymbalColors.get(g[0].tick) ?? new Set<NoteType>()
+					cymbalColors.set(g[0].tick, colors)
+					for (const n of g) if (n.flags & noteFlags.cymbal) colors.add(n.type)
+				}
+			}
+			for (const [tick, colors] of [...cymbalColors].sort(([a], [b]) => a - b)) {
+				const color = ([noteTypes.greenDrum, noteTypes.blueDrum, noteTypes.yellowDrum] as const).find(type => !colors.has(type))
+				if (color !== undefined) {
+					markerTick = tick
+					markerNote = drumTomMarkerNote[color]!
+					break
+				}
+			}
+		}
+		if (markerTick !== null) addNoteOnOff(events, markerTick, 1, markerNote, 100)
 	}
 
 	if (options.sustainCutoff !== undefined) stretchUnsustainedNotes(events, options.sustainCutoff)
