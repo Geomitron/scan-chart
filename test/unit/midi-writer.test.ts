@@ -16,6 +16,7 @@ import { writeChartFile } from 'src/chart/chart-writer'
 import { writeMidiFile } from 'src/chart/midi-writer'
 import { noteFlags, type NoteType, noteTypes } from 'src/chart/types'
 import { parseChartAndIni, type ParsedChart } from 'src/chart/parse-chart-and-ini'
+import { parseChartFile, parseChartFileFrozenLegacyIdentity } from 'src/chart/parse-chart-file'
 
 function roundTrip(chart: ParsedChart, iniText?: string): ParsedChart {
 	const files: { fileName: string; data: Uint8Array }[] = [
@@ -430,6 +431,23 @@ describe('writeMidiFile round-trip: 5-fret tracks', () => {
 		chart.trackData.push(td)
 		const notes = flatNotes(findTrack(roundTrip(chart), 'guitar'))
 		expect(notes[0].flags & noteFlags.tap).toBeTruthy()
+	})
+
+	it('ends each tap range before the next note, so a tap end read inclusively or exclusively taps the same notes', () => {
+		const chart = createEmptyChart({ format: 'mid', resolution: 480 })
+		const td = emptyFretTrack('guitar', 'expert')
+		td.noteEventGroups.push([note(0, noteTypes.green)])
+		// A tap with the next note a tick later, two taps with the next note a tick later, and a tap with room after it.
+		td.noteEventGroups.push([note(480, noteTypes.green, noteFlags.tap)], [note(481, noteTypes.red, noteFlags.strum)])
+		td.noteEventGroups.push([note(960, noteTypes.green, noteFlags.tap)], [note(961, noteTypes.red, noteFlags.tap)], [note(962, noteTypes.yellow, noteFlags.strum)])
+		td.noteEventGroups.push([note(1440, noteTypes.green, noteFlags.tap)], [note(1920, noteTypes.red, noteFlags.strum)])
+		chart.trackData.push(td)
+		const tapped = (track: ParsedChart['trackData'][number]) => flatNotes(track).filter(n => n.flags & noteFlags.tap).map(n => n.tick)
+		const expected = [480, 960, 961, 1440]
+		expect(tapped(findTrack(roundTrip(chart), 'guitar'))).toEqual(expected)
+		const written = writeMidiFile(chart)
+		expect(tapped(parseChartFile(written, 'mid').trackData[0])).toEqual(expected)
+		expect(tapped(parseChartFileFrozenLegacyIdentity(written, 'mid').trackData[0])).toEqual(expected)
 	})
 
 	it('preserves star power and solo sections on a guitar track', () => {

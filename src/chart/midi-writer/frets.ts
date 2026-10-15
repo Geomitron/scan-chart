@@ -381,6 +381,7 @@ function emitFretNotes(
 	}
 }
 
+/** A Phase Shift SysEx range. At one tick, a zero-length range's start sorts before its end, as they are added. */
 function addSysExOnOff(
 	events: AbsoluteEvent[],
 	tick: number,
@@ -397,7 +398,7 @@ function addSysExOnOff(
 		} as MidiEvent,
 	})
 	events.push({
-		tick: tick + Math.max(length, 1),
+		tick: tick + length,
 		event: {
 			deltaTime: 0,
 			type: 'sysEx',
@@ -463,10 +464,31 @@ function emitFretModifierRanges(
 		for (const range of reconstructModifierRanges(strumTicks, noteTicksInOrder)) {
 			addNoteOnOff(events, range.tick, range.length, diffStarts[difficulty] + laneOffsets.forceStrum, 100)
 		}
-		for (const range of reconstructModifierRanges(tapTicks, noteTicksInOrder)) {
+		for (const range of tapRanges(tapTicks, noteTicksInOrder)) {
 			addSysExOnOff(events, range.tick, range.length, sysExDiffMap[difficulty], 0x04)
 		}
 	}
+}
+
+/**
+ * The tap ranges for `tapTicks`, each ending before the next note. A tap range includes its end tick under the canonical
+ * rules and excludes it in Clone Hero 1.1 and YARG, so no note may sit on it. When the next note is one tick after the
+ * last tapped note, the range ends on that note, and a zero-length range, which every reader reads as its own tick, taps
+ * it.
+ */
+function tapRanges(tapTicks: Set<number>, noteTicksInOrder: number[]): { tick: number; length: number }[] {
+	const noteTicks = new Set(noteTicksInOrder)
+	const ranges: { tick: number; length: number }[] = []
+	for (const range of reconstructModifierRanges(tapTicks, noteTicksInOrder)) {
+		const lastTap = range.tick + range.length - 1
+		if (!noteTicks.has(lastTap + 1)) {
+			ranges.push(range)
+			continue
+		}
+		if (lastTap > range.tick) ranges.push({ tick: range.tick, length: lastTap - range.tick })
+		ranges.push({ tick: lastTap, length: 0 })
+	}
+	return ranges
 }
 
 /**
