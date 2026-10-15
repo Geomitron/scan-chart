@@ -263,22 +263,10 @@ export function buildFretTrack(
 		const ch = (fs as { channel?: number }).channel ?? 0
 		addNoteOnOffWithChannel(events, fs.tick, fs.length, 120, vel, ch, options.zeroLengthPhrases)
 	}
-	let flexSeq = 0
+	// Lanes are written with addNoteOnOff, so a lane that ends where another of its number starts ends first.
 	for (const [key, velocity] of emittedFlexLane) {
-		const [tickStr, lengthStr, noteStr] = key.split(':')
-		const tick = Number(tickStr)
-		const length = Number(lengthStr)
-		const noteNumber = Number(noteStr)
-		events.push({
-			tick,
-			seq: flexSeq++,
-			event: noteOnEvent(noteNumber, velocity),
-		})
-		events.push({
-			tick: tick + length,
-			seq: flexSeq++,
-			event: noteOffEvent(noteNumber),
-		})
+		const [tick, length, noteNumber] = key.split(':').map(Number)
+		addNoteOnOff(events, tick, length, noteNumber, velocity, true)
 	}
 
 	emitFretModifierRanges(events, trackDataEntries, isGhl, chart)

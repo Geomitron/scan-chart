@@ -379,6 +379,23 @@ describe('writeMidiFile round-trip: drum tracks', () => {
 		expect(parseMidi(writeMidiFile(uncoveredOnly)).tracks.flat().some(event => event.type === 'noteOn' && event.noteNumber === 111)).toBe(true)
 	})
 
+	it('ends a lane before a lane of its number that starts where it ends, from another difficulty', () => {
+		const chart = createEmptyChart({ format: 'mid', resolution: 480 })
+		for (const [difficulty, tick] of [['expert', 480], ['hard', 0]] as const) {
+			const td = emptyDrumTrack(difficulty)
+			td.noteEventGroups.push([note(0, noteTypes.redDrum)], [note(480, noteTypes.redDrum)])
+			td.flexLanes.push({ tick, length: 480, isDouble: false, msTime: 0, msLength: 0 })
+			chart.trackData.push(td)
+		}
+		const written = writeMidiFile(chart)
+		expect(chartSpellingIssues({ format: 'mid', bytes: written, tokens: readMidiTokens(written, 'reject') }, false)).toEqual([])
+		const re = roundTrip(chart)
+		const lanes = (difficulty: string) => findTrack(re, 'drums', difficulty).flexLanes.map(lane => [lane.tick, lane.length])
+		// The Hard lane's velocity makes it apply to Expert as well, as .mid can't hold a lane only Hard has.
+		expect(lanes('expert')).toEqual([[0, 480], [480, 480]])
+		expect(lanes('hard')).toEqual([[0, 480]])
+	})
+
 	it('preserves versus phrases', () => {
 		const chart = createEmptyChart({ format: 'mid', resolution: 480 })
 		const td = emptyDrumTrack('expert')
