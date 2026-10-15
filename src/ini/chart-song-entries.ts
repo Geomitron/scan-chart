@@ -1,6 +1,6 @@
 /**
- * `[Song]` keys scan-chart reads as metadata when there's no song.ini, with their song.ini keys. Clone Hero reads the
- * same keys but `Difficulty`, which it ignores; YARG reads `Difficulty` as `diff_band`.
+ * `[Song]` keys scan-chart reads as metadata when there's no song.ini, with their song.ini keys. `Difficulty` is the
+ * whole song's difficulty, `diff_band`, as YARG reads it; Clone Hero ignores it and reads the other keys.
  */
 const chartSongKeys: readonly (readonly [chartKey: string, iniKey: string, secondsToMs?: true])[] = [
 	['Name', 'name'],
@@ -9,7 +9,7 @@ const chartSongKeys: readonly (readonly [chartKey: string, iniKey: string, secon
 	['Genre', 'genre'],
 	['Year', 'year'],
 	['Charter', 'charter'],
-	['Difficulty', 'diff_guitar'],
+	['Difficulty', 'diff_band'],
 	['Offset', 'delay', true],
 	['PreviewStart', 'preview_start_time', true],
 ]

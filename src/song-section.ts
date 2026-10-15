@@ -19,7 +19,7 @@ const pairs: readonly { readonly chartKey: string; readonly iniKey: string; read
 	{ chartKey: 'Genre', iniKey: 'genre', unit: 'text' },
 	{ chartKey: 'Year', iniKey: 'year', unit: 'year' },
 	{ chartKey: 'Charter', iniKey: 'charter', unit: 'text' },
-	{ chartKey: 'Difficulty', iniKey: 'diff_guitar', unit: 'number', unset: -1 },
+	{ chartKey: 'Difficulty', iniKey: 'diff_band', unit: 'number', unset: -1 },
 	{ chartKey: 'Length', iniKey: 'song_length', unit: 'seconds', unset: 0 },
 	{ chartKey: 'Offset', iniKey: 'delay', unit: 'seconds', unset: 0 },
 	{ chartKey: 'PreviewStart', iniKey: 'preview_start_time', unit: 'seconds', unset: -1 },
