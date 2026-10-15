@@ -1,6 +1,7 @@
 import { toLowerInvariant, trimDotnet } from '../shared/text'
 import { type DrumType, drumTypes, type MetadataIssueType } from '../types'
 import { defaultMetadata } from './metadata'
+import { marksSingle } from './metadata-style'
 import type { IniTokens } from './parse-ini'
 import { knownIniKeys, parseBoolean, parseDotnetInt } from './scan-ini'
 
@@ -103,8 +104,7 @@ function valueIssues({ songSection, metadata, chart }: SongIniInput): { issues: 
 		missing.push('song_length')
 		add('missingSongLength', 'Metadata is missing "song_length": set it to the length of the longest audio file, in milliseconds.')
 	}
-	// A single's album is its name followed by " - (Single)".
-	if (metadata.album_track === defaultMetadata.album_track && metadata.album !== defaultMetadata.album && !/\bsingle\)?$/i.test(metadata.album.trim())) {
+	if (metadata.album_track === defaultMetadata.album_track && metadata.album !== defaultMetadata.album && !marksSingle(metadata.album)) {
 		missing.push('album_track')
 		add('missingAlbumTrack', 'Metadata is missing "album_track": set it to the song\'s position on its album.')
 	}
