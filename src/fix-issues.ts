@@ -1,10 +1,14 @@
+import { readAudioInfo } from './assets/media-headers'
+import { scanAudio } from './assets/scan-audio'
 import { keyList, standardTagOrder } from './ini/ini-checks'
 import { asUtf8Ini, rewriteSongIni } from './ini/ini-edit'
 import { IniTokens, parseIniTokens } from './ini/parse-ini'
 import type { Issue, IssueCode, MetadataFinding } from './issues'
 import { scanSong } from './scan-song-folder'
+import { hasCrowdOrPreviewName } from './shared/file-names'
 import { trimDotnet } from './shared/text'
 import { continueEdits, SongDocument, withSongIni } from './song-document'
+import type { SongFile } from './song-files'
 import { songHashes } from './song-save'
 
 /**
@@ -23,6 +27,8 @@ export const issueFixes: { readonly [code in IssueCode]?: 'keepsHashes' | 'chang
 	iconName: 'keepsHashes',
 	deprecatedIniTag: 'keepsHashes',
 	redundantDrumType: 'keepsHashes',
+	missingSongLength: 'keepsHashes',
+	songLengthMismatch: 'keepsHashes',
 }
 
 /** What `fixIssues` fixes, and how. */
@@ -65,7 +71,7 @@ interface FixRecord {
  */
 export async function fixIssues(song: SongDocument, options: FixOptions = {}): Promise<{ readonly song: SongDocument; readonly report: FixReport }> {
 	const asked = options.codes ?? (Object.keys(issueFixes) as IssueCode[])
-	const { scanned, iniFindings } = await scanSong(song, { styleNotes: true })
+	const { scanned, iniFindings } = await scanSong(song, { styleNotes: true, mediaIssues: asked.some(code => mediaCodes.includes(code)) })
 	const skipped: Skipped[] = []
 	const record: FixRecord = {
 		fixed: [],
@@ -86,11 +92,31 @@ export async function fixIssues(song: SongDocument, options: FixOptions = {}): P
 		return fix === 'keepsHashes' || (fix === 'changesHashes' && options.changeHashes)
 	})
 
-	const fixed = fixSongIni(song, issues, iniFindings, options, record)
+	const songLength = issues.some(issue => issue.code === 'missingSongLength' || issue.code === 'songLengthMismatch') ? await longestAudio(song.files) : null
+	const fixed = fixSongIni(song, issues, iniFindings, songLength, options, record)
 	return {
 		song: fixed,
 		report: { fixed: record.fixed, skipped, renamed: record.renamed, removed: record.removed, hashes: hashChanges(songHashes(song), songHashes(fixed)) },
 	}
+}
+
+/** The codes whose issues only a scan that reads the media files finds. */
+const mediaCodes: readonly IssueCode[] = ['songLengthMismatch']
+
+/**
+ * The length of the longest audio file, not counting crowd or preview audio, in whole milliseconds, read from the
+ * files' headers as the song_length check reads it, or why it can't be read.
+ */
+async function longestAudio(files: readonly SongFile[]): Promise<{ ms: number } | { reason: string }> {
+	const stems = scanAudio(files).stemFiles.filter(file => !hasCrowdOrPreviewName(file.fileName))
+	if (stems.length === 0) return { reason: 'The song has no audio file to measure.' }
+	let longest = 0
+	for (const file of stems) {
+		const info = await readAudioInfo(file)
+		if (info === null) return { reason: `The length of "${file.fileName}" can't be read from its headers.` }
+		longest = Math.max(longest, info.durationMs)
+	}
+	return { ms: Math.round(longest) }
 }
 
 /** The hashes that differ between two songs' `songHashes`. */
@@ -124,14 +150,22 @@ interface IniFix {
 
 const iniCodes: readonly IssueCode[] = [
 	'iniLayout', 'iniTagOrder', 'blankIniValue', 'blankIniNumber', 'quotedIniValue', 'defaultIniValue', 'iconName', 'deprecatedIniTag', 'redundantDrumType',
+	'missingSongLength', 'songLengthMismatch',
 ]
 
 /**
  * Rewrites song.ini for its issues, as `rewriteSongIni` writes it: its layout and tag order, and its values. Every
  * change is checked against the canonical hashes: one that changes a hash is left out, unless it's meant to change how
- * games read the song and `changeHashes` is set.
+ * games read the song and `changeHashes` is set. `songLength` is the longest audio file's, when an issue asks for it.
  */
-function fixSongIni(song: SongDocument, issues: readonly Issue[], findings: readonly MetadataFinding[], options: FixOptions, record: FixRecord): SongDocument {
+function fixSongIni(
+	song: SongDocument,
+	issues: readonly Issue[],
+	findings: readonly MetadataFinding[],
+	songLength: { ms: number } | { reason: string } | null,
+	options: FixOptions,
+	record: FixRecord,
+): SongDocument {
 	const found = issues.filter(issue => issue.scope === 'metadata' && iniCodes.includes(issue.code))
 	const ini = song.ini
 	if (found.length === 0 || ini === null) return song
@@ -166,6 +200,11 @@ function fixSongIni(song: SongDocument, issues: readonly Issue[], findings: read
 		const newer = key === 'frets' ? 'charter' : key === 'track' ? 'album_track' : null
 		if (newer !== null) fixes.push({ code: 'deprecatedIniTag', subject: key, set: [[newer, songSection[key]]], remove: [key], readsAlike: true })
 		else if (key === 'delay') record.skip('deprecatedIniTag', ini.fileName, 'Removing "delay" moves every note against the audio: the audio or the notes have to change first.')
+	}
+	for (const code of ['missingSongLength', 'songLengthMismatch'] as const) {
+		if (!codes.has(code) || songLength === null) continue
+		if ('ms' in songLength) fixes.push({ code, subject: 'song_length', set: [['song_length', String(songLength.ms)]], readsAlike: false })
+		else record.skip(code, ini.fileName, songLength.reason)
 	}
 	if (fixes.length === 0) return song
 
@@ -215,6 +254,8 @@ function iniFixDescription(code: IssueCode, fixes: readonly IniFix[]): string {
 		case 'defaultIniValue': return `Removed ${list}, which changed nothing.`
 		case 'iconName': return `Changed "icon" to "${fixes[0].set![0][1]}".`
 		case 'deprecatedIniTag': return `Renamed ${fixes.map(fix => `"${fix.subject}" to "${fix.set![0][0]}"`).join(' and ')}.`
+		case 'missingSongLength':
+		case 'songLengthMismatch': return `Set "song_length" to ${fixes[0].set![0][1]}, the length of the longest audio file in milliseconds.`
 		default: return `Removed ${list}, which games read the drums the same without.`
 	}
 }

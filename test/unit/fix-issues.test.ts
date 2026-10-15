@@ -8,6 +8,8 @@ import { documentFiles, parseSong } from 'src/song-document'
 import type { SongFile } from 'src/song-files'
 import { saveSong, songHashes } from 'src/song-save'
 
+import { opus, vorbis } from './helpers/media-files'
+
 const encode = (text: string) => new TextEncoder().encode(text)
 const decode = (bytes: Uint8Array) => new TextDecoder().decode(bytes)
 
@@ -108,21 +110,21 @@ describe('fixIssues: song.ini', () => {
 	})
 
 	it('writes the icon\'s name in lowercase, and drops a file extension only with changeHashes, since the SongHash reads it', async () => {
-		const upper = await fix(folder(['[song]', 'name = Song', 'icon = Zancharted']))
+		const upper = await fix(folder(['[song]', 'name = Song', 'icon = Zancharted']), { codes: ['iconName'] })
 		expect(upper.ini).toContain('icon = zancharted')
 		expectHashesKept(upper)
 
 		const named = folder(['[song]', 'name = Song', 'icon = my_icon.png'])
-		const kept = await fix(named)
+		const kept = await fix(named, { codes: ['iconName'] })
 		expect(kept.ini).toContain('icon = my_icon.png')
 		expect(kept.report.skipped).toEqual([{ code: 'iconName', file: 'song.ini', reason: 'Fixing "icon" changes the SongHash: fix it with changeHashes.' }])
 		expectHashesKept(kept)
-		const changed = await fix(named, { changeHashes: true })
+		const changed = await fix(named, { codes: ['iconName'], changeHashes: true })
 		expect(changed.ini).toContain('icon = my_icon\r\n')
 		expect(changed.report.hashes).toEqual([{ key: 'canonical:song', before: changed.before!.get('canonical:song'), after: changed.after!.get('canonical:song') }])
 		expect(changed.after!.get('canonical:song')).not.toBe(changed.before!.get('canonical:song'))
 
-		const spaced = await fix(folder(['[song]', 'name = Song', 'icon = Half Moon']))
+		const spaced = await fix(folder(['[song]', 'name = Song', 'icon = Half Moon']), { codes: ['iconName'] })
 		expect(spaced.report.skipped).toEqual([{ code: 'iconName', file: 'song.ini',
 			reason: 'Without its extension and in lowercase, "Half Moon" has other characters than a-z, 0-9, "-" and "_": choose an icon name.' }])
 	})
@@ -139,7 +141,7 @@ describe('fixIssues: song.ini', () => {
 
 	it('leaves out a fix that reads alike but would change a hash, even with changeHashes', async () => {
 		// The SongHash reads a blank charter as no charter, and frets only when there's no charter line.
-		const credited = await fix(folder(['[song]', 'name = Song', 'charter =', 'frets = Someone']), { changeHashes: true })
+		const credited = await fix(folder(['[song]', 'name = Song', 'charter =', 'frets = Someone']), { codes: ['blankIniValue', 'deprecatedIniTag'], changeHashes: true })
 		expect(credited.ini).toBe('[song]\r\nname = Song\r\ncharter =\r\nfrets = Someone\r\n')
 		expect(credited.report.skipped).toEqual([
 			{ code: 'blankIniValue', file: 'song.ini', reason: 'Fixing "charter" would change the SongHash, so games would read the song differently.' },
@@ -160,7 +162,7 @@ describe('fixIssues: song.ini', () => {
 
 	it('fixes only the codes asked for, and none song.ini\'s ignored_issues lists', async () => {
 		const lines = ['[song]', 'charter = Me', 'name = Song', 'icon =', 'ignored_issues = iniTagOrder']
-		const result = await fix(folder(lines))
+		const result = await fix(folder(lines), { codes: ['iniTagOrder', 'blankIniValue'] })
 		expect(result.ini).toBe('[song]\r\ncharter = Me\r\nname = Song\r\nignored_issues = iniTagOrder\r\n')
 		expect(result.report.skipped).toEqual([{ code: 'iniTagOrder', file: 'song.ini', reason: 'song.ini\'s "ignored_issues" lists it.' }])
 		const only = await fix(folder(lines), { codes: ['iconName', 'unknownIniTag', 'blankIniValue'] })
@@ -188,5 +190,31 @@ describe('fixIssues: song.ini', () => {
 		expect(plan.report.spentHashes).toEqual([])
 		expect(decode(plan.files.find(file => file.fileName === 'song.ini')!.pieces[0] as Uint8Array)).toBe('[song]\r\nname = Song\r\ncharter = Me\r\n')
 		expect(documentFiles(fixed).map(file => file.fileName)).toEqual(files.map(file => file.fileName))
+	})
+})
+
+describe('fixIssues: song_length', () => {
+	const audio = [{ fileName: 'song.opus', data: opus(80) }, { fileName: 'guitar.ogg', data: vorbis(192, 12) }, { fileName: 'preview.ogg', data: vorbis(192, 30) }]
+	const song = (lines: readonly string[], files: readonly SongFile[] = audio) => [{ fileName: 'notes.chart', data: chartFile() }, { fileName: 'song.ini', data: iniFile(lines) }, ...files]
+
+	it('sets a missing song_length to the longest audio file\'s length, from its headers, keeping the hashes', async () => {
+		const result = await fix(song(['[song]', 'name = Song', 'song_length =']))
+		expect(result.ini).toBe('[song]\r\nname = Song\r\nsong_length = 12000\r\n')
+		expect(result.report.fixed).toContainEqual({ code: 'missingSongLength', file: 'song.ini',
+			description: 'Set "song_length" to 12000, the length of the longest audio file in milliseconds.' })
+		expect(result.codes).not.toContain('missingSongLength')
+		expectHashesKept(result)
+	})
+
+	it('sets a song_length far from the longest audio file\'s length', async () => {
+		const result = await fix(song(['[song]', 'name = Song', 'song_length = 200000']), { codes: ['songLengthMismatch'] })
+		expect(result.ini).toBe('[song]\r\nname = Song\r\nsong_length = 12000\r\n')
+		expectHashesKept(result)
+	})
+
+	it('leaves song_length when an audio file\'s length can\'t be read', async () => {
+		const result = await fix(song(['[song]', 'name = Song'], [{ fileName: 'song.opus', data: opus(80) }, { fileName: 'drums.ogg', data: new Uint8Array(4) }]))
+		expect(result.ini).toBe('[song]\r\nname = Song\r\n')
+		expect(result.report.skipped).toEqual([{ code: 'missingSongLength', file: 'song.ini', reason: 'The length of "drums.ogg" can\'t be read from its headers.' }])
 	})
 })

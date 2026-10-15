@@ -25,7 +25,9 @@ export function setSongIniValue(tokens: IniTokens, key: string, value: string | 
 		const lineEnd = line.endsWith('\r\n') ? '\r\n' : line.endsWith('\n') ? '\n' : ''
 		const written = line.slice(0, line.length - lineEnd.length)
 		const separator = written.indexOf('=')
-		const spacing = /^[ \t]*/.exec(written.slice(separator + 1))![0]
+		// A blank value gets the spacing written before the "=".
+		const after = written.slice(separator + 1)
+		const spacing = /^[ \t]*/.exec(trimDotnet(after) === '' ? written.slice(0, separator).replace(/^.*?([ \t]*)$/, '$1') : after)![0]
 		lines[index] = `${written.slice(0, separator + 1)}${spacing}${value}${lineEnd}`
 	} else if (goesBefore !== undefined && songKeys.some(other => goesBefore(other.key))) {
 		const index = songKeys.find(other => goesBefore(other.key))!.index
