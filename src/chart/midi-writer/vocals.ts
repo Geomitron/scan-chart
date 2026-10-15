@@ -22,8 +22,10 @@ import type { AbsoluteEvent } from './shared'
  *
  *   - PART VOCALS emits `notePhrases` at note 105 / 106 (player field decides)
  *   - HARM1 emits `notePhrases` as note 105, `staticLyricPhrases` as note 106
- *   - HARM2 emits only `staticLyricPhrases` as note 106 (note 105 comes from
- *     HARM1 via CopyDown on re-parse)
+ *   - HARM2 emits only `staticLyricPhrases`, as note 105, where Rock Band and
+ *     GGCF put HARM2's phrases (its scoring phrases come from HARM1 via
+ *     CopyDown on re-parse, and its 105 and 106 notes both read as static
+ *     lyric phrases)
  *   - HARM3 emits no phrase markers at all
  *
  * Lyric and note events are union'd across both phrase sets (note 105 and
@@ -58,7 +60,7 @@ export function buildVocalPartTrack(
 		// no-op: all phrases come from CopyDown on re-parse.
 	} else if (isHarm2) {
 		for (const phrase of part.staticLyricPhrases) {
-			addNoteOnOff(events, phrase.tick, Math.max(phrase.length, 1), 106, 100)
+			addNoteOnOff(events, phrase.tick, Math.max(phrase.length, 1), 105, 100)
 		}
 	} else if (isPartVocals) {
 		for (const phrase of part.notePhrases) {
