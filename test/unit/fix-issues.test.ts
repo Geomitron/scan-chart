@@ -1,11 +1,12 @@
 import { MidiData, writeMidi } from '@geomitron/midi-file'
 import { describe, expect, it } from 'vitest'
 
+import { authoredTracks } from 'src/authored'
 import { fixIssues, type FixOptions } from 'src/fix-issues'
 import { resolveChart } from 'src/gameplay-chart'
 import { serializeSong } from 'src/save-plan'
 import { scanSongFolder } from 'src/scan-song-folder'
-import { documentFiles, parseSong } from 'src/song-document'
+import { documentFiles, parseSong, type SongDocument } from 'src/song-document'
 import type { SongFile } from 'src/song-files'
 import { saveSong, songHashes } from 'src/song-save'
 
@@ -384,5 +385,49 @@ describe('fixIssues: sustains', () => {
 		const notes = resolveChart(result.song).tracks.flatMap(track => track.noteGroups.flat().map(note => [track.difficulty, note.tick, note.length]))
 		expect(notes).toEqual([['expert', 0, 0], ['expert', 960, 0], ['hard', 0, 0], ['hard', 960, 0]])
 		expect(hashKeys(result)).toEqual(['canonical:guitar:expert', 'canonical:guitar:hard', 'canonical:song'])
+	})
+})
+
+describe('fixIssues: the HOPO threshold tags', () => {
+	const chartText = (result: Awaited<ReturnType<typeof fix>>) => decode((result.song.chart as { tokens: { bytes: Uint8Array } }).tokens.bytes)
+	const expert = (...lines: string[]) => chartFile(['[ExpertSingle]', '{', ...lines.map(line => `  ${line}`), '}'])
+	/** Each note as Clone Hero plays it: tick, length, type and flags. */
+	const played = async (files: readonly SongFile[]) => notesOf(await parseSong(files))
+	const notesOf = (song: SongDocument) => resolveChart(song).tracks.map(track => [track.instrument, track.difficulty, track.noteGroups.flat().map(note => [note.tick, note.length, note.type, note.flags])])
+
+	it('forces the .chart notes hopo_frequency makes HOPOs or strums, then removes it, so every note and hash stays', async () => {
+		// At 192 ticks per beat, a .chart's own threshold is 65 ticks. 150 ticks apart is a HOPO with 170 and a strum without.
+		const files = folder(['[song]', 'name = Song', 'hopo_frequency = 170'], expert('0 = N 0 0', '150 = N 1 0', '300 = N 2 0', '300 = N 5 0', '340 = N 3 0'))
+		const result = await fix(files, { codes: ['deprecatedIniTag'] })
+		expect(chartText(result)).toContain('  0 = N 0 0\r\n  150 = N 1 0\r\n  150 = N 5 0\r\n  300 = N 2 0\r\n  340 = N 3 0\r\n')
+		expect(result.ini).toBe('[song]\r\nname = Song\r\n')
+		expect(result.report.fixed).toEqual([{ code: 'deprecatedIniTag', file: 'notes.chart', description: 'Forced 2 notes to play the same without "hopo_frequency", and removed it.' }])
+		expect(notesOf(result.song)).toEqual(await played(files))
+		expect(result.codes).not.toContain('deprecatedIniTag')
+		expectHashesKept(result)
+	})
+
+	it('removes eighthnote_hopo, and with hopo_frequency both, which would otherwise apply', async () => {
+		const files = folder(['[song]', 'name = Song', 'eighthnote_hopo = True'], expert('0 = N 0 0', '90 = N 1 0'))
+		const result = await fix(files, { codes: ['deprecatedIniTag'] })
+		expect(chartText(result)).toContain('90 = N 5 0')
+		expect(notesOf(result.song)).toEqual(await played(files))
+		expectHashesKept(result)
+		const both = await fix(folder(['[song]', 'name = Song', 'hopo_frequency = 170', 'eighthnote_hopo = 1'], expert('0 = N 0 0', '150 = N 1 0')), { codes: ['deprecatedIniTag'] })
+		expect(both.ini).toBe('[song]\r\nname = Song\r\n')
+		expect(both.report.fixed[0].description).toBe('Forced 1 note to play the same without "hopo_frequency" and "eighthnote_hopo", and removed them.')
+		expectHashesKept(both)
+	})
+
+	it('forces .mid notes with a one-tick force note on their difficulty', async () => {
+		// At 480 ticks per beat, a .mid's own threshold is 161 ticks.
+		const mid = midi({ 'PART GUITAR': [{ tick: 0, noteNumber: 96 }, { tick: 240, noteNumber: 97 }, { tick: 0, noteNumber: 84 }, { tick: 240, noteNumber: 85 }] })
+		const files = folder(['[song]', 'name = Song', 'hopo_frequency = 300'], mid, 'notes.mid')
+		const result = await fix(files, { codes: ['deprecatedIniTag'] })
+		expect(result.report.fixed[0].description).toBe('Forced 2 notes to play the same without "hopo_frequency", and removed it.')
+		expect(notesOf(result.song)).toEqual(await played(files))
+		const forceNotes = authoredTracks(result.song.chart!)[0].events.filter(event => event.type === 'forceHopo').map(event => [event.scope, event.tick, event.length])
+		expect(forceNotes).toEqual([['expert', 240, 1], ['hard', 240, 1]])
+		expectHashesKept(result)
 	})
 })
