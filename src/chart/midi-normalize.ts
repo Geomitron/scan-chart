@@ -1,8 +1,12 @@
-import { editMidiTrack } from './midi-edit'
+import { midiTrackNoflips, mixDifficulties } from './disco-flip'
+import { editMidiTrack, MidiTrackEdit, midiTextEvent } from './midi-edit'
 import { MidiTokens } from './midi-tokens'
 
-/** A kind of nonstandard `.mid` spelling: several track names at tick 0, of which Clone Hero reads the last. */
-export type MidiNormalizationKind = 'trackNames'
+/**
+ * A kind of nonstandard `.mid` spelling: several track names at tick 0, of which Clone Hero reads the last, or a
+ * `dnoflip` mix event while a `d` disco flip is on, which Clone Hero 1.1 reads as the flip staying on.
+ */
+export type MidiNormalizationKind = 'trackNames' | 'noflipDuringFlip'
 
 /** One normalization of a `.mid` file. */
 export interface MidiNormalization {
@@ -31,7 +35,28 @@ export function midiNormalizations(tokens: MidiTokens): MidiNormalization[] {
 			},
 		})
 	})
+	const drums = midiTrackNoflips(tokens)
+	if (drums !== null && flipOffs(drums).length > 0) {
+		normalizations.push({
+			kind: 'noflipDuringFlip',
+			section: drums.name,
+			apply: current => {
+				const found = midiTrackNoflips(current)
+				const edits = found === null ? [] : flipOffs(found)
+				return found === null || edits.length === 0 ? current : editMidiTrack(current, found.chunkIndex, edits)
+			},
+		})
+	}
 	return normalizations
+}
+
+/**
+ * An event turning the flip off before each `dnoflip` mix event that comes while a `d` flip is on, where a tick is free,
+ * as the writers write one (`noflipsDuringFlips`).
+ */
+function flipOffs(drums: NonNullable<ReturnType<typeof midiTrackNoflips>>): MidiTrackEdit[] {
+	return [...drums.difficulties].flatMap(([difficulty, found]) => found.flatMap(({ offTick, configuration }) => offTick === null ? []
+		: [{ kind: 'insert' as const, tick: offTick, event: midiTextEvent(`[mix ${mixDifficulties.indexOf(difficulty)} drums${configuration}]`) }]))
 }
 
 /** The track names at tick 0 before the last one, which names the track, or `null` when there's only one. */

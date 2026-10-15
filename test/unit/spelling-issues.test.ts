@@ -7,7 +7,7 @@ import { scanSongFolder } from 'src/scan-song-folder'
 import { parseSongFiles } from 'src/song-document'
 import { parseSongMetadata } from 'src/song-metadata'
 
-import { midiFile, midiNote } from './helpers/midi-files'
+import { midiFile, midiNote, midiText } from './helpers/midi-files'
 
 const encode = (text: string) => new TextEncoder().encode(text)
 const spelling = new Set(['unsortedChartLines', 'quotedChartTrackEvent', 'multipleMidiTrackNames', 'multipleMidiTracks', 'overlappingMidiNotes', 'duplicateIniKey', 'duplicateChartLine'])
@@ -67,6 +67,32 @@ describe('nonstandard spelling issues', () => {
 		expect(midiFileIssues(tracks('PART GUITAR', 'PART DRUMS', 't1 gems', 'PART BASS')))
 			.toEqual([{ code: 'multipleMidiTracks', instrument: 'guitar', file: null, severity: 'error' }])
 		expect(midiFileIssues(tracks('PART GUITAR', 'PART BASS'))).toEqual([])
+	})
+
+	it('report, as a warning, each difficulty\'s dnoflip mix event that comes while its d flip is on', () => {
+		const noflips = (files: { fileName: string; data: Uint8Array }[]) => analyzeChart(resolveChart(parseSongFiles(files))).issues
+			.filter(issue => issue.code === 'discoNoflipDuringFlip').map(({ instrument, difficulty, severity, message }) => ({ instrument, difficulty, severity, message }))
+		const chart = (lines: string[]) => noflips([{ fileName: 'notes.chart', data: encode(['[Song]', '{', '  Resolution = 192', '}', '[SyncTrack]', '{', '  0 = B 120000', '}',
+			'[ExpertDrums]', '{', ...lines.map(line => `  ${line}`), '}', ''].join('\r\n')) }])
+		const message = (first: string) => `${first} while a "d" disco flip is on. Clone Hero 1.1 keeps the flip on, and other programs start no-flip there. `
+			+ 'Saving an edit turns the flip off on the tick before, unless a red or yellow note or the "d" event is on it.'
+		const flip = ['480 = E mix 3 drums0d', '480 = N 1 0']
+		expect(chart([...flip, '960 = E mix 3 drums0dnoflip', '960 = N 1 0', '1440 = E mix 3 drums0d', '1920 = E mix 3 drums0dnoflip'])).toEqual([{
+			instrument: 'drums', difficulty: 'expert', severity: 'warning', message: message('2 "dnoflip" mix events, such as the one at tick 960, come'),
+		}])
+		// Turned off first, or on its tick, which readers read first, or in another difficulty, it's standard.
+		expect(chart([...flip, '959 = E mix 3 drums0', '960 = E mix 3 drums0dnoflip', '960 = N 1 0'])).toEqual([])
+		expect(chart([...flip, '960 = E mix 3 drums0dnoflip', '960 = E mix 3 drums0', '960 = N 1 0'])).toEqual([])
+		expect(chart([...flip, '960 = E mix 2 drums0dnoflip', '960 = N 1 0'])).toEqual([])
+
+		const mid = midiFile([{ name: 'PART DRUMS', events: [
+			midiText(480, '[mix 3 drums0d]'), ...midiNote(480, 97), midiText(960, '[mix 3 drums0dnoflip]'), ...midiNote(960, 97),
+			midiText(480, '[mix 1 drums0d]'), ...midiNote(480, 73), midiText(481, '[mix 1 drums0dnoflip]'), ...midiNote(481, 73),
+		] }])
+		expect(noflips([{ fileName: 'notes.mid', data: mid }])).toEqual([
+			{ instrument: 'drums', difficulty: 'expert', severity: 'warning', message: message('The "dnoflip" mix event at tick 960 comes') },
+			{ instrument: 'drums', difficulty: 'medium', severity: 'warning', message: message('The "dnoflip" mix event at tick 481 comes') },
+		])
 	})
 
 	it('report a song.ini key set twice, in the song.ini Clone Hero reads', async () => {

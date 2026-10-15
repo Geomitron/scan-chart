@@ -1,4 +1,4 @@
-import { writeMidi } from '@geomitron/midi-file'
+import { parseMidi, writeMidi } from '@geomitron/midi-file'
 import { describe, expect, it } from 'vitest'
 
 import { authoredTracks } from 'src/authored'
@@ -12,6 +12,7 @@ import { chartSpellingIssues } from 'src/spelling-issues'
 import { saveSong, songHashes, SongNormalization } from 'src/song-save'
 
 import { midi } from './helpers/chart-files'
+import { midiFile, midiNote, midiText } from './helpers/midi-files'
 
 const encode = (text: string) => new TextEncoder().encode(text)
 const decode = (bytes: Uint8Array) => new TextDecoder().decode(bytes)
@@ -177,6 +178,30 @@ describe('saving (E7)', () => {
 		const chart = saved.chart!
 		if (chart.format !== 'mid') throw new Error('not a .mid chart')
 		expect(chartSpellingIssues({ format: 'mid', bytes: chart.bytes, tokens: chart.tokens }, false)).toEqual([])
+	})
+
+	it('turns a d flip off before a dnoflip, in .chart and .mid, keeping every canonical hash', () => {
+		const drums = ['[ExpertDrums]', '{', '  480 = N 1 0', '  480 = E mix 3 drums1d', '  700 = N 2 0', '  960 = N 1 0', '  960 = E mix 3 drums0dnoflip', '}']
+		const chart = song([...header, '[ExpertSingle]', '{', '  0 = N 0 0', '  192 = N 1 0', '}', ...drums])
+		const editedChart = lengthenExpertNote(chart)
+		const savedChart = saveSong(chart, editedChart)
+		expect(savedChart.report.normalized).toEqual([{ kind: 'noflipDuringFlip', section: 'ExpertDrums' }])
+		expect(decode(fileBytes(savedChart.files[0]))).toContain('  700 = N 2 0\r\n  959 = E mix 3 drums1\r\n  960 = N 1 0\r\n  960 = E mix 3 drums0dnoflip\r\n')
+		expect(songHashes(parseSongFiles(savedChart.files))).toEqual(songHashes(editedChart))
+
+		const mid = parseSongFiles([{ fileName: 'notes.mid', data: midiFile([
+			{ name: 'PART GUITAR', events: midiNote(0, 96, 240) },
+			{ name: 'PART DRUMS', events: [midiText(480, '[mix 3 drums1d]'), ...midiNote(480, 97), ...midiNote(700, 98), midiText(960, '[mix 3 drums0dnoflip]'), ...midiNote(960, 97)] },
+		]) }, songIni])
+		const [guitar] = authoredTracks(mid.chart!)
+		const editedMid = editSong(mid, batch => batch.setLength(guitar.events[0], 480))
+		const savedMid = saveSong(mid, editedMid)
+		expect(savedMid.report.normalized).toEqual([{ kind: 'noflipDuringFlip', section: 'PART DRUMS' }])
+		const drumsTrack = parseMidi(fileBytes(savedMid.files[0])).tracks[2]
+		let tick = 0
+		expect(drumsTrack.flatMap(event => (tick += event.deltaTime, event.type === 'text' ? [[tick, event.text]] : [])))
+			.toEqual([[480, '[mix 3 drums1d]'], [959, '[mix 3 drums1]'], [960, '[mix 3 drums0dnoflip]']])
+		expect(songHashes(parseSongFiles(savedMid.files))).toEqual(songHashes(editedMid))
 	})
 
 	it('removes a song.ini key a later line of the same key replaces, in any letter case', () => {

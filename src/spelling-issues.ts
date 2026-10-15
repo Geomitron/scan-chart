@@ -1,5 +1,6 @@
 import { chartEventSection, ChartFileTokens, chartSectionLines, chartSectionTrack, ChartSectionToken } from './chart/chart-file-parser'
 import { ChartEventSection, ChartLineSpelling, chartSectionSpellings, chartSongSpellings } from './chart/chart-line-spelling'
+import { chartSectionNoflips, midiTrackNoflips } from './chart/disco-flip'
 import { midiTrackInstrument, repeatedMidiInstruments } from './chart/midi-file-parser'
 import { midiPitchKey } from './chart/midi-note-numbers'
 import { midiNormalizations } from './chart/midi-normalize'
@@ -25,6 +26,7 @@ export type SpellingIssueType =
 	| 'nonstandardChartLine'
 	| 'unreadableChartLine'
 	| 'nonstandardChartSections'
+	| 'discoNoflipDuringFlip'
 
 /**
  * Each message says what Clone Hero does (StrikeCore's readers, which HashScanTool shares). The issues about
@@ -41,6 +43,7 @@ export const spellingIssueMessages: { readonly [code in SpellingIssueType]: stri
 	nonstandardChartLine: 'A line in this section isn\'t written the standard way. scan-chart reads what it probably means, and saving an edit writes it that way.',
 	unreadableChartLine: 'A line in this section can\'t be read, so scan-chart ignores it. Saving an edit removes it.',
 	nonstandardChartSections: 'The chart\'s [Song] and [SyncTrack] sections aren\'t written the standard way. Saving an edit fixes them.',
+	discoNoflipDuringFlip: 'A "dnoflip" mix event comes while a "d" disco flip is on. Clone Hero 1.1 keeps the flip on, and other programs start no-flip there. Saving an edit turns the flip off first.',
 }
 
 /** The nonstandard spellings of a chart file, one issue per section or track; style notes only when `styleNotes`. */
@@ -65,6 +68,11 @@ export function chartSpellingIssues(source: ChartSource, styleNotes: boolean): I
 			const isRead = firstOfName.get(section.name) === section
 			const checkOrder = ordered && !unsorted.has(section.name)
 			if (isRead && section.name === 'Song') respelled.push(...lineIssues(tokens, section, chartSongSpellings))
+			// Few drums sections have a dnoflip event.
+			if (isRead && track?.instrument === 'drums' && isBefore(tokens.text.indexOf('dnoflip', section.bodyStart), section.bodyEnd)) {
+				const found = chartSectionNoflips(chartSectionLines(tokens, section).map(line => line.text), track.difficulty)
+				if (found.length > 0) respelled.push(['discoNoflipDuringFlip', section.name, noflipMessage(found)])
+			}
 			if (!isRead && !checkOrder) continue
 			const scanned = scanSectionLines(tokens.text, section.bodyStart, section.bodyEnd, checkOrder, isRead && track !== null, isRead ? eventSection : null)
 			if (scanned.unsorted) unsorted.add(section.name)
@@ -91,7 +99,21 @@ export function chartSpellingIssues(source: ChartSource, styleNotes: boolean): I
 	for (const trackName of tracksWithOverlappingNotes(source.tokens)) {
 		add('overlappingMidiNotes', { instrument: midiTrackInstrument(trackName), difficulty: null })
 	}
+	for (const [difficulty, found] of midiTrackNoflips(source.tokens)?.difficulties ?? []) {
+		if (found.length > 0) add('discoNoflipDuringFlip', { instrument: 'drums', difficulty }, noflipMessage(found))
+	}
 	return issues
+}
+
+/** Whether an offset found with `indexOf` is before `end`. */
+const isBefore = (offset: number, end: number) => offset !== -1 && offset < end
+
+/** The message about one difficulty's `dnoflip` mix events that come while a `d` flip is on, naming the first. */
+function noflipMessage(found: readonly { readonly noflipTick: number }[]): string {
+	const events = found.length === 1 ? `The "dnoflip" mix event at tick ${found[0].noflipTick} comes`
+		: `${found.length.toLocaleString('en-US')} "dnoflip" mix events, such as the one at tick ${found[0].noflipTick}, come`
+	return `${events} while a "d" disco flip is on. Clone Hero 1.1 keeps the flip on, and other programs start no-flip there. `
+		+ 'Saving an edit turns the flip off on the tick before, unless a red or yellow note or the "d" event is on it.'
 }
 
 /**
