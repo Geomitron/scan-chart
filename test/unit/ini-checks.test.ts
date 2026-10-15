@@ -233,6 +233,9 @@ describe('song.ini default values', () => {
 		expect(await keys(['multiplier_note = 103'])).toEqual([['"multiplier_note = ']])
 		const mid = midi({ 'PART GUITAR': [{ tick: 1920, noteNumber: 96 }] })
 		expect(await keys(['multiplier_note = 116'], mid, 'notes.mid')).toEqual([['"multiplier_note = ']])
+		// Without 116, Clone Hero reads two solos and no star power as star power.
+		const solos = midi({ 'PART GUITAR': [1920, 3840].flatMap(tick => [{ tick, noteNumber: 96 }, { tick, noteNumber: 103 }]) })
+		expect(await keys(['multiplier_note = 116'], solos, 'notes.mid')).toEqual([])
 		expect(await keys(['multiplier_note = 103'], mid, 'notes.mid')).toEqual([])
 	})
 

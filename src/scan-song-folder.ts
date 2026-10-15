@@ -7,7 +7,7 @@ import { scanMedia } from './assets/scan-media'
 import { scanVideo } from './assets/scan-video'
 import type { ChartStats } from './chart/chart-analysis'
 import { getChartHash } from './chart/chart-hash'
-import { parseChartSource } from './chart/parse-chart-file'
+import { parseChartSource, type ParsedChartFile } from './chart/parse-chart-file'
 import { parseRules } from './chart/parse-rules'
 import { calculateCompetitiveHashes, CompetitiveHashes } from './competitive'
 import { resolveChart } from './gameplay-chart'
@@ -200,6 +200,10 @@ export function songIniFindings(song: SongDocument, stats: ChartStats | null, op
 			format: chart.source.format,
 			drumType: stats.instruments.includes('drums') ? chart.parsed.drumType : null,
 			detectedDrumType: () => parseChartSource(chart.source, { ...settings, pro_drums: false, five_lane_drums: false }, parseRules.canonical20260801).drumType,
+			solosReadAsStarPower: () => {
+				const starPower = (parsed: ParsedChartFile) => JSON.stringify(parsed.trackData.map(track => track.starPowerSections.map(phrase => [phrase.tick, phrase.length])))
+				return starPower(parseChartSource(chart.source, { ...settings, multiplier_note: 0 }, parseRules.canonical20260801)) !== starPower(chart.parsed)
+			},
 		},
 		extraIniKeys: options.extraIniKeys ?? [],
 		styleNotes: options.styleNotes ?? false,

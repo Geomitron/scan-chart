@@ -178,10 +178,10 @@ describe('fixIssues: song.ini', () => {
 		const solos = midi({ 'PART GUITAR': [
 			...[96, 960, 1920, 2880].map(tick => ({ tick, noteNumber: 96 })), { tick: 900, noteNumber: 103, length: 200 }, { tick: 2800, noteNumber: 103, length: 200 },
 		] })
+		// That line isn't reported as changing nothing, so it stays.
 		const multiplier = await fix(folder(['[song]', 'name = Song', 'multiplier_note = 116'], solos, 'notes.mid'), { codes: ['defaultIniValue'], changeHashes: true })
 		expect(multiplier.ini).toContain('multiplier_note = 116')
-		expect(multiplier.report.skipped).toEqual([{ code: 'defaultIniValue', file: 'song.ini',
-			reason: 'Fixing "multiplier_note = 116" would change the SongHash and a TrackHash, so games would read the song differently.' }])
+		expect(multiplier.report).toMatchObject({ fixed: [], skipped: [] })
 		expectHashesKept(multiplier)
 	})
 
