@@ -83,7 +83,7 @@ A song's audio is one file, or several files called stems that are combined whil
 
 - **Album art:** `album.png`, `album.jpg` or `album.jpeg`, 512x512 pixels. **Recommended:** `.png`. Art that started as a JPEG, such as one downloaded from a store, stays `album.jpg`: converting it to PNG makes it larger without making it better. A file's extension should match its content.
 - **Background images:** `.png`, `.jpg` or `.jpeg` images whose names start with `background`, such as `background.jpg` and `background2.png`, at least 1280x720 pixels. A folder may hold several. A scanner shows one of them, picked at random, each time the chart is played.
-- **Background video:** `video.webm` is strongly **recommended**, with the VP8 codec: Clone Hero doesn't play VP9 video. A scanner also plays a video with another extension, such as `video.mp4`, where it can, but `.webm` is the only format every game plays on every platform. A scanner shows the video instead of the background image when a folder holds both.
+- **Background video:** `video.webm` is strongly **recommended**, with the VP8 codec: Clone Hero plays video through Unity, which decodes only VP8 in a `.webm` file on desktop platforms. A scanner also plays a video with another extension, such as `video.mp4`, where it can, but `.webm` is the only format every game plays on every platform. A scanner shows the video instead of the background image when a folder holds both.
 
 **Edge case: album art size.** Clone Hero shows album art at 512x512, and resizes art of any other size when it loads it. 500x500, the size recommended before, is still common.
 
