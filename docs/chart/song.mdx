@@ -43,15 +43,8 @@ Each line names one value, as [Named entries](/chart/syntax#named-entries) descr
 
 - **Text** is written in quotation marks: `Name = "Song Name"`.
 - **Times** are written in seconds, as digits with an optional `-` before them and an optional decimal part, without quotation marks: `Offset = -0.25`. A time should have at most three decimals.
-- **Year:** a reader removes a leading `, ` from the value, so `Year = ", 2002"` and `Year = "2002"` mean the same.
+- **Year:** a writer should write the year after `, `, as in `Year = ", 2002"`, which is the standard form for compatibility with older games. A reader removes a leading `, `, so `Year = "2002"` means the same.
 - **A repeated key:** a reader that finds a key more than once uses the first one with a value.
-
-{/* review: Q4
-What does Difficulty mean? Clone Hero ignores it. YARG reads it as diff_band, the difficulty of the whole song. scan-chart pairs it with diff_guitar when it keeps [Song] and song.ini in agreement.
-- A. The song's difficulty | Difficulty pairs with diff_band | scan-chart's pairing changes from diff_guitar to diff_band
-- B. Not used | Readers ignore Difficulty, and a writer should not write it | YARG's reading becomes nonstandard, and charts that set it today lose nothing in Clone Hero
-Recommendation: A, as written. It's what YARG reads and what GuitarGame_ChartFormats describes.
-*/}
 
 ### Keys readers ignore
 

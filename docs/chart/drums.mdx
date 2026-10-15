@@ -6,7 +6,7 @@ description: "Pads, cymbals, accents, ghosts, double kicks, flams and disco flip
 A drums section, such as `ExpertDrums`, holds one chart for three kinds of drum kit:
 
 - **4-lane:** a kick and four pads, with no difference between toms and cymbals.
-- **Pro:** the same lanes, with cymbals on yellow, blue and green.
+- **Pro:** the same lanes as 4-lane, with cymbals on yellow, blue and green.
 - **5-lane:** a kick and five pads, in the layout of a kit with three toms and two cymbals.
 
 ## Notes
@@ -25,7 +25,7 @@ A drum note's length has no effect. A writer should write 0.
 
 ### Double kicks
 
-`N 32` is a kick that a reader plays only when the player turns double kick on, such as for a double pedal. Writers alternate `N 0` and `N 32` in fast kick passages. A writer should write `N 32` only in `ExpertDrums`, and must not write `N 0` and `N 32` at one tick.
+`N 32` is a kick that a reader plays only when the player has the double kick modifier enabled, because these kicks realistically need a double kick pedal to play properly. Writers alternate `N 0` and `N 32` in fast kick passages. A writer should write `N 32` only in `ExpertDrums`, and must not write `N 0` and `N 32` at one tick.
 
 ## Cymbals
 
