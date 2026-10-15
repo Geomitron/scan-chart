@@ -665,6 +665,30 @@ describe('normalizedVocalTracks', () => {
 		expect(vocals.notePhrases[0].notes).toHaveLength(0)
 	})
 
+	it('groups .chart lyrics as Clone Hero does: through the end tick, and none outside a phrase', () => {
+		const chart = buildChart({
+			Song: ['Resolution = 480'],
+			SyncTrack: ['0 = B 120000'],
+			Events: [
+				'0 = E "lyric Before"',
+				'480 = E "[phrase_start]"',
+				'480 = E "[lyric One]"',
+				'960 = E "phrase_end"',
+				'960 = E "lyric End"',
+				'1200 = E "lyric Between"',
+				'1440 = E "phrase_start"',
+				'1920 = E "phrase_start"',
+				'1920 = E "lyric Next"',
+				'2400 = E "lyric [Everyone liked that]"',
+				'2880 = E "phrase_end"',
+				'3360 = E "lyric After"',
+			],
+		})
+		const phrases = parseChartFile(chart, 'chart').vocalTracks.parts.vocals.notePhrases
+		// A lyric on a phrase's end tick stays in it, unless the next phrase starts there.
+		expect(phrases.map(phrase => phrase.lyrics.map(lyric => lyric.text))).toEqual([['One', 'End'], [], ['Next', '[Everyone liked that]']])
+	})
+
 	it('preserves star power sections as separate array', () => {
 		const midi = buildMidi(480, [
 			tempoTrack(),

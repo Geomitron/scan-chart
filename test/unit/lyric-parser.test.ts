@@ -91,12 +91,16 @@ describe('parseChartLyricLine', () => {
 		expect(parseChartLyricLine('480 = E "lyric"')).toEqual({ tick: 480, text: '' })
 	})
 
-	it('handles embedded \\r before closing quote', () => {
-		expect(parseChartLyricLine('480 = E "lyric hello\r"')).toEqual({ tick: 480, text: 'hello\r' })
+	it('trims an embedded \\r before the closing quote, as Clone Hero trims the text', () => {
+		expect(parseChartLyricLine('480 = E "lyric hello\r"')).toEqual({ tick: 480, text: 'hello' })
+		expect(parseChartLyricLine('480 = E "lyric Chart by Someone\r"')).toEqual({ tick: 480, text: 'Chart by Someone' })
 	})
 
-	it('handles embedded \\r in lyric text', () => {
-		expect(parseChartLyricLine('480 = E "lyric Chart by Someone\r"')).toEqual({ tick: 480, text: 'Chart by Someone\r' })
+	it('reads a bracketed lyric event, and keeps brackets inside the lyric', () => {
+		expect(parseChartLyricLine('480 = E "[lyric hey]"')).toEqual({ tick: 480, text: 'hey' })
+		expect(parseChartLyricLine('480 = E "lyric [Everyone liked that]"')).toEqual({ tick: 480, text: '[Everyone liked that]' })
+		expect(parseChartLyricLine('480 = E "lyric "')).toEqual({ tick: 480, text: '' })
+		expect(parseChartLyricLine('480 = E "lyrics"')).toBeNull()
 	})
 
 	it('parses lyric with leading space before "lyric" keyword', () => {
