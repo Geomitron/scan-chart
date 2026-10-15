@@ -302,6 +302,7 @@ const plan = serializeSong(fixed)
 - `issueFixes` lists the codes `fixIssues` fixes, and whether each fix keeps the TrackHashes and the SongHash (`keepsHashes`) or changes them (`changesHashes`).
 - By default, it makes only the fixes that keep every hash. On a song where a fix would change one, such as unquoting a song name, which the SongHash reads, that fix is skipped. Pass `changeHashes: true` to make those fixes too.
 - `codes` limits it to some codes. It doesn't fix a code song.ini's `ignored_issues` lists.
+- scan-chart has no image codec, so to resize square album art, pass `resizeImage`: a function that resizes an image to a square of the given side with your app's image library, such as sharp or a canvas, and returns a PNG or JPEG image. `albumArtSizes` gives the sizes it accepts, as for `scanSongFolder`, and art is resized to the first. It reads the audio files' headers to set `song_length`.
 - The report lists each fix made, each issue left and why, the files renamed and removed, and each hash that changed. A renamed file has its new name in the song's files: when you write the song back to its folder, remove the old file.
 
 ### Convert between `.chart` and `.mid`

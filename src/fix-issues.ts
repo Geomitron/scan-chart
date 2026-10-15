@@ -1,14 +1,17 @@
-import { readAudioInfo } from './assets/media-headers'
+import { contentType, readAudioInfo } from './assets/media-headers'
 import { scanAudio } from './assets/scan-audio'
+import { imageSize } from './assets/scan-image'
+import { contentNames, hasContentExtension } from './assets/scan-media'
 import { keyList, standardTagOrder } from './ini/ini-checks'
 import { asUtf8Ini, rewriteSongIni } from './ini/ini-edit'
 import { IniTokens, parseIniTokens } from './ini/parse-ini'
 import type { Issue, IssueCode, MetadataFinding } from './issues'
 import { scanSong } from './scan-song-folder'
-import { hasCrowdOrPreviewName } from './shared/file-names'
+import { getBasename, hasCrowdOrPreviewName } from './shared/file-names'
 import { trimDotnet } from './shared/text'
+import { songContext } from './song-context'
 import { continueEdits, SongDocument, withSongIni } from './song-document'
-import type { SongFile } from './song-files'
+import { readFileBytes, readRange, type SongFile } from './song-files'
 import { songHashes } from './song-save'
 
 /**
@@ -18,6 +21,9 @@ import { songHashes } from './song-save'
  * for that song, and isn't made.
  */
 export const issueFixes: { readonly [code in IssueCode]?: 'keepsHashes' | 'changesHashes' } = {
+	fileNameCase: 'keepsHashes',
+	extensionMismatch: 'keepsHashes',
+	albumArtSize: 'keepsHashes',
 	iniLayout: 'keepsHashes',
 	iniTagOrder: 'keepsHashes',
 	blankIniValue: 'keepsHashes',
@@ -37,6 +43,13 @@ export interface FixOptions {
 	readonly codes?: readonly IssueCode[]
 	/** Also make the fixes that change a canonical hash. Default: `false`. */
 	readonly changeHashes?: boolean
+	/** The album art sizes accepted, as `ScanOptions.albumArtSizes` says: square art of another size is resized to the first. Default: `[512]`. */
+	readonly albumArtSizes?: readonly number[]
+	/**
+	 * Resizes an image to a square of `size` pixels, and returns it in the format and quality the caller chooses, PNG or
+	 * JPEG. scan-chart has no image codec: without it, album art isn't resized.
+	 */
+	readonly resizeImage?: (image: Uint8Array, size: number) => Promise<Uint8Array>
 }
 
 /** What `fixIssues` did. The hashes are the canonical ones, keyed as `canonical:guitar:expert` and `canonical:song`. */
@@ -71,7 +84,11 @@ interface FixRecord {
  */
 export async function fixIssues(song: SongDocument, options: FixOptions = {}): Promise<{ readonly song: SongDocument; readonly report: FixReport }> {
 	const asked = options.codes ?? (Object.keys(issueFixes) as IssueCode[])
-	const { scanned, iniFindings } = await scanSong(song, { styleNotes: true, mediaIssues: asked.some(code => mediaCodes.includes(code)) })
+	const { scanned, iniFindings } = await scanSong(song, {
+		styleNotes: true,
+		mediaIssues: asked.some(code => mediaCodes.includes(code)),
+		albumArtSizes: options.albumArtSizes,
+	})
 	const skipped: Skipped[] = []
 	const record: FixRecord = {
 		fixed: [],
@@ -93,7 +110,7 @@ export async function fixIssues(song: SongDocument, options: FixOptions = {}): P
 	})
 
 	const songLength = issues.some(issue => issue.code === 'missingSongLength' || issue.code === 'songLengthMismatch') ? await longestAudio(song.files) : null
-	const fixed = fixSongIni(song, issues, iniFindings, songLength, options, record)
+	const fixed = await fixFiles(fixSongIni(song, issues, iniFindings, songLength, options, record), issues, options, record)
 	return {
 		song: fixed,
 		report: { fixed: record.fixed, skipped, renamed: record.renamed, removed: record.removed, hashes: hashChanges(songHashes(song), songHashes(fixed)) },
@@ -101,7 +118,7 @@ export async function fixIssues(song: SongDocument, options: FixOptions = {}): P
 }
 
 /** The codes whose issues only a scan that reads the media files finds. */
-const mediaCodes: readonly IssueCode[] = ['songLengthMismatch']
+const mediaCodes: readonly IssueCode[] = ['songLengthMismatch', 'extensionMismatch', 'albumArtSize']
 
 /**
  * The length of the longest audio file, not counting crowd or preview audio, in whole milliseconds, read from the
@@ -258,4 +275,105 @@ function iniFixDescription(code: IssueCode, fixes: readonly IniFix[]): string {
 		case 'songLengthMismatch': return `Set "song_length" to ${fixes[0].set![0][1]}, the length of the longest audio file in milliseconds.`
 		default: return `Removed ${list}, which games read the drums the same without.`
 	}
+}
+
+/** What the file fixes do to one file: its new name, its new bytes, and the issues they fix. */
+interface FilePlan {
+	name: string
+	data?: Uint8Array
+	readonly fixes: { code: IssueCode; description: string }[]
+}
+
+/**
+ * Renames a file named in another letter case (`fileNameCase`) or with an extension that doesn't match its content
+ * (`extensionMismatch`), and resizes square album art with `resizeImage` (`albumArtSize`), keeping its name unless the
+ * resized image's format differs. A file isn't renamed to another file's name, or when song.ini names it.
+ */
+async function fixFiles(song: SongDocument, issues: readonly Issue[], options: FixOptions, record: FixRecord): Promise<SongDocument> {
+	const found = issues.filter(issue => issue.scope === 'folder' && issue.file !== null
+		&& (issue.code === 'fileNameCase' || issue.code === 'extensionMismatch' || issue.code === 'albumArtSize'))
+	if (found.length === 0) return song
+	const plans = new Map<string, FilePlan>()
+	const planOf = (file: string) => {
+		let plan = plans.get(file)
+		if (plan === undefined) plans.set(file, plan = { name: file, fixes: [] })
+		return plan
+	}
+	const fileOf = (name: string) => song.files.find(file => file.fileName === name)!
+	const songSection = songContext(song).ini.songSection
+	/** Why a file can't take a new name, or `null` when it can. */
+	const renameProblem = (from: string, to: string) => {
+		const key = ['background', 'video', 'cover'].find(key => songSection?.[key]?.toLowerCase() === from.toLowerCase())
+		if (key !== undefined) return `song.ini's "${key}" names it.`
+		const taken = song.files.find(file => file.fileName !== from && (plans.get(file.fileName)?.name ?? file.fileName).toLowerCase() === to.toLowerCase())
+		return taken === undefined ? null : `"${taken.fileName}" already has the name "${to}".`
+	}
+
+	// A name's letter case first, then its extension.
+	for (const issue of [...found.filter(issue => issue.code === 'fileNameCase'), ...found.filter(issue => issue.code === 'extensionMismatch')]) {
+		const from = issue.file!
+		const plan = planOf(from)
+		let to = plan.name
+		if (issue.code === 'fileNameCase') {
+			to = to.toLowerCase()
+		} else {
+			const content = contentType(await readRange(fileOf(from), 0, 64))
+			const extension = content === null ? null : contentNames[content].extension
+			if (content === null || extension === null) {
+				record.skip(issue.code, from, `Games don't read ${content === null ? 'its content' : contentNames[content].name} in a file of this kind: convert it.`)
+				continue
+			}
+			to = `${getBasename(to)}.${extension}`
+		}
+		const problem = renameProblem(from, to)
+		if (problem !== null) {
+			record.skip(issue.code, from, problem)
+			continue
+		}
+		plan.fixes.push({ code: issue.code, description: `Renamed "${plan.name}" to "${to}".` })
+		plan.name = to
+	}
+
+	const sizes = options.albumArtSizes ?? [512]
+	for (const issue of found.filter(issue => issue.code === 'albumArtSize')) {
+		const from = issue.file!
+		const image = await readFileBytes(fileOf(from))
+		const size = imageSize(image)
+		const skip = (reason: string) => record.skip('albumArtSize', from, reason)
+		if (size === null || size.width !== size.height) {
+			skip(size === null ? 'The album art can\'t be decoded.' : `The album art is ${size.width}x${size.height}: making it square needs it cropped.`)
+			continue
+		}
+		if (options.resizeImage === undefined) {
+			skip('Resizing album art needs resizeImage.')
+			continue
+		}
+		const side = sizes[0]
+		const resized = await options.resizeImage(image, side)
+		const resizedSize = imageSize(resized)
+		const content = contentType(resized.subarray(0, 64))
+		if (resizedSize === null || resizedSize.width !== side || resizedSize.height !== side || (content !== 'png' && content !== 'jpeg')) {
+			skip(`resizeImage didn't return a ${side}x${side} PNG or JPEG image.`)
+			continue
+		}
+		const plan = planOf(from)
+		const to = hasContentExtension(plan.name, content) ? plan.name : `${getBasename(plan.name)}.${contentNames[content].extension}`
+		const problem = to === plan.name ? null : renameProblem(from, to)
+		if (problem !== null) {
+			skip(`resizeImage returned ${contentNames[content].name}, and ${problem}`)
+			continue
+		}
+		plan.name = to
+		plan.data = resized
+		plan.fixes.push({ code: 'albumArtSize', description: `Resized "${from}" from ${size.width}x${size.height} to ${side}x${side}${to === from ? '' : `, as "${to}"`}.` })
+	}
+
+	const files = song.files.map(file => {
+		const plan = plans.get(file.fileName)
+		if (plan === undefined) return file
+		for (const { code, description } of plan.fixes) record.fixed.push({ code, file: plan.name, description })
+		if (plan.name !== file.fileName) record.renamed.push({ from: file.fileName, to: plan.name })
+		return { fileName: plan.name, data: plan.data ?? file.data }
+	})
+	return continueEdits(song, { ...song, files })
 }
