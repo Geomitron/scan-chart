@@ -312,7 +312,7 @@ export type FolderIssueType =
 	| 'badIniLine' // This line in "song.ini" couldn't be parsed
 	| 'multipleIniFiles' // This chart has multiple .ini files
 	| 'noAlbumArt' // This chart doesn't have album art
-	| 'albumArtSize' // This chart's album art is not 500x500 or 512x512
+	| 'albumArtSize' // This chart's album art is not square, or not a size ScanOptions.albumArtSizes accepts
 	| 'badAlbumArt' // This chart's album art couldn't be parsed
 	| 'multipleAlbumArt' // This chart has multiple album art files
 	| 'noAudio' // This chart doesn't have an audio file
@@ -325,6 +325,9 @@ export type FolderIssueType =
 	| 'multipleChart' // This chart has multiple .chart/.mid files
 	| 'badVideo' // This chart has a video background that will not work on Linux
 	| 'multipleVideo' // This chart has multiple video background files
+	| 'unrecognizedFile' // No game reads this file
+	| 'fileNameCase' // This album art, background or video file name matches only when lowercased
+	| 'folderSize' // This chart's files total more than Chorus Encore scans
 
 export type MetadataIssueType =
 	| 'missingValue' // Metadata is missing a required value
