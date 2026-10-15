@@ -4,6 +4,7 @@ import { canonicalChartFromParse } from './chart/identity/canonical-source'
 import { midiSourceTrackInstrument } from './chart/midi-file-parser'
 import { GameplayChart, gameplayChartSource, GameplayChartSource } from './gameplay-chart'
 import { Issue, issueSeverities } from './issues'
+import { undelayedSyncAdvice } from './shared/time'
 import { chartSpellingIssues } from './spelling-issues'
 import type { Instrument } from './types'
 
@@ -45,12 +46,9 @@ function chartFileIssues({ parsed, source, delay }: GameplayChartSource): Issue[
 	const offsetMs = Math.round(parsed.metadata.chart_offset ?? 0)
 	if (offsetMs !== 0) {
 		const seconds = `${offsetMs / 1000} second${offsetMs === 1000 ? '' : 's'}`
-		const fix = offsetMs > 0
-			? `start the audio ${offsetMs} ms earlier, by removing its first ${offsetMs} ms, or move every note ${offsetMs} ms later`
-			: `add ${-offsetMs} ms of silence to the start of the audio, or move every note ${-offsetMs} ms earlier`
 		add('chartOffset', null, null, delay !== 0
 			? `The chart's [Song] Offset is ${seconds}, which games ignore while song.ini sets "delay". Set the Offset to 0.`
-			: `The chart's [Song] Offset is ${seconds}. Set it to 0, and keep the notes in time with the audio instead: ${fix}.`)
+			: `The chart's [Song] Offset is ${seconds}. Set it to 0, and keep the notes in time with the audio instead: ${undelayedSyncAdvice(offsetMs)}.`)
 	}
 
 	if (source.format === 'chart') {

@@ -65,6 +65,11 @@ export function toLowerInvariant(text: string) {
 	return lowered
 }
 
+/** @returns `true` if `name` is one of `names`: a string that's `name` in any letter case, or a pattern that matches it. */
+export function isNameListed(names: readonly (string | RegExp)[], name: string) {
+	return names.some(listed => typeof listed === 'string' ? toLowerInvariant(listed) === toLowerInvariant(name) : listed.test(name))
+}
+
 /** @returns `true` if `text` is `null`, empty, or only whitespace, as .NET's `String.IsNullOrWhiteSpace()` decides. */
 export function isNullOrWhiteSpaceDotnet(text: string | null | undefined) {
 	return text === null || text === undefined || dotnetWhitespaceOnlyPattern.test(text)

@@ -1,4 +1,4 @@
-import { isByteSource, type SongFile } from '../song-files'
+import { fileSize, readRange, type SongFile } from '../song-files'
 
 /** The kinds of file content told apart by their first bytes. */
 export type ContentType = 'opus' | 'vorbis' | 'ogg' | 'mp3' | 'wav' | 'flac' | 'aiff' | 'png' | 'jpeg' | 'gif' | 'bmp' | 'webp' | 'webm' | 'mp4' | 'avi'
@@ -16,18 +16,6 @@ export interface AudioInfo {
 /** How much of a file's start and end is read at first. Headers that run further are read piece by piece. */
 const WINDOW = 64 * 1024
 
-/** The bytes from `offset`, up to `length`, read from a byte source or sliced from bytes. */
-export async function readRange(file: SongFile, offset: number, length: number): Promise<Uint8Array> {
-	const size = fileSize(file)
-	const start = Math.max(0, Math.min(offset, size))
-	const end = Math.max(start, Math.min(offset + length, size))
-	return isByteSource(file.data) ? file.data.read(start, end - start) : file.data.subarray(start, end)
-}
-
-export function fileSize(file: SongFile) {
-	return isByteSource(file.data) ? file.data.size : file.data.byteLength
-}
-
 const ascii = (bytes: Uint8Array, offset: number, length: number) => String.fromCharCode(...bytes.subarray(offset, offset + length))
 
 /** What a file holds, from its first bytes (at least the first 64), or `null` when they don't say. */
@@ -38,7 +26,7 @@ export function contentType(head: Uint8Array): ContentType | null {
 		if (head[packet] === 1 && ascii(head, packet + 1, 6) === 'vorbis') return 'vorbis'
 		return 'ogg'
 	}
-	if (ascii(head, 0, 3) === 'ID3' || isMpegFrameHeader(head, 0)) return 'mp3'
+	if (ascii(head, 0, 3) === 'ID3' || mpegFrame(head, 0) !== null) return 'mp3'
 	if (ascii(head, 0, 4) === 'RIFF') {
 		const kind = ascii(head, 8, 4)
 		return kind === 'WAVE' ? 'wav' : kind === 'WEBP' ? 'webp' : kind === 'AVI ' ? 'avi' : null
@@ -67,8 +55,6 @@ export async function readAudioInfo(file: SongFile): Promise<AudioInfo | null> {
 	}
 	return null
 }
-
-// ---- Ogg: the codec header on the first page, and the granule position of the last page.
 
 interface OggPage { offset: number; size: number; granule: number; serial: number }
 
@@ -131,8 +117,6 @@ async function readOggInfo(file: SongFile, head: Uint8Array, format: 'opus' | 'v
 	}
 }
 
-// ---- WAV: the byte rate in the fmt chunk, and the data chunk's size.
-
 async function readWavInfo(file: SongFile, head: Uint8Array): Promise<AudioInfo | null> {
 	const size = fileSize(file)
 	let byteRate = 0
@@ -155,8 +139,6 @@ async function readWavInfo(file: SongFile, head: Uint8Array): Promise<AudioInfo 
 	return null
 }
 
-// ---- MP3: the first frame's header, then a Xing, Info or VBRI frame count, or else a constant bitrate.
-
 const mpegBitrates = {
 	v1l1: [0, 32, 64, 96, 128, 160, 192, 224, 256, 288, 320, 352, 384, 416, 448],
 	v1l2: [0, 32, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320, 384],
@@ -166,10 +148,6 @@ const mpegBitrates = {
 }
 
 interface MpegFrame { version: 1 | 2 | 25; layer: 1 | 2 | 3; kbps: number; sampleRate: number; samples: number; length: number; mono: boolean }
-
-function isMpegFrameHeader(bytes: Uint8Array, offset: number) {
-	return mpegFrame(bytes, offset) !== null
-}
 
 /** The MPEG audio frame header at `offset`, or `null` when there isn't a valid one. */
 function mpegFrame(bytes: Uint8Array, offset: number): MpegFrame | null {
@@ -221,8 +199,6 @@ async function readMp3Info(file: SongFile, head: Uint8Array): Promise<AudioInfo 
 	if (!(seconds > 0)) return null
 	return { format: 'mp3', durationMs: seconds * 1000, averageKbps: audioBytes * 8 / seconds / 1000, nominalKbps: null }
 }
-
-// ---- WebM: the video track's codec ID, in the Tracks element of the Segment.
 
 const ebml = { segment: 0x18538067, seekHead: 0x114d9b74, seek: 0x4dbb, seekId: 0x53ab, seekPosition: 0x53ac, tracks: 0x1654ae6b, cluster: 0x1f43b675,
 	trackEntry: 0xae, trackType: 0x83, codecId: 0x86 }

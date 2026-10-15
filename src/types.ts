@@ -358,7 +358,7 @@ export type MetadataIssueType =
 	| 'songLengthMismatch' // song_length is far from the longest audio file's length; only with ScanOptions.mediaIssues
 	// Guesses about the metadata's style, reported only with ScanOptions.metadataStyle
 	| 'creditSeparator' // The charter value lists several names joined with something other than " & "
-	| 'textSpacing' // A value has two spaces in a row, an "&" without spaces, or no space before a title tag
+	| 'textSpacing' // A value has two spaces in a row
 	| 'featuringFormat' // A featured artist isn't in a title tag on the song name
 	| 'titleTagOrder' // A title tag that tells charts apart comes before one that belongs to the song
 	| 'bracketTitleTag' // The song name has a title tag in brackets

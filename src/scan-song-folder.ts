@@ -161,7 +161,7 @@ export async function scanSongFolder(files: readonly SongFile[], options: ScanOp
 		metadata,
 		issues: [
 			...folderIssues.map(folderIssue),
-			...metadataIssues.map(issue => metadataIssue(issue, song.ini?.fileName ?? null)),
+			...metadataIssues.map(issue => metadataIssue({ ...issue, file: song.ini?.fileName })),
 			...songIniSpellingIssues(song.ini),
 			...chartIssues,
 		],

@@ -48,7 +48,7 @@ export async function parseSongMetadata(
 		issues: [
 			...ini.folderIssues.map(folderIssue),
 			...chartFolderIssues.map(folderIssue),
-			...ini.metadataIssues.map(issue => metadataIssue(issue, iniFile?.fileName ?? null)),
+			...ini.metadataIssues.map(issue => metadataIssue({ ...issue, file: iniFile?.fileName })),
 			...songIniSpellingIssues(iniFile === null ? null : { fileName: iniFile.fileName, tokens: tokenizeIni(fileBytes(iniFile)) }),
 		],
 	}

@@ -53,6 +53,19 @@ export async function readFileBytes(file: SongFile): Promise<Uint8Array> {
 	return bytes
 }
 
+/** A file's size in bytes, without reading it. */
+export function fileSize(file: SongFile): number {
+	return isByteSource(file.data) ? file.data.size : file.data.byteLength
+}
+
+/** The bytes of a file from `offset`, up to `length` and the file's end, read from a byte source or sliced from bytes. */
+export async function readRange(file: SongFile, offset: number, length: number): Promise<Uint8Array> {
+	const size = fileSize(file)
+	const start = Math.max(0, Math.min(offset, size))
+	const end = Math.max(start, Math.min(offset + length, size))
+	return isByteSource(file.data) ? file.data.read(start, end - start) : file.data.subarray(start, end)
+}
+
 /** Calls `consume` with each chunk of a file in order, reading a byte source in chunks so it's never held whole. */
 export async function forEachChunk(file: SongFile, consume: (chunk: Uint8Array) => void): Promise<void> {
 	const { data } = file

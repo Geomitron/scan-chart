@@ -1,11 +1,12 @@
-import { toLowerInvariant, trimDotnet } from '../shared/text'
+import { isNameListed, toLowerInvariant, trimDotnet } from '../shared/text'
+import { undelayedSyncAdvice } from '../shared/time'
+import type { MetadataFinding } from '../issues'
 import { type DrumType, drumTypes, type MetadataIssueType } from '../types'
 import { defaultMetadata } from './metadata'
 import { marksSingle } from './metadata-style'
 import type { IniTokens } from './parse-ini'
 import { knownIniKeys, parseBoolean, parseDotnetInt } from './scan-ini'
 
-type MetadataFinding = { metadataIssue: MetadataIssueType; description: string }
 type SongSection = { readonly [key: string]: string }
 
 /** What the song.ini checks read. */
@@ -60,10 +61,9 @@ const tagOrder = Object.keys(defaultMetadata)
  */
 export function songIniIssues(input: SongIniInput): MetadataFinding[] {
 	const { tokens, songSection, extraIniKeys } = input
-	const isExtra = (key: string) => extraIniKeys.some(extra => typeof extra === 'string' ? toLowerInvariant(extra) === key : extra.test(key))
 	// A line starting with "//" is reported as a comment, though readers read one with "=" in it as a key.
 	const keys = Object.keys(songSection).filter(key => !key.startsWith('//'))
-	const known = keys.filter(key => knownTags.has(key) || isExtra(key))
+	const known = keys.filter(key => knownTags.has(key) || isNameListed(extraIniKeys, key))
 	const unknown = keys.filter(key => !known.includes(key))
 	const issues = layoutIssues(tokens)
 
@@ -99,11 +99,11 @@ export function songIniIssues(input: SongIniInput): MetadataFinding[] {
 }
 
 const isBlank = (value: string | undefined) => value === '' || value === '-1'
-/** Whether a value is set: present, and not blank or -1. */
-const isSet = (value: string | undefined): value is string => value !== undefined && !isBlank(value)
+/** Whether a value is written: present, and not blank or -1. */
+const hasValue = (value: string | undefined): value is string => value !== undefined && !isBlank(value)
 // Whether every reader reads charter and album_track over their older tags, frets and track.
-const hasCharter = (songSection: SongSection) => isSet(songSection.charter) && songSection.charter !== '0'
-const hasAlbumTrack = (songSection: SongSection) => isSet(songSection.album_track) && !isNaN(parseFloat(songSection.album_track))
+const hasCharter = (songSection: SongSection) => hasValue(songSection.charter) && songSection.charter !== '0'
+const hasAlbumTrack = (songSection: SongSection) => hasValue(songSection.album_track) && !isNaN(parseFloat(songSection.album_track))
 
 /**
  * The charting recommendations about song.ini's values, and the keys reported missing: song_length and album_track
@@ -132,7 +132,7 @@ function valueIssues({ songSection, metadata, chart }: SongIniInput): { issues: 
 	}
 
 	const icon = songSection.icon
-	if (isSet(icon) && icon !== '0' && !/^[a-z0-9_-]+$/.test(icon)) {
+	if (hasValue(icon) && icon !== '0' && !/^[a-z0-9_-]+$/.test(icon)) {
 		add('iconName', `In "song.ini", "icon" is "${icon}". Write the icon's file name without its extension, in lowercase letters, numbers, "-" and "_".`)
 	}
 
@@ -167,7 +167,7 @@ function unneededKeys(songSection: SongSection, metadata: typeof defaultMetadata
 	const keys: string[] = []
 	const check = (key: string, unneeded: (value: string) => boolean) => {
 		const value = songSection[key]
-		if (isSet(value) && unneeded(value)) keys.push(key)
+		if (hasValue(value) && unneeded(value)) keys.push(key)
 	}
 	const isFalse = (value: string) => parseBoolean(value) === false
 	// As getIniInteger reads it.
@@ -203,25 +203,22 @@ function deprecatedTagIssues(songSection: SongSection, metadata: typeof defaultM
 	const issues: MetadataFinding[] = []
 	const add = (description: string) => issues.push({ metadataIssue: 'deprecatedIniTag', description })
 	const { delay } = metadata
-	if (isSet(songSection.delay) && delay !== 0) {
-		const fix = delay > 0
-			? `start the audio ${delay} ms earlier, by removing its first ${delay} ms, or move every note ${delay} ms later`
-			: `add ${-delay} ms of silence to the start of the audio, or move every note ${-delay} ms earlier`
-		add(`"song.ini" sets "delay" to ${delay} ms, which only older charts need. Change the chart first so it plays the same without it: ${fix}. Then remove the tag.`)
+	if (hasValue(songSection.delay) && delay !== 0) {
+		add(`"song.ini" sets "delay" to ${delay} ms, which only older charts need. Change the chart first so it plays the same without it: ${undelayedSyncAdvice(delay)}. Then remove the tag.`)
 	}
 	const changesHopos = (key: string) =>
 		`"song.ini" sets "${key}", which changes which notes are HOPOs. Change the chart first so it plays the same without it, by forcing the notes that change. Then remove the tag.`
 	// Clone Hero and YARG read hopo_frequency over eighthnote_hopo.
 	const hopoFrequency = metadata.hopo_frequency > 0
-	if (isSet(songSection.hopo_frequency) && hopoFrequency) add(changesHopos('hopo_frequency'))
-	if (isSet(songSection.eighthnote_hopo) && metadata.eighthnote_hopo && !hopoFrequency) add(changesHopos('eighthnote_hopo'))
+	if (hasValue(songSection.hopo_frequency) && hopoFrequency) add(changesHopos('hopo_frequency'))
+	if (hasValue(songSection.eighthnote_hopo) && metadata.eighthnote_hopo && !hopoFrequency) add(changesHopos('eighthnote_hopo'))
 	if (chart?.format === 'mid' && metadata.multiplier_note === 103) {
 		add('"song.ini" sets "multiplier_note" to 103, which makes MIDI note 103 the star power note. Move the star power phrases to note 116 first. Then remove the tag.')
 	}
-	if (isSet(songSection.frets) && !hasCharter(songSection)) {
+	if (hasValue(songSection.frets) && !hasCharter(songSection)) {
 		add('"song.ini" names the charter with "frets", a tag for older charts. Write "charter" instead.')
 	}
-	if (isSet(songSection.track) && !hasAlbumTrack(songSection)) {
+	if (hasValue(songSection.track) && !hasAlbumTrack(songSection)) {
 		add('"song.ini" gives the album track with "track", a tag for older charts. Write "album_track" instead.')
 	}
 	return issues
@@ -252,7 +249,7 @@ function layoutIssues(tokens: IniTokens): MetadataFinding[] {
 }
 
 /** Keys for a message: up to four, quoted, then how many more. */
-export function keyList(keys: readonly string[]) {
+function keyList(keys: readonly string[]) {
 	const named = keys.slice(0, keys.length > 4 ? 3 : 4).map(key => `"${key}"`)
 	const rest = keys.length - named.length
 	if (rest > 0) return `${named.join(', ')} and ${rest} more`
