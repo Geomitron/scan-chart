@@ -17,6 +17,8 @@ import { writeMidiFile } from 'src/chart/midi-writer'
 import { noteFlags, type NoteType, noteTypes } from 'src/chart/types'
 import { parseChartAndIni, type ParsedChart } from 'src/chart/parse-chart-and-ini'
 import { parseChartFile, parseChartFileFrozenLegacyIdentity } from 'src/chart/parse-chart-file'
+import { readMidiTokens } from 'src/chart/midi-tokens'
+import { chartSpellingIssues } from 'src/spelling-issues'
 
 function roundTrip(chart: ParsedChart, iniText?: string): ParsedChart {
 	const files: { fileName: string; data: Uint8Array }[] = [
@@ -492,6 +494,28 @@ describe('writeMidiFile round-trip: 5-fret tracks', () => {
 		const open = notes.find(n => n.type === noteTypes.open)!
 		expect({ tick: green.tick, length: green.length }).toEqual({ tick: 0, length: 1680 })
 		expect({ tick: open.tick, length: open.length }).toEqual({ tick: 960, length: 1680 })
+	})
+
+	it('writes sustains of one fret that meet with the note-off first, which scan-chart reads as standard', () => {
+		const chart = createEmptyChart({ format: 'mid', resolution: 192 })
+		const td = emptyFretTrack('guitar', 'expert')
+		td.noteEventGroups.push([note(0, noteTypes.green, 0, 192)], [note(192, noteTypes.green, 0, 192)], [note(384, noteTypes.green, 0, 192)])
+		chart.trackData.push(td)
+		const written = writeMidiFile(chart)
+		expect(chartSpellingIssues({ format: 'mid', bytes: written, tokens: readMidiTokens(written, 'reject') }, false)).toEqual([])
+		expect(flatNotes(findTrack(roundTrip(chart), 'guitar')).map(n => [n.tick, n.length])).toEqual([[0, 192], [192, 192], [384, 192]])
+	})
+
+	it('keeps a sustain the cutoff would cut by linking its run of sustains that meet', () => {
+		// 30 ticks is under the default cutoff of 65 at resolution 192, which only the overlap step leaves.
+		const chart = createEmptyChart({ format: 'mid', resolution: 192 })
+		const td = emptyFretTrack('guitar', 'expert')
+		td.noteEventGroups.push([note(0, noteTypes.green, 0, 30)], [note(30, noteTypes.green, 0, 192)], [note(480, noteTypes.green, 0, 192)], [note(672, noteTypes.green, 0, 192)])
+		chart.trackData.push(td)
+		const written = writeMidiFile(chart)
+		const overlaps = chartSpellingIssues({ format: 'mid', bytes: written, tokens: readMidiTokens(written, 'reject') }, false)
+		expect(overlaps.map(issue => issue.code)).toEqual(['overlappingMidiNotes'])
+		expect(flatNotes(findTrack(roundTrip(chart), 'guitar')).map(n => [n.tick, n.length])).toEqual([[0, 30], [30, 192], [480, 192], [672, 192]])
 	})
 })
 
