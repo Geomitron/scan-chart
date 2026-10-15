@@ -167,3 +167,40 @@ describe('song.ini values', () => {
 		])
 	})
 })
+
+describe('song.ini default values', () => {
+	const unneeded = async (lines: string[], chart: Uint8Array = chartFile(), fileName = 'notes.chart') => {
+		const scanned = await scanSongFolder([{ fileName, data: chart }, { fileName: 'song.ini', data: encode(['[song]', ...lines].join('\r\n') + '\r\n') }])
+		return scanned.issues.filter(issue => issue.code === 'defaultIniValue').map(issue => issue.message)
+	}
+
+	it('reports values games read the same without, once', async () => {
+		expect(await unneeded(['delay = 0'])).toEqual(['In "song.ini", "delay = 0" changes nothing: games read the song the same without it. Remove that line.'])
+		expect(await unneeded(['charter = Me', 'delay = 0', 'modchart = False', 'video_start_time = 0', 'chord_snap_threshold = 0', 'explicit_lyrics = False'])).toEqual([
+			'In "song.ini", "delay = 0", "modchart = False", "video_start_time = 0" and 2 more change nothing: games read the song the same without them. Remove those lines.',
+		])
+		expect(await unneeded(['delay = 50', 'modchart = True', 'video_start_time = 1000', 'chord_snap_threshold = 2', 'explicit_lyrics = True'])).toEqual([])
+	})
+
+	it('reports the tags for older charts that change nothing', async () => {
+		const keys = async (lines: string[], chart?: Uint8Array, fileName?: string) => (await unneeded(lines, chart, fileName)).map(message => message.match(/"\w+ = /g))
+		expect(await keys(['charter = Me', 'frets = Someone', 'album_track = 2', 'track = 3', 'end_events = 0'])).toEqual([['"frets = ', '"track = ', '"end_events = ']])
+		expect(await keys(['hopo_frequency = 0', 'eighthnote_hopo = 0'])).toEqual([['"hopo_frequency = ', '"eighthnote_hopo = ']])
+		expect(await unneeded(['frets = Someone', 'track = 3', 'hopo_frequency = 170', 'delay = 50'])).toEqual([])
+		// hopo_frequency comes before eighthnote_hopo.
+		expect(await keys(['hopo_frequency = 170', 'eighthnote_hopo = True'])).toEqual([['"eighthnote_hopo = ']])
+		expect(await keys(['multiplier_note = 103'])).toEqual([['"multiplier_note = ']])
+		const mid = midi({ 'PART GUITAR': [{ tick: 1920, noteNumber: 96 }] })
+		expect(await keys(['multiplier_note = 116'], mid, 'notes.mid')).toEqual([['"multiplier_note = ']])
+		expect(await keys(['multiplier_note = 103'], mid, 'notes.mid')).toEqual([])
+	})
+
+	it('reports a format\'s default only where Clone Hero and YARG agree', async () => {
+		const mid = midi({ 'PART GUITAR': [{ tick: 1920, noteNumber: 96 }], 'PART DRUMS': [{ tick: 1920, noteNumber: 97 }] })
+		expect(await unneeded(['sustain_cutoff_threshold = 0', 'pro_drums = False'])).toHaveLength(1)
+		expect(await unneeded(['sustain_cutoff_threshold = 0', 'pro_drums = False'], mid, 'notes.mid')).toEqual([])
+		expect(await unneeded(['five_lane_drums = False'], mid, 'notes.mid')).toHaveLength(1)
+		const fiveLane = chartFile(['[ExpertDrums]', '{', '  768 = N 5 0', '}'])
+		expect(await unneeded(['five_lane_drums = False'], fiveLane)).toEqual([])
+	})
+})

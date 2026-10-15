@@ -56,6 +56,7 @@ export const issueSeverities: { readonly [code in IssueCode]: IssueSeverity } = 
 	iconName: 'recommendation',
 	deprecatedIniTag: 'recommendation',
 	redundantDrumType: 'recommendation',
+	defaultIniValue: 'recommendation',
 	// Chart issues
 	misalignedTimeSignature: 'warning',
 	noNotes: 'error',

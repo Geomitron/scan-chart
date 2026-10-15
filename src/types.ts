@@ -347,3 +347,4 @@ export type MetadataIssueType =
 	| 'iconName' // The icon isn't written as an icon's name
 	| 'deprecatedIniTag' // A tag only older charts need changes how the chart reads
 	| 'redundantDrumType' // pro_drums or five_lane_drums sets the drum type games already read
+	| 'defaultIniValue' // A "song.ini" value changes nothing: games read the song the same without it

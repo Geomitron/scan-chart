@@ -2,7 +2,7 @@ import { toLowerInvariant, trimDotnet } from '../shared/text'
 import { type DrumType, drumTypes, type MetadataIssueType } from '../types'
 import { defaultMetadata } from './metadata'
 import type { IniTokens } from './parse-ini'
-import { knownIniKeys, parseBoolean } from './scan-ini'
+import { knownIniKeys, parseBoolean, parseDotnetInt } from './scan-ini'
 
 type MetadataFinding = { metadataIssue: MetadataIssueType; description: string }
 type SongSection = { readonly [key: string]: string }
@@ -121,6 +121,12 @@ function valueIssues({ songSection, metadata, chart }: SongIniInput): { issues: 
 	}
 
 	issues.push(...deprecatedTagIssues(songSection, metadata, chart))
+	const unneeded = unneededKeys(songSection, metadata, chart).map(key => `${key} = ${songSection[key]}`)
+	if (unneeded.length > 0) {
+		const one = unneeded.length === 1
+		add('defaultIniValue', `In "song.ini", ${keyList(unneeded)} ${one ? 'changes' : 'change'} nothing: games read the song the same without ${one ? 'it' : 'them'}. `
+			+ `Remove ${one ? 'that line' : 'those lines'}.`)
+	}
 
 	// Both flags together are already invalid.
 	const proDrums = parseBoolean(songSection.pro_drums) === true
@@ -134,6 +140,43 @@ function valueIssues({ songSection, metadata, chart }: SongIniInput): { issues: 
 		}
 	}
 	return { issues, missing }
+}
+
+/**
+ * The keys set to what Clone Hero and YARG both read without them, for the chart's format, and the tags for older
+ * charts that change nothing. A value only one of them reads as the default, such as `pro_drums = False` in a `.mid`
+ * chart, which YARG reads as 4-lane drums, isn't one.
+ */
+function unneededKeys(songSection: SongSection, metadata: typeof defaultMetadata, chart: SongIniInput['chart']): string[] {
+	const keys: string[] = []
+	const check = (key: string, unneeded: (value: string) => boolean) => {
+		const value = songSection[key]
+		if (isSet(value) && unneeded(value)) keys.push(key)
+	}
+	const isFalse = (value: string) => parseBoolean(value) === false
+	// As getIniInteger reads it.
+	const isZero = (value: string) => parseFloat(value) === 0
+	const isAtMostZero = (value: string) => (parseDotnetInt(value) ?? 1) <= 0
+	check('delay', isZero)
+	check('hopo_frequency', isAtMostZero)
+	// hopo_frequency, when it's set, comes first.
+	check('eighthnote_hopo', value => isFalse(value) || metadata.hopo_frequency > 0)
+	check('multiplier_note', value => chart !== null && parseDotnetInt(value) !== null && (chart.format === 'chart' || [0, 116].includes(parseDotnetInt(value)!)))
+	check('frets', () => hasCharter(songSection))
+	check('track', () => hasAlbumTrack(songSection))
+	// No reader acts on end_events.
+	check('end_events', () => true)
+	// .chart has no sustain cutoff unless it's set.
+	check('sustain_cutoff_threshold', value => chart?.format === 'chart' && isAtMostZero(value))
+	check('chord_snap_threshold', isAtMostZero)
+	check('modchart', isFalse)
+	check('explicit_lyrics', isFalse)
+	check('video_start_time', isZero)
+	// YARG reads a .mid chart's drums as pro unless pro_drums is false, and five_lane_drums = False as 4-lane drums.
+	check('pro_drums', value => isFalse(value) && chart !== null && (chart.format === 'chart' || chart.drumType === null))
+	check('five_lane_drums', value => isFalse(value) && chart !== null
+		&& (chart.drumType === null || (parseBoolean(songSection.pro_drums) !== true && chart.drumType !== drumTypes.fiveLane)))
+	return Object.keys(songSection).filter(key => keys.includes(key))
 }
 
 /**
