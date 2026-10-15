@@ -108,10 +108,11 @@ The work that costs more is off by default. Turn it on with the second argument:
 
 A result field you didn't ask for is `null`.
 
-Two options adjust what's reported:
+These options adjust what's reported:
 
 - `albumArtSizes` lists the album art sizes `albumArt` accepts, as the side of a square in pixels. It's `[512]` by default, so art that isn't 512x512 is reported.
 - `extraFiles` lists the files your game reads that Clone Hero and YARG don't, as names or regular expressions, so they aren't reported as files no game reads (`unrecognizedFile`). Files an operating system made, such as `desktop.ini`, are reported anyway.
+- `extraIniKeys` lists the song.ini tags your game reads that the song.ini standard doesn't document, as names or regular expressions, so they aren't reported as unknown tags (`unknownIniTag`).
 
 ### Read the issues
 

@@ -147,7 +147,7 @@ export function findIniData(files: readonly SongFile[]): {
 }
 
 /** All keys that extractSongMetadata reads (primary + legacy aliases). */
-const knownIniKeys = new Set([
+export const knownIniKeys = new Set([
 	...Object.keys(defaultMetadata),
 	'frets', 'track', // legacy aliases
 ])
