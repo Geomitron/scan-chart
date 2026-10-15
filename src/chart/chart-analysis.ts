@@ -10,6 +10,12 @@ import { IniChartModifiers, NoteEvent, noteFlags, NoteType, noteTypes } from './
 const LEADING_SILENCE_THRESHOLD_MS = 1000
 const MIN_SUSTAIN_GAP_MS = 40
 const MIN_SUSTAIN_MS = 100
+// The Chorus Encore Application Guidelines' recommendations, reported at the `recommendation` severity: the first note
+// at least 2 seconds in (or two measures of the starting tempo), sustain gaps of at least 60 ms, and sustains of at least
+// 200 ms.
+const RECOMMENDED_LEADING_SILENCE_MS = 2000
+const RECOMMENDED_SUSTAIN_GAP_MS = 60
+const RECOMMENDED_SUSTAIN_MS = 200
 const NPS_GROUP_SIZE_MS = 1000
 
 /** Statistics about a chart's gameplay. */
@@ -60,7 +66,16 @@ export interface ChartIssueFinding {
 	readonly difficulty: Difficulty | null
 	readonly tick: number | null
 	readonly msTime: number | null
+	/** Set for a check's recommendation-level finding, which has its own message in `chartRecommendationMessages`. */
+	readonly recommendation?: true
 }
+
+/** The messages of the findings that only miss a charting recommendation. */
+export const chartRecommendationMessages = {
+	smallLeadingSilence: 'This track has a note less than 2 seconds, or two measures, after the start of the song. The first note should be at least that far in: add silence to the start of the audio.',
+	badSustainGap: 'This note starts less than 60 ms after the previous sustain ends. A gap of 70 to 85 ms is recommended.',
+	babySustain: 'The sustain on this note is shorter than 200 ms. A sustain should be at least 200 ms long.',
+} as const satisfies { readonly [code in ChartIssueType]?: string }
 
 export const chartIssueMessages: { readonly [issue in ChartIssueType]: string } = {
 	misalignedTimeSignature:
@@ -73,7 +88,7 @@ export const chartIssueMessages: { readonly [issue in ChartIssueType]: string } 
 		"wasn't tempo-mapped, but you can ignore this if the song is a constant 120 BPM.",
 	noSections: 'This chart has no sections.',
 	badEndEvent: 'This end event is in an invalid location and will be ignored by most games.',
-	smallLeadingSilence: 'This track has a note that is less than 2000ms after the start of the track.',
+	smallLeadingSilence: 'This track has a note that is less than 1000ms after the start of the track.',
 	noStarPower: 'This track has no star power.',
 	emptyStarPower: 'This star power phrase contains no notes.',
 	badStarPower: 'This star power is being ignored due to the .ini "multiplier_note" setting.',
@@ -255,11 +270,13 @@ function jsonEntries(object: object) {
 
 /**
  * The chart issues of a parsed chart, in order: the parser's own, then the chart-wide ones, then each track's.
- * `isSameAsExpert` decides `difficultyNotReduced`.
+ * `isSameAsExpert` decides `difficultyNotReduced`. With `recommendations`, a check with a charting recommendation also
+ * reports what misses it but passes the check's own threshold, as a finding marked `recommendation`.
  */
 export function findChartIssues(
 	chartData: ParsedChartFile,
 	isSameAsExpert: (instrument: Instrument, difficulty: Difficulty) => boolean,
+	{ recommendations = false }: { readonly recommendations?: boolean } = {},
 ): ChartIssueFinding[] {
 	const chartIssues: ChartIssueFinding[] = []
 	const addIssue = (instrument: Instrument | null, difficulty: Difficulty | null, code: ChartIssueType, at?: { tick: number; msTime: number }) =>
@@ -345,15 +362,33 @@ export function findChartIssues(
 		}
 	}
 
+	// The recommended leading silence: 2 seconds, or two measures of the starting tempo when those are shorter.
+	const firstTempo = chartData.tempos[0]
+	const firstTimeSignature = chartData.timeSignatures[0]
+	const twoMeasuresMs = firstTempo && firstTimeSignature
+		? 2 * firstTimeSignature.numerator * (4 / firstTimeSignature.denominator) * 60000 / firstTempo.beatsPerMinute
+		: RECOMMENDED_LEADING_SILENCE_MS
+	const recommendedLeadingSilenceMs = Math.min(RECOMMENDED_LEADING_SILENCE_MS, twoMeasuresMs)
+
 	for (const track of chartData.trackData) {
 		const instrumentType = getInstrumentType(track.instrument)
-		const addIssue = (code: ChartIssueType, at?: { tick: number; msTime: number }) =>
-			chartIssues.push({ code, instrument: track.instrument, difficulty: track.difficulty, tick: at?.tick ?? null, msTime: at?.msTime ?? null })
+		const addIssue = (code: ChartIssueType, at?: { tick: number; msTime: number }, recommendation?: boolean) =>
+			chartIssues.push({
+				code,
+				instrument: track.instrument,
+				difficulty: track.difficulty,
+				tick: at?.tick ?? null,
+				msTime: at?.msTime ?? null,
+				...(recommendation ? { recommendation: true as const } : {}),
+			})
 
 		// smallLeadingSilence
 		{
-			if (track.noteEventGroups[0]?.[0]?.msTime !== undefined && track.noteEventGroups[0][0].msTime < LEADING_SILENCE_THRESHOLD_MS) {
+			const firstNoteMs = track.noteEventGroups[0]?.[0]?.msTime
+			if (firstNoteMs !== undefined && firstNoteMs < LEADING_SILENCE_THRESHOLD_MS) {
 				addIssue('smallLeadingSilence')
+			} else if (recommendations && firstNoteMs !== undefined && firstNoteMs < recommendedLeadingSilenceMs) {
+				addIssue('smallLeadingSilence', undefined, true)
 			}
 		}
 
@@ -541,12 +576,17 @@ export function findChartIssues(
 			{
 				/** Sustain gaps at the end of notes already checked in the for loop. `startTime` is inclusive, `endTime` is exclusive. */
 				const futureSustainGaps: { startTime: number; endTime: number }[] = []
+				const sustainGapMs = recommendations ? RECOMMENDED_SUSTAIN_GAP_MS : MIN_SUSTAIN_GAP_MS
+				const sustainMs = recommendations ? RECOMMENDED_SUSTAIN_MS : MIN_SUSTAIN_MS
 				for (let i = 0; i < track.noteEventGroups.length; i++) {
 					const noteGroup = track.noteEventGroups[i]
 
 					removeWhere(futureSustainGaps, r => r.endTime <= noteGroup[0].msTime)
-					if (futureSustainGaps.some(r => noteGroup[0].msTime >= r.startTime && noteGroup[0].msTime < r.endTime)) {
-						addIssue('badSustainGap', noteGroup[0])
+					const gaps = futureSustainGaps.filter(r => noteGroup[0].msTime >= r.startTime && noteGroup[0].msTime < r.endTime)
+					if (gaps.length > 0) {
+						// The gap that misses most decides: under the check's own threshold, it's a warning.
+						const shortestGap = minOf(gaps.map(r => noteGroup[0].msTime - r.startTime))!
+						addIssue('badSustainGap', noteGroup[0], shortestGap >= MIN_SUSTAIN_GAP_MS)
 					}
 
 					for (const note of noteGroup) {
@@ -554,11 +594,11 @@ export function findChartIssues(
 							// ignore gaps of open sustains
 							futureSustainGaps.push({
 								startTime: note.msTime + note.msLength,
-								endTime: note.msTime + note.msLength + MIN_SUSTAIN_GAP_MS,
+								endTime: note.msTime + note.msLength + sustainGapMs,
 							})
 						}
 
-						if (note.msLength > 0 && note.msLength < MIN_SUSTAIN_MS) {
+						if (note.msLength > 0 && note.msLength < sustainMs) {
 							const nextNoteGroupOpen = track.noteEventGroups[i + 1]?.find(n => n.type === noteTypes.open)
 							if (
 								nextNoteGroupOpen &&
@@ -568,7 +608,7 @@ export function findChartIssues(
 								continue // Ignore baby sustains before hopo opens and tap opens
 							}
 
-							addIssue('babySustain', note)
+							addIssue('babySustain', note, note.msLength >= MIN_SUSTAIN_MS)
 						}
 					}
 				}

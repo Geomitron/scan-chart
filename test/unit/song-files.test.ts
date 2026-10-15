@@ -46,7 +46,7 @@ describe('song files', () => {
 		const { metadata, issues } = await parseSongMetadata(files)
 		expect(metadata).toMatchObject({ name: 'Chart <b>Name</b>', artist: 'Chart Artist', year: '2002', diff_guitar: 4, preview_start_time: 45280, chartOffsetMs: 561 })
 		expect((await parseSongMetadata(files, { removeStyleTags: true })).metadata.name).toBe('Chart Name')
-		expect(issues).toEqual([{ scope: 'folder', code: 'noMetadata', instrument: null, difficulty: null, tick: null, msTime: null, message: 'This chart doesn\'t have "song.ini".' }])
+		expect(issues).toEqual([{ scope: 'folder', code: 'noMetadata', severity: 'error', instrument: null, difficulty: null, tick: null, msTime: null, message: 'This chart doesn\'t have "song.ini".' }])
 	})
 
 	it('give a song document\'s metadata the same way, with style tags or without', async () => {

@@ -116,6 +116,7 @@ Every issue has the same shape, whatever it's about:
 interface Issue {
 	readonly scope: 'folder' | 'metadata' | 'chart'
 	readonly code: IssueCode // for example 'noStarPower' or 'unsortedChartLines'
+	readonly severity: 'error' | 'warning' | 'recommendation'
 	readonly instrument: Instrument | null // null when it's about more than one instrument
 	readonly difficulty: Difficulty | null
 	readonly tick: number | null // where in the chart, or null for a whole track or file
@@ -123,6 +124,12 @@ interface Issue {
 	readonly message: string
 }
 ```
+
+The severity says how much an issue matters:
+
+- **`error`:** a game can't read the file, or games read it differently.
+- **`warning`:** games read it alike, but it's probably a mistake, such as a sustain that ends less than 40 ms before the next note.
+- **`recommendation`:** it works, but doesn't follow a charting recommendation, such as a sustain gap of at least 60 ms. A check with a recommendation reports a sustain gap from 40 to 60 ms at this severity, and one under 40 ms as a warning.
 
 Some issues are about how a file is written rather than what it plays. They come in two kinds:
 
