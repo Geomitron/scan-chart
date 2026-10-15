@@ -36,6 +36,27 @@ describe('scanning a song folder', () => {
 		expect(scanned.albumArt).toBeNull() // the album art can't be decoded
 	})
 
+	it('names the file each folder and metadata issue is about', async () => {
+		const scanned = await scanSongFolder([
+			...files.slice(0, 2),
+			{ fileName: 'Song.ini', data: encode('[song]\r\nname = Other\r\n') },
+			{ fileName: 'notes (old).chart', data: chart },
+			{ fileName: 'band.ogg', data: new Uint8Array(1) },
+			{ fileName: 'album.png', data: new Uint8Array([4, 5, 6]) },
+			{ fileName: 'video.avi', data: new Uint8Array(1) },
+		], { albumArt: true })
+		const fileOf = (code: string) => scanned.issues.filter(issue => issue.code === code).map(issue => issue.file)
+		expect(fileOf('invalidIni')).toEqual(['Song.ini'])
+		expect(fileOf('multipleIniFiles')).toEqual([null])
+		expect(fileOf('invalidChart')).toEqual(['notes (old).chart'])
+		expect(fileOf('invalidAudio')).toEqual(['band.ogg'])
+		expect(fileOf('noAudio')).toEqual([null])
+		expect(fileOf('badAlbumArt')).toEqual(['album.png'])
+		expect(fileOf('badVideo')).toEqual(['video.avi'])
+		expect(fileOf('extraValue')).toEqual(['song.ini'])
+		expect(scanned.issues.filter(issue => issue.scope === 'chart').every(issue => issue.file === null)).toBe(true)
+	})
+
 	it('computes nothing that isn\'t asked for, and reads large files only to hash them', async () => {
 		let reads = 0
 		const source = byteSourceFromBlob(new Blob([new Uint8Array(100)]))

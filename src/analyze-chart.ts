@@ -25,6 +25,7 @@ export function analyzeChart(chart: GameplayChart, options: { readonly styleNote
 			difficulty,
 			tick,
 			msTime,
+			file: null,
 			message: recommendation ? chartRecommendationMessages[code as keyof typeof chartRecommendationMessages] : chartIssueMessages[code],
 		}))
 	return { issues: [...issues, ...chartSpellingIssues(source.source, options.styleNotes ?? false)], stats: chartStats(parsed, settings, format) }

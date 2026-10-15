@@ -1,5 +1,6 @@
+import type { FolderFinding } from '../issues'
 import { fileBytes, SongFile } from '../song-files'
-import { FolderIssueType, MetadataIssueType } from '../types'
+import { MetadataIssueType } from '../types'
 import { hasIniExtension, hasIniName } from '../shared/file-names'
 import { removeStyleTags } from '../shared/text'
 import { defaultMetadata } from './metadata'
@@ -27,7 +28,7 @@ type InputMetadata = Metadata & {
 
 type ScanIniResult = {
 	metadata: Metadata | null
-	folderIssues: { folderIssue: FolderIssueType; description: string }[]
+	folderIssues: FolderFinding[]
 	metadataIssues: { metadataIssue: MetadataIssueType; description: string }[]
 	unknownIniValues: { [key: string]: string }
 	/**
@@ -69,26 +70,27 @@ const requiredProperties: MetaStringKey[] = ['name', 'artist', 'album', 'genre',
 const chartModifierIntegers = ['hopo_frequency', 'multiplier_note', 'sustain_cutoff_threshold', 'chord_snap_threshold'] as const
 
 export function scanIni(files: readonly SongFile[], options: { readonly removeStyleTags?: boolean } = {}): ScanIniResult {
-	const folderIssues: { folderIssue: FolderIssueType; description: string }[] = []
+	const folderIssues: FolderFinding[] = []
 
 	const findIniDataResult = findIniData(files)
 	folderIssues.push(...findIniDataResult.folderIssues)
-	if (!findIniDataResult.iniData) {
+	const { iniFile, iniData } = findIniDataResult
+	if (iniFile === null || iniData === null) {
 		return { metadata: null, folderIssues, metadataIssues: [], unknownIniValues: {}, songSection: null }
 	}
 
 	let parseIniResult: ReturnType<typeof parseIni>
 	try {
-		parseIniResult = parseIni(findIniDataResult.iniData)
+		parseIniResult = parseIni(iniData)
 	} catch (error) {
 		const reason = error instanceof Error ? error.message : String(error)
-		folderIssues.push({ folderIssue: 'invalidMetadata', description: `"song.ini" couldn't be decoded: ${reason}` })
+		folderIssues.push({ folderIssue: 'invalidMetadata', description: `"song.ini" couldn't be decoded: ${reason}`, file: iniFile.fileName })
 		return { metadata: null, folderIssues, metadataIssues: [], unknownIniValues: {}, songSection: null }
 	}
-	folderIssues.push(...parseIniResult.folderIssues)
+	folderIssues.push(...parseIniResult.folderIssues.map(issue => ({ ...issue, file: iniFile.fileName })))
 	const songSection = parseIniResult.iniObject.song
 	if (songSection === undefined) {
-		folderIssues.push({ folderIssue: 'invalidMetadata', description: '"song.ini" doesn\'t have a "[Song]" section.' })
+		folderIssues.push({ folderIssue: 'invalidMetadata', description: '"song.ini" doesn\'t have a "[Song]" section.', file: iniFile.fileName })
 		return { metadata: null, folderIssues, metadataIssues: [], unknownIniValues: {}, songSection: null }
 	}
 
@@ -112,9 +114,9 @@ export function findIniData(files: readonly SongFile[]): {
 	iniData: Uint8Array | null
 	/** `true` if the chosen file is one Clone Hero reads: song.ini in any letter case. */
 	isSongIni: boolean
-	folderIssues: { folderIssue: FolderIssueType; description: string }[]
+	folderIssues: FolderFinding[]
 } {
-	const folderIssues: { folderIssue: FolderIssueType; description: string }[] = []
+	const folderIssues: FolderFinding[] = []
 	let iniCount = 0
 	let bestIni: SongFile | null = null
 	let songIni: SongFile | null = null
@@ -126,7 +128,7 @@ export function findIniData(files: readonly SongFile[]): {
 			lastIni = file
 			if (file.fileName.toLowerCase() === 'song.ini') songIni = file
 			if (!hasIniName(file.fileName)) {
-				folderIssues.push({ folderIssue: 'invalidIni', description: `"${file.fileName}" is not named "song.ini".` })
+				folderIssues.push({ folderIssue: 'invalidIni', description: `"${file.fileName}" is not named "song.ini".`, file: file.fileName })
 			} else {
 				bestIni = file
 			}

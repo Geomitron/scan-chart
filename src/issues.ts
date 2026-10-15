@@ -86,15 +86,33 @@ export interface Issue {
 	/** Where in the chart, or `null` for an issue about a whole track, chart or file. */
 	readonly tick: number | null
 	readonly msTime: number | null
+	/**
+	 * The file it's about, as named in the folder, such as a misnamed audio file or the song.ini a metadata issue is in.
+	 * `null` for a chart issue, and for an issue about no one file, such as a missing chart.
+	 */
+	readonly file: string | null
 	readonly message: string
 }
 
-/** A folder issue as the folder and song.ini scans report it, in the one issue shape. */
-export function folderIssue({ folderIssue, description }: { folderIssue: FolderIssueType; description: string }): Issue {
-	return { scope: 'folder', code: folderIssue, severity: issueSeverities[folderIssue], instrument: null, difficulty: null, tick: null, msTime: null, message: description }
+/** A folder issue as a scan finds it. `file` is the file it's about, when it's about one. */
+export interface FolderFinding {
+	readonly folderIssue: FolderIssueType
+	readonly description: string
+	readonly file?: string
 }
 
-/** A metadata issue as the song.ini scan reports it, in the one issue shape. */
-export function metadataIssue({ metadataIssue, description }: { metadataIssue: MetadataIssueType; description: string }): Issue {
-	return { scope: 'metadata', code: metadataIssue, severity: issueSeverities[metadataIssue], instrument: null, difficulty: null, tick: null, msTime: null, message: description }
+/** A folder issue as the folder and song.ini scans report it, in the one issue shape. */
+export function folderIssue({ folderIssue, description, file }: FolderFinding): Issue {
+	return {
+		scope: 'folder', code: folderIssue, severity: issueSeverities[folderIssue], instrument: null, difficulty: null, tick: null, msTime: null,
+		file: file ?? null, message: description,
+	}
+}
+
+/** A metadata issue as the song.ini scan reports it, in the one issue shape. `file` is the .ini file it's in. */
+export function metadataIssue({ metadataIssue, description }: { metadataIssue: MetadataIssueType; description: string }, file: string | null): Issue {
+	return {
+		scope: 'metadata', code: metadataIssue, severity: issueSeverities[metadataIssue], instrument: null, difficulty: null, tick: null, msTime: null,
+		file, message: description,
+	}
 }

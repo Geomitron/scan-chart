@@ -146,6 +146,8 @@ export function scanChart(
 	const videoData = scanVideo(files)
 	chart.folderIssues.push(...videoData.folderIssues)
 	chart.hasVideoBackground = videoData.hasVideoBackground
+	// 8.x's folder issues don't name their file.
+	chart.folderIssues = chart.folderIssues.map(issue => ({ folderIssue: issue!.folderIssue, description: issue!.description }))
 
 	return chart as ScannedChart
 }

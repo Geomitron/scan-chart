@@ -1,10 +1,10 @@
 
+import type { FolderFinding } from '../issues'
 import type { SongFile } from '../song-files'
-import { FolderIssueType } from '../types'
 import { getBasename, hasAudioExtension, hasAudioName } from '../shared/file-names'
 
 export function scanAudio(files: readonly SongFile[]) {
-	const folderIssues: { folderIssue: FolderIssueType; description: string }[] = []
+	const folderIssues: FolderFinding[] = []
 
 	const findAudioDataResult = findAudioData(files)
 	folderIssues.push(...findAudioDataResult.folderIssues)
@@ -19,7 +19,7 @@ export function scanAudio(files: readonly SongFile[]) {
  * @returns the audio file(s) in this chart, or `[]` if none were found.
  */
 function findAudioData(files: readonly SongFile[]) {
-	const folderIssues: { folderIssue: FolderIssueType; description: string }[] = []
+	const folderIssues: FolderFinding[] = []
 	const audioData: SongFile['data'][] = []
 	const stemNames: string[] = []
 
@@ -31,7 +31,7 @@ function findAudioData(files: readonly SongFile[]) {
 					audioData.push(file.data)
 				}
 			} else {
-				folderIssues.push({ folderIssue: 'invalidAudio', description: `"${file.fileName}" is not a valid audio stem name.` })
+				folderIssues.push({ folderIssue: 'invalidAudio', description: `"${file.fileName}" is not a valid audio stem name.`, file: file.fileName })
 			}
 		}
 	}
