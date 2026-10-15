@@ -44,7 +44,7 @@ export const spellingIssueMessages: { readonly [code in SpellingIssueType]: stri
 export function chartSpellingIssues(source: ChartSource, styleNotes: boolean): Issue[] {
 	const issues: Issue[] = []
 	const add = (code: SpellingIssueType, track: { instrument: Issue['instrument']; difficulty: Issue['difficulty'] }, message = spellingIssueMessages[code]) => {
-		issues.push({ scope: 'chart', code, severity: issueSeverities[code], instrument: track.instrument, difficulty: track.difficulty, tick: null, msTime: null, message })
+		issues.push({ scope: 'chart', code, severity: issueSeverities[code], instrument: track.instrument, difficulty: track.difficulty, tick: null, msTime: null, file: null, message })
 	}
 	if (source.format === 'chart') {
 		const { tokens } = source
@@ -225,13 +225,16 @@ function isStandardNoteLine(text: string, at: number, lineEnd: number): boolean 
 
 /** The nonstandard spellings of the song.ini Clone Hero reads; none for another `.ini` file, which it doesn't read. */
 export function songIniSpellingIssues(ini: { readonly fileName: string; readonly tokens: IniTokens } | null): Issue[] {
-	return ini === null || ini.fileName.toLowerCase() !== 'song.ini' ? [] : iniSpellingIssues(ini.tokens)
+	return ini === null || ini.fileName.toLowerCase() !== 'song.ini' ? [] : iniSpellingIssues(ini.tokens, ini.fileName)
 }
 
-function iniSpellingIssues(tokens: IniTokens): Issue[] {
+function iniSpellingIssues(tokens: IniTokens, file: string): Issue[] {
 	if (tokens.text === null) return []
-	return iniNormalizations(tokens).flatMap(({ kind }) => kind === 'duplicateKeys'
-		? [{ scope: 'metadata' as const, code: 'duplicateIniKey' as const, severity: issueSeverities.duplicateIniKey, instrument: null, difficulty: null, tick: null, msTime: null, message: spellingIssueMessages.duplicateIniKey }]
+	return iniNormalizations(tokens).flatMap(({ kind }): Issue[] => kind === 'duplicateKeys'
+		? [{
+			scope: 'metadata', code: 'duplicateIniKey', severity: issueSeverities.duplicateIniKey, instrument: null, difficulty: null, tick: null, msTime: null,
+			file, message: spellingIssueMessages.duplicateIniKey,
+		}]
 		: [])
 }
 

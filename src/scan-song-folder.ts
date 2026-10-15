@@ -8,7 +8,7 @@ import { getChartHash } from './chart/chart-hash'
 import { calculateCompetitiveHashes, CompetitiveHashes } from './competitive'
 import { resolveChart } from './gameplay-chart'
 import { defaultMetadata } from './ini/metadata'
-import { folderIssue, Issue, metadataIssue } from './issues'
+import { FolderFinding, folderIssue, Issue, metadataIssue } from './issues'
 import { songIniSpellingIssues } from './spelling-issues'
 import { songContext } from './song-context'
 import { findChartData, parseSong } from './song-document'
@@ -69,13 +69,14 @@ export async function scanSongFolder(files: readonly SongFile[], options: ScanOp
 	const song = await parseSong(files)
 	const context = songContext(song)
 	const metadata = songMetadata(song, { removeStyleTags: options.removeStyleTags })
-	const folderIssues = [...context.ini.folderIssues, ...findChartData(song.files).folderIssues]
+	const folderIssues: FolderFinding[] = [...context.ini.folderIssues, ...findChartData(song.files).folderIssues]
 	const metadataIssues = [...context.ini.metadataIssues]
 	let stats: ChartStats | null = null
 	let competitive: CompetitiveHashes | null = null
 	let chartIssues: readonly Issue[] = []
+	const chartFile = song.chart?.fileName
 
-	if (context.chart.kind === 'failed') folderIssues.push({ folderIssue: 'badChart', description: context.chart.error })
+	if (context.chart.kind === 'failed') folderIssues.push({ folderIssue: 'badChart', description: context.chart.error, file: chartFile })
 	if (context.chart.kind === 'parsed') {
 		const analysis = analyzeChart(resolveChart(song), { styleNotes: options.styleNotes })
 		stats = analysis.stats
@@ -86,6 +87,7 @@ export async function scanSongFolder(files: readonly SongFile[], options: ScanOp
 				folderIssues.push({
 					folderIssue: 'badChartIdentity',
 					description: `This chart's TrackHashes and SongHash couldn't be calculated: ${competitive.reason}`,
+					file: chartFile,
 				})
 			}
 		}
@@ -110,7 +112,12 @@ export async function scanSongFolder(files: readonly SongFile[], options: ScanOp
 
 	return {
 		metadata,
-		issues: [...folderIssues.map(folderIssue), ...metadataIssues.map(metadataIssue), ...songIniSpellingIssues(song.ini), ...chartIssues],
+		issues: [
+			...folderIssues.map(folderIssue),
+			...metadataIssues.map(issue => metadataIssue(issue, song.ini?.fileName ?? null)),
+			...songIniSpellingIssues(song.ini),
+			...chartIssues,
+		],
 		playable: context.chart.kind === 'parsed' && !audio.folderIssues.some(issue => issue.folderIssue === 'noAudio'),
 		hasVideoBackground: video.hasVideoBackground,
 		stats,

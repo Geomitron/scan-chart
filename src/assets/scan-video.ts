@@ -1,9 +1,9 @@
+import type { FolderFinding } from '../issues'
 import type { SongFile } from '../song-files'
-import { FolderIssueType } from '../types'
 import { hasBadVideoName, hasVideoName } from '../shared/file-names'
 
 export function scanVideo(files: readonly SongFile[]) {
-	const folderIssues: { folderIssue: FolderIssueType; description: string }[] = []
+	const folderIssues: FolderFinding[] = []
 
 	const findVideoDataResult = findVideoData(files)
 	folderIssues.push(...findVideoDataResult.folderIssues)
@@ -12,7 +12,7 @@ export function scanVideo(files: readonly SongFile[]) {
 }
 
 function findVideoData(files: readonly SongFile[]) {
-	const folderIssues: { folderIssue: FolderIssueType; description: string }[] = []
+	const folderIssues: FolderFinding[] = []
 	let videoCount = 0
 	let bestVideoData: SongFile['data'] | null = null
 	let lastVideoData: SongFile['data'] | null = null
@@ -25,6 +25,7 @@ function findVideoData(files: readonly SongFile[]) {
 				folderIssues.push({
 					folderIssue: 'badVideo',
 					description: `"${file.fileName}" will not work on Linux and should be converted to .webm.`,
+					file: file.fileName,
 				})
 			} else {
 				bestVideoData = file.data

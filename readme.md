@@ -121,9 +121,12 @@ interface Issue {
 	readonly difficulty: Difficulty | null
 	readonly tick: number | null // where in the chart, or null for a whole track or file
 	readonly msTime: number | null
+	readonly file: string | null // the file it's about, as named in the folder, or null for a chart issue
 	readonly message: string
 }
 ```
+
+`file` names the file a folder or metadata issue is about, such as a misnamed audio file, or the song.ini a metadata issue is in. It's `null` for a chart issue, and for an issue about no one file, such as a missing chart.
 
 The severity says how much an issue matters:
 

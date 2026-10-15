@@ -42,7 +42,8 @@ import { type EventType, eventTypes } from './chart/raw-types'
 import { assertMeaningful, type AuthoredEventType, type AuthoredTrack, authoredTracks, eventTypeOf } from './authored'
 import { ObjectCache } from './shared/object-cache'
 import { fileBytes, isByteSource, readFileBytes, type SongFile } from './song-files'
-import { type Difficulty, type FolderIssueType, getInstrumentType, type Instrument } from './types'
+import type { FolderFinding } from './issues'
+import { type Difficulty, getInstrumentType, type Instrument } from './types'
 
 /** The chart file of a song, tokenized in its format. */
 export type ChartDocument =
@@ -123,7 +124,7 @@ function tokenizeMidi(bytes: Uint8Array): { tokens: MidiTokens | null; readError
 
 /** Chooses the chart file Clone Hero reads from a song folder, and reports problems with the folder's chart files. */
 export function findChartData(files: readonly SongFile[]) {
-	const folderIssues: { folderIssue: FolderIssueType; description: string }[] = []
+	const folderIssues: FolderFinding[] = []
 
 	// Like Clone Hero, prefer a file named "notes" in any letter case, and .mid over .chart when both exist.
 	const preference = (f: SongFile) => [
@@ -142,6 +143,7 @@ export function findChartData(files: readonly SongFile[]) {
 			folderIssues.push({
 				folderIssue: 'invalidChart',
 				description: `"${file.fileName}" is not named "notes.${getExtension(file.fileName).toLowerCase()}".`,
+				file: file.fileName,
 			})
 		}
 	}

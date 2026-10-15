@@ -38,7 +38,7 @@ describe('song files', () => {
 			{ fileName: 'song.ini', data: byteSourceFromBlob(new Blob([ini])) },
 		])
 		expect(metadata).toMatchObject({ name: 'Ini Name', artist: 'Ini Artist', album: 'Unknown Album', delay: 100, diff_guitar: -1, chartOffsetMs: 561 })
-		expect(issues.map(issue => [issue.scope, issue.code])).toEqual([['metadata', 'missingValue'], ['metadata', 'missingValue'], ['metadata', 'missingValue'], ['metadata', 'missingValue']])
+		expect(issues.map(issue => [issue.scope, issue.code, issue.file])).toEqual(Array(4).fill(['metadata', 'missingValue', 'song.ini']))
 	})
 
 	it('give [Song]\'s metadata when there\'s no song.ini, read as song.ini values are', async () => {
@@ -46,7 +46,7 @@ describe('song files', () => {
 		const { metadata, issues } = await parseSongMetadata(files)
 		expect(metadata).toMatchObject({ name: 'Chart <b>Name</b>', artist: 'Chart Artist', year: '2002', diff_band: 4, preview_start_time: 45280, chartOffsetMs: 561 })
 		expect((await parseSongMetadata(files, { removeStyleTags: true })).metadata.name).toBe('Chart Name')
-		expect(issues).toEqual([{ scope: 'folder', code: 'noMetadata', severity: 'error', instrument: null, difficulty: null, tick: null, msTime: null, message: 'This chart doesn\'t have "song.ini".' }])
+		expect(issues).toEqual([{ scope: 'folder', code: 'noMetadata', severity: 'error', instrument: null, difficulty: null, tick: null, msTime: null, file: null, message: 'This chart doesn\'t have "song.ini".' }])
 	})
 
 	it('give [Song]\'s preview times when song.ini leaves them unset, as Clone Hero reads PreviewStart', async () => {
