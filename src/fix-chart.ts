@@ -438,7 +438,11 @@ export function fixHopoTags(song: SongDocument, issues: readonly Issue[], findin
 		&& findings.some(finding => finding.metadataIssue === 'deprecatedIniTag' && finding.keys?.some(key => key === 'hopo_frequency' || key === 'eighthnote_hopo'))
 	const context = songContext(song)
 	const { chart, ini } = song
-	if (!reported || chart === null || ini === null || context.chart.kind !== 'parsed' || (chart.format === 'mid' && chart.tokens === null)) return song
+	if (!reported || ini === null) return song
+	if (chart === null || context.chart.kind !== 'parsed' || (chart.format === 'mid' && chart.tokens === null)) {
+		record.skip('deprecatedIniTag', ini.fileName, 'The chart can\'t be read, so it can\'t be rewritten to play the same without the HOPO tags.')
+		return song
+	}
 	const { settings } = context
 	// Without hopo_frequency, eighthnote_hopo = True would apply, so it goes too.
 	const keys = [...settings.hopo_frequency > 0 ? ['hopo_frequency'] : [], ...settings.eighthnote_hopo ? ['eighthnote_hopo'] : []]
