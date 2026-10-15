@@ -6,7 +6,7 @@ import type { MidiTokens } from './chart/midi-tokens'
 import type { ChartSource } from './chart/parse-chart-file'
 import { iniNormalizations } from './ini/ini-normalize'
 import type { IniTokens } from './ini/parse-ini'
-import type { Issue } from './issues'
+import { Issue, issueSeverities } from './issues'
 
 /**
  * Nonstandard spellings of a chart file or song.ini (r4 Q6). Compatibility issues are spellings another program may
@@ -44,7 +44,7 @@ export const spellingIssueMessages: { readonly [code in SpellingIssueType]: stri
 export function chartSpellingIssues(source: ChartSource, styleNotes: boolean): Issue[] {
 	const issues: Issue[] = []
 	const add = (code: SpellingIssueType, track: { instrument: Issue['instrument']; difficulty: Issue['difficulty'] }, message = spellingIssueMessages[code]) => {
-		issues.push({ scope: 'chart', code, instrument: track.instrument, difficulty: track.difficulty, tick: null, msTime: null, message })
+		issues.push({ scope: 'chart', code, severity: issueSeverities[code], instrument: track.instrument, difficulty: track.difficulty, tick: null, msTime: null, message })
 	}
 	if (source.format === 'chart') {
 		const { tokens } = source
@@ -231,7 +231,7 @@ export function songIniSpellingIssues(ini: { readonly fileName: string; readonly
 function iniSpellingIssues(tokens: IniTokens): Issue[] {
 	if (tokens.text === null) return []
 	return iniNormalizations(tokens).flatMap(({ kind }) => kind === 'duplicateKeys'
-		? [{ scope: 'metadata' as const, code: 'duplicateIniKey' as const, instrument: null, difficulty: null, tick: null, msTime: null, message: spellingIssueMessages.duplicateIniKey }]
+		? [{ scope: 'metadata' as const, code: 'duplicateIniKey' as const, severity: issueSeverities.duplicateIniKey, instrument: null, difficulty: null, tick: null, msTime: null, message: spellingIssueMessages.duplicateIniKey }]
 		: [])
 }
 
