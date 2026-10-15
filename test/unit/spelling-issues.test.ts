@@ -7,9 +7,11 @@ import { scanSongFolder } from 'src/scan-song-folder'
 import { parseSongFiles } from 'src/song-document'
 import { parseSongMetadata } from 'src/song-metadata'
 
+import { chartFile, expertSection } from './helpers/chart-files'
 import { midiFile, midiNote, midiText } from './helpers/midi-files'
 
 const encode = (text: string) => new TextEncoder().encode(text)
+const section = (name: string, ...lines: string[]) => [`[${name}]`, '{', ...lines.map(line => `  ${line}`), '}']
 const spelling = new Set(['unsortedChartLines', 'quotedChartTrackEvent', 'multipleMidiTrackNames', 'multipleMidiTracks', 'overlappingMidiNotes', 'duplicateIniKey', 'duplicateChartLine'])
 const chartIssues = (expertLines: string[], styleNotes = false) => {
 	const chart = ['[Song]', '{', '  Resolution = 192', '}', '[SyncTrack]', '{', '  0 = B 120000', '}', '[Events]', '{', '}',
@@ -72,8 +74,7 @@ describe('nonstandard spelling issues', () => {
 	it('report, as an error, each difficulty\'s dnoflip mix event that comes while its d flip is on', () => {
 		const noflips = (files: { fileName: string; data: Uint8Array }[]) => analyzeChart(resolveChart(parseSongFiles(files))).issues
 			.filter(issue => issue.code === 'discoNoflipDuringFlip').map(({ instrument, difficulty, severity, message }) => ({ instrument, difficulty, severity, message }))
-		const chart = (lines: string[]) => noflips([{ fileName: 'notes.chart', data: encode(['[Song]', '{', '  Resolution = 192', '}', '[SyncTrack]', '{', '  0 = B 120000', '}',
-			'[ExpertDrums]', '{', ...lines.map(line => `  ${line}`), '}', ''].join('\r\n')) }])
+		const chart = (lines: string[]) => noflips([{ fileName: 'notes.chart', data: chartFile(section('ExpertDrums', ...lines)) }])
 		const message = (first: string) => `${first} while a "d" disco flip is on. Clone Hero 1.1 keeps the flip on, and other programs start no-flip there. `
 			+ 'Saving an edit turns the flip off on the tick before, unless a red or yellow note or the "d" event is on it.'
 		const flip = ['480 = E mix 3 drums0d', '480 = N 1 0']
@@ -95,31 +96,51 @@ describe('nonstandard spelling issues', () => {
 		])
 	})
 
-	it('report, as a warning, the .chart modifiers with no note at their tick to apply to, for each section', () => {
-		const modifiers = (sections: string[][]) => analyzeChart(resolveChart(parseSongFiles([{ fileName: 'notes.chart', data: encode([
-			'[Song]', '{', '  Resolution = 192', '}', '[SyncTrack]', '{', '  0 = B 120000', '}',
-			...sections.flatMap(([name, ...lines]) => [`[${name}]`, '{', ...lines.map(line => `  ${line}`), '}']), '',
-		].join('\r\n')) }]))).issues.filter(issue => issue.code === 'chartModifierWithoutNote')
-			.map(({ instrument, difficulty, severity, message }) => ({ instrument, difficulty, severity, message }))
-		const games = 'which games ignore. Saving an edit removes'
-		// Forced and tap apply to every note at their tick.
-		expect(modifiers([['ExpertSingle', '768 = N 0 0', '768 = N 5 0', '769 = N 5 0', '960 = N 6 0']])).toEqual([{ instrument: 'guitar', difficulty: 'expert', severity: 'warning',
-			message: `2 lines, such as "769 = N 5 0", are modifiers with no note at their tick to apply to, ${games} them: move them to their notes' ticks first to keep what they meant.` }])
-		// An accent, ghost or cymbal marker applies to its pad's note, and a flam to any drum note.
+	describe('report the .chart modifiers with no note at their tick to apply to, for each section, as a style note', () => {
+		const modifiers = (data: Uint8Array, styleNotes = true) => analyzeChart(resolveChart(parseSongFiles([{ fileName: 'notes.chart', data }])), { styleNotes }).issues
+			.filter(issue => issue.code === 'chartModifierWithoutNote').map(({ instrument, difficulty, severity, message }) => ({ instrument, difficulty, severity, message }))
+		const removed = (first: string, count = 1) => count === 1
+			? `The line "${first}" is a modifier with no note at its tick to apply to, which games ignore. Saving an edit removes it: move it to its note's tick first to keep what it meant.`
+			: `${count} lines, such as "${first}", are modifiers with no note at their tick to apply to, which games ignore. Saving an edit removes them: move them to their notes' ticks first to keep what they meant.`
 		const pro = ['768 = N 2 0', '768 = N 66 0']
-		expect(modifiers([['HardDrums', ...pro, '768 = N 34 0', '960 = N 0 0', '960 = N 109 0', '1152 = N 1 0', '1152 = N 67 0', '1344 = N 109 0']])).toEqual([{
-			instrument: 'drums', difficulty: 'hard', severity: 'warning',
-			message: `3 lines, such as "768 = N 34 0", are modifiers with no note at their tick to apply to, ${games} them: move them to their notes' ticks first to keep what they meant.`,
-		}])
-		expect(modifiers([['ExpertDrums', ...pro], ['HardDrums', '768 = N 1 0', '768 = N 41 0']]).map(issue => issue.message)).toEqual([
-			`The line "768 = N 41 0" is a modifier with no note at its tick to apply to, ${games} it: move it to its note's tick first to keep what it meant.`,
-		])
-		// A cymbal marker without its note still makes the chart pro, unless another one with its note does, and no N 5 decides.
-		expect(modifiers([['ExpertDrums', '768 = N 1 0', '768 = N 66 0']])).toEqual([])
-		expect(modifiers([['ExpertDrums', ...pro, '960 = N 1 0', '960 = N 67 0', '1152 = N 5 0']])).toEqual([])
-		// A section with no notes isn't a track, and is reported as one. One out of tick order is left until saving sorts it.
-		expect(modifiers([['ExpertSingle', '768 = N 0 0'], ['HardSingle', '768 = N 5 0']])).toEqual([])
-		expect(modifiers([['ExpertSingle', '768 = N 0 0', '0 = N 0 0', '769 = N 5 0']])).toEqual([])
+
+		it('a forced or tap modifier on a tick with no note, and only with styleNotes', () => {
+			const guitar = chartFile(expertSection('768 = N 0 0', '768 = N 5 0', '769 = N 5 0', '960 = N 6 0'))
+			expect(modifiers(guitar)).toEqual([{ instrument: 'guitar', difficulty: 'expert', severity: 'recommendation', message: removed('769 = N 5 0', 2) }])
+			expect(modifiers(guitar, false)).toEqual([])
+		})
+
+		it('an accent, ghost or cymbal marker without its pad\'s note, or a flam on a tick with no note', () => {
+			const hard = section('HardDrums', ...pro, '768 = N 34 0', '960 = N 0 0', '960 = N 109 0', '1152 = N 1 0', '1152 = N 67 0', '1344 = N 109 0')
+			expect(modifiers(chartFile(hard))).toEqual([{ instrument: 'drums', difficulty: 'hard', severity: 'recommendation', message: removed('768 = N 34 0', 3) }])
+			const ghost = chartFile([...section('ExpertDrums', ...pro), ...section('HardDrums', '768 = N 1 0', '768 = N 41 0')])
+			expect(modifiers(ghost).map(issue => issue.message)).toEqual([removed('768 = N 41 0')])
+		})
+
+		it('a cymbal marker without its note that saving keeps, since it may decide the drum type', () => {
+			expect(modifiers(chartFile(section('ExpertDrums', '768 = N 1 0', '768 = N 66 0'))).map(issue => issue.message)).toEqual([
+				'The line "768 = N 66 0" is a cymbal marker with no note at its tick to apply to. It still makes the chart pro, so saving an edit keeps it.',
+			])
+			// With an N 5, YARG reads the drum type from whichever of them comes first.
+			const fiveLaneGreen = chartFile(section('ExpertDrums', ...pro, '960 = N 1 0', '960 = N 67 0', '1152 = N 5 0', '1344 = N 1 0', '1344 = N 35 0'))
+			expect(modifiers(fiveLaneGreen).map(issue => issue.message)).toEqual([
+				'2 lines, such as "960 = N 67 0", are modifiers with no note at their tick to apply to. Games ignore them, but 1 of them, a cymbal marker, still makes '
+				+ 'the chart pro. Saving an edit removes the others: move them to their notes\' ticks first to keep what they meant.',
+			])
+		})
+
+		it('none in a section with no notes, which isn\'t a track, or in one out of tick order, until saving sorts it', () => {
+			expect(modifiers(chartFile([...expertSection('768 = N 0 0'), ...section('HardSingle', '768 = N 5 0')]))).toEqual([])
+			expect(modifiers(chartFile(expertSection('768 = N 0 0', '0 = N 0 0', '769 = N 5 0')))).toEqual([])
+		})
+
+		it('with CRLF or LF line endings, in any spelling scan-chart reads', () => {
+			const crlf = chartFile(expertSection('768 = N 0 0', '769 = N 5 0 \t', '961 N 6 0', '1152 = N 1 0'))
+			const lf = encode(new TextDecoder().decode(crlf).replace(/\r\n/g, '\n'))
+			const found = [{ instrument: 'guitar', difficulty: 'expert', severity: 'recommendation', message: removed('769 = N 5 0', 2) }]
+			expect(modifiers(crlf)).toEqual(found)
+			expect(modifiers(lf)).toEqual(found)
+		})
 	})
 
 	it('report a song.ini key set twice, in the song.ini Clone Hero reads', async () => {

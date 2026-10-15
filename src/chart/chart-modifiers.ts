@@ -1,6 +1,14 @@
 import { ObjectCache } from '../shared/object-cache'
-import type { Instrument } from '../types'
-import { type ChartFileTokens, chartSectionTrack, getNEventType } from './chart-file-parser'
+import type { Difficulty, Instrument } from '../types'
+import {
+	type ChartFileTokens,
+	chartSectionTrack,
+	forEachChartLine,
+	getNEventType,
+	isChartLineBlank,
+	isStandardNoteLine,
+	parseTrackLine,
+} from './chart-file-parser'
 import { type EventType, eventTypes } from './raw-types'
 
 /** A line of a `.chart` file's text: where it starts, and where it ends, after its line feed. */
@@ -9,14 +17,15 @@ export interface ChartLineRange {
 	readonly end: number
 }
 
-/** The `N` value of each drum pad note. */
-const padValues = new Map<EventType, number>([
-	[eventTypes.redDrum, 1],
-	[eventTypes.yellowDrum, 2],
-	[eventTypes.blueDrum, 3],
-	[eventTypes.fiveOrangeFourGreenDrum, 4],
-	[eventTypes.fiveGreenDrum, 5],
-])
+/**
+ * A section's modifier lines with no note at their tick to apply to: those saving removes, and the cymbal markers it
+ * keeps, which may decide the drum type.
+ */
+export interface ModifiersWithoutNotes {
+	readonly removed: readonly ChartLineRange[]
+	readonly kept: readonly ChartLineRange[]
+}
+
 /** The pad note each drum accent, ghost and cymbal marker applies to. */
 const markerPads = new Map<EventType, EventType>([
 	[eventTypes.redAccent, eventTypes.redDrum],
@@ -37,27 +46,34 @@ const markerPads = new Map<EventType, EventType>([
 const tickModifiers = new Set<EventType>([eventTypes.forceUnnatural, eventTypes.forceTap, eventTypes.forceFlam])
 const cymbalMarkers = new Set<EventType>([eventTypes.yellowCymbalMarker, eventTypes.blueCymbalMarker, eventTypes.greenCymbalMarker])
 
-/** A note value's bit among a tick's notes: notes are `N 0` to `N 8`, and a double kick is `N 32`. */
-const noteBit = (value: number) => 1 << (value === 32 ? 30 : value)
+const noteBits = new Map<EventType, number>()
 
-/** What an `N` value is on an instrument: a note, with its bit, or a modifier, with the bits of the notes it applies to. */
-type NValue = { readonly note: number } | { readonly appliesTo: number; readonly cymbal: boolean } | null
+/** A note type's bit among a tick's notes, given in the order types are first met: there are fewer than 31. */
+function noteBit(type: EventType): number {
+	let bit = noteBits.get(type)
+	if (bit === undefined) noteBits.set(type, bit = 1 << noteBits.size)
+	return bit
+}
 
-const nValueTables = new Map<Instrument, readonly NValue[]>()
+/** What an `N` line is: a note, with its bit, or a modifier, with the bits of the notes it applies to. */
+type NLine = { readonly type: EventType; readonly note: number } | { readonly type: EventType; readonly appliesTo: number; readonly cymbal: boolean }
 
-/** What each `N` value up to 255 is on `instrument`, as `getNEventType` reads it. */
-function nValues(instrument: Instrument): readonly NValue[] {
-	let table = nValueTables.get(instrument)
+/** What each `N` value up to 255 is on an instrument, as the parser reads it, and each of its `N` lines by event type. */
+const nLineTables = new Map<Instrument, { readonly byValue: readonly (NLine | null)[]; readonly byType: ReadonlyMap<EventType, NLine> }>()
+
+function nLines(instrument: Instrument) {
+	let table = nLineTables.get(instrument)
 	if (table === undefined) {
-		table = Array.from({ length: 256 }, (_, value): NValue => {
+		const byValue = Array.from({ length: 256 }, (_, value): NLine | null => {
 			const type = getNEventType(String(value), instrument)
 			const pad = type === null ? undefined : markerPads.get(type)
 			return type === null ? null
-				: tickModifiers.has(type) ? { appliesTo: ~0, cymbal: false }
-				: pad !== undefined ? { appliesTo: noteBit(padValues.get(pad)!), cymbal: cymbalMarkers.has(type) }
-				: { note: noteBit(value) }
+				: tickModifiers.has(type) ? { type, appliesTo: ~0, cymbal: false }
+				: pad !== undefined ? { type, appliesTo: noteBit(pad), cymbal: cymbalMarkers.has(type) }
+				: { type, note: noteBit(type) }
 		})
-		nValueTables.set(instrument, table)
+		const byType = new Map(byValue.filter(nLine => nLine !== null).map(nLine => [nLine.type, nLine]))
+		nLineTables.set(instrument, table = { byValue, byType })
 	}
 	return table
 }
@@ -74,21 +90,21 @@ interface SectionModifiers {
 	readonly hasCymbalWithNote: boolean
 }
 
-const isBlank = (code: number) => code === 32 || code === 9
 const isDigit = (code: number) => code >= 48 && code <= 57
 
 /**
- * The modifiers of the section text from `start` to `end`, read a character at a time: every instrument section is
- * read on every analysis. Each `N` line is read in any spacing scan-chart reads, and a tick's lines from where they
- * are. `null` for a section whose lines aren't in tick order, which is left as it is.
+ * The modifiers of the section text from `start` to `end`, each line read as the parser reads it: a standard `N` line a
+ * character at a time, and any other through `parseTrackLine`. `null` for a section whose lines aren't in tick order,
+ * which is left as it is.
  */
-function scanSection(text: string, start: number, end: number, instrument: Instrument): SectionModifiers | null {
-	const values = nValues(instrument)
+function scanSection(text: string, start: number, end: number, instrument: Instrument, difficulty: Difficulty): SectionModifiers | null {
+	const { byValue, byType } = nLines(instrument)
 	const cymbalLines: ChartLineRange[] = []
 	const otherLines: ChartLineRange[] = []
 	let hasNotes = false
 	let hasFiveLaneGreen = false
 	let hasCymbalWithNote = false
+	let unsorted = false
 	// The tick being read: its notes' bits, and its modifiers.
 	let tick = -1
 	let notes = 0
@@ -102,74 +118,80 @@ function scanSection(text: string, start: number, end: number, instrument: Instr
 		pending.length = 0
 		notes = 0
 	}
-	for (let position = start; position < end;) {
-		const lineFeed = text.indexOf('\n', position)
+	forEachChartLine(text, start, end, (lineStart, textStart, lineEnd) => {
 		// Text before the section's `}` on its line is read as no line.
-		if (lineFeed === -1 || lineFeed >= end) break
-		const lineEnd = lineFeed + 1
-		let index = position
-		while (index < lineEnd && isBlank(text.charCodeAt(index))) index++
+		if (lineEnd === end) return
+		let index = textStart
 		let lineTick = 0
-		const tickStart = index
 		while (index < lineEnd && isDigit(text.charCodeAt(index))) lineTick = lineTick * 10 + text.charCodeAt(index++) - 48
-		const hasTick = index > tickStart
-		while (index < lineEnd && isBlank(text.charCodeAt(index))) index++
-		if (index < lineEnd && text.charCodeAt(index) === 61) index++ // =
-		while (index < lineEnd && isBlank(text.charCodeAt(index))) index++
-		const isN = hasTick && index + 1 < lineEnd && text.charCodeAt(index) === 78 && isBlank(text.charCodeAt(index + 1)) // N
-		index++
-		while (isN && index < lineEnd && isBlank(text.charCodeAt(index))) index++
-		let value = 0
-		const valueStart = index
-		while (isN && index < lineEnd && isDigit(text.charCodeAt(index)) && value < 256) value = value * 10 + text.charCodeAt(index++) - 48
-		const read = isN && index > valueStart && value < 256 ? values[value] : null
-		if (read !== null) {
-			if (lineTick < tick) return null
-			if (lineTick !== tick) {
-				endTick()
-				tick = lineTick
-			}
-			if ('note' in read) {
-				notes |= read.note
-				hasNotes = true
-				if (instrument === 'drums' && value === 5) hasFiveLaneGreen = true
-			} else {
-				pending.push({ line: { start: position, end: lineEnd }, appliesTo: read.appliesTo, cymbal: read.cymbal })
-			}
+		if (index === textStart || text.startsWith(' = E ', index)) return
+		let nLine: NLine | null | undefined
+		if (isStandardNoteLine(text, index, lineEnd)) {
+			// An S line is a phrase.
+			if (text.charCodeAt(index + 3) !== 78) return
+			let value = 0
+			for (let at = index + 5; isDigit(text.charCodeAt(at)) && value < 256; at++) value = value * 10 + text.charCodeAt(at) - 48
+			nLine = value < 256 ? byValue[value] : null
+		} else {
+			let textEnd = lineEnd
+			while (textEnd > textStart && isChartLineBlank(text.charCodeAt(textEnd - 1))) textEnd--
+			const parsed = parseTrackLine(text.slice(textStart, textEnd), instrument, difficulty)
+			if (parsed?.kind !== 'note') return
+			lineTick = parsed.tick
+			nLine = byType.get(parsed.type)
 		}
-		position = lineEnd
-	}
+		if (nLine === null || nLine === undefined) return
+		if (lineTick < tick) {
+			unsorted = true
+			return false
+		}
+		if (lineTick !== tick) {
+			endTick()
+			tick = lineTick
+		}
+		if ('note' in nLine) {
+			notes |= nLine.note
+			hasNotes = true
+			if (nLine.type === eventTypes.fiveGreenDrum) hasFiveLaneGreen = true
+		} else {
+			pending.push({ line: { start: lineStart, end: lineEnd + 1 }, appliesTo: nLine.appliesTo, cymbal: nLine.cymbal })
+		}
+	})
+	if (unsorted) return null
 	endTick()
 	return { hasNotes, cymbalLines, otherLines, hasFiveLaneGreen, hasCymbalWithNote }
 }
 
-const fileModifiers = new ObjectCache<ChartFileTokens, ReadonlyMap<string, readonly ChartLineRange[]>>('chartModifiersWithoutNotes')
+const fileModifiers = new ObjectCache<ChartFileTokens, ReadonlyMap<string, ModifiersWithoutNotes>>('chartModifiersWithoutNotes')
 
 /**
- * The lines of each instrument section a reader reads, by name, that hold a modifier with no note to apply to, which
- * every reader ignores: a forced, tap or flam modifier on a tick with no note, and an accent, ghost or cymbal marker on
- * a tick without its pad's note. A section with no notes, which isn't a track, has none.
+ * The lines of each instrument section a reader reads, by name, that hold a modifier with no note to apply to: a forced,
+ * tap or flam modifier on a tick with no note, and an accent, ghost or cymbal marker on a tick without its pad's note.
+ * A section with no notes, which isn't a track, has none.
  *
- * A cymbal marker without its note still decides the drum type: Clone Hero and scan-chart read a chart with any cymbal
- * marker as pro, and YARG one whose first cymbal marker or `N 5` is a cymbal marker. So such a marker counts only when
- * another cymbal marker has its note, no drums section has an `N 5`, and every drums section's lines are in tick order.
+ * Every reader ignores such a modifier, but for a cymbal marker, which still decides the drum type: Clone Hero and
+ * scan-chart read a chart with any cymbal marker as pro, and YARG one whose first cymbal marker or `N 5` is a cymbal
+ * marker. So saving keeps a cymbal marker without its note unless another cymbal marker has its note, no drums section
+ * has an `N 5`, and every drums section's lines are in tick order.
  */
-export function chartModifiersWithoutNotes(tokens: ChartFileTokens): ReadonlyMap<string, readonly ChartLineRange[]> {
+export function chartModifiersWithoutNotes(tokens: ChartFileTokens): ReadonlyMap<string, ModifiersWithoutNotes> {
 	let byName = fileModifiers.get(tokens)
 	if (byName !== undefined) return byName
 	const sections = new Map<string, { instrument: Instrument; modifiers: SectionModifiers | null }>()
 	for (const section of tokens.sections) {
 		const track = chartSectionTrack(section.name)
 		if (track === null || sections.has(section.name)) continue
-		sections.set(section.name, { instrument: track.instrument, modifiers: scanSection(tokens.text, section.bodyStart, section.bodyEnd, track.instrument) })
+		const modifiers = scanSection(tokens.text, section.bodyStart, section.bodyEnd, track.instrument, track.difficulty)
+		sections.set(section.name, { instrument: track.instrument, modifiers })
 	}
 	const drums = [...sections.values()].filter(section => section.instrument === 'drums').map(section => section.modifiers)
 	const keepCymbalMarkers = drums.some(modifiers => modifiers === null || modifiers.hasFiveLaneGreen) || !drums.some(modifiers => modifiers?.hasCymbalWithNote)
-	const found = new Map<string, readonly ChartLineRange[]>()
+	const found = new Map<string, ModifiersWithoutNotes>()
 	for (const [name, { modifiers }] of sections) {
 		if (modifiers === null || !modifiers.hasNotes) continue
-		const lines = [...modifiers.otherLines, ...keepCymbalMarkers ? [] : modifiers.cymbalLines].sort((a, b) => a.start - b.start)
-		if (lines.length > 0) found.set(name, lines)
+		const removed = [...modifiers.otherLines, ...keepCymbalMarkers ? [] : modifiers.cymbalLines].sort((a, b) => a.start - b.start)
+		const kept = keepCymbalMarkers ? modifiers.cymbalLines : []
+		if (removed.length + kept.length > 0) found.set(name, { removed, kept })
 	}
 	fileModifiers.set(tokens, byName = found)
 	return byName

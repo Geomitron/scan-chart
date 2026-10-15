@@ -93,7 +93,7 @@ export function chartNormalizations(tokens: ChartFileTokens): ChartNormalization
 		const track = chartSectionTrack(name)
 		if (track !== null) {
 			add('quotedTrackEvents', name, current => sectionSplices(current, name, unquoted))
-			add('modifiersWithoutNotes', name, current => (chartModifiersWithoutNotes(current).get(name) ?? []).map(({ start, end }) => ({ start, end, text: '' })))
+			add('modifiersWithoutNotes', name, current => (chartModifiersWithoutNotes(current).get(name)?.removed ?? []).map(({ start, end }) => ({ start, end, text: '' })))
 		}
 		if (track?.instrument === 'drums') {
 			add('noflipDuringFlip', name, current => flipOffSplices(current, name, track.difficulty))
