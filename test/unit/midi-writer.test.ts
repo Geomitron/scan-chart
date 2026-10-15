@@ -1,11 +1,11 @@
 /**
  * Round-trip tests for writeMidiFile.
  *
- * All tests exercise the writer only through parseChartAndIni: build a
+ * Most tests exercise the writer through parseChartAndIni: build a
  * ParsedChart, write it out as MIDI, re-parse, and assert on the resulting
- * ParsedChart. No assertions about the raw MIDI structure (track count,
- * track names, note numbers, setTempo microseconds, text-event brackets,
- * etc.) — the parser is the source of truth for observable behavior.
+ * ParsedChart. Where scan-chart reads a file the same either way but another
+ * reader doesn't (a note number YARG or Rock Band reads, a marker Clone Hero
+ * 1.1 reads), a test checks the written events themselves.
  */
 
 import { type MidiEvent, parseMidi, writeMidi } from '@geomitron/midi-file'
@@ -19,6 +19,8 @@ import { drumTypes } from 'src/types'
 import { parseChartAndIni, type ParsedChart } from 'src/chart/parse-chart-and-ini'
 import { parseChartFile, parseChartFileFrozenLegacyIdentity } from 'src/chart/parse-chart-file'
 import { readMidiTokens } from 'src/chart/midi-tokens'
+import { readMidiFile } from 'src/chart/midi-file-parser'
+import { scanVocalTrack } from 'src/chart/lyric-parser'
 import { chartSpellingIssues } from 'src/spelling-issues'
 
 function roundTrip(chart: ParsedChart, iniText?: string): ParsedChart {
@@ -35,24 +37,27 @@ function roundTrip(chart: ParsedChart, iniText?: string): ParsedChart {
 	return result.parsedChart
 }
 
-/** A `.mid` file at 480 ticks per beat with a PART DRUMS track of text events and notes (`[tick, note, length = 0]`). */
-function drumsMidi(texts: { tick: number; text: string }[], notes: [number, number, number?][]): Uint8Array {
+/**
+ * A `.mid` file at 480 ticks per beat with one track besides the tempo track: `trackName`, with text or lyric events and
+ * notes (`[tick, note, length = 0]`).
+ */
+function trackMidi(trackName: string, texts: { tick: number; text: string; type?: 'text' | 'lyrics' }[], notes: [number, number, number?][]): Uint8Array {
 	const events = [
-		...texts.map(({ tick, text }) => ({ tick, event: { type: 'text', text } })),
+		...texts.map(({ tick, text, type = 'text' }) => ({ tick, event: { type, text } })),
 		...notes.flatMap(([tick, noteNumber, length = 0]) => [
 			{ tick, event: { type: 'noteOn', channel: 0, noteNumber, velocity: 100 } },
 			{ tick: tick + length, event: { type: 'noteOff', channel: 0, noteNumber, velocity: 0 } },
 		]),
 	].sort((a, b) => a.tick - b.tick)
 	let lastTick = 0
-	const drums = events.map(({ tick, event }) => {
+	const trackEvents = events.map(({ tick, event }) => {
 		const deltaTime = tick - lastTick
 		lastTick = tick
 		return { deltaTime, ...event }
 	})
 	const tracks = [
 		[{ deltaTime: 0, type: 'setTempo', microsecondsPerBeat: 500000 }, { deltaTime: 0, type: 'endOfTrack' }],
-		[{ deltaTime: 0, type: 'trackName', text: 'PART DRUMS' }, ...drums, { deltaTime: 0, type: 'endOfTrack' }],
+		[{ deltaTime: 0, type: 'trackName', text: trackName }, ...trackEvents, { deltaTime: 0, type: 'endOfTrack' }],
 	] as MidiEvent[][]
 	return new Uint8Array(writeMidi({ header: { format: 1, numTracks: tracks.length, ticksPerBeat: 480 }, tracks }))
 }
@@ -331,7 +336,7 @@ describe('writeMidiFile round-trip: drum tracks', () => {
 
 	it('writes back the mix events it read, with their stem configuration, and adds one where an edit changed a flip', () => {
 		const mix = (tick: number, text: string) => ({ tick, text })
-		const source = drumsMidi([
+		const source = trackMidi('PART DRUMS', [
 			mix(0, '[mix 3 drums2]'), mix(0, '[mix 0 drums4]'), mix(480, '[mix 3 drums2d]'), mix(1440, '[mix 3 drums2]'), mix(1920, '[mix 3 drums2easy]'),
 		], [[0, 97], [0, 98], [480, 97], [480, 98], [720, 96], [960, 97], [1440, 97], [1920, 98], [0, 61]])
 		const parsed = parseChartAndIni([{ fileName: 'notes.mid', data: source }]).parsedChart!
@@ -355,7 +360,7 @@ describe('writeMidiFile round-trip: drum tracks', () => {
 
 	it('writes back a tom marker that covers no note, which makes Clone Hero 1.1 read the chart as pro drums', () => {
 		// Yellow at 0 under a tom marker, and a yellow tom marker over no note.
-		const source = drumsMidi([], [[0, 98], [0, 110, 1], [960, 97], [1440, 110, 240]])
+		const source = trackMidi('PART DRUMS', [], [[0, 98], [0, 110, 1], [960, 97], [1440, 110, 240]])
 		const parsed = parseChartAndIni([{ fileName: 'notes.mid', data: source }]).parsedChart!
 		const tomMarkers = (data: Uint8Array) => parseMidi(data).tracks.flatMap(track => {
 			let tick = 0
@@ -369,7 +374,7 @@ describe('writeMidiFile round-trip: drum tracks', () => {
 		expect(tomMarkers(writeMidiFile(reparsed))).toEqual([0, 1440])
 
 		// Over no note at all, the marker leaves the chart 4-lane in scan-chart, and is still written.
-		const uncoveredOnly = parseChartAndIni([{ fileName: 'notes.mid', data: drumsMidi([], [[0, 98], [480, 111, 60]]) }]).parsedChart!
+		const uncoveredOnly = parseChartAndIni([{ fileName: 'notes.mid', data: trackMidi('PART DRUMS', [], [[0, 98], [480, 111, 60]]) }]).parsedChart!
 		expect(uncoveredOnly.drumType).toBe(drumTypes.fourLane)
 		expect(parseMidi(writeMidiFile(uncoveredOnly)).tracks.flat().some(event => event.type === 'noteOn' && event.noteNumber === 111)).toBe(true)
 	})
@@ -790,6 +795,30 @@ describe('writeMidiFile round-trip: vocal tracks', () => {
 		const vocals = roundTrip(chart).vocalTracks.parts.vocals
 		expect(vocals.rangeShifts.map(s => s.tick)).toContain(0)
 		expect(vocals.lyricShifts.map(s => s.tick)).toContain(480)
+	})
+
+	it('writes back pitch slides, a percussion note on the first tick of a phrase, and [range_shift] events', () => {
+		const lyric = (tick: number, text: string) => ({ tick, text, type: 'lyrics' as const })
+		const source = trackMidi('PART VOCALS', [
+			lyric(0, 'Hel-'), lyric(120, '+'), { tick: 240, text: '[range_shift]' }, lyric(480, 'lo'), lyric(720, 'oh+'),
+		], [
+			[0, 105, 960], [0, 60, 100], [120, 64, 100], [480, 62, 100], [720, 65, 100],
+			[1920, 105, 480], [1920, 96], [2040, 96],
+		])
+		const vocalTrack = (data: Uint8Array) => {
+			const track = readMidiFile(data).tracks.find(events => events.some(event => event.type === 'trackName' && event.text === 'PART VOCALS'))!
+			const { lyrics, notes, textEvents, phrases105 } = scanVocalTrack(track)
+			return { lyrics: lyrics.map(l => [l.tick, l.text]), notes, textEvents, phrases105 }
+		}
+		const parsed = parseChartAndIni([{ fileName: 'notes.mid', data: source }]).parsedChart!
+		const written = writeMidiFile(parsed)
+		expect(vocalTrack(written)).toEqual(vocalTrack(source))
+		const reparsed = parseChartAndIni([{ fileName: 'notes.mid', data: written }]).parsedChart!
+		expect(reparsed.vocalTracks).toEqual(parsed.vocalTracks)
+		expect(parsed.vocalTracks.parts.vocals.notePhrases.map(p => p.notes.map(n => [n.tick, n.pitchSlide ?? false]))).toEqual([
+			[[0, false], [120, true], [480, false], [720, true]],
+			[[1920, false], [2040, false]],
+		])
 	})
 
 	it('preserves vocal text events', () => {

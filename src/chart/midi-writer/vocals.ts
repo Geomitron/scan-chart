@@ -3,7 +3,7 @@
  */
 import type { MidiEvent } from '@geomitron/midi-file'
 
-import type { VocalPart, VocalTrack } from '../types'
+import type { VocalNote, VocalPart, VocalTrack } from '../types'
 import { addNoteOnOff, finalizeMidiTrack, lyricsEvent, metaTextEvent, noteOffEvent, noteOnEvent, trackNameEvent } from './shared'
 import type { AbsoluteEvent } from './shared'
 
@@ -93,17 +93,9 @@ export function buildVocalPartTrack(
 			}
 		}
 	}
-	allLyrics.sort((a, b) => a.tick - b.tick)
-	for (const lyric of allLyrics) {
-		events.push({
-			tick: lyric.tick,
-			event: lyricsEvent(lyric.text),
-		})
-	}
-
 	// Union notes across the same two phrase sets.
 	const seenNoteKeys = new Set<string>()
-	const allNotes: { tick: number; length: number; pitch: number; type: 'pitched' | 'percussion' }[] = []
+	const allNotes: VocalNote[] = []
 	for (const phrases of [part.notePhrases, part.staticLyricPhrases]) {
 		for (const phrase of phrases) {
 			for (const note of phrase.notes) {
@@ -116,6 +108,22 @@ export function buildVocalPartTrack(
 		}
 	}
 	allNotes.sort((a, b) => a.tick - b.tick)
+
+	// A pitch slide's `+` on its own isn't kept as a lyric: it's written on the note, unless the note has a lyric.
+	const lyricTicks = new Set(allLyrics.map(lyric => lyric.tick))
+	for (const note of allNotes) {
+		if (note.pitchSlide && !lyricTicks.has(note.tick)) {
+			lyricTicks.add(note.tick)
+			allLyrics.push({ tick: note.tick, text: '+' })
+		}
+	}
+	allLyrics.sort((a, b) => a.tick - b.tick)
+	for (const lyric of allLyrics) {
+		events.push({
+			tick: lyric.tick,
+			event: lyricsEvent(lyric.text),
+		})
+	}
 
 	let vocalNoteSeq = 1_000_000
 	for (const note of allNotes) {

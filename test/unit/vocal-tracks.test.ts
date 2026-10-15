@@ -773,9 +773,8 @@ describe('normalizedVocalTracks', () => {
 		expect(phrase.lyrics[0].msTime).toBeGreaterThan(0)
 	})
 
-	it('pitch slide with filtered "+" keeps the note for round-trip consistency', () => {
-		// When "+" strips to empty and is filtered, the pitch slide note is NOT
-		// skipped — on re-parse "+" wouldn't exist, so consistency requires keeping it.
+	it('pitch slide with a "+" lyric keeps the note, marked as a slide, and drops the "+"', () => {
+		// "+" strips to empty and isn't kept as a lyric; the note it marks stays, with pitchSlide.
 		const midi = buildMidi(480, [
 			tempoTrack(),
 			eventsTrack(),
@@ -800,9 +799,8 @@ describe('normalizedVocalTracks', () => {
 		expect(lyrics).toHaveLength(2)
 		expect(lyrics[0].text).toBe('me')
 		expect(lyrics[1].text).toBe('too')
-		// All 3 notes kept (pitch slide at 720 not skipped because "+" was filtered)
 		const notes = result.vocalTracks.parts.vocals.notePhrases[0].notes
-		expect(notes).toHaveLength(3)
+		expect(notes.map(n => [n.tick, n.pitchSlide])).toEqual([[480, undefined], [720, true], [960, undefined]])
 	})
 
 	it('nonPitched flag keeps original MIDI pitch (consumers check lyric flags)', () => {
@@ -847,10 +845,8 @@ describe('normalizedVocalTracks', () => {
 		expect(notes[1].type).toBe('percussion')
 	})
 
-	it('pitch slide note is skipped when lyric survives filtering', () => {
-		// When the pitchSlide lyric has displayable text (e.g. "oh+"), it survives
-		// the emptiness filter → the pitch slide note IS skipped for round-trip
-		// consistency (the lyric will exist on re-parse too).
+	it('pitch slide note whose lyric has text keeps the note and the lyric', () => {
+		// A pitchSlide lyric with displayable text (e.g. "slide+") is kept, and so is its note, marked as a slide.
 		const midi = buildMidi(480, [
 			tempoTrack(),
 			eventsTrack(),
@@ -862,7 +858,7 @@ describe('normalizedVocalTracks', () => {
 				],
 				notes: [
 					{ tick: 480, pitch: 60, length: 240 },
-					{ tick: 720, pitch: 62, length: 240 },  // pitch slide target → skipped
+					{ tick: 720, pitch: 62, length: 240 },  // pitch slide target
 					{ tick: 960, pitch: 64, length: 240 },
 				],
 				phrases: [{ tick: 480, length: 720 }],
@@ -870,10 +866,9 @@ describe('normalizedVocalTracks', () => {
 		])
 
 		const result = parseChartFile(midi, 'mid')
-		const notes = result.vocalTracks.parts.vocals.notePhrases[0].notes
-		expect(notes).toHaveLength(2)  // note at 720 skipped
-		expect(notes[0].tick).toBe(480)
-		expect(notes[1].tick).toBe(960)
+		const phrase = result.vocalTracks.parts.vocals.notePhrases[0]
+		expect(phrase.notes.map(n => [n.tick, n.pitchSlide])).toEqual([[480, undefined], [720, true], [960, undefined]])
+		expect(phrase.lyrics.map(l => l.text)).toEqual(['oh', 'slide+', 'yeah'])
 	})
 
 	it('keeps phrases without notes (lyrics stay in their phrase)', () => {
@@ -1084,17 +1079,16 @@ describe('normalizedVocalTracks', () => {
 		expect(phrase.lyrics[1].text).toBe('bile')
 	})
 
-	it('skips percussion notes at exact phrase start tick (MIDI event ordering)', () => {
-		// Real case: "500 Miles to Memphis" has percussion note 96 at same tick as phrase start.
-		// In MIDI, noteOn for 96 arrives before noteOn for 105 (phrase marker) at same tick.
-		// YARG's normalizer doesn't include this note in the phrase.
+	it('keeps a percussion note on the first tick of a phrase', () => {
+		// Real case: "500 Miles to Memphis" has percussion note 96 at same tick as phrase start, and its noteOn before
+		// the phrase's. YARG.Core's vocals loader takes every note from the phrase's start tick (MoonSongLoader.Vocals).
 		const midi = buildMidi(480, [
 			tempoTrack(),
 			eventsTrack(),
 			vocalTrack('PART VOCALS', {
 				notes: [
-					{ tick: 480, pitch: 96, length: 60 },   // percussion at phrase start — skipped
-					{ tick: 600, pitch: 96, length: 60 },   // percussion after start — kept
+					{ tick: 480, pitch: 96, length: 60 },
+					{ tick: 600, pitch: 96, length: 60 },
 				],
 				phrases: [{ tick: 480, length: 480 }],
 			}),
@@ -1102,8 +1096,7 @@ describe('normalizedVocalTracks', () => {
 
 		const result = parseChartFile(midi, 'mid')
 		const notes = result.vocalTracks.parts.vocals.notePhrases[0].notes
-		expect(notes).toHaveLength(1)
-		expect(notes[0].tick).toBe(600)
+		expect(notes.map(n => n.tick)).toEqual([480, 600])
 	})
 
 	it('pitch slide across phrase boundary via previousParentLyric', () => {
@@ -1120,7 +1113,7 @@ describe('normalizedVocalTracks', () => {
 				],
 				notes: [
 					{ tick: 480, pitch: 60, length: 240 },   // phrase 1
-					{ tick: 1440, pitch: 72, length: 120 },  // phrase 2 — pitch slide, skipped
+					{ tick: 1440, pitch: 72, length: 120 },  // phrase 2 — pitch slide
 					{ tick: 1920, pitch: 64, length: 240 },  // phrase 2 — kept
 				],
 				phrases: [
@@ -1133,11 +1126,8 @@ describe('normalizedVocalTracks', () => {
 		const result = parseChartFile(midi, 'mid')
 		const phrases = result.vocalTracks.parts.vocals.notePhrases
 		expect(phrases).toHaveLength(2)
-		// Phrase 2: "+" is filtered → pitch slide note at 1440 is NOT skipped
-		// (ensures round-trip consistency — "+" won't exist on re-parse either)
-		expect(phrases[1].notes).toHaveLength(2)
-		expect(phrases[1].notes[0].tick).toBe(1440)
-		expect(phrases[1].notes[1].tick).toBe(1920)
+		// Phrase 2 keeps the pitch slide note at 1440, marked as a slide.
+		expect(phrases[1].notes.map(n => [n.tick, n.pitchSlide])).toEqual([[1440, true], [1920, undefined]])
 	})
 
 	it('lyrics stay in their phrase even when phrase has no notes', () => {
