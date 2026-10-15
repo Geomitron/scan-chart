@@ -5,6 +5,8 @@ import { contentNames, hasContentExtension } from './assets/scan-media'
 import { keyList, standardTagOrder } from './ini/ini-checks'
 import { asUtf8Ini, rewriteSongIni } from './ini/ini-edit'
 import { IniTokens, parseIniTokens } from './ini/parse-ini'
+import { fixEmptyPhrases, fixEmptyTracks } from './fix-chart'
+import { FixRecord, FixReport, hashChanges, hashNames } from './fix-report'
 import type { Issue, IssueCode, MetadataFinding } from './issues'
 import { scanSong } from './scan-song-folder'
 import { getBasename, hasCrowdOrPreviewName } from './shared/file-names'
@@ -35,7 +37,13 @@ export const issueFixes: { readonly [code in IssueCode]?: 'keepsHashes' | 'chang
 	redundantDrumType: 'keepsHashes',
 	missingSongLength: 'keepsHashes',
 	songLengthMismatch: 'keepsHashes',
+	emptyTrack: 'keepsHashes',
+	emptyStarPower: 'keepsHashes',
+	emptySoloSection: 'keepsHashes',
+	emptyFlexLane: 'keepsHashes',
 }
+
+export type { FixReport } from './fix-report'
 
 /** What `fixIssues` fixes, and how. */
 export interface FixOptions {
@@ -52,31 +60,6 @@ export interface FixOptions {
 	readonly resizeImage?: (image: Uint8Array, size: number) => Promise<Uint8Array>
 }
 
-/** What `fixIssues` did. The hashes are the canonical ones, keyed as `canonical:guitar:expert` and `canonical:song`. */
-export interface FixReport {
-	/** Each fix made: the code of the issue it fixes, the file it changes, and what it does. */
-	readonly fixed: readonly { readonly code: IssueCode; readonly file: string; readonly description: string }[]
-	/** Each issue found that wasn't fixed, and why. */
-	readonly skipped: readonly { readonly code: IssueCode; readonly file: string | null; readonly reason: string }[]
-	/** Files renamed. Writing the song back to its folder, remove each `from` file. */
-	readonly renamed: readonly { readonly from: string; readonly to: string }[]
-	/** Files removed. */
-	readonly removed: readonly string[]
-	/** Each hash the fixes changed, with its value before and after, or `null` where the song had or has no such hash. */
-	readonly hashes: readonly { readonly key: string; readonly before: string | null; readonly after: string | null }[]
-}
-
-type Fixed = FixReport['fixed'][number]
-type Skipped = FixReport['skipped'][number]
-
-/** A report as the fixes add to it. */
-interface FixRecord {
-	readonly fixed: Fixed[]
-	readonly renamed: { from: string; to: string }[]
-	readonly removed: string[]
-	skip(code: IssueCode, file: string | null, reason: string): void
-}
-
 /**
  * Fixes the song's issues that `issueFixes` lists, found by scanning it, and returns the fixed song with a report,
  * leaving `song` as it was. A fix is made only where its issue is reported, and not where song.ini's `ignored_issues`
@@ -89,7 +72,7 @@ export async function fixIssues(song: SongDocument, options: FixOptions = {}): P
 		mediaIssues: asked.some(code => mediaCodes.includes(code)),
 		albumArtSizes: options.albumArtSizes,
 	})
-	const skipped: Skipped[] = []
+	const skipped: FixReport['skipped'][number][] = []
 	const record: FixRecord = {
 		fixed: [],
 		renamed: [],
@@ -110,7 +93,8 @@ export async function fixIssues(song: SongDocument, options: FixOptions = {}): P
 	})
 
 	const songLength = issues.some(issue => issue.code === 'missingSongLength' || issue.code === 'songLengthMismatch') ? await longestAudio(song.files) : null
-	const fixed = await fixFiles(fixSongIni(song, issues, iniFindings, songLength, options, record), issues, options, record)
+	const charted = fixEmptyTracks(fixEmptyPhrases(song, issues, record), issues, record)
+	const fixed = await fixFiles(fixSongIni(charted, issues, iniFindings, songLength, options, record), issues, options, record)
 	return {
 		song: fixed,
 		report: { fixed: record.fixed, skipped, renamed: record.renamed, removed: record.removed, hashes: hashChanges(songHashes(song), songHashes(fixed)) },
@@ -134,22 +118,6 @@ async function longestAudio(files: readonly SongFile[]): Promise<{ ms: number } 
 		longest = Math.max(longest, info.durationMs)
 	}
 	return { ms: Math.round(longest) }
-}
-
-/** The hashes that differ between two songs' `songHashes`. */
-function hashChanges(before: ReadonlyMap<string, string> | null, after: ReadonlyMap<string, string> | null): FixReport['hashes'] {
-	const keys = [...new Set([...before?.keys() ?? [], ...after?.keys() ?? []])].sort()
-	return keys.flatMap(key => {
-		const [was, is] = [before?.get(key) ?? null, after?.get(key) ?? null]
-		return was === is ? [] : [{ key, before: was, after: is }]
-	})
-}
-
-/** Hashes in a message: "the SongHash", "a TrackHash", "the SongHash and 2 TrackHashes". */
-function hashNames(changes: FixReport['hashes']): string {
-	const tracks = changes.filter(change => change.key !== 'canonical:song').length
-	const names = [...changes.some(change => change.key === 'canonical:song') ? ['the SongHash'] : [], ...tracks === 0 ? [] : [tracks === 1 ? 'a TrackHash' : `${tracks} TrackHashes`]]
-	return names.join(' and ')
 }
 
 /** One change to song.ini, which fixes one issue for one tag, or lays out or orders the file. */

@@ -276,3 +276,65 @@ describe('fixIssues: files', () => {
 		expect(wrong.report.skipped).toEqual([{ code: 'albumArtSize', file: 'album.jpg', reason: 'resizeImage didn\'t return a 512x512 PNG or JPEG image.' }])
 	})
 })
+
+describe('fixIssues: empty tracks and phrases', () => {
+	const ini = ['[song]', 'name = Song']
+	const chartText = (result: Awaited<ReturnType<typeof fix>>) => decode((result.song.chart as { tokens: { bytes: Uint8Array } }).tokens.bytes)
+	const expert = (...lines: string[]) => ['[ExpertSingle]', '{', '  768 = N 0 0', '  960 = N 1 0', ...lines.map(line => `  ${line}`), '}']
+
+	it('removes .chart sections with no notes, keeping the hashes', async () => {
+		const result = await fix(folder(ini, chartFile([...expert(), '[HardSingle]', '{', '}', '[EasyDrums]', '{', '  0 = S 2 192', '}'])), { codes: ['emptyTrack'] })
+		expect(chartText(result)).not.toMatch(/HardSingle|EasyDrums/)
+		expect(chartText(result)).toMatch(/\[ExpertSingle\]\r\n\{\r\n {2}768 = N 0 0\r\n {2}960 = N 1 0\r\n\}\r\n$/)
+		expect(result.report.fixed.map(entry => entry.description)).toEqual(['Removed the [HardSingle] section, which has no notes.', 'Removed the [EasyDrums] section, which has no notes.'])
+		expect(result.codes).not.toContain('emptyTrack')
+		expectHashesKept(result)
+	})
+
+	it('keeps an empty section whose drum markers decide the drum type', async () => {
+		const result = await fix(folder(ini, chartFile([...expert(), '[ExpertDrums]', '{', '  768 = N 2 0', '}', '[EasyDrums]', '{', '  0 = N 66 0', '}'])), { codes: ['emptyTrack'] })
+		expect(chartText(result)).toContain('[EasyDrums]')
+		expect(result.report.skipped).toEqual([{ code: 'emptyTrack', file: 'notes.chart', reason: 'Removing the [EasyDrums] section would change the drum type.' }])
+		expectHashesKept(result)
+	})
+
+	it('removes .mid tracks with no notes, keeping the hashes', async () => {
+		const result = await fix(folder(ini, midi({ 'PART GUITAR': [{ tick: 1920, noteNumber: 96 }], 'PART BASS': [], 'PART KEYS': [{ tick: 0, noteNumber: 116, length: 480 }] }), 'notes.mid'),
+			{ codes: ['emptyTrack'] })
+		expect(result.report.fixed.map(entry => entry.description)).toEqual(['Removed the "PART BASS" track, which has no notes.', 'Removed the "PART KEYS" track, which has no notes.'])
+		const chart = result.song.chart as { tokens: { header: { header: { numTracks: number } } } }
+		expect(chart.tokens.header.header.numTracks).toBe(2)
+		expect(result.codes).not.toContain('emptyTrack')
+		expectHashesKept(result)
+	})
+
+	it('removes .chart star power, solo and flex lane phrases with no notes, keeping the hashes', async () => {
+		const result = await fix(folder(ini, chartFile(expert('768 = S 2 100', '1536 = S 2 192', '1536 = E solo', '1700 = E soloend', '1800 = S 65 100'))))
+		expect(chartText(result)).toContain('768 = S 2 100')
+		expect(chartText(result)).not.toMatch(/1536 = S 2|E solo|1800 = S 65/)
+		expect(result.report.fixed.filter(entry => entry.code.startsWith('empty')).map(entry => entry.description)).toEqual([
+			'Removed the expert guitar star power phrase with no notes at tick 1536.',
+			'Removed the expert guitar solo phrase with no notes at tick 1536.',
+			'Removed the expert guitar flex lane phrase with no notes at tick 1800.',
+		])
+		for (const code of ['emptyStarPower', 'emptySoloSection', 'emptyFlexLane']) expect(result.codes).not.toContain(code)
+		expectHashesKept(result)
+	})
+
+	it('keeps a flex lane that ends on a note, which the hashes count as in it', async () => {
+		const result = await fix(folder(ini, chartFile(expert('800 = S 65 160'))), { codes: ['emptyFlexLane'] })
+		expect(chartText(result)).toContain('800 = S 65 160')
+		expect(result.report.skipped).toEqual([{ code: 'emptyFlexLane', file: 'notes.chart',
+			reason: 'Removing the expert guitar flex lane phrase at tick 800 would change the SongHash and a TrackHash.' }])
+		expectHashesKept(result)
+	})
+
+	it('removes a .mid phrase only when no difficulty has notes in it', async () => {
+		const notes = [{ tick: 0, noteNumber: 96 }, { tick: 960, noteNumber: 96 }, { tick: 0, noteNumber: 84 }, { tick: 1920, noteNumber: 84 }]
+		const result = await fix(folder(ini, midi({ 'PART GUITAR': [...notes, { tick: 900, noteNumber: 116, length: 120 }, { tick: 2400, noteNumber: 116, length: 120 }] }), 'notes.mid'),
+			{ codes: ['emptyStarPower'] })
+		expect(result.report.fixed.map(entry => entry.description)).toEqual(['Removed the guitar star power phrase with no notes at tick 2400.'])
+		expect(result.report.skipped).toEqual([{ code: 'emptyStarPower', file: 'notes.mid', reason: 'The guitar star power phrase at tick 900 has notes on another difficulty.' }])
+		expectHashesKept(result)
+	})
+})

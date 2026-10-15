@@ -183,6 +183,30 @@ export function addMidiTrackChunks(tokens: MidiTokens, trackNames: readonly stri
 	return readMidiTokens(data, 'skip')
 }
 
+/** The tokens of `tokens`' file without the track chunks at `chunkIndexes`, and the header's track count lowered to match. */
+export function removeMidiTrackChunks(tokens: MidiTokens, chunkIndexes: readonly number[]): MidiTokens {
+	const removed = chunkIndexes.map(index => tokens.chunks[index])
+	if (removed.some(chunk => chunk?.kind !== 'track')) throw new RangeError('Only MIDI track chunks can be removed')
+	const parts: Uint8Array[] = []
+	let copied = 0
+	for (const chunk of [...removed].sort((a, b) => a.start - b.start)) {
+		parts.push(tokens.data.subarray(copied, chunk.start))
+		copied = chunk.end
+	}
+	parts.push(tokens.data.subarray(copied))
+	const data = new Uint8Array(parts.reduce((total, part) => total + part.length, 0))
+	let at = 0
+	for (const part of parts) {
+		data.set(part, at)
+		at += part.length
+	}
+	// The track count follows the format in the header's body, as a big-endian 16-bit number.
+	const numTracks = tokens.header.header.numTracks - removed.length
+	data[tokens.header.bodyStart + 2] = numTracks >>> 8
+	data[tokens.header.bodyStart + 3] = numTracks & 0xff
+	return readMidiTokens(data, 'skip')
+}
+
 /** A chunk moved `shift` bytes later in the file, with its events' offsets moved too. */
 function shiftChunk(chunk: MidiChunk, shift: number): MidiChunk {
 	const moved = { ...chunk, start: chunk.start + shift, lengthStart: chunk.lengthStart + shift, bodyStart: chunk.bodyStart + shift, end: chunk.end + shift }
