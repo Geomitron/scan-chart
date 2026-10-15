@@ -127,15 +127,20 @@ export interface RawChartData {
 		textEvents: { tick: number; text: string }[]
 		versusPhrases: { tick: number; length: number; isPlayer2: boolean }[]
 		animations: { tick: number; length: number; noteNumber: number }[]
+		/**
+		 * The `.mid` track's events kept verbatim for writers, each with its tick as `deltaTime`: those no reader rule
+		 * reads, and on a drum track each tom marker that covers no note, which changes no note but which Clone Hero 1.1
+		 * reads as pro drums.
+		 */
 		unrecognizedMidiEvents: MidiEvent[]
-		/** On a `.mid` drum track, its difficulty's mix events: see `DrumMixEvent`. */
+		/** On a drum track, its difficulty's disco flip mix events: see `DrumMixEvent`. */
 		drumMixes?: DrumMixEvent[]
 	}[]
 }
 
 /**
- * A `.mid` `[mix <difficulty> drums<configuration><flag>]` event that sets a disco flip, as written. The notes' disco
- * flags hold what it means; the drum stem configuration, which no game reads, is kept so that the `.mid` writer can
+ * A `mix <difficulty> drums<configuration><flag>` event that sets a disco flip, `[mix …]` in a `.mid` file. The notes'
+ * disco flags hold what it means; the drum stem configuration, which no game reads, is kept so that the writers can
  * write it back.
  */
 export interface DrumMixEvent {
