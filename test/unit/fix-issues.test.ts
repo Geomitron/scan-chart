@@ -102,6 +102,17 @@ describe('fixIssues: song.ini', () => {
 		expectHashesKept(result)
 	})
 
+	it('fixes what a fix leaves changing nothing, such as five_lane_drums = False once pro_drums is gone', async () => {
+		const drums = chartFile(['[ExpertDrums]', '{', '  768 = N 2 0', '  768 = N 66 0', '}'])
+		const result = await fix(folder(['[song]', 'name = Song', 'five_lane_drums = False', 'pro_drums = True'], drums), { codes: ['redundantDrumType', 'defaultIniValue'] })
+		expect(result.ini).toBe('[song]\r\nname = Song\r\n')
+		expect(result.report.fixed.map(entry => entry.description)).toEqual([
+			'Removed "pro_drums", which games read the drums the same without.',
+			'Removed "five_lane_drums = False", which changed nothing.',
+		])
+		expectHashesKept(result)
+	})
+
 	it('renames frets and track to charter and album_track, in their place in the standard order', async () => {
 		const result = await fix(folder(['[song]', 'name = Song', 'frets = Someone', 'track = 3', 'delay = 90']), { codes: ['deprecatedIniTag'] })
 		expect(result.ini).toBe('[song]\r\nname = Song\r\ncharter = Someone\r\nalbum_track = 3\r\ndelay = 90\r\n')

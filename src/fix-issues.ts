@@ -8,7 +8,7 @@ import { IniTokens, parseIniTokens } from './ini/parse-ini'
 import { fixEmptyPhrases, fixEmptyTracks, fixHopoTags, fixMultiplierNote, fixSustains } from './fix-chart'
 import { FixRecord, FixReport, hashChanges, hashNames } from './fix-report'
 import type { Issue, IssueCode, MetadataFinding } from './issues'
-import { scanSong } from './scan-song-folder'
+import { scanSong, songIniFindings } from './scan-song-folder'
 import { getBasename, hasCrowdOrPreviewName } from './shared/file-names'
 import { trimDotnet } from './shared/text'
 import { songContext } from './song-context'
@@ -98,14 +98,27 @@ export async function fixIssues(song: SongDocument, options: FixOptions = {}): P
 		return fix === 'keepsHashes' || (fix === 'changesHashes' && options.changeHashes)
 	})
 
+	const songSection = songContext(song).ini.songSection
+	const ignored = songSection === null ? new Set<IssueCode>() : ignoredIssueCodes(songSection).codes
+	const fixes = (code: IssueCode) => asked.includes(code) && !ignored.has(code)
+		&& (issueFixes[code] === 'keepsHashes' || (issueFixes[code] === 'changesHashes' && options.changeHashes === true))
 	const songLength = issues.some(issue => issue.code === 'missingSongLength' || issue.code === 'songLengthMismatch') ? await longestAudio(song.files) : null
 	// A sustain the gap fix leaves short is removed when the short sustain fix is on.
-	const songSection = songContext(song).ini.songSection
-	const removeShort = asked.includes('babySustain') && options.changeHashes === true && !(songSection !== null && ignoredIssueCodes(songSection).codes.has('babySustain'))
+	const removeShort = fixes('babySustain')
 	const rewritten = fixMultiplierNote(fixHopoTags(song, issues, iniFindings, record), issues, iniFindings, record)
 	const sustained = fixSustains(rewritten, issues, { gapMs: options.sustainGapMs ?? 60, minMs: options.minSustainMs ?? 200, removeShort }, record)
 	const charted = fixEmptyTracks(fixEmptyPhrases(sustained, issues, record), issues, record)
-	const fixed = await fixFiles(fixSongIni(charted, issues, iniFindings, songLength, options, record), issues, options, record)
+	const metadataCodes = new Set(issues.filter(issue => issue.scope === 'metadata').map(issue => issue.code))
+	let fixedIni = fixSongIni(charted, metadataCodes, iniFindings, songLength, options, record)
+	// A song.ini fix can leave another line changing nothing, such as five_lane_drums = False once pro_drums is gone,
+	// so the song.ini checks run again on the fixed song, twice at most.
+	for (let round = 0; round < 2 && fixedIni !== charted; round++) {
+		const findings = songIniFindings(fixedIni, scanned.stats, { styleNotes: true }).filter(finding => fixes(finding.metadataIssue))
+		const again = fixSongIni(fixedIni, new Set(findings.map(finding => finding.metadataIssue)), findings, null, options, record)
+		if (again === fixedIni) break
+		fixedIni = again
+	}
+	const fixed = await fixFiles(fixedIni, issues, options, record)
 	return {
 		song: fixed,
 		report: { fixed: record.fixed, skipped, renamed: record.renamed, removed: record.removed, hashes: hashChanges(songHashes(song), songHashes(fixed)) },
@@ -156,24 +169,23 @@ const iniCodes: readonly IssueCode[] = [
  */
 function fixSongIni(
 	song: SongDocument,
-	issues: readonly Issue[],
+	reported: ReadonlySet<IssueCode>,
 	findings: readonly MetadataFinding[],
 	songLength: { ms: number } | { reason: string } | null,
 	options: FixOptions,
 	record: FixRecord,
 ): SongDocument {
-	const found = issues.filter(issue => issue.scope === 'metadata' && iniCodes.includes(issue.code))
+	const codes = new Set(iniCodes.filter(code => reported.has(code)))
 	const ini = song.ini
-	if (found.length === 0 || ini === null) return song
+	if (codes.size === 0 || ini === null) return song
 	let tokens: IniTokens
 	try {
 		tokens = asUtf8Ini(ini.tokens)
 	} catch {
-		for (const issue of found) record.skip(issue.code, ini.fileName, 'song.ini can\'t be decoded, so it can\'t be rewritten.')
+		for (const code of codes) record.skip(code, ini.fileName, 'song.ini can\'t be decoded, so it can\'t be rewritten.')
 		return song
 	}
 	const songSection = parseIniTokens(tokens).iniObject.song ?? {}
-	const codes = new Set(found.map(issue => issue.code))
 	const keysOf = (code: IssueCode) => codes.has(code) ? findings.filter(finding => finding.metadataIssue === code).flatMap(finding => finding.keys ?? []) : []
 
 	const fixes: IniFix[] = []
@@ -222,7 +234,7 @@ function fixSongIni(
 				: `Fixing "${fix.subject}" changes ${hashNames(changes)}: fix it with changeHashes.`)
 			return false
 		})
-		fixed = apply(chosen)
+		fixed = chosen.length === 0 ? song : apply(chosen)
 		const changes = hashChanges(before, songHashes(fixed))
 		if (changes.length > 0 && !options.changeHashes) {
 			// Fixes that each keep the hashes change one together: only the layout and the order are left.
