@@ -1,6 +1,6 @@
 import { chartEventSection, ChartFileTokens, chartSectionLines, chartSectionTrack, ChartSectionToken } from './chart/chart-file-parser'
 import { ChartEventSection, ChartLineSpelling, chartSectionSpellings, chartSongSpellings } from './chart/chart-line-spelling'
-import { midiTrackInstrument } from './chart/midi-file-parser'
+import { midiTrackInstrument, repeatedMidiInstruments } from './chart/midi-file-parser'
 import { midiNormalizations } from './chart/midi-normalize'
 import type { MidiTokens } from './chart/midi-tokens'
 import type { ChartSource } from './chart/parse-chart-file'
@@ -17,6 +17,7 @@ export type SpellingIssueType =
 	| 'unsortedChartLines'
 	| 'quotedChartTrackEvent'
 	| 'multipleMidiTrackNames'
+	| 'multipleMidiTracks'
 	| 'overlappingMidiNotes'
 	| 'duplicateIniKey'
 	| 'duplicateChartLine'
@@ -32,6 +33,7 @@ export const spellingIssueMessages: { readonly [code in SpellingIssueType]: stri
 	unsortedChartLines: 'The lines of this section aren\'t in tick order, so Clone Hero can\'t load the chart.',
 	quotedChartTrackEvent: 'This section has a track event in quotes, such as E "solo", which Clone Hero doesn\'t recognize.',
 	multipleMidiTrackNames: 'This track has more than one name at tick 0. Clone Hero uses the last; other programs may use the first.',
+	multipleMidiTracks: 'This chart has more than one track for this instrument. Clone Hero reads only the first; other programs may read another.',
 	overlappingMidiNotes: 'A note on this track starts again on its pitch before it ends. Clone Hero ends the latest one first; other programs may end the earliest, so sustains can differ.',
 	duplicateIniKey: '"song.ini" sets a key more than once. Clone Hero uses the last value; other programs may use the first.',
 	duplicateChartLine: 'This section has the same line more than once. Clone Hero reads it once.',
@@ -84,6 +86,7 @@ export function chartSpellingIssues(source: ChartSource, styleNotes: boolean): I
 	for (const { kind, section } of midiNormalizations(source.tokens)) {
 		if (kind === 'trackNames') add('multipleMidiTrackNames', { instrument: midiTrackInstrument(section), difficulty: null })
 	}
+	for (const instrument of repeatedMidiInstruments(source.tokens)) add('multipleMidiTracks', { instrument, difficulty: null })
 	for (const trackName of tracksWithOverlappingNotes(source.tokens)) {
 		add('overlappingMidiNotes', { instrument: midiTrackInstrument(trackName), difficulty: null })
 	}

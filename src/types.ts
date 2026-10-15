@@ -325,7 +325,6 @@ export type FolderIssueType =
 	| 'badChart' // This chart's .chart/.mid file couldn't be parsed
 	| 'badChartIdentity' // The canonical identity profile rejected this chart, so it has no TrackHashes or SongHash
 	| 'multipleChart' // This chart has multiple .chart/.mid files
-	| 'repeatedMidiTrack' // This chart's .mid file has more than one track for an instrument, of which Clone Hero reads only the first
 	| 'badVideo' // This chart has a video background that will not work on Linux
 	| 'multipleVideo' // This chart has multiple video background files
 	| 'unrecognizedFile' // No game reads this file

@@ -1,4 +1,3 @@
-import { type MidiEvent, writeMidi } from '@geomitron/midi-file'
 import { describe, expect, it } from 'vitest'
 
 import { parseChartAndIni } from 'src/chart/parse-chart-and-ini'
@@ -74,26 +73,6 @@ describe('scanning a song folder', () => {
 		const unhashable = encode(['[Song]', '{', '  Resolution = 192', '}', '[SyncTrack]', '{', '  0 = B 120000', '}',
 			'[ExpertSingle]', '{', '  0 = N 0 0', '  9007199254740993 = N 1 0', '}'].join('\r\n') + '\r\n')
 		expect(await fileOf([{ fileName: 'notes.chart', data: unhashable }], 'badChartIdentity')).toEqual(['notes.chart'])
-	})
-
-	it('reports a .mid file with more than one track for an instrument, naming the chart file', async () => {
-		const track = (name: string, noteNumber: number) => [
-			{ deltaTime: 0, type: 'trackName', text: name },
-			{ deltaTime: 0, type: 'noteOn', channel: 0, noteNumber, velocity: 100 },
-			{ deltaTime: 10, type: 'noteOff', channel: 0, noteNumber, velocity: 0 },
-			{ deltaTime: 0, type: 'endOfTrack' },
-		]
-		const midi = new Uint8Array(writeMidi({
-			header: { format: 1, numTracks: 5, ticksPerBeat: 480 },
-			tracks: [[{ deltaTime: 0, type: 'endOfTrack' }], track('PART GUITAR', 96), track('PART DRUMS', 97), track('t1 gems', 97), track('PART BASS', 96)] as MidiEvent[][],
-		}))
-		const scanned = await scanSongFolder([{ fileName: 'notes.mid', data: midi }])
-		expect(scanned.issues.filter(issue => issue.code === 'repeatedMidiTrack').map(({ scope, severity, file, message }) => ({ scope, severity, file, message }))).toEqual([{
-			scope: 'folder',
-			severity: 'warning',
-			file: 'notes.mid',
-			message: 'The chart has more than one track for guitar: "PART GUITAR", "t1 gems". Clone Hero reads only the first; YARG may read another.',
-		}])
 	})
 
 	it('computes nothing that isn\'t asked for, and reads large files only to hash them', async () => {
