@@ -1,3 +1,4 @@
+import type { Difficulty } from '../types'
 import { bomLength, codeUnitBytes, encodeChartText } from './chart-encoding'
 import { chartTextRoundTrips, spliceChartText } from './chart-edit'
 import {
@@ -11,13 +12,14 @@ import {
 	tokenizeChartFile,
 } from './chart-file-parser'
 import { ChartLineSpelling, chartSectionSpellings, chartSongSpellings } from './chart-line-spelling'
+import { chartSectionNoflips, mixDifficulties } from './disco-flip'
 
 /**
  * A kind of nonstandard `.chart` spelling. The standard is what the `.chart` encoder writes and nearly every library
  * file already uses: CRLF line endings, two-space indentation, no blank lines in a section, lines in tick order, no
  * repeated lines or sections, one tempo marker and one time signature at a tick, bare text events in instrument
  * sections, every line in its standard spelling, and `[Song]` and `[SyncTrack]` as the first two sections, with a
- * `Resolution`.
+ * `Resolution`. A drums section also turns a disco flip off before a `dnoflip` mix event (`noflipDuringFlip`).
  */
 export type ChartNormalizationKind =
 	| 'lineEndings'
@@ -28,6 +30,7 @@ export type ChartNormalizationKind =
 	| 'duplicateLines'
 	| 'repeatedMarkers'
 	| 'quotedTrackEvents'
+	| 'noflipDuringFlip'
 	| 'repeatedSections'
 	| 'sectionOrder'
 
@@ -83,7 +86,11 @@ export function chartNormalizations(tokens: ChartFileTokens): ChartNormalization
 		add('order', name, current => sectionSplices(current, name, lines => order(lines, name)))
 		add('duplicateLines', name, current => sectionSplices(current, name, withoutDuplicates))
 		if (name === 'SyncTrack') add('repeatedMarkers', name, current => sectionSplices(current, name, withoutEarlierMarkers))
-		if (chartSectionTrack(name) !== null) add('quotedTrackEvents', name, current => sectionSplices(current, name, unquoted))
+		const track = chartSectionTrack(name)
+		if (track !== null) add('quotedTrackEvents', name, current => sectionSplices(current, name, unquoted))
+		if (track?.instrument === 'drums') {
+			add('noflipDuringFlip', name, current => sectionSplices(current, name, lines => withFlipOffs(lines, track.difficulty)))
+		}
 	}
 	// Last, because removing and moving sections moves the others.
 	for (const [name, copies] of copiesOfName) {
@@ -312,6 +319,23 @@ function withoutEarlierMarkers(lines: string[]): string[] {
 		const marker = markerAt(line)
 		return marker === null || lastIndex.get(marker) === index
 	})
+}
+
+/**
+ * An event turning the flip off before each `dnoflip` mix event that comes while a `d` flip is on, where a tick is free,
+ * as the writers write one (`noflipsDuringFlips`). It goes before the first line of a later tick.
+ */
+function withFlipOffs(lines: string[], difficulty: Difficulty): string[] {
+	if (!lines.some(line => line.includes('dnoflip'))) return lines
+	const written = [...lines]
+	for (const { offTick, configuration } of chartSectionNoflips(lines, difficulty)) {
+		if (offTick === null) continue
+		const index = written.findIndex(line => Number(/^\s*(\d+)/.exec(line)?.[1] ?? -1) > offTick)
+		const at = index === -1 ? written.length : index
+		const ending = lineEnding(written[Math.max(at - 1, 0)])
+		written.splice(at, 0, `  ${offTick} = E mix ${mixDifficulties.indexOf(difficulty)} drums${configuration}${ending}`)
+	}
+	return written
 }
 
 /** A text event in an instrument section written bare, `E solo`, rather than quoted, `E "solo"`. */

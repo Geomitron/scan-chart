@@ -89,6 +89,22 @@ describe('convertChart', () => {
 		expect(chartText.split('\r\n').filter(line => line.includes('mix '))).toEqual(['  0 = E mix 3 drums2', '  480 = E mix 3 drums2d', '  960 = E mix 3 drums2'])
 	})
 
+	it('turns a d flip off before a dnoflip both ways, keeping every TrackHash', () => {
+		const drums = ['[ExpertDrums]', '{', '  480 = E mix 3 drums1d', '  480 = N 1 0', '  600 = N 2 0', '  960 = E mix 3 drums0dnoflip', '  960 = N 1 0', '}']
+		const { song: asMidi, report } = convertChart(chartSong(drums), 'mid')
+		expect(report.tracks.every(track => track.kept)).toBe(true)
+		const midiFile = fileBytes(documentFiles(asMidi).find(file => file.fileName === 'notes.mid')!)
+		const midiMixes = parseMidi(midiFile).tracks.flatMap(track => {
+			let tick = 0
+			return track.flatMap(event => (tick += event.deltaTime, event.type === 'text' && event.text.startsWith('[mix') ? [[tick, event.text]] : []))
+		})
+		expect(midiMixes).toEqual([[480, '[mix 3 drums1d]'], [959, '[mix 3 drums1]'], [960, '[mix 3 drums0dnoflip]']])
+		const { song: asChart, report: back } = convertChart(asMidi, 'chart')
+		expect(back.tracks.every(track => track.kept)).toBe(true)
+		const chartText = decode(fileBytes(documentFiles(asChart).find(file => file.fileName === 'notes.chart')!))
+		expect(chartText.split('\r\n').filter(line => line.includes('mix '))).toEqual(['  480 = E mix 3 drums1d', '  959 = E mix 3 drums1', '  960 = E mix 3 drums0dnoflip'])
+	})
+
 	it('gives a .chart song without song.ini one, so its [Song] metadata and offset read the same from a .mid', () => {
 		const song = chartSong(expert(['0 = N 0 0']), null, ['Name = "From Song"', 'Offset = 0.25'])
 		const { song: converted, report } = convertChart(song, 'mid')

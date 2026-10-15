@@ -5,6 +5,7 @@
  * re-implemented them independently.
  */
 
+import { noflipsDuringFlips } from './disco-flip'
 import type { ParsedChart } from './parse-chart-and-ini'
 import type { DrumMixEvent } from './raw-types'
 import { noteFlags, noteTypes } from './types'
@@ -51,8 +52,9 @@ export function unwrapEventBrackets(text: string): string {
 /**
  * The disco flip mix events (`mix <difficulty> drums<configuration><flag>`) both writers write for a drum track: each
  * one it was read with, at its tick, with its configuration and flag, and one at each tick whose red and yellow notes
- * need another flip than the last event gives, which replaces an event read at that tick. An added event has the drum
- * stem configuration of the last event before it, or else of the first one read, or 0.
+ * need another flip than the last event gives, which replaces an event read at that tick. A `dnoflip` that comes while
+ * a `d` flip is on gets an event turning the flip off before it, where a tick is free (`noflipsDuringFlips`). An added
+ * event has the drum stem configuration of the last event before it, or else of the first one read, or 0.
  */
 export function drumMixEvents(td: ParsedChart['trackData'][number]): DrumMixEvent[] {
 	const read = td.drumMixes ?? []
@@ -80,5 +82,11 @@ export function drumMixEvents(td: ParsedChart['trackData'][number]): DrumMixEven
 		if (groupFlag !== flag) write({ tick, configuration, flag: groupFlag })
 	}
 	while (readIndex < read.length) write(read[readIndex++])
+	// A dnoflip while a d flip is on is invalid: the flip is turned off first.
+	const flippedTicks = td.noteEventGroups.filter(group => group.some(note => note.type === noteTypes.redDrum || note.type === noteTypes.yellowDrum))
+		.map(group => group[0].tick)
+	for (const { offTick, configuration } of noflipsDuringFlips(written, flippedTicks)) {
+		if (offTick !== null) written.splice(written.findIndex(event => event.tick > offTick), 0, { tick: offTick, configuration, flag: '' })
+	}
 	return written
 }
