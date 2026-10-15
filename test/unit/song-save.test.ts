@@ -204,6 +204,22 @@ describe('saving (E7)', () => {
 		expect(songHashes(parseSongFiles(savedMid.files))).toEqual(songHashes(editedMid))
 	})
 
+	it('removes .chart modifiers with no note to apply to, keeping every canonical hash', () => {
+		const original = song([
+			...header,
+			'[ExpertSingle]', '{', '  0 = N 0 0', '  192 = N 1 0', '  193 = N 5 0', '  384 = N 6 0', '  384 = E solo', '}',
+			'[ExpertDrums]', '{', '  0 = N 2 0', '  0 = N 66 0', '  0 = N 35 0', '  0 = N 36 0', '  192 = N 1 0', '  192 = N 67 0', '}',
+		])
+		const edited = lengthenExpertNote(original)
+		const { files, report } = saveSong(original, edited)
+		expect(report.normalized).toEqual([{ kind: 'modifiersWithoutNotes', section: 'ExpertSingle' }, { kind: 'modifiersWithoutNotes', section: 'ExpertDrums' }])
+		expect(decode(fileBytes(files[0]))).toContain([
+			'[ExpertSingle]', '{', '  0 = N 0 0', '  192 = N 1 96', '  384 = E solo', '}',
+			'[ExpertDrums]', '{', '  0 = N 2 0', '  0 = N 66 0', '  0 = N 35 0', '  192 = N 1 0', '}',
+		].join('\r\n'))
+		expect(songHashes(parseSongFiles(files))).toEqual(songHashes(edited))
+	})
+
 	it('removes a song.ini key a later line of the same key replaces, in any letter case', () => {
 		const ini = { fileName: 'song.ini', data: encode('[song]\r\nname = Old\r\nName = Test\r\nsong_length = 60000\r\n; comment\r\n') }
 		const original = parseSongFiles([{ fileName: 'notes.chart', data: encode([...header, '[ExpertSingle]', '{', '  0 = N 0 0', '  192 = N 1 0', '}'].join('\r\n') + '\r\n') }, ini])

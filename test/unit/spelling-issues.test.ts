@@ -95,6 +95,33 @@ describe('nonstandard spelling issues', () => {
 		])
 	})
 
+	it('report, as a warning, the .chart modifiers with no note at their tick to apply to, for each section', () => {
+		const modifiers = (sections: string[][]) => analyzeChart(resolveChart(parseSongFiles([{ fileName: 'notes.chart', data: encode([
+			'[Song]', '{', '  Resolution = 192', '}', '[SyncTrack]', '{', '  0 = B 120000', '}',
+			...sections.flatMap(([name, ...lines]) => [`[${name}]`, '{', ...lines.map(line => `  ${line}`), '}']), '',
+		].join('\r\n')) }]))).issues.filter(issue => issue.code === 'chartModifierWithoutNote')
+			.map(({ instrument, difficulty, severity, message }) => ({ instrument, difficulty, severity, message }))
+		const games = 'which games ignore. Saving an edit removes'
+		// Forced and tap apply to every note at their tick.
+		expect(modifiers([['ExpertSingle', '768 = N 0 0', '768 = N 5 0', '769 = N 5 0', '960 = N 6 0']])).toEqual([{ instrument: 'guitar', difficulty: 'expert', severity: 'warning',
+			message: `2 lines, such as "769 = N 5 0", are modifiers with no note at their tick to apply to, ${games} them: move them to their notes' ticks first to keep what they meant.` }])
+		// An accent, ghost or cymbal marker applies to its pad's note, and a flam to any drum note.
+		const pro = ['768 = N 2 0', '768 = N 66 0']
+		expect(modifiers([['HardDrums', ...pro, '768 = N 34 0', '960 = N 0 0', '960 = N 109 0', '1152 = N 1 0', '1152 = N 67 0', '1344 = N 109 0']])).toEqual([{
+			instrument: 'drums', difficulty: 'hard', severity: 'warning',
+			message: `3 lines, such as "768 = N 34 0", are modifiers with no note at their tick to apply to, ${games} them: move them to their notes' ticks first to keep what they meant.`,
+		}])
+		expect(modifiers([['ExpertDrums', ...pro], ['HardDrums', '768 = N 1 0', '768 = N 41 0']]).map(issue => issue.message)).toEqual([
+			`The line "768 = N 41 0" is a modifier with no note at its tick to apply to, ${games} it: move it to its note's tick first to keep what it meant.`,
+		])
+		// A cymbal marker without its note still makes the chart pro, unless another one with its note does, and no N 5 decides.
+		expect(modifiers([['ExpertDrums', '768 = N 1 0', '768 = N 66 0']])).toEqual([])
+		expect(modifiers([['ExpertDrums', ...pro, '960 = N 1 0', '960 = N 67 0', '1152 = N 5 0']])).toEqual([])
+		// A section with no notes isn't a track, and is reported as one. One out of tick order is left until saving sorts it.
+		expect(modifiers([['ExpertSingle', '768 = N 0 0'], ['HardSingle', '768 = N 5 0']])).toEqual([])
+		expect(modifiers([['ExpertSingle', '768 = N 0 0', '0 = N 0 0', '769 = N 5 0']])).toEqual([])
+	})
+
 	it('report a song.ini key set twice, in the song.ini Clone Hero reads', async () => {
 		const chart = { fileName: 'notes.chart', data: encode('[Song]\r\n{\r\n  Resolution = 192\r\n}\r\n[ExpertSingle]\r\n{\r\n  0 = N 0 0\r\n}\r\n') }
 		const twice = { fileName: 'song.ini', data: encode('[song]\r\nname = A\r\nName = B\r\n') }
