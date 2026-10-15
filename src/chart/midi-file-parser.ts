@@ -473,8 +473,10 @@ function extractTempos(conductorTrack: MidiEvent[]): { tick: number; beatsPerMin
 			beatsPerMinute: 60000000 / (e as MidiSetTempoEvent).microsecondsPerBeat,
 		})
 	}
+	// A tempo of 0 microseconds per beat is an infinite BPM, which Clone Hero refuses (Song.AddTempo), as a .chart's
+	// tempo of 0 is refused.
 	for (const tempo of tempos) {
-		if (tempo.beatsPerMinute === 0) {
+		if (!Number.isFinite(tempo.beatsPerMinute)) {
 			throw `Invalid .mid file: Tempo at tick ${tempo.tick} was zero.`
 		}
 	}
