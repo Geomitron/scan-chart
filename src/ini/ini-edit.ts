@@ -1,18 +1,20 @@
 import { toLowerInvariant, trimDotnet } from '../shared/text'
+import { defaultMetadata } from './metadata'
 import { IniTokens, tokenizeIni } from './parse-ini'
 
 /**
  * Sets a key of a song.ini's `[song]` section where Clone Hero reads it: the section of that name in any letter case,
  * and the key's last line there. That line keeps how it's written up to its value; a key that isn't there is added
- * after the last key line of the last `[song]` section, with the file's line ending. A `null` value removes every
- * line of the key in `[song]` sections. Returns `null` when the file has no `[song]` section.
+ * with the file's line ending, before the first `[song]` key `goesBefore` accepts, or else after the last key line of
+ * the last `[song]` section. A `null` value removes every line of the key in `[song]` sections. Returns `null` when
+ * the file has no `[song]` section.
  *
  * Only a UTF-8 file can be edited, so every other byte stays as written.
  */
-export function setSongIniValue(tokens: IniTokens, key: string, value: string | null): IniTokens | null {
+export function setSongIniValue(tokens: IniTokens, key: string, value: string | null, goesBefore?: (other: string) => boolean): IniTokens | null {
 	const text = editableText(tokens)
 	if (value !== null) assertIniValue(value)
-	const { lines, lastSongLine, keyLines } = scanSongSections(text, key)
+	const { lines, lastSongLine, keyLines, songKeys } = scanSongSections(text, key)
 	if (lastSongLine === -1) return null
 
 	if (value === null) {
@@ -25,6 +27,9 @@ export function setSongIniValue(tokens: IniTokens, key: string, value: string | 
 		const separator = written.indexOf('=')
 		const spacing = /^[ \t]*/.exec(written.slice(separator + 1))![0]
 		lines[index] = `${written.slice(0, separator + 1)}${spacing}${value}${lineEnd}`
+	} else if (goesBefore !== undefined && songKeys.some(other => goesBefore(other.key))) {
+		const index = songKeys.find(other => goesBefore(other.key))!.index
+		lines.splice(index, 0, `${key} = ${value}${lineEnding(text)}`)
 	} else {
 		const ending = lineEnding(text)
 		const after = lines[lastSongLine]
@@ -55,8 +60,8 @@ export function hasSongIniSection(tokens: IniTokens): boolean {
 }
 
 /**
- * The file's lines, the last line of its last `[song]` section (its header or its last key line), and the lines of
- * `key` in `[song]` sections.
+ * The file's lines, the last line of its last `[song]` section (its header or its last key line), the lines of `key`
+ * in `[song]` sections, and every `[song]` key line with its key.
  */
 function scanSongSections(text: string, key: string | null) {
 	const lines = text.match(/[^\n]*\n|[^\n]+$/g) ?? []
@@ -64,6 +69,7 @@ function scanSongSections(text: string, key: string | null) {
 	let inSong = false
 	let lastSongLine = -1
 	const keyLines: number[] = []
+	const songKeys: { index: number; key: string }[] = []
 	lines.forEach((line, index) => {
 		// As parseIniTokens reads lines: comments, then sections, then keys.
 		const trimmed = trimDotnet(index === 0 ? line.replace(/^\uFEFF/, '') : line)
@@ -73,10 +79,105 @@ function scanSongSections(text: string, key: string | null) {
 			if (inSong) lastSongLine = index
 		} else if (inSong && trimmed.includes('=')) {
 			lastSongLine = index
-			if (wanted !== null && toLowerInvariant(trimDotnet(trimmed.slice(0, trimmed.indexOf('=')))) === wanted) keyLines.push(index)
+			const lineKey = toLowerInvariant(trimDotnet(trimmed.slice(0, trimmed.indexOf('='))))
+			songKeys.push({ index, key: lineKey })
+			if (lineKey === wanted) keyLines.push(index)
 		}
 	})
-	return { lines, lastSongLine, keyLines }
+	return { lines, lastSongLine, keyLines, songKeys }
+}
+
+/** What `rewriteSongIni` changes. */
+export interface SongIniRewrite {
+	/** `[song]` first, comments starting with ";", and the lines games don't read, before it or in other sections, as comments. */
+	readonly layout: boolean
+	/** Puts the `[song]` tags in order, or `null` to keep their order. */
+	readonly order: ((keys: readonly string[]) => string[]) | null
+	/** Keys to remove from `[song]`. */
+	readonly remove: ReadonlySet<string>
+	/** Values to set in `[song]`, which win over `remove`. */
+	readonly set: ReadonlyMap<string, string>
+}
+
+/**
+ * Sets and removes song.ini `[song]` values. With `layout` or `order`, the file is written again: the lines before
+ * `[song]`, then one `[song]` section holding each tag as Clone Hero reads it, `key = value`, after the comments
+ * before it, then the other sections. Without either, only the changed lines change, as `setSongIniValue` edits them.
+ * A new tag goes before the first tag the standard order puts after it. Only a UTF-8 file can be rewritten.
+ */
+export function rewriteSongIni(tokens: IniTokens, rewrite: SongIniRewrite): IniTokens {
+	const text = editableText(tokens)
+	for (const value of rewrite.set.values()) assertIniValue(value)
+	if (!rewrite.layout && rewrite.order === null) {
+		let edited = tokens
+		for (const key of rewrite.remove) if (!rewrite.set.has(key)) edited = setSongIniValue(edited, key, null) ?? edited
+		for (const [key, value] of rewrite.set) edited = setSongIniValue(edited, key, value, other => rank(other) > rank(key)) ?? edited
+		return edited
+	}
+
+	const { layout } = rewrite
+	const asComment = (line: string) => line.startsWith(';') ? line : line.startsWith('#') ? `;${line.slice(1)}` : line.startsWith('//') ? `;${line.slice(2)}` : `; ${line}`
+	const before: string[] = []
+	const others: string[] = []
+	const tags = new Map<string, { value: string; comments: string[] }>()
+	let header: string | null = null
+	let pending: string[] = []
+	let section: 'before' | 'song' | 'other' = 'before'
+	// As parseIniTokens reads lines: comments, then sections, then keys.
+	for (const raw of text.split(/\r?\n/)) {
+		const line = trimDotnet(raw)
+		if (line.startsWith('[') && line.endsWith(']')) {
+			const isSong = toLowerInvariant(line.slice(1, -1)) === 'song'
+			if (isSong) header ??= line
+			else others.push(layout ? asComment(line) : raw)
+			section = isSong ? 'song' : 'other'
+		} else if (section !== 'song') {
+			// Games don't read these lines: with `layout`, they're kept as comments.
+			if (!layout) (section === 'before' ? before : others).push(raw)
+			else if (line !== '') (section === 'before' ? before : others).push(asComment(line))
+		} else if (line.startsWith(';') || line.startsWith('#') || line.startsWith('//') || !line.includes('=')) {
+			// A line that isn't a key goes with the next key; a "//" comment is read as a key only when it holds "=".
+			if (line !== '') pending.push(layout && (line.startsWith('#') || line.startsWith('//')) ? asComment(line) : line)
+		} else {
+			const key = toLowerInvariant(trimDotnet(line.slice(0, line.indexOf('='))))
+			const value = trimDotnet(line.slice(line.indexOf('=') + 1))
+			const tag = tags.get(key)
+			if (tag === undefined) tags.set(key, { value, comments: pending })
+			else {
+				tag.value = value
+				tag.comments.push(...pending)
+			}
+			pending = []
+		}
+	}
+	const keys = [...tags.keys()]
+	for (const key of rewrite.set.keys()) {
+		if (tags.has(key)) continue
+		tags.set(key, { value: '', comments: [] })
+		const after = keys.findIndex(other => rank(other) > rank(key))
+		keys.splice(after === -1 ? keys.length : after, 0, key)
+	}
+
+	const tagLine = (key: string, value: string) => value === '' ? `${key} =` : `${key} = ${value}`
+	const lines = [...withoutBlankEnd(before), layout || header === null ? '[song]' : header]
+	for (const key of rewrite.order ? rewrite.order(keys) : keys) {
+		const { value, comments } = tags.get(key)!
+		lines.push(...comments)
+		if (rewrite.set.has(key)) lines.push(tagLine(key, rewrite.set.get(key)!))
+		else if (!rewrite.remove.has(key)) lines.push(tagLine(key, value))
+	}
+	lines.push(...pending, ...withoutBlankEnd(others))
+	return encodeLike(tokens, lines.join(lineEnding(text)) + lineEnding(text))
+}
+
+/** The order the charting guidelines list tags in, or `Infinity` for a tag they don't list. */
+const tagOrder = Object.keys(defaultMetadata)
+const rank = (key: string) => tagOrder.includes(key) ? tagOrder.indexOf(key) : Infinity
+
+function withoutBlankEnd(lines: readonly string[]): string[] {
+	let end = lines.length
+	while (end > 0 && trimDotnet(lines[end - 1]) === '') end--
+	return lines.slice(0, end)
 }
 
 /** Adds a `[song]` section holding `entries` at the end of a song.ini, with the file's line ending. UTF-8 only. */

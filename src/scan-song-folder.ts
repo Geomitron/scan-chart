@@ -14,10 +14,10 @@ import { resolveChart } from './gameplay-chart'
 import { ignoredIssueCodes, songIniIssues } from './ini/ini-checks'
 import { metadataStyleIssues } from './ini/metadata-style'
 import { defaultMetadata } from './ini/metadata'
-import { FolderFinding, folderIssue, Issue, metadataIssue } from './issues'
+import { FolderFinding, folderIssue, Issue, MetadataFinding, metadataIssue } from './issues'
 import { songIniSpellingIssues } from './spelling-issues'
 import { songContext } from './song-context'
-import { findChartData, parseSong } from './song-document'
+import { documentFiles, findChartData, parseSong, SongDocument, songOrigin } from './song-document'
 import { fileBytes, forEachChunk, readFileBytes, SongFile } from './song-files'
 import { SongMetadata, songMetadata } from './song-metadata'
 import { hasAlbumName } from './shared/file-names'
@@ -93,11 +93,18 @@ export interface AlbumArt {
 
 /** Scans a song folder in one call: its metadata, issues and statistics, and whatever else `options` asks for. */
 export async function scanSongFolder(files: readonly SongFile[], options: ScanOptions = {}): Promise<ScannedSong> {
-	const song = await parseSong(files)
+	return (await scanSong(await parseSong(files), options)).scanned
+}
+
+/** `scanSongFolder` for a parsed song, with the song.ini checks' findings, which name the tags each is about. */
+export async function scanSong(song: SongDocument, options: ScanOptions = {}): Promise<{ scanned: ScannedSong; iniFindings: readonly MetadataFinding[] }> {
+	// An edited song's chart and song.ini files are its edited ones.
+	const files = songOrigin(song) === undefined ? song.files : documentFiles(song)
 	const context = songContext(song)
 	const metadata = songMetadata(song, { removeStyleTags: options.removeStyleTags })
-	const folderIssues: FolderFinding[] = [...context.ini.folderIssues, ...findChartData(song.files).folderIssues]
+	const folderIssues: FolderFinding[] = [...context.ini.folderIssues, ...findChartData(files).folderIssues]
 	const metadataIssues = [...context.ini.metadataIssues]
+	let iniFindings: MetadataFinding[] = []
 	let stats: ChartStats | null = null
 	let competitive: CompetitiveHashes | null = null
 	let chartIssues: readonly Issue[] = []
@@ -122,7 +129,7 @@ export async function scanSongFolder(files: readonly SongFile[], options: ScanOp
 	}
 	if (song.ini !== null && context.ini.metadata !== null && context.ini.songSection !== null) {
 		const { chart, settings } = context
-		metadataIssues.push(...songIniIssues({
+		iniFindings = songIniIssues({
 			tokens: song.ini.tokens,
 			songSection: context.ini.songSection,
 			metadata: context.ini.metadata,
@@ -134,36 +141,37 @@ export async function scanSongFolder(files: readonly SongFile[], options: ScanOp
 			},
 			extraIniKeys: options.extraIniKeys ?? [],
 			styleNotes: options.styleNotes ?? false,
-		}))
+		})
+		metadataIssues.push(...iniFindings)
 		if (options.metadataStyle) metadataIssues.push(...metadataStyleIssues(context.ini.metadata))
 	}
 	const ignored = context.ini.songSection === null ? null : ignoredIssueCodes(context.ini.songSection)
 	metadataIssues.push(...ignored?.issues ?? [])
 
 	// The album art's names are always checked. The art is read only when it's asked for, hashed, or checked.
-	const album = findAlbumArt(song.files)
+	const album = findAlbumArt(files)
 	folderIssues.push(...album.folderIssues)
 	const readAlbumArt = options.albumArt || options.fileHashes || options.mediaIssues
 	const assetFiles = readAlbumArt
-		? await Promise.all(song.files.map(async file => hasAlbumName(file.fileName) ? { fileName: file.fileName, data: await readFileBytes(file) } : file))
-		: song.files
+		? await Promise.all(files.map(async file => hasAlbumName(file.fileName) ? { fileName: file.fileName, data: await readFileBytes(file) } : file))
+		: files
 	let albumArt: AlbumArt | null = null
 	if ((options.albumArt || options.mediaIssues) && album.file !== null) {
-		const data = fileBytes(assetFiles[song.files.indexOf(album.file)])
+		const data = fileBytes(assetFiles[files.indexOf(album.file)])
 		const decoded = decodeAlbumArt(album.file.fileName, data, options.albumArtSizes ?? [512])
 		folderIssues.push(...decoded.folderIssues)
 		if (decoded.decoded && options.albumArt) albumArt = { data }
 	}
-	const audio = scanAudio(song.files)
+	const audio = scanAudio(files)
 	const songLength = context.ini.songSection !== null && context.ini.metadata !== null && context.ini.metadata.song_length > 0 ? context.ini.metadata.song_length : null
-	const media = options.mediaIssues ? await scanMedia(song.files, audio.stemFiles, songLength) : null
+	const media = options.mediaIssues ? await scanMedia(files, audio.stemFiles, songLength) : null
 	// An audio file that holds Opus is reported for its extension instead.
 	const audioNames = audioNameRecommendations(audio.stemFiles).filter(issue => issue.folderIssue !== 'audioFormat' || !media?.opusFiles.includes(issue.file!))
 	folderIssues.push(...audio.folderIssues, ...audioNames, ...media?.folderIssues ?? [])
 	metadataIssues.push(...media?.metadataIssues ?? [])
-	const video = scanVideo(song.files)
+	const video = scanVideo(files)
 	folderIssues.push(...video.folderIssues)
-	folderIssues.push(...scanFolderFiles(song.files, { chartFile: chartFile ?? null, songSection: context.ini.songSection, extraFiles: options.extraFiles ?? [] }))
+	folderIssues.push(...scanFolderFiles(files, { chartFile: chartFile ?? null, songSection: context.ini.songSection, extraFiles: options.extraFiles ?? [] }))
 
 	const issues = [
 		...folderIssues.map(folderIssue),
@@ -171,7 +179,7 @@ export async function scanSongFolder(files: readonly SongFile[], options: ScanOp
 		...songIniSpellingIssues(song.ini),
 		...chartIssues,
 	]
-	return {
+	const scanned: ScannedSong = {
 		metadata,
 		issues: issues.filter(issue => !ignored?.codes.has(issue.code)),
 		ignoredIssues: issues.filter(issue => ignored?.codes.has(issue.code)),
@@ -182,6 +190,7 @@ export async function scanSongFolder(files: readonly SongFile[], options: ScanOp
 		fileHashes: options.fileHashes ? await fileHashes(assetFiles, context) : null,
 		albumArt,
 	}
+	return { scanned, iniFindings }
 }
 
 /** Each instrument's song.ini difficulty rating. */

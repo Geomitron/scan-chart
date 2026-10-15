@@ -350,6 +350,16 @@ export function songOrigin(song: SongDocument): SongOrigin | undefined {
 }
 
 /**
+ * Puts `edited`, a song made from `song` outside an edit batch, in `song`'s chain of edits, so saving it keeps the
+ * hashes the chain started with. A song whose chart and song.ini are an unedited song's stays out of any chain.
+ */
+export function continueEdits(song: SongDocument, edited: SongDocument): SongDocument {
+	const origin = origins.get(song) ?? (edited.chart !== song.chart || edited.ini !== song.ini ? { song, hashes: undefined } : undefined)
+	if (edited !== song && origin !== undefined) origins.set(edited, origin)
+	return edited
+}
+
+/**
  * The track `addTrack` returns, and the name of the section or MIDI track to add for it, pushed onto `newTracks`,
  * which holds the names added so far in the batch: they go at the end, after the existing ones, in order.
  */
