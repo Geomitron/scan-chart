@@ -81,7 +81,7 @@ export function songIniIssues(input: SongIniInput): MetadataFinding[] {
 	}
 
 	const values = valueIssues(input)
-	const blank: string[] = keys.filter(key => isBlank(songSection[key]) && !input.requiredKeys.includes(key) && !values.missing.includes(key))
+	const blank: string[] = keys.filter(key => isBlank(key, songSection[key]) && !input.requiredKeys.includes(key) && !values.missing.includes(key))
 	// Clone Hero reads a blank number as not set, and YARG as 0; every reader reads a -1 or a blank text value as not set.
 	const blankNumbers = blank.filter(key => songSection[key] === '' && (key.startsWith('diff_') || numberTags.has(key)))
 	const blankStyle = blank.filter(key => !blankNumbers.includes(key))
@@ -113,12 +113,15 @@ export function songIniIssues(input: SongIniInput): MetadataFinding[] {
 	return [...issues, ...values.issues]
 }
 
-const isBlank = (value: string | undefined) => value === '' || value === '-1'
-/** Whether a value is written: present, and not blank or -1. */
-const hasValue = (value: string | undefined): value is string => value !== undefined && !isBlank(value)
+/** The tags games read as booleans, which read -1, like any whole number but 0, as true. */
+const booleanTags = new Set([...tagOrder.filter(key => typeof defaultMetadata[key as keyof typeof defaultMetadata] === 'boolean'), 'explicit_lyrics', 'video_loop'])
+/** Whether a tag's value reads as not set: blank, or -1 for a tag that isn't a boolean. */
+const isBlank = (key: string, value: string | undefined) => value === '' || (value === '-1' && !booleanTags.has(key))
+/** Whether a tag is written: present, and not blank or -1. */
+const hasValue = (songSection: SongSection, key: string) => songSection[key] !== undefined && !isBlank(key, songSection[key])
 // Whether every reader reads charter and album_track over their older tags, frets and track.
-const hasCharter = (songSection: SongSection) => hasValue(songSection.charter) && songSection.charter !== '0'
-const hasAlbumTrack = (songSection: SongSection) => hasValue(songSection.album_track) && !isNaN(parseFloat(songSection.album_track))
+const hasCharter = (songSection: SongSection) => hasValue(songSection, 'charter') && songSection.charter !== '0'
+const hasAlbumTrack = (songSection: SongSection) => hasValue(songSection, 'album_track') && !isNaN(parseFloat(songSection.album_track))
 
 /**
  * The charting recommendations about song.ini's values, and the keys reported missing: song_length and album_track
@@ -147,7 +150,7 @@ function valueIssues({ songSection, metadata, chart, styleNotes }: SongIniInput)
 	}
 
 	const icon = songSection.icon
-	if (hasValue(icon) && icon !== '0' && !/^[a-z0-9_-]+$/.test(icon)) {
+	if (hasValue(songSection, 'icon') && icon !== '0' && !/^[a-z0-9_-]+$/.test(icon)) {
 		add('iconName', `In "song.ini", "icon" is "${icon}". Write the icon's file name without its extension, in lowercase letters, numbers, "-" and "_".`)
 	}
 
@@ -182,7 +185,7 @@ function unneededKeys(songSection: SongSection, metadata: typeof defaultMetadata
 	const keys: string[] = []
 	const check = (key: string, unneeded: (value: string) => boolean) => {
 		const value = songSection[key]
-		if (hasValue(value) && unneeded(value)) keys.push(key)
+		if (hasValue(songSection, key) && unneeded(value)) keys.push(key)
 	}
 	const isFalse = (value: string) => parseBoolean(value) === false
 	// As getIniInteger reads it.
@@ -218,22 +221,22 @@ function deprecatedTagIssues(songSection: SongSection, metadata: typeof defaultM
 	const issues: MetadataFinding[] = []
 	const add = (description: string) => issues.push({ metadataIssue: 'deprecatedIniTag', description })
 	const { delay } = metadata
-	if (hasValue(songSection.delay) && delay !== 0) {
+	if (hasValue(songSection, 'delay') && delay !== 0) {
 		add(`"song.ini" sets "delay" to ${delay} ms, which only older charts need. Change the chart first so it plays the same without it: ${undelayedSyncAdvice(delay)}. Then remove the tag.`)
 	}
 	const changesHopos = (key: string) =>
 		`"song.ini" sets "${key}", which changes which notes are HOPOs. Change the chart first so it plays the same without it, by forcing the notes that change. Then remove the tag.`
 	// Clone Hero and YARG read hopo_frequency over eighthnote_hopo.
 	const hopoFrequency = metadata.hopo_frequency > 0
-	if (hasValue(songSection.hopo_frequency) && hopoFrequency) add(changesHopos('hopo_frequency'))
-	if (hasValue(songSection.eighthnote_hopo) && metadata.eighthnote_hopo && !hopoFrequency) add(changesHopos('eighthnote_hopo'))
+	if (hasValue(songSection, 'hopo_frequency') && hopoFrequency) add(changesHopos('hopo_frequency'))
+	if (hasValue(songSection, 'eighthnote_hopo') && metadata.eighthnote_hopo && !hopoFrequency) add(changesHopos('eighthnote_hopo'))
 	if (chart?.format === 'mid' && metadata.multiplier_note === 103) {
 		add('"song.ini" sets "multiplier_note" to 103, which makes MIDI note 103 the star power note. Move the star power phrases to note 116 first. Then remove the tag.')
 	}
-	if (hasValue(songSection.frets) && !hasCharter(songSection)) {
+	if (hasValue(songSection, 'frets') && !hasCharter(songSection)) {
 		add('"song.ini" names the charter with "frets", a tag for older charts. Write "charter" instead.')
 	}
-	if (hasValue(songSection.track) && !hasAlbumTrack(songSection)) {
+	if (hasValue(songSection, 'track') && !hasAlbumTrack(songSection)) {
 		add('"song.ini" gives the album track with "track", a tag for older charts. Write "album_track" instead.')
 	}
 	return issues

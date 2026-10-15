@@ -74,6 +74,15 @@ describe('song.ini tags', () => {
 		])
 	})
 
+	it('reads a -1 boolean as true, not blank', async () => {
+		const lines = ['[song]', 'name = Song', 'pro_drums = -1', 'eighthnote_hopo = -1', 'end_events = -1', 'diff_keys = -1']
+		expect((await iniIssues(lines, ['blankIniValue', 'deprecatedIniTag', 'defaultIniValue'])).map(([code, message]) => [code, message.slice(0, 40)])).toEqual([
+			['blankIniValue', 'In "song.ini", "diff_keys" is blank or -'],
+			['deprecatedIniTag', '"song.ini" sets "eighthnote_hopo", which'],
+			['defaultIniValue', 'In "song.ini", "end_events = -1" changes'],
+		])
+	})
+
 	it('reports a quoted value as a warning', async () => {
 		const scanned = await scanSongFolder([{ fileName: 'notes.chart', data: chartFile() }, { fileName: 'song.ini', data: encode('[song]\r\nname = "Song"\r\ndiff_guitar = "4"\r\n') }])
 		expect(scanned.issues.filter(issue => issue.code === 'quotedIniValue').map(issue => [issue.severity, issue.message])).toEqual([[
