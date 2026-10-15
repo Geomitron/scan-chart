@@ -85,6 +85,13 @@ export function hasAudioName(fileName: string) {
 }
 
 /**
+ * @returns `true` if `fileName`, in any letter case, is crowd or preview audio, which isn't the song's own audio.
+ */
+export function hasCrowdOrPreviewName(fileName: string) {
+	return ['crowd', 'preview'].includes(getBasename(fileName).toLowerCase())
+}
+
+/**
  * @returns `true` if `fileName` is a valid album fileName.
  */
 export function hasAlbumName(fileName: string) {
