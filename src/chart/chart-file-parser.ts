@@ -635,8 +635,8 @@ const chartLineEQuoted = /^(\d+) = E "([^"\r\n]*)"$/
 const chartLineEUnquoted = /^(\d+) = E ([^\r\n]+?)$/
 const chartLineNS = /^(\d+) = ([NS]) (\w+)( \d+)?$/
 const chartLineDiscoFlipE = /^\s*\[?mix[ _]([0-3])[ _]drums([0-5])(d|dnoflip|easy|easynokick|)\]?\s*$/
-const chartSyncTempo = /^(\d+) = B (\d+)$/
-const chartSyncTS = /^(\d+) = TS (\d+)(?: (\d+))?$/
+export const chartSyncTempo = /^(\d+) = B (\d+)$/
+export const chartSyncTS = /^(\d+) = TS (\d+)(?: (\d+))?$/
 const chartSyncUnknown = /^(\d+) = (.+)$/
 const chartSongMetaRegex = /^(.+?) = "?(.*?)"?$/
 
