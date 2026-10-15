@@ -123,8 +123,8 @@ A `mix` event sets up the drum audio for one difficulty, and its `d` flag turns 
 A flip lasts from its tick, notes on it included, until the event that turns it off, or the end of the track. A `dnoflip` event must not come while a `d` flip of its difficulty is on: turn the flip off first.
 
 {/* review: Q8
-A `d` event followed by a `dnoflip` event, with no event turning the flip off between them. Released Clone Hero keeps the flip on until an event turns it off. YARG and scan-chart start no-flip at the `dnoflip`, and GuitarGame_ChartFormats says each mix event resets the state. Players report Clone Hero's reading as a 1.1 regression. The btrack disco-flip brief asks which reading the canonical TrackHash takes; this question is only what the standard allows.
-- A. Invalid | An exporter turns the flip off before a `dnoflip`. The invalid form says what each scanner does, and the btrack brief decides scan-chart's reading | The .chart Drums page gains the same rule. scan-chart's export writes such pairs today and has to add the off event
+A `d` event followed by a `dnoflip` event, with no event turning the flip off between them. Released Clone Hero keeps the flip on until an event turns it off. YARG and scan-chart start no-flip at the `dnoflip`, and GuitarGame_ChartFormats says each mix event resets the state. Players report Clone Hero's reading as a 1.1 regression. The canonical rules, decided with the hash migration (rule C10), already read it as YARG and scan-chart do: the latest mix event wins, and on a shared tick an event turning the flip off comes before `d`, then `dnoflip`. Clone Hero's parse fixes do the same. This question is only whether the standard allows the pair.
+- A. Invalid | An exporter turns the flip off before a `dnoflip`. The invalid form says what each scanner does | The .chart Drums page gains the same rule. scan-chart's export writes such pairs today and has to add the off event
 - B. Valid, the later event replaces the state | A flip lasts until the next mix event of its difficulty | Released Clone Hero reads a valid file differently. The .chart Drums page's "until the event that turns it off" changes the same way
 - C. Valid, Clone Hero's reading | `d` lasts until an event turns it off | YARG and scan-chart read a valid file differently
 Recommendation: A. The games disagree, so the strict standard makes the form invalid, and a file written with the off event reads the same everywhere.
@@ -173,5 +173,5 @@ Clone Hero and scan-chart use an event that turns the flip off, then `d`, then `
 </Accordion>
 
 <Accordion title="A dnoflip while a d flip is on">
-Released Clone Hero keeps the flip on until an event turns it off. YARG and scan-chart start no-flip at the `dnoflip`. scan-chart's export writes such a pair as it read it, with no event between them.
+Released Clone Hero keeps the flip on until an event turns it off. YARG and scan-chart start no-flip at the `dnoflip`, as the canonical rules do. scan-chart's export writes such a pair as it read it, with no event between them.
 </Accordion>
