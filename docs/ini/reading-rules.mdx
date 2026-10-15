@@ -165,7 +165,7 @@ Clone Hero and scan-chart read any whole number other than 0 as true, and anythi
 </Accordion>
 
 <Accordion title="A blank value">
-Clone Hero and scan-chart read a blank number or boolean as not set, and blank text as empty. Clone Hero doesn't list a song whose `name` is blank. When it creates a `song.ini`, Clone Hero writes a blank `icon`.
+Clone Hero reads a blank number or boolean as not set, and blank text as empty. scan-chart reads every blank value as not set. Clone Hero doesn't list a song whose `name` is blank. When it creates a `song.ini`, Clone Hero writes a blank `icon`.
 
 YARG reads a blank number as 0 and a blank boolean as false, and counts the key as set: a blank `preview_start_time` starts the preview at 0:00, a blank `album_track` sorts the song first, a blank difficulty shows 0 instead of no rating, a blank `sustain_cutoff_threshold` turns off the cutoff of a `.mid` file, and a blank `five_lane_drums` rules out 5-lane drums. It fills a blank text value from the `.chart` file's `[Song]` section.
 
