@@ -8,7 +8,7 @@ import { documentFiles, parseSong } from 'src/song-document'
 import type { SongFile } from 'src/song-files'
 import { saveSong, songHashes } from 'src/song-save'
 
-import { opus, vorbis } from './helpers/media-files'
+import { jpeg, opus, png, vorbis } from './helpers/media-files'
 
 const encode = (text: string) => new TextEncoder().encode(text)
 const decode = (bytes: Uint8Array) => new TextDecoder().decode(bytes)
@@ -50,7 +50,7 @@ async function fix(files: readonly SongFile[], options: FixOptions = {}) {
 	const song = await parseSong(files)
 	const { song: fixed, report } = await fixIssues(song, options)
 	const saved = saveSong(song, fixed).files
-	const rescan = await scanSongFolder(saved, { styleNotes: true })
+	const rescan = await scanSongFolder(saved, { styleNotes: true, mediaIssues: true })
 	return {
 		song: fixed,
 		report,
@@ -216,5 +216,63 @@ describe('fixIssues: song_length', () => {
 		const result = await fix(song(['[song]', 'name = Song'], [{ fileName: 'song.opus', data: opus(80) }, { fileName: 'drums.ogg', data: new Uint8Array(4) }]))
 		expect(result.ini).toBe('[song]\r\nname = Song\r\n')
 		expect(result.report.skipped).toEqual([{ code: 'missingSongLength', file: 'song.ini', reason: 'The length of "drums.ogg" can\'t be read from its headers.' }])
+	})
+})
+
+describe('fixIssues: files', () => {
+	const song = (files: readonly SongFile[], iniLines: readonly string[] = ['[song]', 'name = Song']) =>
+		[{ fileName: 'notes.chart', data: chartFile() }, { fileName: 'song.ini', data: iniFile(iniLines) }, ...files]
+	const names = (result: Awaited<ReturnType<typeof fix>>) => result.song.files.map(file => file.fileName)
+	/** A resizer that returns a square PNG or JPEG of the size asked for, as an app's image library would. */
+	const resizeTo = (format: 'png' | 'jpeg') => async (_image: Uint8Array, size: number) => format === 'png' ? png(size, size) : jpeg(size, size)
+
+	it('renames a file named in another letter case, or with an extension its content doesn\'t match, keeping the hashes', async () => {
+		const result = await fix(song([
+			{ fileName: 'Album.PNG', data: jpeg(512, 512) }, { fileName: 'Video.mp4', data: new Uint8Array(1) }, { fileName: 'song.ogg', data: opus(80) },
+		]), { codes: ['fileNameCase', 'extensionMismatch'] })
+		expect(names(result)).toEqual(['notes.chart', 'song.ini', 'album.jpg', 'video.mp4', 'song.opus'])
+		expect(result.report.renamed).toEqual([{ from: 'Album.PNG', to: 'album.jpg' }, { from: 'Video.mp4', to: 'video.mp4' }, { from: 'song.ogg', to: 'song.opus' }])
+		expect(result.report.fixed).toEqual([
+			{ code: 'fileNameCase', file: 'album.jpg', description: 'Renamed "Album.PNG" to "album.png".' },
+			{ code: 'extensionMismatch', file: 'album.jpg', description: 'Renamed "album.png" to "album.jpg".' },
+			{ code: 'fileNameCase', file: 'video.mp4', description: 'Renamed "Video.mp4" to "video.mp4".' },
+			{ code: 'extensionMismatch', file: 'song.opus', description: 'Renamed "song.ogg" to "song.opus".' },
+		])
+		const rescan = await scanSongFolder(result.song.files, { mediaIssues: true })
+		expect(rescan.issues.map(issue => issue.code)).not.toEqual(expect.arrayContaining(['fileNameCase']))
+		expect(rescan.issues.map(issue => issue.code).filter(code => code === 'extensionMismatch' || code === 'audioFormat')).toEqual([])
+		expectHashesKept(result)
+	})
+
+	it('doesn\'t rename a file to another file\'s name, or one song.ini names', async () => {
+		const taken = await fix(song([{ fileName: 'album.png', data: jpeg(512, 512) }, { fileName: 'album.jpg', data: jpeg(512, 512) }]), { codes: ['extensionMismatch'] })
+		expect(taken.report.renamed).toEqual([])
+		expect(taken.report.skipped).toEqual([{ code: 'extensionMismatch', file: 'album.png', reason: '"album.jpg" already has the name "album.jpg".' }])
+		const named = await fix(song([{ fileName: 'Video.mp4', data: new Uint8Array(1) }], ['[song]', 'name = Song', 'video = Video.mp4']), { codes: ['fileNameCase'] })
+		expect(named.report.skipped).toEqual([{ code: 'fileNameCase', file: 'Video.mp4', reason: 'song.ini\'s "video" names it.' }])
+	})
+
+	it('resizes square album art with resizeImage, renaming it when the format it returns differs', async () => {
+		const art = song([{ fileName: 'album.jpg', data: jpeg(600, 600) }])
+		const same = await fix(art, { codes: ['albumArtSize'], resizeImage: resizeTo('jpeg') })
+		expect(names(same)).toContain('album.jpg')
+		expect(same.song.files.find(file => file.fileName === 'album.jpg')!.data).toEqual(jpeg(512, 512))
+		expect(same.report.fixed).toEqual([{ code: 'albumArtSize', file: 'album.jpg', description: 'Resized "album.jpg" from 600x600 to 512x512.' }])
+		expect(same.report.renamed).toEqual([])
+		expectHashesKept(same)
+
+		const png500 = await fix(art, { codes: ['albumArtSize'], resizeImage: resizeTo('png'), albumArtSizes: [500, 512] })
+		expect(png500.report.renamed).toEqual([{ from: 'album.jpg', to: 'album.png' }])
+		expect(png500.report.fixed[0].description).toBe('Resized "album.jpg" from 600x600 to 500x500, as "album.png".')
+		expect((await scanSongFolder(png500.song.files, { mediaIssues: true, albumArtSizes: [500, 512] })).issues.map(issue => issue.code)).not.toContain('albumArtSize')
+	})
+
+	it('leaves album art that isn\'t square, or when there\'s no resizeImage', async () => {
+		const wide = await fix(song([{ fileName: 'album.jpg', data: jpeg(600, 400) }]), { codes: ['albumArtSize'], resizeImage: resizeTo('jpeg') })
+		expect(wide.report.skipped).toEqual([{ code: 'albumArtSize', file: 'album.jpg', reason: 'The album art is 600x400: making it square needs it cropped.' }])
+		const square = await fix(song([{ fileName: 'album.jpg', data: jpeg(600, 600) }]), { codes: ['albumArtSize'] })
+		expect(square.report.skipped).toEqual([{ code: 'albumArtSize', file: 'album.jpg', reason: 'Resizing album art needs resizeImage.' }])
+		const wrong = await fix(song([{ fileName: 'album.jpg', data: jpeg(600, 600) }]), { codes: ['albumArtSize'], resizeImage: async () => jpeg(256, 256) })
+		expect(wrong.report.skipped).toEqual([{ code: 'albumArtSize', file: 'album.jpg', reason: 'resizeImage didn\'t return a 512x512 PNG or JPEG image.' }])
 	})
 })

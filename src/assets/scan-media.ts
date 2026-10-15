@@ -17,7 +17,7 @@ const SONG_LENGTH_TOLERANCE_MS = 1000
 const MIN_BACKGROUND = { width: 1280, height: 720 }
 
 /** What each content type is called in a message, and the extension it's written with, when games read it. */
-const contentNames: { readonly [type in ContentType]: { readonly name: string; readonly extension: string | null } } = {
+export const contentNames: { readonly [type in ContentType]: { readonly name: string; readonly extension: string | null } } = {
 	opus: { name: 'Opus audio', extension: 'opus' },
 	vorbis: { name: 'Ogg Vorbis audio', extension: 'ogg' },
 	ogg: { name: 'Ogg data that isn\'t Opus or Vorbis', extension: null },
@@ -36,6 +36,9 @@ const contentNames: { readonly [type in ContentType]: { readonly name: string; r
 }
 /** The content each extension names. */
 const extensionContent: { readonly [extension: string]: ContentType } = { opus: 'opus', ogg: 'vorbis', mp3: 'mp3', wav: 'wav', png: 'png', jpg: 'jpeg', jpeg: 'jpeg' }
+
+/** Whether a file's extension names its content. */
+export const hasContentExtension = (fileName: string, content: ContentType) => extensionContent[getExtension(fileName).toLowerCase()] === content
 
 /** What the media checks found: the issues, and the audio files that hold Opus audio whatever their extension. */
 export interface MediaScan {
@@ -56,7 +59,7 @@ export async function scanMedia(files: readonly SongFile[], stemFiles: readonly 
 	const opusFiles: string[] = []
 	const mismatch = (fileName: string, content: ContentType | null) => {
 		const extension = getExtension(fileName).toLowerCase()
-		if (content === null || extensionContent[extension] === content) return
+		if (content === null || hasContentExtension(fileName, content)) return
 		const { name, extension: proper } = contentNames[content]
 		folderIssues.push({
 			folderIssue: 'extensionMismatch',
