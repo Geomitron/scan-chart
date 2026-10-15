@@ -351,16 +351,18 @@ export function fixSustains(
 			record.skip('badSustainGap', chart.fileName, `${held.size} ${trackName(track)} ${held.size === 1 ? 'sustain is' : 'sustains are'} held over other notes: `
 				+ `shortening ${held.size === 1 ? 'it' : 'them'} would end ${held.size === 1 ? 'it' : 'them'} too close to one.`)
 		}
+		// A note the parser moved or made, such as a snapped chord's note or a forced open note, has no event of its own.
+		for (const [note, { code }] of lengths) {
+			if (authoredNotes(song, track, note).length > 0) continue
+			lengths.delete(note)
+			record.skip(code, chart.fileName, `The ${trackName(track)} note at tick ${note.tick} isn't written as a note of its type and tick.`)
+		}
 		if (lengths.size > 0) tracks.push({ track, lengths })
 	}
 
 	const apply = (chosen: readonly SustainEdits[]) => editSong(song, batch => {
 		for (const { track, lengths } of chosen) {
-			for (const [note, { length }] of lengths) {
-				const events = authoredNotes(song, track, note)
-				if (events.length === 0) throw new RangeError(`the note at tick ${note.tick} isn't written as one event`)
-				for (const event of events) batch.setLength(event, length)
-			}
+			for (const [note, { length }] of lengths) for (const event of authoredNotes(song, track, note)) batch.setLength(event, length)
 		}
 	})
 	// Each note changed is no longer than asked for, and every other note and phrase stays.
