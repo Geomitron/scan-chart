@@ -77,11 +77,11 @@ export function songIniIssues(input: SongIniInput): MetadataFinding[] {
 	}
 
 	const values = valueIssues(input)
-	const blank = known.filter(key => isBlank(songSection[key]) && !input.requiredKeys.includes(key) && !values.missing.includes(key))
+	const blank = keys.filter(key => isBlank(songSection[key]) && !input.requiredKeys.includes(key) && !values.missing.includes(key))
 	if (blank.length > 0) {
 		issues.push({ metadataIssue: 'blankIniValue', description: `In "song.ini", ${keyList(blank)} ${blank.length === 1 ? 'is' : 'are'} blank or -1. Remove ${blank.length === 1 ? 'that line' : 'those lines'} instead.` })
 	}
-	const quoted = known.filter(key => songSection[key].length >= 2 && songSection[key].startsWith('"') && songSection[key].endsWith('"'))
+	const quoted = keys.filter(key => songSection[key].length >= 2 && songSection[key].startsWith('"') && songSection[key].endsWith('"'))
 	if (quoted.length > 0) {
 		issues.push({
 			metadataIssue: 'quotedIniValue',

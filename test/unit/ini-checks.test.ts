@@ -41,6 +41,13 @@ describe('song.ini tags', () => {
 		expect(await iniIssues(['[song]', 'name = Song', 'rating = 1', 'artist = Band', 'pro_drums = True'], ['iniTagOrder'])).toEqual([])
 	})
 
+	it('reports blank values and quoted values of any tag, even one no game reads', async () => {
+		expect(await iniIssues(['[song]', 'name = Song', 'link_name_b =', 'custom = "Text"'], ['blankIniValue', 'quotedIniValue'])).toEqual([
+			['blankIniValue', 'In "song.ini", "link_name_b" is blank or -1. Remove that line instead.'],
+			['quotedIniValue', 'In "song.ini", "custom" is in quotes. Games show the quotes, and don\'t read a number in quotes, so remove them.'],
+		])
+	})
+
 	it('reports blank and -1 values once, naming the tags', async () => {
 		expect(await iniIssues(['[song]', 'name = Song', 'icon =', 'diff_keys = -1'], ['blankIniValue']))
 			.toEqual([['blankIniValue', 'In "song.ini", "icon" and "diff_keys" are blank or -1. Remove those lines instead.']])
