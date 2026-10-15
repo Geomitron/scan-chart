@@ -1,5 +1,6 @@
 import { toLowerInvariant, trimDotnet } from '../shared/text'
-import { defaultMetadata } from './metadata'
+import { standardTagOrder } from './ini-checks'
+import { tagRank } from './metadata'
 import { IniTokens, tokenizeIni } from './parse-ini'
 
 /**
@@ -93,8 +94,8 @@ function scanSongSections(text: string, key: string | null) {
 export interface SongIniRewrite {
 	/** `[song]` first, comments starting with ";", and the lines games don't read, before it or in other sections, as comments. */
 	readonly layout: boolean
-	/** Puts the `[song]` tags in order, or `null` to keep their order. */
-	readonly order: ((keys: readonly string[]) => string[]) | null
+	/** The `[song]` tags in the standard order (`standardTagOrder`). */
+	readonly order: boolean
 	/** Keys to remove from `[song]`. */
 	readonly remove: ReadonlySet<string>
 	/** Values to set in `[song]`, which win over `remove`. */
@@ -110,10 +111,10 @@ export interface SongIniRewrite {
 export function rewriteSongIni(tokens: IniTokens, rewrite: SongIniRewrite): IniTokens {
 	const text = editableText(tokens)
 	for (const value of rewrite.set.values()) assertIniValue(value)
-	if (!rewrite.layout && rewrite.order === null) {
+	if (!rewrite.layout && !rewrite.order) {
 		let edited = tokens
 		for (const key of rewrite.remove) if (!rewrite.set.has(key)) edited = setSongIniValue(edited, key, null) ?? edited
-		for (const [key, value] of rewrite.set) edited = setSongIniValue(edited, key, value, other => rank(other) > rank(key)) ?? edited
+		for (const [key, value] of rewrite.set) edited = setSongIniValue(edited, key, value, other => tagRank(other) > tagRank(key)) ?? edited
 		return edited
 	}
 
@@ -156,13 +157,13 @@ export function rewriteSongIni(tokens: IniTokens, rewrite: SongIniRewrite): IniT
 	for (const key of rewrite.set.keys()) {
 		if (tags.has(key)) continue
 		tags.set(key, { value: '', comments: [] })
-		const after = keys.findIndex(other => rank(other) > rank(key))
+		const after = keys.findIndex(other => tagRank(other) > tagRank(key))
 		keys.splice(after === -1 ? keys.length : after, 0, key)
 	}
 
 	const tagLine = (key: string, value: string) => value === '' ? `${key} =` : `${key} = ${value}`
 	const lines = [...withoutBlankEnd(before), layout || header === null ? '[song]' : header]
-	for (const key of rewrite.order ? rewrite.order(keys) : keys) {
+	for (const key of rewrite.order ? standardTagOrder(keys) : keys) {
 		const { value, comments } = tags.get(key)!
 		lines.push(...comments)
 		if (rewrite.set.has(key)) lines.push(tagLine(key, rewrite.set.get(key)!))
@@ -171,10 +172,6 @@ export function rewriteSongIni(tokens: IniTokens, rewrite: SongIniRewrite): IniT
 	lines.push(...pending, ...withoutBlankEnd(others))
 	return encodeLike(tokens, lines.join(lineEnding(text)) + lineEnding(text))
 }
-
-/** The order the charting guidelines list tags in, or `Infinity` for a tag they don't list. */
-const tagOrder = Object.keys(defaultMetadata)
-const rank = (key: string) => tagOrder.includes(key) ? tagOrder.indexOf(key) : Infinity
 
 function withoutBlankEnd(lines: readonly string[]): string[] {
 	let end = lines.length

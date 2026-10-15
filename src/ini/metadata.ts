@@ -39,3 +39,27 @@ export const defaultMetadata = {
 	pro_drums: false,
 	end_events: true,
 }
+
+type MetadataKey = keyof typeof defaultMetadata
+
+/** The order the charting guidelines list tags in, which scan-chart writes them in. */
+export const tagOrder = Object.keys(defaultMetadata)
+
+/** A tag's place in `tagOrder`, or `Infinity` for a tag it doesn't list. */
+export function tagRank(key: string): number {
+	const rank = tagOrder.indexOf(key)
+	return rank === -1 ? Infinity : rank
+}
+
+const numberTags = new Set([...tagOrder.filter(key => typeof defaultMetadata[key as MetadataKey] === 'number'), 'track', 'video_end_time'])
+const booleanTags = new Set([...tagOrder.filter(key => typeof defaultMetadata[key as MetadataKey] === 'boolean'), 'explicit_lyrics', 'video_loop'])
+
+/** Whether games read a tag as a number: a number above, any `diff_` tag, `track` or `video_end_time`. */
+export function isNumberTag(key: string): boolean {
+	return key.startsWith('diff_') || numberTags.has(key)
+}
+
+/** Whether games read a tag as true or false, reading -1, like any whole number but 0, as true. */
+export function isBooleanTag(key: string): boolean {
+	return booleanTags.has(key)
+}

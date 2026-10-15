@@ -2,7 +2,7 @@ import { isNameListed, toLowerInvariant, trimDotnet } from '../shared/text'
 import { undelayedSyncAdvice } from '../shared/time'
 import { type IssueCode, issueSeverities, type MetadataFinding } from '../issues'
 import { type DrumType, drumTypes, type MetadataIssueType } from '../types'
-import { defaultMetadata } from './metadata'
+import { defaultMetadata, isBooleanTag, isNumberTag, tagOrder, tagRank } from './metadata'
 import { marksSingle } from './metadata-style'
 import type { IniTokens } from './parse-ini'
 import { knownIniKeys, parseBoolean, parseDotnetInt } from './scan-ini'
@@ -56,10 +56,6 @@ const gameTags = [
 const ignoredIssuesTag = 'ignored_issues'
 /** The tags some game reads, or the standard or scan-chart documents. */
 const knownTags = new Set([...standardTags, ...knownIniKeys, ...gameTags, ignoredIssuesTag])
-/** The order the charting guidelines list tags in, which scan-chart writes them in. */
-const tagOrder = Object.keys(defaultMetadata)
-/** The tags games read as numbers, besides every `diff_` tag. */
-const numberTags = new Set([...tagOrder.filter(key => typeof defaultMetadata[key as keyof typeof defaultMetadata] === 'number'), 'track', 'video_end_time'])
 
 /**
  * The charting recommendations about song.ini: how it's written (its layout, its tags' order, blank and quoted values,
@@ -85,7 +81,7 @@ export function songIniIssues(input: SongIniInput): MetadataFinding[] {
 	const values = valueIssues(input)
 	const blank: string[] = keys.filter(key => key !== ignoredIssuesTag && isBlank(key, songSection[key]) && !input.requiredKeys.includes(key) && !values.missing.includes(key))
 	// Clone Hero reads a blank number as not set, and YARG as 0; every reader reads a -1 or a blank text value as not set.
-	const blankNumbers = blank.filter(key => songSection[key] === '' && (key.startsWith('diff_') || numberTags.has(key)))
+	const blankNumbers = blank.filter(key => songSection[key] === '' && isNumberTag(key))
 	const blankStyle = blank.filter(key => !blankNumbers.includes(key))
 	if (blankNumbers.length > 0) {
 		const one = blankNumbers.length === 1
@@ -122,15 +118,13 @@ export function songIniIssues(input: SongIniInput): MetadataFinding[] {
  * some game reads, then the rest, each in the order given.
  */
 export function standardTagOrder(keys: readonly string[]): string[] {
-	const ranked = keys.filter(key => tagOrder.includes(key)).sort((a, b) => tagOrder.indexOf(a) - tagOrder.indexOf(b))
+	const ranked = keys.filter(key => tagOrder.includes(key)).sort((a, b) => tagRank(a) - tagRank(b))
 	const unranked = keys.filter(key => !tagOrder.includes(key))
 	return [...ranked, ...unranked.filter(key => knownTags.has(key)), ...unranked.filter(key => !knownTags.has(key))]
 }
 
-/** The tags games read as booleans, which read -1, like any whole number but 0, as true. */
-const booleanTags = new Set([...tagOrder.filter(key => typeof defaultMetadata[key as keyof typeof defaultMetadata] === 'boolean'), 'explicit_lyrics', 'video_loop'])
 /** Whether a tag's value reads as not set: blank, or -1 for a tag that isn't a boolean. */
-const isBlank = (key: string, value: string | undefined) => value === '' || (value === '-1' && !booleanTags.has(key))
+const isBlank = (key: string, value: string | undefined) => value === '' || (value === '-1' && !isBooleanTag(key))
 /** Whether a tag is written: present, and not blank or -1. */
 const hasValue = (songSection: SongSection, key: string) => songSection[key] !== undefined && !isBlank(key, songSection[key])
 // Whether every reader reads charter and album_track over their older tags, frets and track.

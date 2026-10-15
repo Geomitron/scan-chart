@@ -2,7 +2,7 @@ import { contentType, readAudioInfo } from './assets/media-headers'
 import { scanAudio } from './assets/scan-audio'
 import { imageSize } from './assets/scan-image'
 import { contentNames, hasContentExtension } from './assets/scan-media'
-import { ignoredIssueCodes, keyList, standardTagOrder } from './ini/ini-checks'
+import { ignoredIssueCodes, keyList } from './ini/ini-checks'
 import { asUtf8Ini, rewriteSongIni } from './ini/ini-edit'
 import { IniTokens, parseIniTokens } from './ini/parse-ini'
 import { fixEmptyPhrases, fixEmptyTracks, fixHopoTags, fixMultiplierNote, fixSustains } from './fix-chart'
@@ -219,7 +219,7 @@ function fixSongIni(
 	const before = songHashes(song)
 	const apply = (chosen: readonly IniFix[]) => continueEdits(song, withSongIni(song, rewriteSongIni(tokens, {
 		layout: chosen.some(fix => fix.layout),
-		order: chosen.some(fix => fix.order) ? standardTagOrder : null,
+		order: chosen.some(fix => fix.order === true),
 		remove: new Set(chosen.flatMap(fix => fix.remove ?? [])),
 		set: new Map(chosen.flatMap(fix => fix.set ?? [])),
 	})))
