@@ -18,8 +18,16 @@ export interface SongIniInput {
 	readonly metadata: typeof defaultMetadata
 	/** Keys another issue asks to set, such as a charted instrument's difficulty, which aren't reported as blank. */
 	readonly requiredKeys: readonly string[]
-	/** The chart's format and drum type, or `null` when it didn't parse. `detectedDrumType` reads it without song.ini's drum flags. */
-	readonly chart: { readonly format: 'chart' | 'mid'; readonly drumType: DrumType | null; readonly detectedDrumType: () => DrumType | null } | null
+	/**
+	 * The chart's format and drum type, or `null` when it didn't parse. `detectedDrumType` reads it without song.ini's drum
+	 * flags; `solosReadAsStarPower` says whether a guitar or keys track reads its solos as star power without `multiplier_note`.
+	 */
+	readonly chart: {
+		readonly format: 'chart' | 'mid'
+		readonly drumType: DrumType | null
+		readonly detectedDrumType: () => DrumType | null
+		readonly solosReadAsStarPower: () => boolean
+	} | null
 	/** Tags a caller's game reads. */
 	readonly extraIniKeys: readonly (string | RegExp)[]
 	/** Whether to report what every reader reads alike: tags out of order, -1 and blank text values, and lines that change nothing. */
@@ -204,7 +212,8 @@ function unneededKeys(songSection: SongSection, metadata: typeof defaultMetadata
 	check('hopo_frequency', isAtMostZero)
 	// hopo_frequency, when it's set, comes first.
 	check('eighthnote_hopo', value => isFalse(value) || metadata.hopo_frequency > 0)
-	check('multiplier_note', value => chart !== null && parseDotnetInt(value) !== null && (chart.format === 'chart' || [0, 116].includes(parseDotnetInt(value)!)))
+	// Without 116, Clone Hero reads a .mid guitar or keys track's two or more solos, and no star power, as star power.
+	check('multiplier_note', value => chart !== null && (chart.format === 'chart' || parseDotnetInt(value) === 0 || (parseDotnetInt(value) === 116 && !chart.solosReadAsStarPower())))
 	check('frets', () => hasCharter(songSection))
 	check('track', () => hasAlbumTrack(songSection))
 	// No reader acts on end_events.
