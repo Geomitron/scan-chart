@@ -88,7 +88,7 @@ An open note is strummed with no fret held. On 6-fret it's a note. On 5-fret it 
 - It's written `ENHANCED_OPENS`, **Recommended**, or `[ENHANCED_OPENS]`.
 - **Required:** at tick 0, before the track's first note.
 
-{/* review: Q1
+{/* review: Q2
 Should the text events of instrument tracks also be written without square brackets? You chose no brackets in the EVENTS track, as in a .chart file. Three text events go in instrument tracks: `ENHANCED_OPENS`, `ENABLE_CHART_DYNAMICS` and the drums `mix` event. Clone Hero, YARG and scan-chart read each of them with or without brackets. The .chart Drums page writes `mix` without them. GuitarGame_ChartFormats "highly recommends" brackets on every text event, Rock Band charts write them, and scan-chart's export writes them.
 - A. No brackets | `ENHANCED_OPENS`, `ENABLE_CHART_DYNAMICS` and `mix 3 drums0d` are recommended, and the bracketed forms stay valid. These pages then recommend no brackets on every text event | scan-chart's export changes for the three events. Differs from GuitarGame_ChartFormats' advice
 - B. Brackets | As these pages said before | The `mix` event is written one way in a .chart file and another way in a .mid file

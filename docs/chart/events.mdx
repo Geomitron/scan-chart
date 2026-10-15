@@ -59,7 +59,7 @@ A `.chart` file holds one set of lyrics, without pitches.
 <tick> = E "coda"
 ```
 
-`coda` marks where the song's big ending starts. A drum fill at or after it is a Big Rock Ending: see [Drum fills](/chart/phrases#drum-fills). A chart should have at most one `coda`.
+`coda` marks where the song's big ending starts. A drum fill at or after it is a Big Rock Ending: see [Drum fills](/chart/phrases#drum-fills). **Required:** one `coda` at most.
 
 ## The end of the song
 
@@ -69,8 +69,8 @@ A `.chart` file holds one set of lyrics, without pitches.
 
 `end` ends the song before its audio does. When the audio runs on long past the last note, such as a long fade-out or a recording that keeps going, a scanner ends the song at `end` and shows the results sooner.
 
-- `end` comes at least one beat after the end of the last note, sustain included.
-- A chart should have at most one `end`.
+- **Required:** `end` at least one beat after the end of the last note, sustain included.
+- **Required:** one `end` at most.
 
 {/* review: Q1
 Should `end` count in a song's length? Each game has two lengths. The song list shows song.ini's `song_length`, the length of the audio: Clone Hero and YARG measure the audio when the key is missing. The length a song plays already stops at `end` in both games (in Clone Hero, for a .chart file, once its `end` fix is released). The canonical SongHash holds the chart's own length: the end of the last note, plus one beat. The legacy SongHash holds `song_length`. No hash holds `end`.

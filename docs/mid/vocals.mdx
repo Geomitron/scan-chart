@@ -101,7 +101,7 @@ A phrase is a note 105. It holds the notes and lyrics from its start tick throug
 
 Unlike a `.chart` phrase, a `.mid` phrase is one note, so it always has an end.
 
-{/* review: Q2
+{/* review: Q3
 Which phrase holds the note and the lyric on a phrase's end tick? You asked what charters meant. Every library .mid file was read: 2,426 lyrics in 464 charts are on a vocal phrase's end tick. Where the next phrase starts on that tick (2,114 lyrics), the lyric starts the next line or word in 1,724 cases, and belongs to the ending phrase in 58, mostly `+` slides; 332 are unclear. Where no phrase starts there (312 lyrics, in 60 charts), the ending phrase usually ends where its last note starts, and the lyric finishes its word or line in 244 cases and starts the next in 14; 54 are unclear. So charters follow the .chart rule: a phrase holds its end tick, unless the next phrase starts there. Clone Hero and YARG's lyrics already read lyrics this way. YARG's vocals and scan-chart hold a phrase's notes and lyrics only up to its end tick.
 - A. The end tick is outside | A phrase holds notes and lyrics up to, but not including, its end tick. A lyric there with no phrase starting is invalid | 60 charts become invalid. In 45 of them, every such lyric finishes the ending phrase, and YARG's vocals and scan-chart put it in the next phrase
 - B. Lyrics follow the .chart rule | A phrase holds lyrics through its end tick, unless the next phrase starts there, and notes only up to its end tick | YARG's vocals and scan-chart split a lyric from its note when no phrase starts there
@@ -111,7 +111,7 @@ Recommendation: C. It reads both groups as their charters meant, keeps each lyri
 
 **Edge case: lyrics without notes.** A part may hold phrases and lyrics with no notes, for lyrics without pitches. Clone Hero and YARG show its lyrics, and YARG and scan-chart list no vocals part for it.
 
-{/* review: Q3
+{/* review: Q4
 Should Clone Hero drop its warning for lyrics without vocal notes? Its song scan lists the folder in badsongs.txt, saying the lyrics have no matching vocal notes and "will not work properly in the future when/if vocals support is pursued". The page described the warning too narrowly. It fires for every `PART VOCALS` that has no note from 36 to 84, and for every `PART VOCALS` that has no phrase, with lyrics or without. From its code, the scan also counts the track name as a lyric, which looks like a bug. The warning has no effect in Clone Hero, whose gameplay doesn't read vocal notes. No .mid file with lyrics and no notes can avoid it, and a .chart file's lyrics never get it.
 - A. Drop it | Clone Hero removes the warning | Two lines in StrikeCore. No hash changes
 - B. Narrow it | Clone Hero warns only for a part with phrases and lyrics but no notes, with a new text, and stops counting the track name as a lyric | Lyrics-only charts still get a warning that changes nothing. Clone Hero's song cache changes, so it scans every song again once
