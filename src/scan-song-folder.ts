@@ -45,7 +45,10 @@ export interface ScanOptions {
 	readonly extraFiles?: readonly (string | RegExp)[]
 	/** song.ini tags your game reads that Clone Hero and YARG don't, so they aren't reported as unknown: a tag, or a pattern of its lowercase name. */
 	readonly extraIniKeys?: readonly (string | RegExp)[]
-	/** Nonstandard spellings every reader reads alike, such as a repeated `.chart` line. Default: `false`. */
+	/**
+	 * Style notes: what every reader reads alike. These are nonstandard spellings, such as a repeated `.chart` line, and
+	 * song.ini lines: tags out of the standard order, `-1` and blank text values, and lines that change nothing. Default: `false`.
+	 */
 	readonly styleNotes?: boolean
 	/** Guesses about the metadata's style, such as credits joined with "and", which can be wrong. Default: `false`. */
 	readonly metadataStyle?: boolean
@@ -128,6 +131,7 @@ export async function scanSongFolder(files: readonly SongFile[], options: ScanOp
 				detectedDrumType: () => parseChartSource(chart.source, { ...settings, pro_drums: false, five_lane_drums: false }, parseRules.canonical20260801).drumType,
 			},
 			extraIniKeys: options.extraIniKeys ?? [],
+			styleNotes: options.styleNotes ?? false,
 		}))
 		if (options.metadataStyle) metadataIssues.push(...metadataStyleIssues(context.ini.metadata))
 	}

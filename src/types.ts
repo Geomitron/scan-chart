@@ -344,8 +344,9 @@ export type MetadataIssueType =
 	| 'invalidValue' // Metadata property was set to an unsupported value
 	| 'extraValue' // Metadata contains a property that should not be included
 	| 'iniLayout' // "song.ini" has a line before "[song]", another section, or a comment that doesn't start with ";"
-	| 'iniTagOrder' // The tags of "song.ini" aren't in the standard order
-	| 'blankIniValue' // A "song.ini" value is blank or -1
+	| 'iniTagOrder' // The tags of "song.ini" aren't in the standard order; only with ScanOptions.styleNotes
+	| 'blankIniValue' // A "song.ini" value is -1, or a text value is blank; only with ScanOptions.styleNotes
+	| 'blankIniNumber' // A "song.ini" number is blank, which Clone Hero reads as not set and YARG as 0
 	| 'quotedIniValue' // A "song.ini" value is in quotes
 	| 'unknownIniTag' // "song.ini" has a tag no game reads
 	| 'missingSongLength' // "song.ini" doesn't set song_length
@@ -354,7 +355,7 @@ export type MetadataIssueType =
 	| 'iconName' // The icon isn't written as an icon's name
 	| 'deprecatedIniTag' // A tag only older charts need changes how the chart reads
 	| 'redundantDrumType' // pro_drums or five_lane_drums sets the drum type games already read
-	| 'defaultIniValue' // A "song.ini" value changes nothing: games read the song the same without it
+	| 'defaultIniValue' // A "song.ini" value changes nothing: games read the song the same without it; only with ScanOptions.styleNotes
 	| 'songLengthMismatch' // song_length is far from the longest audio file's length; only with ScanOptions.mediaIssues
 	// Guesses about the metadata's style, reported only with ScanOptions.metadataStyle
 	| 'creditSeparator' // The charter value lists several names joined with something other than " & "

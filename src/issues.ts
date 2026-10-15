@@ -52,6 +52,7 @@ export const issueSeverities: { readonly [code in IssueCode]: IssueSeverity } = 
 	iniLayout: 'recommendation',
 	iniTagOrder: 'recommendation',
 	blankIniValue: 'recommendation',
+	blankIniNumber: 'warning',
 	quotedIniValue: 'warning',
 	unknownIniTag: 'recommendation',
 	missingSongLength: 'recommendation',

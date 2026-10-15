@@ -22,6 +22,8 @@ export interface SongIniInput {
 	readonly chart: { readonly format: 'chart' | 'mid'; readonly drumType: DrumType | null; readonly detectedDrumType: () => DrumType | null } | null
 	/** Tags a caller's game reads. */
 	readonly extraIniKeys: readonly (string | RegExp)[]
+	/** Whether to report what every reader reads alike: tags out of order, -1 and blank text values, and lines that change nothing. */
+	readonly styleNotes: boolean
 }
 
 /** The tags of GuitarGame_ChartFormats' song.ini standard, besides the ones scan-chart reads. */
@@ -54,13 +56,15 @@ const gameTags = [
 const knownTags = new Set([...standardTags, ...knownIniKeys, ...gameTags])
 /** The order the charting guidelines list tags in, which scan-chart writes them in. */
 const tagOrder = Object.keys(defaultMetadata)
+/** The tags games read as numbers, besides every `diff_` tag. */
+const numberTags = new Set([...tagOrder.filter(key => typeof defaultMetadata[key as keyof typeof defaultMetadata] === 'number'), 'track', 'video_end_time'])
 
 /**
  * The charting recommendations about song.ini: how it's written (its layout, its tags' order, blank and quoted values,
- * and tags no game reads), then its values.
+ * and tags no game reads), then its values. What every reader reads alike is reported only with `styleNotes`.
  */
 export function songIniIssues(input: SongIniInput): MetadataFinding[] {
-	const { tokens, songSection, extraIniKeys } = input
+	const { tokens, songSection, extraIniKeys, styleNotes } = input
 	// A line starting with "//" is reported as a comment, though readers read one with "=" in it as a key.
 	const keys = Object.keys(songSection).filter(key => !key.startsWith('//'))
 	const known = keys.filter(key => knownTags.has(key) || isNameListed(extraIniKeys, key))
@@ -68,7 +72,7 @@ export function songIniIssues(input: SongIniInput): MetadataFinding[] {
 	const issues = layoutIssues(tokens)
 
 	const ranked = known.filter(key => tagOrder.includes(key))
-	for (let index = 1; index < ranked.length; index++) {
+	for (let index = 1; index < ranked.length && styleNotes; index++) {
 		const later = ranked.slice(0, index).find(key => tagOrder.indexOf(key) > tagOrder.indexOf(ranked[index]))
 		if (later !== undefined) {
 			issues.push({ metadataIssue: 'iniTagOrder', description: `In "song.ini", "${ranked[index]}" should come before "${later}".` })
@@ -77,9 +81,20 @@ export function songIniIssues(input: SongIniInput): MetadataFinding[] {
 	}
 
 	const values = valueIssues(input)
-	const blank = keys.filter(key => isBlank(songSection[key]) && !input.requiredKeys.includes(key) && !values.missing.includes(key))
-	if (blank.length > 0) {
-		issues.push({ metadataIssue: 'blankIniValue', description: `In "song.ini", ${keyList(blank)} ${blank.length === 1 ? 'is' : 'are'} blank or -1. Remove ${blank.length === 1 ? 'that line' : 'those lines'} instead.` })
+	const blank: string[] = keys.filter(key => isBlank(songSection[key]) && !input.requiredKeys.includes(key) && !values.missing.includes(key))
+	// Clone Hero reads a blank number as not set, and YARG as 0; every reader reads a -1 or a blank text value as not set.
+	const blankNumbers = blank.filter(key => songSection[key] === '' && (key.startsWith('diff_') || numberTags.has(key)))
+	const blankStyle = blank.filter(key => !blankNumbers.includes(key))
+	if (blankNumbers.length > 0) {
+		const one = blankNumbers.length === 1
+		issues.push({
+			metadataIssue: 'blankIniNumber',
+			description: `In "song.ini", ${keyList(blankNumbers)} ${one ? 'is' : 'are'} blank. Clone Hero reads ${one ? 'it' : 'them'} as not set, and YARG as 0: `
+				+ `remove ${one ? 'that line' : 'those lines'}, or give ${one ? 'it a value' : 'them values'}.`,
+		})
+	}
+	if (blankStyle.length > 0 && styleNotes) {
+		issues.push({ metadataIssue: 'blankIniValue', description: `In "song.ini", ${keyList(blankStyle)} ${blankStyle.length === 1 ? 'is' : 'are'} blank or -1. Remove ${blankStyle.length === 1 ? 'that line' : 'those lines'} instead.` })
 	}
 	const quoted = keys.filter(key => songSection[key].length >= 2 && songSection[key].startsWith('"') && songSection[key].endsWith('"'))
 	if (quoted.length > 0) {
@@ -110,7 +125,7 @@ const hasAlbumTrack = (songSection: SongSection) => hasValue(songSection.album_t
  * unset, a difficulty outside 0 to 10, an icon that isn't an icon's name, a tag for older charts that changes how the
  * chart reads, and a drum type flag the chart doesn't need.
  */
-function valueIssues({ songSection, metadata, chart }: SongIniInput): { issues: MetadataFinding[]; missing: string[] } {
+function valueIssues({ songSection, metadata, chart, styleNotes }: SongIniInput): { issues: MetadataFinding[]; missing: string[] } {
 	const issues: MetadataFinding[] = []
 	const missing: string[] = []
 	const add = (metadataIssue: MetadataIssueType, description: string) => issues.push({ metadataIssue, description })
@@ -138,7 +153,7 @@ function valueIssues({ songSection, metadata, chart }: SongIniInput): { issues: 
 
 	issues.push(...deprecatedTagIssues(songSection, metadata, chart))
 	const unneeded = unneededKeys(songSection, metadata, chart).map(key => `${key} = ${songSection[key]}`)
-	if (unneeded.length > 0) {
+	if (unneeded.length > 0 && styleNotes) {
 		const one = unneeded.length === 1
 		add('defaultIniValue', `In "song.ini", ${keyList(unneeded)} ${one ? 'changes' : 'change'} nothing: games read the song the same without ${one ? 'it' : 'them'}. `
 			+ `Remove ${one ? 'that line' : 'those lines'}.`)

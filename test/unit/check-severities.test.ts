@@ -19,9 +19,9 @@ async function severities(ini: string[], files: SongFile[], options: ScanOptions
 describe('the severities of the charting recommendations', () => {
 	it('report the folder and song.ini checks at their severities', async () => {
 		const ini = ['# old comment', '[song]', 'artist = Band', 'name = Song', 'album = Album', 'loading_phrase = "Hi"', 'icon = Geo', 'custom = 1',
-			'diff_guitar = 12', 'delay = 90', 'modchart = False', 'pro_drums = True', 'year =']
+			'diff_guitar = 12', 'delay = 90', 'modchart = False', 'pro_drums = True', 'year =', 'diff_bass =']
 		const files = [...named('ch.dat', 'Album.png', 'drums.ogg', 'preview.opus'), { fileName: 'video.webm', data: { size: 3.2e9, read: () => Promise.reject(new Error('read')) } }]
-		expect(await severities(ini, files)).toMatchObject({
+		expect(await severities(ini, files, { styleNotes: true })).toMatchObject({
 			unrecognizedFile: 'recommendation',
 			fileNameCase: 'warning',
 			folderSize: 'recommendation',
@@ -31,6 +31,7 @@ describe('the severities of the charting recommendations', () => {
 			iniLayout: 'recommendation',
 			iniTagOrder: 'recommendation',
 			blankIniValue: 'recommendation',
+			blankIniNumber: 'warning',
 			quotedIniValue: 'warning',
 			unknownIniTag: 'recommendation',
 			missingSongLength: 'recommendation',
