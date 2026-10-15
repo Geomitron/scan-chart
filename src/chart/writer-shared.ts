@@ -6,6 +6,8 @@
  */
 
 import type { ParsedChart } from './parse-chart-and-ini'
+import type { DrumMixEvent } from './raw-types'
+import { noteFlags, noteTypes } from './types'
 
 /**
  * Ticks where a drum freestyle (BRE) section is flagged as a coda, deduped.
@@ -44,4 +46,39 @@ export function wrapEventBrackets(text: string): string {
 export function unwrapEventBrackets(text: string): string {
 	const trimmed = text.trimEnd()
 	return trimmed.startsWith('[') && trimmed.endsWith(']') ? trimmed.slice(1, -1) : text
+}
+
+/**
+ * The disco flip mix events (`mix <difficulty> drums<configuration><flag>`) both writers write for a drum track: each
+ * one it was read with, at its tick, with its configuration and flag, and one at each tick whose red and yellow notes
+ * need another flip than the last event gives, which replaces an event read at that tick. An added event has the drum
+ * stem configuration of the last event before it, or else of the first one read, or 0.
+ */
+export function drumMixEvents(td: ParsedChart['trackData'][number]): DrumMixEvent[] {
+	const read = td.drumMixes ?? []
+	const written: DrumMixEvent[] = []
+	let readIndex = 0
+	let configuration = read[0]?.configuration ?? 0
+	let flag: DrumMixEvent['flag'] = ''
+	const write = (event: DrumMixEvent) => {
+		configuration = event.configuration
+		flag = event.flag
+		if (written[written.length - 1]?.tick === event.tick) written[written.length - 1] = event
+		else written.push(event)
+	}
+	for (const group of td.noteEventGroups) {
+		// The flip of the group's red and yellow notes. A group without them reads no flip, and keeps the last one.
+		let groupFlag: DrumMixEvent['flag'] | null = null
+		for (const note of group) {
+			if (note.type !== noteTypes.redDrum && note.type !== noteTypes.yellowDrum) continue
+			groupFlag = note.flags & noteFlags.discoNoflip ? 'dnoflip' : note.flags & noteFlags.disco ? 'd' : ''
+			if (groupFlag !== '') break
+		}
+		if (groupFlag === null) continue
+		const tick = group[0].tick
+		while (readIndex < read.length && read[readIndex].tick <= tick) write(read[readIndex++])
+		if (groupFlag !== flag) write({ tick, configuration, flag: groupFlag })
+	}
+	while (readIndex < read.length) write(read[readIndex++])
+	return written
 }

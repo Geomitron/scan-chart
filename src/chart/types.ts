@@ -119,6 +119,11 @@ export interface VocalNote {
 	pitch: number
 	/** Whether this note is a sung pitch note (MIDI 36-84) or vocals percussion cue (MIDI 96/97). */
 	type: 'pitched' | 'percussion'
+	/**
+	 * Set when the note slides from the note before it: its lyric, or the last lyric since that note, ends in `+`. A `+`
+	 * on its own isn't kept as a lyric. YARG sings a pitch slide as part of the note before it.
+	 */
+	pitchSlide?: true
 }
 
 /**

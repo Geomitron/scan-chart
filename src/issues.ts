@@ -100,6 +100,7 @@ export const issueSeverities: { readonly [code in IssueCode]: IssueSeverity } = 
 	unsortedChartLines: 'error',
 	quotedChartTrackEvent: 'error',
 	multipleMidiTrackNames: 'error',
+	multipleMidiTracks: 'error',
 	overlappingMidiNotes: 'error',
 	duplicateIniKey: 'error',
 	duplicateChartLine: 'recommendation',

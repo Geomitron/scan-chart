@@ -1,4 +1,4 @@
-import { writeMidi } from '@geomitron/midi-file'
+import { parseMidi, writeMidi } from '@geomitron/midi-file'
 import { describe, expect, it } from 'vitest'
 
 import { calculateCompetitiveHashes } from 'src/competitive'
@@ -6,6 +6,7 @@ import { ConversionError, convertChart } from 'src/convert-chart'
 import { resolveChart } from 'src/gameplay-chart'
 import { documentFiles, parseSongFiles, SongDocument } from 'src/song-document'
 import { fileBytes } from 'src/song-files'
+import { chartSpellingIssues } from 'src/spelling-issues'
 
 const encode = (text: string) => new TextEncoder().encode(text)
 const decode = (bytes: Uint8Array) => new TextDecoder().decode(bytes)
@@ -49,6 +50,29 @@ describe('convertChart', () => {
 		expect(report.settings).toEqual([{ key: 'sustain_cutoff_threshold', value: '39' }])
 		expect(report.tracks.every(track => track.kept)).toBe(true)
 		expect(iniText(converted)).toBe('[song]\r\nname = Song\r\nartist = Band\r\nsustain_cutoff_threshold = 39\r\n')
+	})
+
+	it('writes sustains of one fret that meet as standard .mid, each note-off before the next note-on', () => {
+		const { song: converted, report } = convertChart(chartSong(expert(['0 = N 0 192', '192 = N 0 192', '384 = N 0 40', '424 = N 0 192'])), 'mid')
+		expect(report.tracks.every(track => track.kept)).toBe(true)
+		const chart = converted.chart!
+		if (chart.format !== 'mid') throw new Error('not converted to .mid')
+		expect(chartSpellingIssues({ format: 'mid', bytes: chart.bytes, tokens: chart.tokens }, false)).toEqual([])
+	})
+
+	it('keeps the drum stem configuration of disco flip mix events both ways', () => {
+		const drums = ['[ExpertDrums]', '{', '  0 = E mix 3 drums2', '  0 = N 1 0', '  480 = E mix 3 drums2d', '  480 = N 1 0', '  480 = N 2 0', '  960 = E mix 3 drums2', '  960 = N 1 0', '}']
+		const { song: asMidi, report } = convertChart(chartSong(drums), 'mid')
+		expect(report.tracks.every(track => track.kept)).toBe(true)
+		const midiFile = fileBytes(documentFiles(asMidi).find(file => file.fileName === 'notes.mid')!)
+		const midiMixes = parseMidi(midiFile).tracks.flatMap(track => {
+			let tick = 0
+			return track.flatMap(event => (tick += event.deltaTime, event.type === 'text' && event.text.startsWith('[mix') ? [[tick, event.text]] : []))
+		})
+		expect(midiMixes).toEqual([[0, '[mix 3 drums2]'], [480, '[mix 3 drums2d]'], [960, '[mix 3 drums2]']])
+		const { song: asChart } = convertChart(asMidi, 'chart')
+		const chartText = decode(fileBytes(documentFiles(asChart).find(file => file.fileName === 'notes.chart')!))
+		expect(chartText.split('\r\n').filter(line => line.includes('mix '))).toEqual(['  0 = E mix 3 drums2', '  480 = E mix 3 drums2d', '  960 = E mix 3 drums2'])
 	})
 
 	it('gives a .chart song without song.ini one, so its [Song] metadata and offset read the same from a .mid', () => {

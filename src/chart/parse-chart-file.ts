@@ -171,6 +171,7 @@ export function resolveTrack(track: RawChartData['trackData'][number], context: 
 		versusPhrases: setEventMsTimes(track.versusPhrases, timedTempos, tpb),
 		animations: setEventMsTimes(track.animations, timedTempos, tpb),
 		unrecognizedMidiEvents: track.unrecognizedMidiEvents,
+		...(track.drumMixes === undefined ? {} : { drumMixes: track.drumMixes }),
 		noteEventGroups: setEventGroupMsTimes(snapped, timedTempos, tpb),
 	}
 }
@@ -337,11 +338,6 @@ function groupIntoPhrases(
 	/** Shared lyric index across all phrases (matching YARG's moonTextIndex pattern).
 	 *  Lyrics from skipped phrases carry over to the next phrase with notes. */
 	let lyricIdx = 0
-	/** End tick of the last note chain (including pitch slide extensions). Used for carry-over check. */
-	let carriedNoteEndTick = -1
-	/** Whether any lyric note has been seen across all phrases (YARG's previousParentLyric).
-	 *  Pitch slides can attach to the previous lyric note even across phrase boundaries. */
-	let hasPreviousLyricNote = false
 
 	const result: VocalPhrase[] = []
 	for (const [phraseIndex, phrase] of timedPhrases.entries()) {
@@ -360,17 +356,13 @@ function groupIntoPhrases(
 			noteIdx++
 		}
 
-		// Check if a pitch slide from a previous phrase carries into this one
-		const hasCarriedNote = carriedNoteEndTick >= phrase.tick
-
 		const notes: VocalNote[] = []
 		const untimedLyrics: { tick: number; text: string; flags: number }[] = []
 
 		// Pre-collect all lyrics within this phrase's tick range. This advances
 		// lyricIdx to a consistent position (phraseEnd) regardless of which notes
-		// exist, preventing lyricIdx divergence when pitch slide notes are dropped
-		// on round-trip. Note processing uses a local iterator (phraseLyricIdx)
-		// over this pre-collected list for flag detection.
+		// exist. Note processing uses a local iterator (phraseLyricIdx) over this
+		// pre-collected list for flag detection.
 		const phraseLyrics: { tick: number; text: string; flags: number }[] = []
 		while (lyricIdx < sortedLyrics.length && sortedLyrics[lyricIdx].tick < lyricEnd) {
 			const lyric = sortedLyrics[lyricIdx]
@@ -395,9 +387,6 @@ function groupIntoPhrases(
 		let phraseLyricIdx = 0
 		for (const note of rawNotes) {
 			if (note.type === 'percussionHidden') continue
-			if (note.type === 'percussion' && note.tick === phrase.tick && notes.length === 0) {
-				continue
-			}
 
 			// Collect lyrics up to and including this note's tick (local iterator)
 			let noteLyricFlags = 0
@@ -432,35 +421,6 @@ function groupIntoPhrases(
 				}
 			}
 
-			const isPitchSlide = (noteLyricFlags & lyricFlags.pitchSlide) !== 0
-
-			if (isPitchSlide) {
-				// Only skip if the pitchSlide lyric survived the emptiness filter.
-				// Symbol-only "+" strips to empty and is filtered from output. If
-				// filtered, the lyric won't exist on re-parse, so the note wouldn't
-				// be detected as a pitch slide — keeping it ensures round-trip
-				// consistency for Harmonix-authored charts.
-				const lastStored = untimedLyrics.length > 0 ? untimedLyrics[untimedLyrics.length - 1] : null
-				const slideMarkerKept = lastStored !== null && (lastStored.flags & lyricFlags.pitchSlide) !== 0
-				if (slideMarkerKept) {
-					const slideEnd = note.tick + note.length
-					if (notes.length > 0) {
-						continue
-					}
-					if (hasCarriedNote) {
-						carriedNoteEndTick = Math.max(carriedNoteEndTick, slideEnd)
-						continue
-					}
-					if (result.length === 0) {
-						continue
-					}
-					if (hasPreviousLyricNote) {
-						carriedNoteEndTick = Math.max(carriedNoteEndTick, slideEnd)
-						continue
-					}
-				}
-			}
-
 			const timed = setEventMsTimes([note], timedTempos, resolution)[0]
 			notes.push({
 				tick: timed.tick,
@@ -472,8 +432,9 @@ function groupIntoPhrases(
 				// nonPitched flag instead. Percussion always gets -1 (fixed MIDI note 96).
 				pitch: note.type === 'percussion' ? -1 : note.pitch,
 				type: note.type,
+				// YARG sings a pitch slide as part of the note before it; it stays a note here, so that it's written back.
+				...((noteLyricFlags & lyricFlags.pitchSlide) !== 0 ? { pitchSlide: true as const } : {}),
 			})
-			if (note.type === 'pitched') hasPreviousLyricNote = true
 		}
 
 		// Add remaining pre-collected lyrics after the last note (with-notes path only;
@@ -490,17 +451,6 @@ function groupIntoPhrases(
 		// note). Keeping them preserves the full set of phrase boundaries so that writers
 		// can round-trip the full MIDI state. Consumers wanting a YARG-compatible filtered
 		// view can filter notePhrases themselves.
-
-		// Track carry-over: only from notes that were added to the phrase (not pitch slide children).
-		// YARG sets carriedNote at line 219-222, which only runs for notes that pass through
-		// the pitch slide `continue` paths. Pitch slide children don't reach this code.
-		for (const n of notes) {
-			// Find the raw note to get the original length
-			const raw = data.notes.find(r => r.tick === n.tick && r.type !== 'percussionHidden')
-			if (raw && raw.tick + raw.length > phraseEnd) {
-				carriedNoteEndTick = raw.tick + raw.length
-			}
-		}
 
 		const isPercussion = notes.length > 0 && notes[0].type === 'percussion'
 

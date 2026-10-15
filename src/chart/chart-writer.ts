@@ -8,7 +8,7 @@
 
 import type { DrumType, Instrument } from '../types'
 import { drumTypes, getInstrumentType, instrumentTypes } from '../types'
-import { codaTicksFromFreestyle, unwrapEventBrackets } from './writer-shared'
+import { codaTicksFromFreestyle, drumMixEvents, unwrapEventBrackets } from './writer-shared'
 import { computeHopoThresholdTicks, isNaturalHopo } from './natural-hopo'
 import type { NoteEvent, NoteType } from './types'
 import { noteFlags, noteTypes } from './types'
@@ -512,27 +512,12 @@ function serializeTrackSection(track: ParsedTrack, chart: ParsedChart): string[]
 		}
 	}
 
-	// Disco-flip state transitions → `mix <diff> drums0[...]` text events.
+	// Disco flips → `mix <diff> drums<configuration><flag>` text events.
 	if (isDrums) {
 		const diffIdx: Record<string, number> = { easy: 0, medium: 1, hard: 2, expert: 3 }
 		const di = diffIdx[track.difficulty] ?? 3
-		let currentState: 'off' | 'disco' | 'discoNoflip' = 'off'
-
-		for (const group of track.noteEventGroups) {
-			if (group.length === 0) continue
-			let newState: 'off' | 'disco' | 'discoNoflip' = 'off'
-			for (const note of group) {
-				if (note.type === noteTypes.redDrum || note.type === noteTypes.yellowDrum) {
-					if (note.flags & noteFlags.discoNoflip) { newState = 'discoNoflip'; break }
-					if (note.flags & noteFlags.disco) { newState = 'disco'; break }
-				}
-			}
-			if (newState !== currentState) {
-				const tick = group[0].tick
-				const suf = newState === 'off' ? 'drums0' : newState === 'disco' ? 'drums0d' : 'drums0dnoflip'
-				events.push({ tick, sortKey: 2, kind: 'E', text: `mix ${di} ${suf}` })
-				currentState = newState
-			}
+		for (const { tick, configuration, flag } of drumMixEvents(track)) {
+			events.push({ tick, sortKey: 2, kind: 'E', text: `mix ${di} drums${configuration}${flag}` })
 		}
 	}
 
