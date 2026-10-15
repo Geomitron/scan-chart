@@ -1,4 +1,3 @@
-import { MidiData, writeMidi } from '@geomitron/midi-file'
 import { describe, expect, it } from 'vitest'
 
 import { authoredTracks } from 'src/authored'
@@ -12,39 +11,14 @@ import type { SongFile } from 'src/song-files'
 import type { IssueCode } from 'src/issues'
 import { saveSong, songHashes } from 'src/song-save'
 
+import { chartFile, chartText, expertChart, expertSection, midi } from './helpers/chart-files'
 import { jpeg, opus, png, vorbis } from './helpers/media-files'
 
-const encode = (text: string) => new TextEncoder().encode(text)
 const decode = (bytes: Uint8Array) => new TextDecoder().decode(bytes)
 
-/** A `.chart` file with a 120 BPM tempo map, and an Expert guitar track unless `sections` gives the tracks. */
-const chartFile = (sections: string[] = ['[ExpertSingle]', '{', '  768 = N 0 0', '  960 = N 1 0', '}']) => encode([
-	'[Song]', '{', '  Resolution = 192', '}', '[SyncTrack]', '{', '  0 = TS 4', '  0 = B 120000', '}', '[Events]', '{', '}', ...sections,
-].join('\r\n') + '\r\n')
-const iniFile = (lines: readonly string[]) => encode(lines.join('\r\n') + '\r\n')
+const iniFile = (lines: readonly string[]) => new TextEncoder().encode(lines.join('\r\n') + '\r\n')
 const folder = (iniLines: readonly string[], chart: Uint8Array = chartFile(), chartName = 'notes.chart'): SongFile[] =>
 	[{ fileName: chartName, data: chart }, { fileName: 'song.ini', data: iniFile(iniLines) }, { fileName: 'song.opus', data: new Uint8Array(1) }]
-
-type MidiTrack = MidiData['tracks'][number]
-
-/** A `.mid` file at 480 ticks per beat and 120 BPM, with a track for each name holding its notes. */
-function midi(tracks: Record<string, readonly { tick: number; noteNumber: number; length?: number }[]>): Uint8Array {
-	const midiTracks = Object.entries(tracks).map(([name, notes]): MidiTrack => {
-		const timed = notes.flatMap(note => [
-			{ tick: note.tick, order: 1, event: { type: 'noteOn', channel: 0, noteNumber: note.noteNumber, velocity: 100 } as const },
-			{ tick: note.tick + (note.length ?? 10), order: 0, event: { type: 'noteOff', channel: 0, noteNumber: note.noteNumber, velocity: 0 } as const },
-		]).sort((left, right) => left.tick - right.tick || left.order - right.order)
-		const events: MidiTrack = [{ deltaTime: 0, type: 'trackName', text: name }]
-		let previous = 0
-		for (const { tick, event } of timed) {
-			events.push({ ...event, deltaTime: tick - previous })
-			previous = tick
-		}
-		return [...events, { deltaTime: 0, type: 'endOfTrack' }]
-	})
-	const conductor: MidiTrack = [{ deltaTime: 0, type: 'setTempo', microsecondsPerBeat: 500000 }, { deltaTime: 0, type: 'endOfTrack' }]
-	return new Uint8Array(writeMidi({ header: { format: 1, numTracks: midiTracks.length + 1, ticksPerBeat: 480 }, tracks: [conductor, ...midiTracks] }))
-}
 
 /**
  * Fixes the song of `files`, and gives the report, the canonical hashes before and after, the fixed song.ini's text,
@@ -313,21 +287,19 @@ describe('fixIssues: files', () => {
 
 describe('fixIssues: empty tracks and phrases', () => {
 	const ini = ['[song]', 'name = Song']
-	const chartText = (result: Awaited<ReturnType<typeof fix>>) => decode((result.song.chart as { tokens: { bytes: Uint8Array } }).tokens.bytes)
-	const expert = (...lines: string[]) => ['[ExpertSingle]', '{', '  768 = N 0 0', '  960 = N 1 0', ...lines.map(line => `  ${line}`), '}']
 
 	it('removes .chart sections with no notes, keeping the hashes', async () => {
-		const result = await fix(folder(ini, chartFile([...expert(), '[HardSingle]', '{', '}', '[EasyDrums]', '{', '  0 = S 2 192', '}'])), { codes: ['emptyTrack'] })
-		expect(chartText(result)).not.toMatch(/HardSingle|EasyDrums/)
-		expect(chartText(result)).toMatch(/\[ExpertSingle\]\r\n\{\r\n {2}768 = N 0 0\r\n {2}960 = N 1 0\r\n\}\r\n$/)
+		const result = await fix(folder(ini, chartFile([...expertSection('768 = N 0 0', '960 = N 1 0'), '[HardSingle]', '{', '}', '[EasyDrums]', '{', '  0 = S 2 192', '}'])), { codes: ['emptyTrack'] })
+		expect(chartText(result.song)).not.toMatch(/HardSingle|EasyDrums/)
+		expect(chartText(result.song)).toMatch(/\[ExpertSingle\]\r\n\{\r\n {2}768 = N 0 0\r\n {2}960 = N 1 0\r\n\}\r\n$/)
 		expect(result.report.fixed.map(entry => entry.description)).toEqual(['Removed the [HardSingle] section, which has no notes.', 'Removed the [EasyDrums] section, which has no notes.'])
 		expect(result.codes).not.toContain('emptyTrack')
 		expectHashesKept(result)
 	})
 
 	it('keeps an empty section whose drum markers decide the drum type', async () => {
-		const result = await fix(folder(ini, chartFile([...expert(), '[ExpertDrums]', '{', '  768 = N 2 0', '}', '[EasyDrums]', '{', '  0 = N 66 0', '}'])), { codes: ['emptyTrack'] })
-		expect(chartText(result)).toContain('[EasyDrums]')
+		const result = await fix(folder(ini, chartFile([...expertSection('768 = N 0 0', '960 = N 1 0'), '[ExpertDrums]', '{', '  768 = N 2 0', '}', '[EasyDrums]', '{', '  0 = N 66 0', '}'])), { codes: ['emptyTrack'] })
+		expect(chartText(result.song)).toContain('[EasyDrums]')
 		expect(result.report.skipped).toEqual([{ code: 'emptyTrack', file: 'notes.chart', reason: 'Removing the [EasyDrums] section would change the drum type.' }])
 		expectHashesKept(result)
 	})
@@ -343,9 +315,9 @@ describe('fixIssues: empty tracks and phrases', () => {
 	})
 
 	it('removes .chart star power, solo and flex lane phrases with no notes, keeping the hashes', async () => {
-		const result = await fix(folder(ini, chartFile(expert('768 = S 2 100', '1536 = S 2 192', '1536 = E solo', '1700 = E soloend', '1800 = S 65 100'))))
-		expect(chartText(result)).toContain('768 = S 2 100')
-		expect(chartText(result)).not.toMatch(/1536 = S 2|E solo|1800 = S 65/)
+		const result = await fix(folder(ini, chartFile(expertSection('768 = N 0 0', '960 = N 1 0', '768 = S 2 100', '1536 = S 2 192', '1536 = E solo', '1700 = E soloend', '1800 = S 65 100'))))
+		expect(chartText(result.song)).toContain('768 = S 2 100')
+		expect(chartText(result.song)).not.toMatch(/1536 = S 2|E solo|1800 = S 65/)
 		expect(result.report.fixed.filter(entry => entry.code.startsWith('empty')).map(entry => entry.description)).toEqual([
 			'Removed the expert guitar star power phrase with no notes at tick 1536.',
 			'Removed the expert guitar solo phrase with no notes at tick 1536.',
@@ -356,8 +328,8 @@ describe('fixIssues: empty tracks and phrases', () => {
 	})
 
 	it('keeps a flex lane that ends on a note, which the hashes count as in it', async () => {
-		const result = await fix(folder(ini, chartFile(expert('800 = S 65 160'))), { codes: ['emptyFlexLane'] })
-		expect(chartText(result)).toContain('800 = S 65 160')
+		const result = await fix(folder(ini, chartFile(expertSection('768 = N 0 0', '960 = N 1 0', '800 = S 65 160'))), { codes: ['emptyFlexLane'] })
+		expect(chartText(result.song)).toContain('800 = S 65 160')
 		expect(result.report.skipped).toEqual([{ code: 'emptyFlexLane', file: 'notes.chart',
 			reason: 'Removing the expert guitar flex lane phrase at tick 800 would change the SongHash and a TrackHash.' }])
 		expectHashesKept(result)
@@ -375,46 +347,44 @@ describe('fixIssues: empty tracks and phrases', () => {
 
 describe('fixIssues: sustains', () => {
 	const ini = ['[song]', 'name = Song']
-	const chartText = (result: Awaited<ReturnType<typeof fix>>) => decode((result.song.chart as { tokens: { bytes: Uint8Array } }).tokens.bytes)
-	const expert = (...lines: string[]) => chartFile(['[ExpertSingle]', '{', ...lines.map(line => `  ${line}`), '}'])
 	const hashKeys = (result: Awaited<ReturnType<typeof fix>>) => result.report.hashes.map(change => change.key)
 
 	it('removes sustains shorter than 200 ms only with changeHashes, changing the TrackHash', async () => {
-		const short = folder(ini, expert('768 = N 0 30', '960 = N 1 60', '1152 = N 2 96'))
+		const short = folder(ini, expertChart('768 = N 0 30', '960 = N 1 60', '1152 = N 2 96'))
 		const kept = await fix(short, { codes: ['babySustain'] })
 		expect(kept.report.skipped).toEqual([{ code: 'babySustain', file: null, reason: 'Its fix changes a canonical hash: fix it with changeHashes.' }])
 		expectHashesKept(kept)
 
 		const removed = await fix(short, { codes: ['babySustain'], changeHashes: true })
-		expect(chartText(removed)).toContain('768 = N 0 0\r\n  960 = N 1 0\r\n  1152 = N 2 96')
+		expect(chartText(removed.song)).toContain('768 = N 0 0\r\n  960 = N 1 0\r\n  1152 = N 2 96')
 		expect(removed.report.fixed).toEqual([{ code: 'babySustain', file: 'notes.chart', description: 'Removed 2 expert guitar sustains shorter than 200 ms.' }])
 		expect(hashKeys(removed)).toEqual(['canonical:guitar:expert', 'canonical:song'])
 		expect(removed.codes).not.toContain('babySustain')
 
 		const under100 = await fix(short, { codes: ['babySustain'], changeHashes: true, minSustainMs: 100 })
-		expect(chartText(under100)).toContain('768 = N 0 0\r\n  960 = N 1 60')
+		expect(chartText(under100.song)).toContain('768 = N 0 0\r\n  960 = N 1 60')
 	})
 
 	it('shortens a sustain to end 60 ms before the next note, and removes it when that leaves it too short', async () => {
 		// At 120 BPM and 192 ticks per beat, a tick is 2.6 ms: the sustain ends 57 ms before the next note.
-		const gap = await fix(folder(ini, expert('768 = N 0 170', '960 = N 1 0')), { codes: ['badSustainGap'], changeHashes: true })
-		expect(chartText(gap)).toContain('768 = N 0 168\r\n')
+		const gap = await fix(folder(ini, expertChart('768 = N 0 170', '960 = N 1 0')), { codes: ['badSustainGap'], changeHashes: true })
+		expect(chartText(gap.song)).toContain('768 = N 0 168\r\n')
 		expect(gap.report.fixed).toEqual([{ code: 'badSustainGap', file: 'notes.chart', description: 'Shortened 1 expert guitar sustain to end 60 ms before the next note.' }])
 		expect(gap.codes).not.toContain('badSustainGap')
 		expect(hashKeys(gap)).toEqual(['canonical:guitar:expert', 'canonical:song'])
 
 		// A sustain held over a note it would then end too close to is left.
-		const held = await fix(folder(ini, expert('768 = N 0 160', '850 = N 1 0', '940 = N 2 0')), { codes: ['badSustainGap'], changeHashes: true })
-		expect(chartText(held)).toContain('768 = N 0 148\r\n')
-		const over = await fix(folder(ini, expert('768 = N 0 160', '920 = N 1 0', '940 = N 2 0')), { codes: ['badSustainGap'], changeHashes: true })
-		expect(chartText(over)).toContain('768 = N 0 160\r\n')
+		const held = await fix(folder(ini, expertChart('768 = N 0 160', '850 = N 1 0', '940 = N 2 0')), { codes: ['badSustainGap'], changeHashes: true })
+		expect(chartText(held.song)).toContain('768 = N 0 148\r\n')
+		const over = await fix(folder(ini, expertChart('768 = N 0 160', '920 = N 1 0', '940 = N 2 0')), { codes: ['badSustainGap'], changeHashes: true })
+		expect(chartText(over.song)).toContain('768 = N 0 160\r\n')
 		expect(over.report.skipped).toEqual([{ code: 'badSustainGap', file: 'notes.chart',
 			reason: '1 expert guitar sustain is held over other notes: shortening it would end it too close to one.' }])
 
-		const tight = folder(ini, expert('768 = N 0 80', '864 = N 1 0'))
-		expect(chartText(await fix(tight, { codes: ['badSustainGap'], changeHashes: true }))).toContain('768 = N 0 72\r\n')
+		const tight = folder(ini, expertChart('768 = N 0 80', '864 = N 1 0'))
+		expect(chartText((await fix(tight, { codes: ['badSustainGap'], changeHashes: true })).song)).toContain('768 = N 0 72\r\n')
 		const both = await fix(tight, { codes: ['badSustainGap', 'babySustain'], changeHashes: true })
-		expect(chartText(both)).toContain('768 = N 0 0\r\n')
+		expect(chartText(both.song)).toContain('768 = N 0 0\r\n')
 		expect(both.report.fixed).toEqual([
 			{ code: 'badSustainGap', file: 'notes.chart', description: 'Shortened 1 expert guitar sustain to end 60 ms before the next note.' },
 			{ code: 'babySustain', file: 'notes.chart', description: 'Removed 1 expert guitar sustain that shortening left shorter than 200 ms.' },
@@ -423,9 +393,9 @@ describe('fixIssues: sustains', () => {
 	})
 
 	it('leaves a sustain whose note the parser moved, such as a snapped chord\'s', async () => {
-		const snapped = await fix(folder(['[song]', 'name = Song', 'chord_snap_threshold = 5'], expert('768 = N 0 30', '770 = N 1 30', '1152 = N 2 0')),
+		const snapped = await fix(folder(['[song]', 'name = Song', 'chord_snap_threshold = 5'], expertChart('768 = N 0 30', '770 = N 1 30', '1152 = N 2 0')),
 			{ codes: ['babySustain'], changeHashes: true })
-		expect(chartText(snapped)).toContain('768 = N 0 0\r\n  770 = N 1 30\r\n')
+		expect(chartText(snapped.song)).toContain('768 = N 0 0\r\n  770 = N 1 30\r\n')
 		expect(snapped.report.skipped).toEqual([{ code: 'babySustain', file: 'notes.chart', reason: 'The expert guitar note at tick 768 isn\'t written as a note of its type and tick.' }])
 	})
 
@@ -440,17 +410,15 @@ describe('fixIssues: sustains', () => {
 })
 
 describe('fixIssues: the HOPO threshold tags', () => {
-	const chartText = (result: Awaited<ReturnType<typeof fix>>) => decode((result.song.chart as { tokens: { bytes: Uint8Array } }).tokens.bytes)
-	const expert = (...lines: string[]) => chartFile(['[ExpertSingle]', '{', ...lines.map(line => `  ${line}`), '}'])
 	/** Each note as Clone Hero plays it: tick, length, type and flags. */
 	const played = async (files: readonly SongFile[]) => notesOf(await parseSong(files))
 	const notesOf = (song: SongDocument) => resolveChart(song).tracks.map(track => [track.instrument, track.difficulty, track.noteGroups.flat().map(note => [note.tick, note.length, note.type, note.flags])])
 
 	it('forces the .chart notes hopo_frequency makes HOPOs or strums, then removes it, so every note and hash stays', async () => {
 		// At 192 ticks per beat, a .chart's own threshold is 65 ticks. 150 ticks apart is a HOPO with 170 and a strum without.
-		const files = folder(['[song]', 'name = Song', 'hopo_frequency = 170'], expert('0 = N 0 0', '150 = N 1 0', '300 = N 2 0', '300 = N 5 0', '340 = N 3 0'))
+		const files = folder(['[song]', 'name = Song', 'hopo_frequency = 170'], expertChart('0 = N 0 0', '150 = N 1 0', '300 = N 2 0', '300 = N 5 0', '340 = N 3 0'))
 		const result = await fix(files, { codes: ['deprecatedIniTag'] })
-		expect(chartText(result)).toContain('  0 = N 0 0\r\n  150 = N 1 0\r\n  150 = N 5 0\r\n  300 = N 2 0\r\n  340 = N 3 0\r\n')
+		expect(chartText(result.song)).toContain('  0 = N 0 0\r\n  150 = N 1 0\r\n  150 = N 5 0\r\n  300 = N 2 0\r\n  340 = N 3 0\r\n')
 		expect(result.ini).toBe('[song]\r\nname = Song\r\n')
 		expect(result.report.fixed).toEqual([{ code: 'deprecatedIniTag', file: 'notes.chart', description: 'Forced 2 notes to play the same without "hopo_frequency", and removed it.' }])
 		expect(notesOf(result.song)).toEqual(await played(files))
@@ -459,12 +427,12 @@ describe('fixIssues: the HOPO threshold tags', () => {
 	})
 
 	it('removes eighthnote_hopo, and with hopo_frequency both, which would otherwise apply', async () => {
-		const files = folder(['[song]', 'name = Song', 'eighthnote_hopo = True'], expert('0 = N 0 0', '90 = N 1 0'))
+		const files = folder(['[song]', 'name = Song', 'eighthnote_hopo = True'], expertChart('0 = N 0 0', '90 = N 1 0'))
 		const result = await fix(files, { codes: ['deprecatedIniTag'] })
-		expect(chartText(result)).toContain('90 = N 5 0')
+		expect(chartText(result.song)).toContain('90 = N 5 0')
 		expect(notesOf(result.song)).toEqual(await played(files))
 		expectHashesKept(result)
-		const both = await fix(folder(['[song]', 'name = Song', 'hopo_frequency = 170', 'eighthnote_hopo = 1'], expert('0 = N 0 0', '150 = N 1 0')), { codes: ['deprecatedIniTag'] })
+		const both = await fix(folder(['[song]', 'name = Song', 'hopo_frequency = 170', 'eighthnote_hopo = 1'], expertChart('0 = N 0 0', '150 = N 1 0')), { codes: ['deprecatedIniTag'] })
 		expect(both.ini).toBe('[song]\r\nname = Song\r\n')
 		expect(both.report.fixed[0].description).toBe('Forced 1 note to play the same without "hopo_frequency" and "eighthnote_hopo", and removed them.')
 		expectHashesKept(both)
