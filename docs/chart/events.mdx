@@ -3,7 +3,7 @@ title: "[Events]"
 description: "Practice sections, lyrics and other song-wide text events in a .chart file."
 ---
 
-`[Events]` holds the text events that apply to the whole song: practice sections, lyrics and the song's end. Each is an `E` event with its text in quotation marks:
+`[Events]` holds the text events that apply to the whole song: practice sections, lyrics, the coda and the song's end. Each is an `E` event with its text in quotation marks:
 
 ```text
 [Events]
@@ -18,7 +18,7 @@ description: "Practice sections, lyrics and other song-wide text events in a .ch
 }
 ```
 
-A reader removes spaces and tabs around the text, and one pair of square brackets around the whole text, so `E "[section Intro]"` means the same as `E "section Intro"`. A writer should write neither. A reader matches every event below in the letter case shown, and ignores any other text in `[Events]`.
+A scanner matches every event below in the letter case shown. It reads the text as [Syntax](/chart/syntax#text) describes, so `E "[section Intro]"` means the same as `E "section Intro"`.
 
 ## Practice sections
 
@@ -28,14 +28,15 @@ A practice section marks where a part of the song starts, such as the intro or a
 <tick> = E "section <name>"
 ```
 
-- A space or `_` separates `section` from the name. The name must not be empty. A reader removes spaces at the ends of the name.
-- `prc` is an older word for `section`: `prc_verse_1` is a practice section named `verse_1`. A writer should write `section`.
-- A tick must not hold two practice sections. A reader that finds two uses the later one.
-- A chart should have at least one practice section.
+- A space or `_` separates `section` from the name. The name must not be empty.
+- A tick must not hold two practice sections.
+- **Recommended:** at least one practice section in a chart.
+
+**Edge case:** a scanner removes spaces at the ends of the name, so `E "section  Intro "` is a section named `Intro`.
 
 ## Lyrics
 
-A lyric is one syllable or word of the vocals. Vocal phrases group lyrics into the lines a reader shows:
+A lyric is one syllable or word of the vocals. Vocal phrases group lyrics into the lines a scanner shows:
 
 ```text
 <tick> = E "lyric <text>"
@@ -43,23 +44,15 @@ A lyric is one syllable or word of the vocals. Vocal phrases group lyrics into t
 <tick> = E "phrase_end"
 ```
 
-- **A lyric** is `lyric`, a space, and the text. A reader ignores a lyric with no text.
+- **A lyric** is `lyric`, a space, and the text.
 - **A phrase** runs from a `phrase_start` to the next `phrase_start` or `phrase_end`. It holds the lyrics from its start tick through its end tick.
-- **A lyric on a tick where one phrase ends and another starts** belongs to the phrase that starts there.
-- **On a tick with both**, a writer must write `phrase_end` before `phrase_start`. A reader reads them in the order written.
-- **The last phrase** must end with a `phrase_end`. A reader ignores a phrase that never ends.
-- **A lyric outside every phrase** should not be written. A reader ignores it.
-- **A `phrase_end` with no open phrase** has no effect.
+- **Every lyric** must be inside a phrase.
+- **The last phrase** must end with a `phrase_end`.
+- **On a tick where one phrase ends and the next starts,** a `phrase_end` is optional. If there is one, it must come before the `phrase_start`.
 
 A `.chart` file holds one set of lyrics, without pitches.
 
-## The end of the song
-
-```text
-<tick> = E "end"
-```
-
-`end` marks where the song ends. A chart should have at most one, at or after the end of its last note, sustain included. A reader that finds several uses the first. It ignores an `end` that comes before the last note ends.
+**Edge case: a lyric on a phrase's last tick.** A lyric on the tick where its phrase ends belongs to that phrase, unless the next phrase starts on that tick: then it belongs to the next phrase.
 
 ## The coda
 
@@ -67,4 +60,60 @@ A `.chart` file holds one set of lyrics, without pitches.
 <tick> = E "coda"
 ```
 
-`coda` marks where the song's big ending starts. A drum fill at or after it is a Big Rock Ending: see [Drum fills](/chart/phrases#drum-fills). A chart should have at most one `coda`. A reader that finds several uses the first.
+`coda` marks where the song's big ending starts. A drum fill at or after it is a Big Rock Ending: see [Drum fills](/chart/phrases#drum-fills). A chart should have at most one `coda`.
+
+## The end of the song
+
+```text
+<tick> = E "end"
+```
+
+`end` ends the song before its audio does. When the audio runs on long past the last note, such as a long fade-out or a recording that keeps going, a scanner ends the song at `end` and shows the results sooner.
+
+- `end` must come at least one beat after the end of the last note, sustain included.
+- A chart should have at most one `end`.
+
+**Edge case:** Clone Hero 1.1 and later read `end` only from a `.mid` file, not from a `.chart` file, because of a bug.
+
+## Deprecated
+
+- **`prc`,** an older word for `section`: `prc_verse_1` is a practice section named `verse_1`. Write `section` instead.
+
+## Ignored
+
+- **Any other text.** YARG acts on a few more events, such as `crowd_clap`; other scanners ignore them.
+- **A lyric with no text,** such as `E "lyric "`.
+
+## Invalid forms
+
+<Accordion title="Two practice sections at one tick">
+A scanner uses the later one.
+</Accordion>
+
+<Accordion title="A practice section with no name">
+YARG and scan-chart ignore `E "section"` and `E "section "`. Clone Hero reads them as a section named "", and fails to load a chart that has `E "prc"` alone.
+</Accordion>
+
+<Accordion title="A lyric outside every phrase">
+A scanner ignores it.
+</Accordion>
+
+<Accordion title="A phrase that never ends">
+Clone Hero and scan-chart ignore a last `phrase_start` that no `phrase_end` closes, and the lyrics after it. YARG closes it after the last instrument-section event.
+</Accordion>
+
+<Accordion title="phrase_start before phrase_end on one tick">
+Clone Hero and scan-chart read them in the order written, so the new phrase ends at once and holds nothing. YARG reads them as the end of one phrase and the start of the next.
+</Accordion>
+
+<Accordion title="A phrase_end with no open phrase">
+It has no effect.
+</Accordion>
+
+<Accordion title="More than one coda or end">
+A scanner uses the first.
+</Accordion>
+
+<Accordion title="An end less than a beat after the last note ends">
+A scanner ignores it, and the song lasts as long as its audio.
+</Accordion>

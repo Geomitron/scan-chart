@@ -1,39 +1,51 @@
 ---
 title: "Phrases"
-description: "Star power, solos, roll lanes and drum fills in a .chart file."
+description: "Star power, solos, lanes and drum fills in a .chart file."
 ---
 
-A phrase marks a stretch of one track, such as a star power phrase or a solo. It applies to the instrument and difficulty of the section that holds it. Most phrases are `S` events:
+A phrase marks a stretch of one track, such as a star power phrase or a solo. It goes in an instrument section, with the notes it covers, and applies to that section's instrument and difficulty:
+
+```text
+[ExpertSingle]
+{
+  768 = N 0 0
+  768 = S 2 1536
+  960 = N 1 0
+  1152 = N 2 0
+  2304 = N 3 0
+  3072 = N 4 0
+  3072 = E solo
+  6144 = N 0 0
+  6144 = E soloend
+}
+```
+
+Here a star power phrase covers the notes from tick 768 up to tick 2304, and a solo covers the notes from tick 3072 through tick 6144.
+
+Most phrases are `S` events:
 
 ```text
 <tick> = S <type> <length>
 ```
 
-The length is in ticks. A phrase covers the notes from its tick up to, but not including, its end tick, `tick + length`. Some phrases include their end tick, as their descriptions below say.
+The length is in ticks, and the phrase ends at its end tick, `tick + length`:
 
-| Type | Phrase | Instruments |
-|---|---|---|
-| `2` | Star power | All |
-| `64` | Drum fill | Drums |
-| `65` | Single roll lane | Drums |
-| `66` | Double roll lane | Drums |
-| `0`, `1` | Versus phrase, for player 1 or player 2 | All |
+| Type | Phrase | Instruments | Covers its end tick |
+|---|---|---|---|
+| `2` | [Star power](#star-power) | All | No |
+| `64` | [Drum fill](#drum-fills) | Drums. On 5-fret, only as a Big Rock Ending | Yes |
+| `65` | [Lane](#lanes): a single roll lane on drums, a tremolo lane on 5-fret | Drums and 5-fret | Yes |
+| `66` | [Lane](#lanes): a double roll lane on drums, a trill lane on 5-fret | Drums and 5-fret | Yes |
 
-A reader ignores a phrase of any other type, and a phrase on an instrument the table doesn't list for it.
-
-{/* review: Q5
-Which instruments may hold drum fills (S 64) and roll lanes (S 65, S 66)? Clone Hero reads all three on every instrument. It draws lanes on any of them, but changes how notes are hit only on drums, and it gives guitar a Big Rock Ending from S 64 after coda. YARG reads them on drums only in a .chart file, as GuitarGame_ChartFormats describes.
-- A. Drums only | A reader ignores them on other instruments | Guitar Big Rock Endings, which only Clone Hero has, aren't standard
-- B. Any instrument | Lanes and fills are valid everywhere, and a reader without gameplay for them ignores them | Charts can rely on behavior only Clone Hero has
-Recommendation: A, as written. It's what the format's documentation and YARG agree on.
-*/}
+A [solo](#solos) is written as two text events instead, and covers both of its ticks.
 
 ## Rules for every phrase
 
-- A track must not hold two phrases of one type at one tick. A reader that finds two uses the longer phrase.
-- Phrases of one type must not overlap. A reader that finds two overlapping cuts the earlier one where the later starts, and extends the later one to whichever ends last.
-- A phrase should cover at least one note. A reader ignores a phrase that covers none.
-- A phrase of length 0 covers the notes on its tick. A writer should give every phrase a length.
+- A track must not hold two phrases of one type at one tick.
+- Phrases of one type must not overlap, except lanes.
+- A phrase should cover at least one note, and an exporter should give every phrase a length.
+
+**Edge case: a phrase of length 0.** It covers the notes on its tick.
 
 ## Star power
 
@@ -52,24 +64,46 @@ A solo is marked by two text events, `solo` and `soloend`, written without quota
 6144 = E soloend
 ```
 
-- A `soloend` ends the most recent `solo` that hasn't ended. Solos must not be nested.
-- A reader ignores a `soloend` with no open `solo`, and a `solo` that never ends.
+A `soloend` ends the most recent `solo` that hasn't ended. Solos must not be nested.
 
 ## Drum fills
 
-A drum fill marks a stretch where the drummer can play freely and activate star power by hitting the fill's last note. It includes its end tick. A writer should put a note on the fill's end tick.
+A drum fill marks a stretch where the drummer can play freely and activate star power by hitting the fill's last note. It includes its end tick. An exporter should put a note on the fill's end tick.
 
 A drum fill whose tick is at or after the [`coda`](/chart/events#the-coda) is a Big Rock Ending instead: a closing freestyle section with no star power activation.
 
-## Roll lanes
+On 5-fret guitar, bass and keys, an `S 64` at or after the `coda` is a Big Rock Ending, and has no meaning before it.
 
-A roll lane marks a stretch the player can play as a roll instead of note by note. It includes its end tick.
+## Lanes
 
-- **A single roll lane** (`S 65`) covers a roll on one pad.
-- **A double roll lane** (`S 66`) covers a roll that alternates between two pads.
+A lane marks a passage too fast to play note for note. Inside it, the player keeps up the motion at their own speed, and each note counts as hit. A lane includes its end tick, and lanes may overlap.
 
-The lane takes its pads from the notes it covers, and never includes the kick. A lane should cover at least two notes. Lanes may overlap.
+- **On drums,** `S 65` is a roll on one pad, and `S 66` a roll that alternates between two pads. The lane takes its pads from the notes it covers, and never includes the kick.
+- **On 5-fret guitar, bass and keys,** `S 65` is a tremolo lane: one fret or chord repeated, at least two notes, strummed freely. `S 66` is a trill lane: two single frets alternating, at least three notes, played freely between them. These are what `.mid` notes 126 and 127 mean.
 
-## Versus phrases
+A lane should cover at least two notes, and only notes that fit its pattern: YARG cancels a lane whose notes don't.
 
-Versus phrases mark the parts each player plays in a face-off, from older games. Most readers ignore them, and a writer should keep them when rewriting a file.
+**Edge case: lanes on 5-fret today.** YARG plays tremolo and trill lanes only from a `.mid` file, and Clone Hero plays lanes only on drums, so no game yet plays them from a `.chart` file. On 6-fret, `S 64` to `S 66` have no meaning.
+
+## Ignored
+
+- **A phrase of any other type,** and a phrase on an instrument the table doesn't list for it.
+- **Versus phrases,** `S 0` and `S 1`, which mark the parts each player plays in a face-off in older games. An exporter should keep them when rewriting a file.
+
+## Invalid forms
+
+<Accordion title="Two phrases of one type at one tick">
+A scanner uses the longer phrase.
+</Accordion>
+
+<Accordion title="Overlapping phrases of one type">
+A scanner cuts the earlier one where the later starts, and extends the later one to whichever ends last.
+</Accordion>
+
+<Accordion title="A phrase that covers no notes">
+A scanner ignores it. scan-chart reports an empty star power phrase, solo or lane.
+</Accordion>
+
+<Accordion title="A soloend with no open solo, or a solo that never ends">
+A scanner ignores it.
+</Accordion>

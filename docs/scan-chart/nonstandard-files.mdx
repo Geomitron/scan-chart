@@ -3,7 +3,7 @@ title: "Nonstandard files"
 description: "What scan-chart reads in a .chart file that doesn't follow the standard, and how it saves it."
 ---
 
-The [syntax](/chart/syntax) page gives the standard. A file that breaks it is invalid, and other readers may refuse it. scan-chart reads such a file more widely: where a line or section has one probable meaning, scan-chart reads that meaning and reports an issue. When you save an edited song, scan-chart writes what it read in the standard form.
+The [syntax](/chart/syntax) page gives the standard. A file that breaks it is invalid, and other scanners may refuse it. scan-chart reads such a file more widely: where a line or section has one probable meaning, scan-chart reads that meaning and reports an issue. When you save an edited song, scan-chart writes what it read in the standard form.
 
 ## Lines read as they probably mean
 
@@ -29,6 +29,10 @@ The `nonstandardChartLine` issue names the first such line in each section.
 - **A repeated name:** the first section with the name is read. Saving removes the others.
 
 The `nonstandardChartSections` issue says which of these a file has.
+
+## Repeated markers
+
+Two tempo markers, or two time signatures, at one tick in `[SyncTrack]` are read as games read them: the later one counts. Saving removes the earlier one.
 
 ## Lines read as written
 
