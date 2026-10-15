@@ -20,6 +20,7 @@ import {
 	type MidiWriteOptions,
 	noteOffEvent,
 	noteOnEvent,
+	readSustainCutoff,
 	stretchUnsustainedNotes,
 	trackNameEvent,
 } from './shared'
@@ -112,9 +113,10 @@ export function buildDrumTrack(
 	}
 
 	const diffVelocity: Record<Difficulty, number> = { easy: 25, medium: 35, hard: 45, expert: 100 }
+	const cutoff = readSustainCutoff(chart, options)
 
 	for (const td of trackDataEntries) {
-		emitDrumNotes(events, td, chart, emittedTomMarker, emittedFlam, conflictedGreenTomTicks, hasAG => {
+		emitDrumNotes(events, td, chart, cutoff, emittedTomMarker, emittedFlam, conflictedGreenTomTicks, hasAG => {
 			if (hasAG) hasAccentsOrGhosts = true
 		})
 
@@ -256,6 +258,7 @@ function emitDrumNotes(
 	events: AbsoluteEvent[],
 	td: ParsedTrack,
 	chart: ParsedChart,
+	cutoff: number,
 	emittedTomMarker: Set<string>,
 	emittedFlam: Set<string>,
 	conflictedGreenTomTicks: Set<number>,
@@ -270,7 +273,7 @@ function emitDrumNotes(
 	const isFiveLaneTrack = drumType === drumTypes.fiveLane
 	const isFourLanePro = drumType === drumTypes.fourLanePro
 	const offsetTable = isFiveLaneTrack ? drumNoteTypeToOffsetFiveLane : drumNoteTypeToOffset
-	const lengthOverrides = computeLengthOverrides(td)
+	const lengthOverrides = computeLengthOverrides(td, cutoff)
 
 	for (const group of td.noteEventGroups) {
 		let hasFlamInGroup = false

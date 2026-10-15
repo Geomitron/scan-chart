@@ -20,6 +20,7 @@ import {
 	type MidiWriteOptions,
 	noteOffEvent,
 	noteOnEvent,
+	readSustainCutoff,
 	stretchUnsustainedNotes,
 	trackNameEvent,
 } from './shared'
@@ -150,12 +151,13 @@ export function buildFretTrack(
 	}
 
 	const diffVelocity: Record<Difficulty, number> = { easy: 25, medium: 35, hard: 45, expert: 100 }
+	const cutoff = readSustainCutoff(chart, options)
 
 	for (const td of trackDataEntries) {
 		if (isGhl) {
-			emitFretNotes(events, td, sixFretDiffStarts, sixFretNoteTypeToOffset, animMap, useEnhancedOpens, animSeqMap)
+			emitFretNotes(events, td, sixFretDiffStarts, sixFretNoteTypeToOffset, animMap, useEnhancedOpens, animSeqMap, cutoff)
 		} else {
-			emitFretNotes(events, td, fiveFretDiffStarts, fiveFretNoteTypeToOffset, animMap, useEnhancedOpens, animSeqMap)
+			emitFretNotes(events, td, fiveFretDiffStarts, fiveFretNoteTypeToOffset, animMap, useEnhancedOpens, animSeqMap, cutoff)
 		}
 
 		allStarPower.push(td.starPowerSections)
@@ -315,12 +317,13 @@ function emitFretNotes(
 	animMap: Map<string, number>,
 	useEnhancedOpens: boolean,
 	animSeqMap: Map<string, { onSeq: number; offSeq: number }>,
+	cutoff: number,
 ): void {
 	const diffStart = diffStarts[td.difficulty]
 	// Fret notes whose MIDI number would fall in the animation range (40-59)
 	// skip the length-chain override — inflating their length would absorb the
 	// corresponding animation pairing on re-parse.
-	const lengthOverrides = computeLengthOverrides(td)
+	const lengthOverrides = computeLengthOverrides(td, cutoff)
 	const ANIMATION_NOTE_MIN = 40
 	const ANIMATION_NOTE_MAX = 59
 
