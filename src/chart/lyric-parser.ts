@@ -264,7 +264,7 @@ export interface VocalTrackScanResult<T extends MidiLyricEvent = MidiLyricEvent>
 	 * events that vocal tracks don't typically carry. Stored verbatim
 	 * (deltaTime = absolute tick) so writers can re-emit them for round-trip.
 	 * Events intentionally consumed elsewhere (`ENHANCED_OPENS`,
-	 * `ENABLE_CHART_DYNAMICS`, disco flip, `[range_shift ...]`) are dropped,
+	 * `ENABLE_CHART_DYNAMICS`, disco flip) are dropped,
 	 * not unrecognized. Structural events (`trackName`, `endOfTrack`) are
 	 * also skipped — writers re-emit them independently.
 	 */
@@ -282,9 +282,9 @@ const discoFlipRegex = /^\s*\[?mix[ _][0-3][ _]drums[0-5](d|dnoflip|easy|easynok
  *
  * - **text-like events** (`lyrics`, `text`, `marker`, `cuePoint`) are split
  *   between `lyrics` and `textEvents`. Events consumed elsewhere
- *   (`ENHANCED_OPENS`, `ENABLE_CHART_DYNAMICS`, `[mix N drumsM]` disco flips,
- *   `[range_shift ...]`) are dropped — they're not vocal content, just carried
- *   on this track. Bracketed events go into `textEvents` (MoonText round-trip);
+ *   (`ENHANCED_OPENS`, `ENABLE_CHART_DYNAMICS`, `[mix N drumsM]` disco flips)
+ *   are dropped — they're not vocal content, just carried on this track.
+ *   Bracketed events go into `textEvents` (MoonText round-trip);
  *   known control markers (`[play]`, `[idle]`, stance/percussion switches) are
  *   **not** lyrics, but unknown bracketed text like `[Everyone liked that]` is
  *   (YARG's ProcessLyric accepts it).
@@ -386,7 +386,11 @@ export function scanVocalTrack<T extends MidiLyricEvent>(trackEvents: T[]): Voca
 
 		const trimmed = text.replace(/^[\x00-\x20]+|[\x00-\x20]+$/g, '')
 		const isBracketed = trimmed.startsWith('[') && trimmed.endsWith(']')
-		if (isBracketed && trimmed.startsWith('[range_shift')) continue
+		// YARG reads `[range_shift]` and `[range_shift <seconds>]` as range shifts, and no reader as a lyric.
+		if (isBracketed && trimmed.startsWith('[range_shift')) {
+			textEvents.push({ tick: event.deltaTime, text })
+			continue
+		}
 
 		// Bracketed events round-trip as MoonText textEvents. Known control
 		// markers are never lyrics; unknown bracketed text is also kept as a
