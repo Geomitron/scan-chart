@@ -2,12 +2,13 @@ import { MidiData, writeMidi } from '@geomitron/midi-file'
 import { describe, expect, it } from 'vitest'
 
 import { authoredTracks } from 'src/authored'
-import { fixIssues, type FixOptions } from 'src/fix-issues'
+import { fixIssues, type FixOptions, issueFixes } from 'src/fix-issues'
 import { resolveChart } from 'src/gameplay-chart'
 import { serializeSong } from 'src/save-plan'
 import { scanSongFolder } from 'src/scan-song-folder'
 import { documentFiles, parseSong, type SongDocument } from 'src/song-document'
 import type { SongFile } from 'src/song-files'
+import type { IssueCode } from 'src/issues'
 import { saveSong, songHashes } from 'src/song-save'
 
 import { jpeg, opus, png, vorbis } from './helpers/media-files'
@@ -456,5 +457,50 @@ describe('fixIssues: multiplier_note = 103', () => {
 		expect(drumsTrack.events.filter(event => event.scope === 'instrument').map(event => [event.type, event.tick])).toEqual([['soloSection', 0]])
 		expect(result.codes.filter(code => code === 'deprecatedIniTag' || code === 'badStarPower')).toEqual([])
 		expectHashesKept(result)
+	})
+})
+
+describe('issueFixes', () => {
+	const audio = { fileName: 'song.opus', data: opus(80) }
+	const songOf = (ini: readonly string[], expert: readonly string[] = ['768 = N 0 0', '960 = N 1 0'], files: readonly SongFile[] = [], sections: readonly string[] = []) => [
+		{ fileName: 'notes.chart', data: chartFile(['[ExpertSingle]', '{', ...expert.map(line => `  ${line}`), '}', ...sections]) },
+		{ fileName: 'song.ini', data: iniFile(['[song]', 'name = Song', ...ini]) },
+		audio,
+		...files,
+	]
+	const length = 'song_length = 10000'
+	const fixtures: { readonly [code: string]: SongFile[] } = {
+		fileNameCase: songOf([length], undefined, [{ fileName: 'Album.png', data: png(512, 512) }]),
+		extensionMismatch: songOf([length], undefined, [{ fileName: 'album.png', data: jpeg(512, 512) }]),
+		albumArtSize: songOf([length], undefined, [{ fileName: 'album.jpg', data: jpeg(600, 600) }]),
+		iniLayout: songOf([length, '# A comment']),
+		iniTagOrder: songOf([length, 'artist = Band']),
+		blankIniValue: songOf([length, 'icon =']),
+		blankIniNumber: songOf([length, 'diff_bass =']),
+		quotedIniValue: songOf([length, 'loading_phrase = "Hi"']),
+		defaultIniValue: songOf([length, 'delay = 0']),
+		iconName: songOf([length, 'icon = Geo']),
+		deprecatedIniTag: songOf([length, 'frets = Someone']),
+		redundantDrumType: songOf([length, 'pro_drums = True']),
+		missingSongLength: songOf([]),
+		songLengthMismatch: songOf(['song_length = 200000']),
+		emptyTrack: songOf([length], undefined, [], ['[HardSingle]', '{', '}']),
+		emptyStarPower: songOf([length], ['768 = N 0 0', '960 = N 1 0', '1536 = S 2 192']),
+		emptySoloSection: songOf([length], ['768 = N 0 0', '960 = N 1 0', '1536 = E solo', '1700 = E soloend']),
+		emptyFlexLane: songOf([length], ['768 = N 0 0', '960 = N 1 0', '1800 = S 65 100']),
+		badSustainGap: songOf([length], ['768 = N 0 170', '960 = N 1 0']),
+		babySustain: songOf([length], ['768 = N 0 30', '960 = N 1 0']),
+	}
+
+	it('keeps or changes the canonical hashes as each entry says, which hashing a song before and after its fix shows', async () => {
+		expect(Object.keys(fixtures).sort()).toEqual(Object.keys(issueFixes).sort())
+		for (const [code, files] of Object.entries(fixtures)) {
+			const result = await fix(files, { codes: [code as IssueCode], changeHashes: true, resizeImage: async (_image, size) => jpeg(size, size) })
+			expect(result.report.fixed.map(entry => entry.code), code).toContain(code)
+			expect(result.codes, code).not.toContain(code)
+			expect(result.before, code).not.toBeNull()
+			expect(result.report.hashes.length > 0, code).toBe(issueFixes[code as IssueCode] === 'changesHashes')
+			expect(result.after!.get('canonical:song') !== result.before!.get('canonical:song'), code).toBe(issueFixes[code as IssueCode] === 'changesHashes')
+		}
 	})
 })
