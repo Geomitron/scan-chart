@@ -8,6 +8,16 @@ export function interpolate(val: number, fromStart: number, fromEnd: number, toS
 }
 
 /**
+ * @returns how to keep the notes in time with the audio without delaying them by `ms`, as song.ini's delay or a `.chart`
+ * Offset does: by the audio's start, or by moving the notes.
+ */
+export function undelayedSyncAdvice(ms: number) {
+	return ms > 0
+		? `start the audio ${ms} ms earlier, by removing its first ${ms} ms, or move every note ${ms} ms later`
+		: `add ${-ms} ms of silence to the start of the audio, or move every note ${-ms} ms earlier`
+}
+
+/**
  * @returns an string representation of `ms` that looks like HH:MM:SS.mm
  */
 export function msToExactTime(ms: number) {

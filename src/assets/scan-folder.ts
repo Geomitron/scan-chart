@@ -12,7 +12,8 @@ import {
 	hasVideoName,
 	imageExtensions,
 } from '../shared/file-names'
-import { isByteSource, type SongFile } from '../song-files'
+import { isNameListed } from '../shared/text'
+import { fileSize, type SongFile } from '../song-files'
 
 /** Chorus Encore scans a chart folder only up to 3 GB. */
 const MAX_FOLDER_BYTES = 3e9
@@ -36,7 +37,6 @@ export function scanFolderFiles(files: readonly SongFile[], options: {
 }): FolderFinding[] {
 	const folderIssues: FolderFinding[] = []
 	const keyFiles = ['background', 'video', 'cover'].map(key => options.songSection?.[key]?.toLowerCase()).filter(name => name)
-	const isExtra = (name: string) => options.extraFiles.some(extra => typeof extra === 'string' ? extra.toLowerCase() === name.toLowerCase() : extra.test(name))
 
 	for (const { fileName } of files) {
 		if (isSystemFile(fileName)) {
@@ -49,7 +49,7 @@ export function scanFolderFiles(files: readonly SongFile[], options: {
 		}
 		// Every other chart, .ini or audio file is reported as misnamed.
 		const reported = fileName === options.chartFile || hasChartExtension(fileName) || hasIniExtension(fileName) || hasAudioExtension(fileName)
-		if (!reported && !isReadByGame(fileName) && !keyFiles.includes(fileName.toLowerCase()) && !isExtra(fileName)) {
+		if (!reported && !isReadByGame(fileName) && !keyFiles.includes(fileName.toLowerCase()) && !isNameListed(options.extraFiles, fileName)) {
 			folderIssues.push({
 				folderIssue: 'unrecognizedFile',
 				description: `"${fileName}" isn't read by the games. Remove it from the chart folder.`,
@@ -66,7 +66,7 @@ export function scanFolderFiles(files: readonly SongFile[], options: {
 		}
 	}
 
-	const bytes = files.reduce((total, file) => total + (isByteSource(file.data) ? file.data.size : file.data.byteLength), 0)
+	const bytes = files.reduce((total, file) => total + fileSize(file), 0)
 	if (bytes > MAX_FOLDER_BYTES) {
 		folderIssues.push({
 			folderIssue: 'folderSize',
@@ -77,7 +77,7 @@ export function scanFolderFiles(files: readonly SongFile[], options: {
 }
 
 /** Whether a file is one an operating system made: in any letter case, and in a subfolder, such as `__MACOSX`, too. */
-export function isSystemFile(fileName: string) {
+function isSystemFile(fileName: string) {
 	const path = fileName.toLowerCase().split(/[/\\]/)
 	const name = path[path.length - 1]
 	return systemFiles.includes(name) || name.startsWith('._') || path.includes('__macosx')

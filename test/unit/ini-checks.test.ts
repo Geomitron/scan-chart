@@ -1,7 +1,6 @@
 import { MidiData, writeMidi } from '@geomitron/midi-file'
 import { describe, expect, it } from 'vitest'
 
-import { keyList } from 'src/ini/ini-checks'
 import { scanSongFolder, type ScanOptions } from 'src/scan-song-folder'
 
 const encode = (text: string) => new TextEncoder().encode(text)
@@ -72,10 +71,11 @@ describe('song.ini tags', () => {
 			'"song.ini" has a tag no game reads: "custom". Remove it, unless your game reads it.']])
 	})
 
-	it('names up to four tags, then counts the rest', () => {
-		expect(keyList(['a'])).toBe('"a"')
-		expect(keyList(['a', 'b', 'c', 'd'])).toBe('"a", "b", "c" and "d"')
-		expect(keyList(['a', 'b', 'c', 'd', 'e'])).toBe('"a", "b", "c" and 2 more')
+	it('names up to four tags, then counts the rest', async () => {
+		const blank = (keys: string[]) => iniIssues(['[song]', 'name = Song', ...keys.map(key => `${key} =`)], ['blankIniValue'])
+		expect(await blank(['icon', 'year', 'album', 'genre'])).toEqual([['blankIniValue', 'In "song.ini", "icon", "year", "album" and "genre" are blank or -1. Remove those lines instead.']])
+		expect(await blank(['icon', 'year', 'album', 'genre', 'loading_phrase']))
+			.toEqual([['blankIniValue', 'In "song.ini", "icon", "year", "album" and 2 more are blank or -1. Remove those lines instead.']])
 	})
 })
 

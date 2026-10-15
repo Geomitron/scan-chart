@@ -1,13 +1,12 @@
-import type { FolderFinding } from '../issues'
+import type { FolderFinding, MetadataFinding } from '../issues'
 import { getBasename, getExtension, hasBackgroundImageName, hasCrowdOrPreviewName, hasGameVideoName, imageExtensions } from '../shared/file-names'
-import { readFileBytes, type SongFile } from '../song-files'
-import { type AudioInfo, contentType, type ContentType, readAudioInfo, readRange, readWebmVideoCodec } from './media-headers'
+import { readFileBytes, readRange, type SongFile } from '../song-files'
+import { type AudioInfo, contentType, type ContentType, readAudioInfo, readWebmVideoCodec } from './media-headers'
 import { imageSize } from './scan-image'
 
 // The charting guidelines' audio bitrates, in kbps: Opus at 80, and Ogg Vorbis from 192 to 320. An Opus file's average
-// varies with the audio around the bitrate it was encoded at: in a library sample, a lone audio file encoded at 80
-// averaged 66 to 102 kbps (1st to 99th percentile). A stem's average is lower where it's quiet, so a low average is
-// reported only for a lone audio file, where it means a lower bitrate.
+// varies around the bitrate it was encoded at, and a stem's is lower where it's quiet, so only a lone audio file's low
+// average is reported.
 const OPUS_KBPS = 80
 const OPUS_MIN_KBPS = 60
 const OPUS_MAX_KBPS = 100
@@ -41,7 +40,7 @@ const extensionContent: { readonly [extension: string]: ContentType } = { opus: 
 /** What the media checks found: the issues, and the audio files that hold Opus audio whatever their extension. */
 export interface MediaScan {
 	readonly folderIssues: FolderFinding[]
-	readonly metadataIssues: { metadataIssue: 'songLengthMismatch'; description: string }[]
+	readonly metadataIssues: MetadataFinding[]
 	readonly opusFiles: readonly string[]
 }
 

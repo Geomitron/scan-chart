@@ -142,10 +142,17 @@ export function folderIssue({ folderIssue, description, file }: FolderFinding): 
 	}
 }
 
-/** A metadata issue as the song.ini scan reports it, in the one issue shape. `file` is the .ini file it's in. */
-export function metadataIssue({ metadataIssue, description }: { metadataIssue: MetadataIssueType; description: string }, file: string | null): Issue {
+/** A metadata issue as a scan finds it. `file` is the .ini file it's in. */
+export interface MetadataFinding {
+	readonly metadataIssue: MetadataIssueType
+	readonly description: string
+	readonly file?: string
+}
+
+/** A metadata issue as the song.ini scans report it, in the one issue shape. */
+export function metadataIssue({ metadataIssue, description, file }: MetadataFinding): Issue {
 	return {
 		scope: 'metadata', code: metadataIssue, severity: issueSeverities[metadataIssue], instrument: null, difficulty: null, tick: null, msTime: null,
-		file, message: description,
+		file: file ?? null, message: description,
 	}
 }
