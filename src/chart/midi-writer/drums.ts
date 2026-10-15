@@ -13,6 +13,7 @@ import { wrapEventBrackets } from '../writer-shared'
 import {
 	addNoteOnOff,
 	addNoteOnOffWithChannel,
+	addVersusPhrases,
 	computeLengthOverrides,
 	finalizeMidiTrack,
 	instrumentSections,
@@ -147,6 +148,7 @@ export function buildDrumTrack(
 					event: metaTextEvent(text),
 				})
 			}
+			addVersusPhrases(events, td.versusPhrases)
 			// Per-track unrecognized MIDI events: absolute-tick deltaTime, seq-numbered
 			// so they sort stably alongside other events at the same tick.
 			let unrecSeq = 0
