@@ -1,5 +1,5 @@
 import { readChartSongEntries } from './chart/chart-file-parser'
-import { chartSongIniEntries, secondsToMs } from './ini/chart-song-entries'
+import { chartSongIniEntries, previewEndMs, secondsToMs } from './ini/chart-song-entries'
 import { defaultMetadata } from './ini/metadata'
 import { tokenizeIni } from './ini/parse-ini'
 import { extractSongMetadata, findIniData, scanIni } from './ini/scan-ini'
@@ -14,7 +14,8 @@ import { songIniSpellingIssues } from './spelling-issues'
  * A song's metadata as Clone Hero reads it: song.ini when the song has one, and the `.chart` `[Song]` section only
  * when it doesn't. A value that isn't set is Clone Hero's default ("Unknown Artist", -1 for a difficulty, and so on).
  * Text keeps its style tags, such as `<b>`, which Clone Hero shows as formatting, unless `removeStyleTags` asks for
- * plain text. The keys are song.ini's; without song.ini, the `[Song]` Offset is the delay.
+ * plain text. The keys are song.ini's; without song.ini, the `[Song]` Offset is the delay, and a preview time song.ini
+ * leaves unset is read from `[Song]`.
  */
 export type SongMetadata = { readonly [key in keyof typeof defaultMetadata]: (typeof defaultMetadata)[key] } & {
 	/** The `.chart` `[Song]` Offset, converted from seconds to milliseconds as Clone Hero rounds it; 0 when there's none. */
@@ -69,12 +70,22 @@ export function songMetadata(song: SongDocument, options: SongMetadataOptions = 
 	return metadata
 }
 
+function previewFallbacks(metadata: Pick<SongMetadata, 'preview_start_time' | 'preview_end_time'>, chartSong: ReadonlyMap<string, string> | null): Partial<SongMetadata> {
+	const start = secondsToMs(chartSong?.get('PreviewStart'))
+	const end = previewEndMs(chartSong?.get('PreviewEnd'))
+	return {
+		...(metadata.preview_start_time === -1 && start !== null ? { preview_start_time: start } : {}),
+		...(metadata.preview_end_time === -1 && end !== null ? { preview_end_time: end } : {}),
+	}
+}
+
 const documentMetadata = new ObjectCache<SongDocument, { plain?: SongMetadata; asWritten?: SongMetadata }>('songMetadata')
 
 function songMetadataFrom(ini: ReturnType<typeof scanIni>, chartSong: ReadonlyMap<string, string> | null, removeStyleTags: boolean): SongMetadata {
 	const chartOffsetMs = secondsToMs(chartSong?.get('Offset')) ?? 0
 	// Clone Hero reads only song.ini, in any letter case; scanIni also reads another .ini file when there's no song.ini.
-	if (ini.metadata !== null && ini.songSection !== null) return { ...ini.metadata, chartOffsetMs }
+	// A preview time song.ini leaves unset, at -1, is read from [Song], as Clone Hero reads PreviewStart.
+	if (ini.metadata !== null && ini.songSection !== null) return { ...ini.metadata, ...previewFallbacks(ini.metadata, chartSong), chartOffsetMs }
 	// Without song.ini, [Song]'s values go through song.ini's reading and cleaning; its issues are about song.ini.
 	return { ...extractSongMetadata(Object.fromEntries(chartSong === null ? [] : chartSongIniEntries(chartSong)), { removeStyleTags }).metadata, chartOffsetMs }
 }

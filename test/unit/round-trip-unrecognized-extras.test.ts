@@ -46,7 +46,7 @@ describe('writeChartFile round-trip: metadata.extraChartSongFields', () => {
 		const chart = createEmptyChart({ format: 'chart' })
 		chart.metadata.extraChartSongFields = {
 			Player2: 'bass',
-			PreviewEnd: '0',
+			GuitarVolume: '0',
 			MediaType: 'cd',
 			MusicStream: 'song.ogg',
 			GuitarStream: 'guitar.ogg',
@@ -55,7 +55,7 @@ describe('writeChartFile round-trip: metadata.extraChartSongFields', () => {
 		const re = roundTripChart(chart)
 		expect(re.metadata.extraChartSongFields).toEqual({
 			Player2: 'bass',
-			PreviewEnd: '0',
+			GuitarVolume: '0',
 			MediaType: 'cd',
 			MusicStream: 'song.ogg',
 			GuitarStream: 'guitar.ogg',
@@ -103,10 +103,10 @@ describe('writeChartFile round-trip: metadata.extraChartSongFields', () => {
 
 	it('emits numeric-typed legacy fields unquoted', () => {
 		const chart = createEmptyChart({ format: 'chart' })
-		chart.metadata.extraChartSongFields = { HoPo: '0', PreviewEnd: '180' }
+		chart.metadata.extraChartSongFields = { HoPo: '0', GuitarVolume: '180' }
 		const text = writeChartFile(chart)
 		expect(text).toContain('HoPo = 0')
-		expect(text).toContain('PreviewEnd = 180')
+		expect(text).toContain('GuitarVolume = 180')
 		expect(text).not.toContain('HoPo = "0"')
 	})
 

@@ -9,25 +9,26 @@ type Unit = 'text' | 'year' | 'number' | 'seconds'
 
 /**
  * The `.chart` `[Song]` keys with a song.ini counterpart (GuitarGame_ChartFormats: the `.chart` Format Overview and
- * song.ini's Standard Tags). `unset` is the number that means "not set" to Clone Hero; a song.ini `delay` of 0 or
- * `preview_start_time` of -1 makes it read `[Song]`'s Offset or PreviewStart instead.
+ * song.ini's Standard Tags). `unset` holds the numbers that mean "not set" to games; a song.ini `delay` of 0 or
+ * `preview_start_time` of -1 makes them read `[Song]`'s Offset or PreviewStart instead.
  */
-const pairs: readonly { readonly chartKey: string; readonly iniKey: string; readonly unit: Unit; readonly unset?: number }[] = [
+const pairs: readonly { readonly chartKey: string; readonly iniKey: string; readonly unit: Unit; readonly unset?: readonly number[] }[] = [
 	{ chartKey: 'Name', iniKey: 'name', unit: 'text' },
 	{ chartKey: 'Artist', iniKey: 'artist', unit: 'text' },
 	{ chartKey: 'Album', iniKey: 'album', unit: 'text' },
 	{ chartKey: 'Genre', iniKey: 'genre', unit: 'text' },
 	{ chartKey: 'Year', iniKey: 'year', unit: 'year' },
 	{ chartKey: 'Charter', iniKey: 'charter', unit: 'text' },
-	{ chartKey: 'Difficulty', iniKey: 'diff_band', unit: 'number', unset: -1 },
-	{ chartKey: 'Length', iniKey: 'song_length', unit: 'seconds', unset: 0 },
-	{ chartKey: 'Offset', iniKey: 'delay', unit: 'seconds', unset: 0 },
-	{ chartKey: 'PreviewStart', iniKey: 'preview_start_time', unit: 'seconds', unset: -1 },
-	{ chartKey: 'PreviewEnd', iniKey: 'preview_end_time', unit: 'seconds', unset: -1 },
+	{ chartKey: 'Difficulty', iniKey: 'diff_band', unit: 'number', unset: [-1] },
+	{ chartKey: 'Length', iniKey: 'song_length', unit: 'seconds', unset: [0] },
+	{ chartKey: 'Offset', iniKey: 'delay', unit: 'seconds', unset: [0] },
+	{ chartKey: 'PreviewStart', iniKey: 'preview_start_time', unit: 'seconds', unset: [-1] },
+	// Moonscraper writes PreviewEnd = 0 when there's no preview end (see previewEndMs).
+	{ chartKey: 'PreviewEnd', iniKey: 'preview_end_time', unit: 'seconds', unset: [-1, 0] },
 ]
 
-/** `[Song]` keys Clone Hero reads when song.ini doesn't set their counterpart, so they're copied rather than removed. */
-const fallbackKeys = new Set(['Offset', 'PreviewStart'])
+/** `[Song]` keys games read when song.ini doesn't set their counterpart, so they're copied rather than removed. */
+const fallbackKeys = new Set(['Offset', 'PreviewStart', 'PreviewEnd'])
 
 /**
  * Makes a `.chart` `[Song]` section agree with the song.ini Clone Hero reads (Geo, 2026-10-12). `[Song]` is legacy,
@@ -35,9 +36,9 @@ const fallbackKeys = new Set(['Offset', 'PreviewStart'])
  *
  * 1. a value both set differently: `[Song]` takes song.ini's;
  * 2. a key only song.ini sets: added to `[Song]`;
- * 3. a key only `[Song]` sets: Offset and PreviewStart are copied into song.ini, because Clone Hero reads them when
- *    song.ini doesn't set `delay` or `preview_start_time`; the rest are removed from `[Song]`, which Clone Hero
- *    ignores when there's a song.ini.
+ * 3. a key only `[Song]` sets: Offset, PreviewStart and PreviewEnd are copied into song.ini, because games read them
+ *    when song.ini doesn't set `delay`, `preview_start_time` or `preview_end_time`; the rest are removed from `[Song]`,
+ *    which games ignore when there's a song.ini.
  *
  * Values agree when Clone Hero reads them the same: a time compares as the milliseconds it rounds to, and a Year
  * without its leading `, `. An edited line keeps its quoting and its Year style, and each key is left on one line.
@@ -97,7 +98,7 @@ export function songSectionAgreement(song: SongDocument): SongDocument | null {
 function isSet(pair: (typeof pairs)[number], value: string, side: 'chart' | 'ini'): boolean {
 	if (pair.unit === 'text' || pair.unit === 'year') return value !== ''
 	const number = side === 'chart' && pair.unit === 'seconds' ? secondsToMs(value) : parseFloat(value)
-	return number !== null && Number.isFinite(number) && number !== pair.unset
+	return number !== null && Number.isFinite(number) && !(pair.unset ?? []).includes(number)
 }
 
 function agree(pair: (typeof pairs)[number], chartValue: string, iniValue: string): boolean {

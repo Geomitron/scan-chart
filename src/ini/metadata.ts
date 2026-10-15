@@ -22,6 +22,7 @@ export const defaultMetadata = {
 	diff_bassghl: -1,
 	diff_vocals: -1,
 	/** Units of ms */ preview_start_time: -1,
+	/** Units of ms */ preview_end_time: -1,
 	icon: '',
 	loading_phrase: '',
 	album_track: 16000,

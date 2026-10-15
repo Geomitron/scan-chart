@@ -64,6 +64,12 @@ describe('convertChart', () => {
 		expect(report.settings).toEqual([{ key: 'delay', value: '500' }])
 	})
 
+	it('copies [Song] preview times into song.ini when it doesn\'t set them, but not Moonscraper\'s PreviewEnd = 0', () => {
+		const previews = (end: string) => convertChart(chartSong(expert(['0 = N 0 0']), '[song]\r\nname = Song\r\n', ['PreviewStart = 30', `PreviewEnd = ${end}`]), 'mid').report.settings
+		expect(previews('60')).toEqual([{ key: 'preview_start_time', value: '30000' }, { key: 'preview_end_time', value: '60000' }])
+		expect(previews('0')).toEqual([{ key: 'preview_start_time', value: '30000' }])
+	})
+
 	it('writes multiplier_note when .mid would read solos as star power', () => {
 		const solos = ['0 = E solo', '0 = N 0 0', '96 = E soloend', '192 = E solo', '192 = N 1 0', '288 = E soloend']
 		const { report } = convertChart(chartSong(expert(solos)), 'mid')

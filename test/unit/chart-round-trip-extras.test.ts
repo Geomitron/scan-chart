@@ -4,7 +4,7 @@
  *
  *   - `metadata.extraChartSongFields` — unknown `[Song]` keys (Moonscraper /
  *     GHTCP deprecated fields, audio-stream filenames, `Player2`, `HoPo`,
- *     `PreviewEnd`, `MediaType`, …)
+ *     `GuitarVolume`, `MediaType`, …)
  *   - `unrecognizedSyncTrackEvents` — `[SyncTrack]` lines that aren't tempo (`B`)
  *     or time signature (`TS`); today this is primarily tempo anchors (`A`),
  *     but the bucket is type-agnostic so future SyncTrack event types survive.
@@ -55,7 +55,7 @@ describe('.chart [Song] unknown-key preservation (metadata.extraChartSongFields)
 				'Name = "Test"',
 				'Artist = "Me"',
 				'Player2 = bass',
-				'PreviewEnd = 0',
+				'GuitarVolume = 0',
 				'MediaType = "cd"',
 				'MusicStream = "song.ogg"',
 				'GuitarStream = "guitar.ogg"',
@@ -71,7 +71,7 @@ describe('.chart [Song] unknown-key preservation (metadata.extraChartSongFields)
 		// Everything else lands in the preservation bag, values unchanged.
 		expect(r.metadata.extraChartSongFields).toEqual({
 			Player2: 'bass',
-			PreviewEnd: '0',
+			GuitarVolume: '0',
 			MediaType: 'cd',
 			MusicStream: 'song.ogg',
 			GuitarStream: 'guitar.ogg',

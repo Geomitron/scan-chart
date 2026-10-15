@@ -73,17 +73,21 @@ function serializeSongSection(chart: ParsedChart): string[] {
 
 	// `[Song].Offset` pairs with ini's `delay`, which games read first: they use `Offset` only when `delay` is 0 or
 	// missing. Read from `metadata.chart_offset` (populated by the parser from [Song].Offset) so that ini's `delay`
-	// never overrides it on the ini-wins merge. `PreviewStart` is seconds in the file, ms on ParsedChart.
+	// never overrides it on the ini-wins merge. `PreviewStart` and `PreviewEnd` are seconds in the file, ms on
+	// ParsedChart, where -1 is unset.
 	if (m.chart_offset != null && m.chart_offset !== 0) {
 		lines.push(`  Offset = ${m.chart_offset / 1000}`)
 	}
-	if (m.preview_start_time != null) {
+	if (m.preview_start_time != null && m.preview_start_time !== -1) {
 		lines.push(`  PreviewStart = ${m.preview_start_time / 1000}`)
+	}
+	if (m.preview_end_time != null && m.preview_end_time !== -1) {
+		lines.push(`  PreviewEnd = ${m.preview_end_time / 1000}`)
 	}
 	if (m.diff_band != null) lines.push(`  Difficulty = ${m.diff_band}`)
 
 	// Round-trip any `[Song]` keys the parser didn't claim (deprecated
-	// Moonscraper / GHTCP fields — `Player2`, `HoPo`, `PreviewEnd`, `MediaType`,
+	// Moonscraper / GHTCP fields — `Player2`, `HoPo`, `MediaType`,
 	// audio-stream filenames, etc.). The parser strips enclosing quotes on
 	// read, so values stored here are always bare; we re-quote per the .chart
 	// spec field-type table on write. Moonscraper rejects unquoted stream

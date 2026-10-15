@@ -69,6 +69,7 @@ A song folder must hold a `song.ini` file, which gives the song's metadata. See 
 A reader that finds the two disagreeing uses `song.ini`:
 
 - It takes the name, artist, album, genre, year and charter from `song.ini` alone, even when `song.ini` leaves one of them out.
-- It takes `Offset` and `PreviewStart` from `[Song]` only when `song.ini` doesn't set `delay` or `preview_start_time`. A `delay` of 0 and a `preview_start_time` of -1 count as not set.
+- It takes `Offset`, `PreviewStart` and `PreviewEnd` from `[Song]` only when `song.ini` doesn't set `delay`, `preview_start_time` or `preview_end_time`. A `delay` of 0, a `preview_start_time` of -1 and a `preview_end_time` of -1 or 0 count as not set.
+- A `PreviewEnd` of 0 counts as not set: a preview can't end at the start of the song, and Moonscraper writes `PreviewEnd = 0` when there's no preview end.
 
 A reader that reads a folder without `song.ini` takes all of the metadata from `[Song]`.
