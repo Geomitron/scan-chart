@@ -12,17 +12,18 @@ import type { ParsedChart } from '../parse-chart-and-ini'
 import { wrapEventBrackets } from '../writer-shared'
 import {
 	addNoteOnOff,
+	addFlexLanes,
 	addNoteOnOffWithChannel,
 	addVerbatimEvents,
 	addVersusPhrases,
 	computeLengthOverrides,
+	computeSustainCutoff,
 	finalizeMidiTrack,
 	instrumentSections,
 	metaTextEvent,
 	type MidiWriteOptions,
 	noteOffEvent,
 	noteOnEvent,
-	readSustainCutoff,
 	stretchUnsustainedNotes,
 	trackNameEvent,
 } from './shared'
@@ -54,6 +55,17 @@ const sixFretNoteTypeToOffset: Partial<Record<NoteType, number>> = {
 	[noteTypes.black3]: sixFretLaneOffsets.black3,
 }
 
+/**
+ * A fret instrument's note numbers: each difficulty's first, and each note type's offset from it. A 5-fret open has no
+ * offset: it's on the open key with [ENHANCED_OPENS], else on green with a SysEx open.
+ */
+interface FretLayout {
+	readonly diffStarts: Record<Difficulty, number>
+	readonly noteTypeToOffset: Partial<Record<NoteType, number>>
+}
+const fiveFretLayout: FretLayout = { diffStarts: fiveFretDiffStarts, noteTypeToOffset: fiveFretNoteTypeToOffset }
+const sixFretLayout: FretLayout = { diffStarts: sixFretDiffStarts, noteTypeToOffset: sixFretNoteTypeToOffset }
+
 export const fiveFretInstruments = new Set<string>(instruments.filter(instrument => getInstrumentType(instrument) === instrumentTypes.fiveFret))
 export const sixFretInstruments = new Set<string>(instruments.filter(instrument => getInstrumentType(instrument) === instrumentTypes.sixFret))
 
@@ -78,6 +90,7 @@ export function buildFretTrack(
 	const events: AbsoluteEvent[] = []
 	const instrument = trackDataEntries[0].instrument
 	const isGhl = sixFretInstruments.has(instrument)
+	const layout = isGhl ? sixFretLayout : fiveFretLayout
 	const sourceIsMidi = chart.format === 'mid'
 
 	events.push({
@@ -88,7 +101,6 @@ export function buildFretTrack(
 	const allStarPower: { tick: number; length: number }[][] = []
 	const allSolo: { tick: number; length: number }[][] = []
 	const allActivation: { tick: number; length: number }[][] = []
-	const emittedFlexLane = new Map<string, number>()
 
 	// Use ENHANCED_OPENS mode when:
 	//   (a) any group contains both an open note AND a non-open fret note
@@ -153,25 +165,16 @@ export function buildFretTrack(
 		}
 	}
 
-	const diffVelocity: Record<Difficulty, number> = { easy: 25, medium: 35, hard: 45, expert: 100 }
-	const cutoff = readSustainCutoff(chart, options)
+	const cutoff = computeSustainCutoff(chart, options)
 
 	for (const td of trackDataEntries) {
-		emitFretNotes(events, td, isGhl, animMap, useEnhancedOpens, animSeqMap, cutoff)
+		emitFretNotes(events, td, layout, animMap, useEnhancedOpens, animSeqMap, cutoff)
 
 		allStarPower.push(td.starPowerSections)
 		allSolo.push(td.soloSections)
 		// BRE / coda activation (MIDI 120) — fret tracks support this in
 		// addition to drums.
 		allActivation.push(td.drumFreestyleSections)
-
-		for (const fl of td.flexLanes) {
-			const note = fl.isDouble ? 127 : 126
-			const key = `${fl.tick}:${fl.length}:${note}`
-			const thisVel = diffVelocity[td.difficulty] ?? 100
-			const existing = emittedFlexLane.get(key)
-			if (existing === undefined || thisVel < existing) emittedFlexLane.set(key, thisVel)
-		}
 
 		// First-difficulty extras: text events, versus phrases, animations,
 		// per-track unrecognizedMidiEvents. scan-chart populates these
@@ -192,17 +195,15 @@ export function buildFretTrack(
 			// which case emitFretNotes coalesced the pair with the animation's
 			// seq — no duplicate noteOn at this tick:noteNumber).
 			const emittedNoteKeys = new Set<string>()
-			const diffStarts2 = isGhl ? sixFretDiffStarts : fiveFretDiffStarts
-			const offsetMap = isGhl ? sixFretNoteTypeToOffset : fiveFretNoteTypeToOffset
 			for (const otherTd of trackDataEntries) {
-				const diffStart = diffStarts2[otherTd.difficulty]
+				const diffStart = layout.diffStarts[otherTd.difficulty]
 				for (const group of otherTd.noteEventGroups) {
 					for (const n of group) {
 						let noteNum: number
-						if (n.type === noteTypes.open && !isGhl) {
+						const off = layout.noteTypeToOffset[n.type]
+						if (n.type === noteTypes.open && off === undefined) {
 							noteNum = useEnhancedOpens ? diffStart + 0 : diffStart + 1
 						} else {
-							const off = offsetMap[n.type]
 							if (off === undefined) continue
 							noteNum = diffStart + off
 						}
@@ -256,11 +257,7 @@ export function buildFretTrack(
 		const ch = (fs as { channel?: number }).channel ?? 0
 		addNoteOnOffWithChannel(events, fs.tick, fs.length, 120, vel, ch, options.zeroLengthPhrases)
 	}
-	// Lanes are written with addNoteOnOff, so a lane that ends where another of its number starts ends first.
-	for (const [key, velocity] of emittedFlexLane) {
-		const [tick, length, noteNumber] = key.split(':').map(Number)
-		addNoteOnOff(events, tick, length, noteNumber, velocity, true)
-	}
+	addFlexLanes(events, trackDataEntries)
 
 	emitFretModifierRanges(events, trackDataEntries, isGhl, chart)
 
@@ -271,21 +268,21 @@ export function buildFretTrack(
 		})
 	}
 
-	if (options.sustainCutoff !== undefined) stretchUnsustainedNotes(events, options.sustainCutoff)
+	if (options.sustainCutoff !== undefined) stretchUnsustainedNotes(events, cutoff)
 	return finalizeMidiTrack(events)
 }
 
 function emitFretNotes(
 	events: AbsoluteEvent[],
 	td: ParsedTrack,
-	isGhl: boolean,
+	layout: FretLayout,
 	animMap: Map<string, number>,
 	useEnhancedOpens: boolean,
 	animSeqMap: Map<string, { onSeq: number; offSeq: number }>,
 	cutoff: number,
 ): void {
-	const diffStart = (isGhl ? sixFretDiffStarts : fiveFretDiffStarts)[td.difficulty]
-	const noteTypeToOffset = isGhl ? sixFretNoteTypeToOffset : fiveFretNoteTypeToOffset
+	const diffStart = layout.diffStarts[td.difficulty]
+	const { noteTypeToOffset } = layout
 	// Fret notes whose MIDI number would fall in the animation range (40-59)
 	// skip the length-chain override — inflating their length would absorb the
 	// corresponding animation pairing on re-parse.
@@ -314,8 +311,7 @@ function emitFretNotes(
 
 	for (const group of td.noteEventGroups) {
 		for (const note of group) {
-			// A 5-fret open is on the open key with [ENHANCED_OPENS], else on green with a SysEx open.
-			const isFiveFretOpen = note.type === noteTypes.open && !isGhl
+			const isFiveFretOpen = note.type === noteTypes.open && noteTypeToOffset[noteTypes.open] === undefined
 			const offsetForOverride = isFiveFretOpen
 				? (useEnhancedOpens ? 0 : 1)
 				: (noteTypeToOffset[note.type] ?? 0)

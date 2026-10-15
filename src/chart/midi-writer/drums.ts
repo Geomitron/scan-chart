@@ -12,17 +12,18 @@ import type { ParsedChart } from '../parse-chart-and-ini'
 import { drumMixEvents, wrapEventBrackets } from '../writer-shared'
 import {
 	addNoteOnOff,
+	addFlexLanes,
 	addNoteOnOffWithChannel,
 	addVerbatimEvents,
 	addVersusPhrases,
 	computeLengthOverrides,
+	computeSustainCutoff,
 	finalizeMidiTrack,
 	instrumentSections,
 	metaTextEvent,
 	type MidiWriteOptions,
 	noteOffEvent,
 	noteOnEvent,
-	readSustainCutoff,
 	stretchUnsustainedNotes,
 	trackNameEvent,
 } from './shared'
@@ -83,7 +84,6 @@ export function buildDrumTrack(
 	const allStarPower: { tick: number; length: number }[][] = []
 	const allSolo: { tick: number; length: number }[][] = []
 	const allActivation: { tick: number; length: number }[][] = []
-	const emittedFlexLane = new Map<string, number>()
 	const emittedTomMarker = new Set<string>()
 	const emittedFlam = new Set<string>()
 
@@ -114,28 +114,16 @@ export function buildDrumTrack(
 		}
 	}
 
-	const diffVelocity: Record<Difficulty, number> = { easy: 25, medium: 35, hard: 45, expert: 100 }
-	const cutoff = readSustainCutoff(chart, options)
+	const cutoff = computeSustainCutoff(chart, options)
+	const noteContext: DrumNoteContext = { chart, cutoff, emittedTomMarker, emittedFlam, conflictedGreenTomTicks }
 
 	for (const td of trackDataEntries) {
-		emitDrumNotes(events, td, chart, cutoff, emittedTomMarker, emittedFlam, conflictedGreenTomTicks, hasAG => {
-			if (hasAG) hasAccentsOrGhosts = true
-		})
+		if (emitDrumNotes(events, td, noteContext)) hasAccentsOrGhosts = true
 
 		// Collect instrument-wide sections (dedup after loop).
 		allStarPower.push(td.starPowerSections)
 		allSolo.push(td.soloSections)
 		allActivation.push(td.drumFreestyleSections)
-
-		// Flex lanes: pick the minimum-velocity entry across difficulties so
-		// scan-chart's fixFlexLaneLds assigns it to the right difficulty.
-		for (const fl of td.flexLanes) {
-			const note = fl.isDouble ? 127 : 126
-			const key = `${fl.tick}:${fl.length}:${note}`
-			const thisVel = diffVelocity[td.difficulty] ?? 100
-			const existing = emittedFlexLane.get(key)
-			if (existing === undefined || thisVel < existing) emittedFlexLane.set(key, thisVel)
-		}
 
 		// Per-track extras — emit once from the first difficulty (scan-chart
 		// populates textEvents / versusPhrases / animations / unrecognizedMidiEvents
@@ -173,11 +161,7 @@ export function buildDrumTrack(
 		addNoteOnOffWithChannel(events, fs.tick, fs.length, 120, vel, ch, options.zeroLengthPhrases)
 	}
 
-	// Lanes are written with addNoteOnOff, so a lane that ends where another of its number starts ends first.
-	for (const [key, velocity] of emittedFlexLane) {
-		const [tick, length, noteNumber] = key.split(':').map(Number)
-		addNoteOnOff(events, tick, length, noteNumber, velocity, true)
-	}
+	addFlexLanes(events, trackDataEntries)
 
 	if (hasAccentsOrGhosts) {
 		events.push({
@@ -252,20 +236,27 @@ export function buildDrumTrack(
 		if (markerTick !== null) addNoteOnOff(events, markerTick, 1, markerNote, 100)
 	}
 
-	if (options.sustainCutoff !== undefined) stretchUnsustainedNotes(events, options.sustainCutoff)
+	if (options.sustainCutoff !== undefined) stretchUnsustainedNotes(events, cutoff)
 	return finalizeMidiTrack(events)
 }
 
-function emitDrumNotes(
-	events: AbsoluteEvent[],
-	td: ParsedTrack,
-	chart: ParsedChart,
-	cutoff: number,
-	emittedTomMarker: Set<string>,
-	emittedFlam: Set<string>,
-	conflictedGreenTomTicks: Set<number>,
-	reportAccentGhost: (hasAG: boolean) => void,
-): void {
+/** What `emitDrumNotes` reads besides the track, the same for each of an instrument's difficulties. */
+interface DrumNoteContext {
+	readonly chart: ParsedChart
+	/** The sustain cutoff the file will be read with. */
+	readonly cutoff: number
+	/** The tom markers written so far, as `tick:length:note`, which each difficulty adds to. */
+	readonly emittedTomMarker: Set<string>
+	/** The flam markers written so far, as `tick:length`, which each difficulty adds to. */
+	readonly emittedFlam: Set<string>
+	/** The ticks where one difficulty has a green tom and another a green cymbal. */
+	readonly conflictedGreenTomTicks: ReadonlySet<number>
+}
+
+/** Adds a drum difficulty's notes, markers and mix events. Returns whether it wrote an accent or a ghost. */
+function emitDrumNotes(events: AbsoluteEvent[], td: ParsedTrack, context: DrumNoteContext): boolean {
+	const { chart, cutoff, emittedTomMarker, emittedFlam, conflictedGreenTomTicks } = context
+	let hasAccentsOrGhosts = false
 	const base = drumsDiffStarts[td.difficulty]
 	const diffIdx: Record<Difficulty, number> = { easy: 0, medium: 1, hard: 2, expert: 3 }
 	const di = diffIdx[td.difficulty] ?? 3
@@ -301,10 +292,10 @@ function emitDrumNotes(
 			let velocity = 100
 			if (note.flags & noteFlags.accent) {
 				velocity = 127
-				reportAccentGhost(true)
+				hasAccentsOrGhosts = true
 			} else if (note.flags & noteFlags.ghost) {
 				velocity = 1
-				reportAccentGhost(true)
+				hasAccentsOrGhosts = true
 			}
 
 			const emitLength = lengthOverrides.get(`${note.tick}:${note.type}`) ?? note.length
@@ -364,4 +355,5 @@ function emitDrumNotes(
 			}
 		}
 	}
+	return hasAccentsOrGhosts
 }
