@@ -57,7 +57,7 @@ export interface FixOptions {
 	readonly sustainGapMs?: number
 	/** The shortest sustain the short sustain fix keeps, in milliseconds. Default: 200, the charting guidelines'. */
 	readonly minSustainMs?: number
-	/** The album art sizes accepted, as `ScanOptions.albumArtSizes` says: square art of another size is resized to the first. Default: `[512]`. */
+	/** The album art sizes accepted, as in `ScanOptions`: square art of another size is resized to the first. Default: `[512]`. */
 	readonly albumArtSizes?: readonly number[]
 	/**
 	 * Resizes an image to a square of `size` pixels, and returns it in the format and quality the caller chooses, PNG or
