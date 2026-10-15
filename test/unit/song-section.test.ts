@@ -35,6 +35,12 @@ describe('the [Song] normalization', () => {
 		expect(normalized?.ini?.tokens.text).toBe('[song]\nname = Song\ndelay = 561\npreview_start_time = 45280\n')
 	})
 
+	it('copies a value into its place in song.ini\'s standard order, changing no other line', () => {
+		const ini = '[song]\nname = Song\ncharter = Me\nicon = me\nalbum_track = 2\nlast_play = 1\n'
+		const normalized = songSectionAgreement(song(['PreviewStart = 45.28', 'Offset = 0.5'], ini))
+		expect(normalized?.ini?.tokens.text).toBe('[song]\nname = Song\ncharter = Me\npreview_start_time = 45280\nicon = me\nalbum_track = 2\ndelay = 500\nlast_play = 1\n')
+	})
+
 	it('copies PreviewEnd into song.ini when it doesn\'t set preview_end_time, and leaves Moonscraper\'s PreviewEnd = 0 alone', () => {
 		const normalized = songSectionAgreement(song(['PreviewEnd = 75.5', 'Resolution = 192'], '[song]\nname = Song\n'))
 		expect(songLines(normalized)).toEqual(['PreviewEnd = 75.5', 'Resolution = 192', 'Name = "Song"'])

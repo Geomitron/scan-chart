@@ -2,6 +2,7 @@ import { ChartLineEdit, chartTextRoundTrips, editChartLines } from './chart/char
 import { ChartFileTokens, chartSectionLines, ChartLineToken, isChartSongReaderStop, readChartSongLine } from './chart/chart-file-parser'
 import { secondsToMs } from './ini/chart-song-entries'
 import { setSongIniValue } from './ini/ini-edit'
+import { tagRank } from './ini/metadata'
 import { IniTokens, parseIniTokens } from './ini/parse-ini'
 import type { SongDocument } from './song-document'
 
@@ -157,10 +158,10 @@ function chartValues(pair: (typeof pairs)[number], iniValue: string, yearSeparat
 	}
 }
 
-/** song.ini with the key set, or `null` if it can't be edited (it isn't UTF-8). */
+/** song.ini with the key set, in its place in the standard order, or `null` if it can't be edited (it isn't UTF-8). */
 function copyIntoIni(tokens: IniTokens, key: string, value: string): IniTokens | null {
 	try {
-		return setSongIniValue(tokens, key, value)
+		return setSongIniValue(tokens, key, value, other => tagRank(other) > tagRank(key))
 	} catch (error) {
 		if (error instanceof RangeError) return null
 		throw error
