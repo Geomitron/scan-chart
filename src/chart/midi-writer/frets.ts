@@ -97,7 +97,8 @@ export function buildFretTrack(
 	//       swapping sustain lengths.
 	// Otherwise use forceOpen SysEx, which collapses chords-with-open into
 	// single opens but avoids conflicts with animations at easy diffStart.
-	const useEnhancedOpens = trackDataEntries.some(td => {
+	// A 6-fret track has a key of its own for opens, and needs neither.
+	const useEnhancedOpens = !isGhl && trackDataEntries.some(td => {
 		if (td.noteEventGroups.some(group => {
 			if (group.length < 2) return false
 			const hasOpen = group.some(n => n.type === noteTypes.open)
@@ -154,11 +155,7 @@ export function buildFretTrack(
 	const cutoff = readSustainCutoff(chart, options)
 
 	for (const td of trackDataEntries) {
-		if (isGhl) {
-			emitFretNotes(events, td, sixFretDiffStarts, sixFretNoteTypeToOffset, animMap, useEnhancedOpens, animSeqMap, cutoff)
-		} else {
-			emitFretNotes(events, td, fiveFretDiffStarts, fiveFretNoteTypeToOffset, animMap, useEnhancedOpens, animSeqMap, cutoff)
-		}
+		emitFretNotes(events, td, isGhl, animMap, useEnhancedOpens, animSeqMap, cutoff)
 
 		allStarPower.push(td.starPowerSections)
 		allSolo.push(td.soloSections)
@@ -213,7 +210,7 @@ export function buildFretTrack(
 				for (const group of otherTd.noteEventGroups) {
 					for (const n of group) {
 						let noteNum: number
-						if (n.type === noteTypes.open) {
+						if (n.type === noteTypes.open && !isGhl) {
 							noteNum = useEnhancedOpens ? diffStart + 0 : diffStart + 1
 						} else {
 							const off = offsetMap[n.type]
@@ -312,14 +309,14 @@ export function buildFretTrack(
 function emitFretNotes(
 	events: AbsoluteEvent[],
 	td: ParsedTrack,
-	diffStarts: Record<Difficulty, number>,
-	noteTypeToOffset: Partial<Record<NoteType, number>>,
+	isGhl: boolean,
 	animMap: Map<string, number>,
 	useEnhancedOpens: boolean,
 	animSeqMap: Map<string, { onSeq: number; offSeq: number }>,
 	cutoff: number,
 ): void {
-	const diffStart = diffStarts[td.difficulty]
+	const diffStart = (isGhl ? sixFretDiffStarts : fiveFretDiffStarts)[td.difficulty]
+	const noteTypeToOffset = isGhl ? sixFretNoteTypeToOffset : fiveFretNoteTypeToOffset
 	// Fret notes whose MIDI number would fall in the animation range (40-59)
 	// skip the length-chain override — inflating their length would absorb the
 	// corresponding animation pairing on re-parse.
@@ -348,7 +345,9 @@ function emitFretNotes(
 
 	for (const group of td.noteEventGroups) {
 		for (const note of group) {
-			const offsetForOverride = note.type === noteTypes.open
+			// A 5-fret open is on the open key with [ENHANCED_OPENS], else on green with a SysEx open.
+			const isFiveFretOpen = note.type === noteTypes.open && !isGhl
+			const offsetForOverride = isFiveFretOpen
 				? (useEnhancedOpens ? 0 : 1)
 				: (noteTypeToOffset[note.type] ?? 0)
 			const noteNumForOverride = diffStart + offsetForOverride
@@ -357,7 +356,7 @@ function emitFretNotes(
 				? note.length
 				: (lengthOverrides.get(`${note.tick}:${note.type}`) ?? note.length)
 
-			if (note.type === noteTypes.open) {
+			if (isFiveFretOpen) {
 				if (useEnhancedOpens) {
 					const noteNum = diffStart + 0
 					const animLength = animMap.get(`${note.tick}:${noteNum}`)
