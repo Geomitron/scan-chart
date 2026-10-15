@@ -50,6 +50,12 @@ export const issueSeverities: { readonly [code in IssueCode]: IssueSeverity } = 
 	blankIniValue: 'recommendation',
 	quotedIniValue: 'warning',
 	unknownIniTag: 'recommendation',
+	missingSongLength: 'recommendation',
+	missingAlbumTrack: 'recommendation',
+	difficultyRange: 'recommendation',
+	iconName: 'recommendation',
+	deprecatedIniTag: 'recommendation',
+	redundantDrumType: 'recommendation',
 	// Chart issues
 	misalignedTimeSignature: 'warning',
 	noNotes: 'error',
