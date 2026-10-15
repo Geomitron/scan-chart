@@ -6,8 +6,12 @@ import { noteFlags } from 'src/chart/types'
 
 type MidiEvent = MidiData['tracks'][number][number]
 
-/** A `.mid` file at 480 ticks per beat: a tempo track with `tempo` microseconds per beat, and a PART GUITAR track. */
-function guitarMidi(events: readonly { tick: number; event: MidiEvent }[], tempos: readonly { tick: number; microsecondsPerBeat: number }[] = [{ tick: 0, microsecondsPerBeat: 500000 }]): Uint8Array {
+/** A `.mid` file at 480 ticks per beat: a tempo track with `tempos` (microseconds per beat), and a `trackName` track. */
+function guitarMidi(
+	events: readonly { tick: number; event: MidiEvent }[],
+	tempos: readonly { tick: number; microsecondsPerBeat: number }[] = [{ tick: 0, microsecondsPerBeat: 500000 }],
+	trackName = 'PART GUITAR',
+): Uint8Array {
 	const track = (name: string, entries: readonly { tick: number; event: MidiEvent }[]) => {
 		const ordered = entries.map((entry, order) => ({ ...entry, order })).sort((a, b) => a.tick - b.tick || a.order - b.order)
 		let previousTick = 0
@@ -20,7 +24,7 @@ function guitarMidi(events: readonly { tick: number; event: MidiEvent }[], tempo
 		return result
 	}
 	const conductor = track('TEMPO TRACK', tempos.map(({ tick, microsecondsPerBeat }) => ({ tick, event: { deltaTime: 0, type: 'setTempo', microsecondsPerBeat } })))
-	return new Uint8Array(writeMidi({ header: { format: 1, numTracks: 2, ticksPerBeat: 480 }, tracks: [conductor, track('PART GUITAR', events)] }))
+	return new Uint8Array(writeMidi({ header: { format: 1, numTracks: 2, ticksPerBeat: 480 }, tracks: [conductor, track(trackName, events)] }))
 }
 
 const note = (tick: number, noteNumber: number, channel = 0) => [
@@ -50,5 +54,19 @@ describe('the .mid reader refuses what Clone Hero refuses', () => {
 	it('refuses a tempo of 0, which is an infinite BPM, in every profile', () => {
 		const data = guitarMidi(greens, [{ tick: 0, microsecondsPerBeat: 500000 }, { tick: 480, microsecondsPerBeat: 0 }])
 		for (const parse of Object.values(parsers)) expect(() => parse(data, 'mid')).toThrow('Tempo at tick 480 was zero')
+	})
+
+	it('refuses a 5- or 6-fret tap or open SysEx phrase whose difficulty byte is not 0 to 3 or 255', () => {
+		for (const trackName of ['PART GUITAR', 'PART GUITAR GHL']) {
+			const data = guitarMidi([...greens, sysEx(100, 5, 4, true), sysEx(300, 5, 4, false)], undefined, trackName)
+			for (const parse of Object.values(parsers)) expect(() => parse(data, 'mid')).toThrow('has difficulty 5')
+		}
+	})
+
+	it('still reads a file where such a SysEx event has no end, or is on a drum track, which Clone Hero loads', () => {
+		const unpaired = guitarMidi([...greens, sysEx(100, 5, 4, true)])
+		for (const parse of Object.values(parsers)) expect(tapTicks(unpaired, parse)).toEqual([])
+		const drums = guitarMidi([...[0, 100].flatMap(tick => note(tick, 97)), sysEx(0, 5, 4, true), sysEx(200, 5, 4, false)], undefined, 'PART DRUMS')
+		for (const parse of Object.values(parsers)) expect(parse(drums, 'mid').trackData.map(track => track.difficulty)).toContain('expert')
 	})
 })
