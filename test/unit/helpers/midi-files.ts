@@ -34,6 +34,15 @@ function trackEvents(events: readonly TimedMidiEvent[]): MidiEvent[] {
 	return result
 }
 
+/** A parsed track's text events (`FF 01`), each as its absolute tick and text. */
+export function trackTexts(track: readonly MidiEvent[]): [tick: number, text: string][] {
+	let tick = 0
+	return track.flatMap(event => {
+		tick += event.deltaTime
+		return event.type === 'text' ? [[tick, event.text] as [number, string]] : []
+	})
+}
+
 /** A note-on at `tick` and its note-off `length` ticks later; at length 0, the note-on comes first. */
 export function midiNote(tick: number, noteNumber: number, length = 0, channel = 0): TimedMidiEvent[] {
 	return [

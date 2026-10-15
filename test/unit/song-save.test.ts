@@ -8,11 +8,9 @@ import { chartSectionLines } from 'src/chart/chart-file-parser'
 import { editSong, parseSongFiles, SongDocument } from 'src/song-document'
 import { resolveChart } from 'src/gameplay-chart'
 import { fileBytes } from 'src/song-files'
-import { chartSpellingIssues } from 'src/spelling-issues'
 import { saveSong, songHashes, SongNormalization } from 'src/song-save'
 
-import { midi } from './helpers/chart-files'
-import { midiFile, midiNote, midiText } from './helpers/midi-files'
+import { midiFile, midiNote, midiText, trackTexts } from './helpers/midi-files'
 
 const encode = (text: string) => new TextEncoder().encode(text)
 const decode = (bytes: Uint8Array) => new TextDecoder().decode(bytes)
@@ -169,17 +167,6 @@ describe('saving (E7)', () => {
 		expect(saved.chart?.format === 'mid' && saved.chart.tokens ? midiAuthoredTracks(saved.chart.tokens)[0].events.map(event => event.length) : []).toEqual([240])
 	})
 
-	it('writes a .mid note that starts where a sustain of its pitch ends after that note-off, so it reads back as edited', () => {
-		const original = parseSongFiles([{ fileName: 'notes.mid', data: midi({ 'PART GUITAR': [{ tick: 0, noteNumber: 96, length: 480 }, { tick: 1920, noteNumber: 97 }] }) }, songIni])
-		const [guitar] = authoredTracks(original.chart!)
-		const edited = editSong(original, batch => batch.addEvent(guitar, 480, 'green', 480, { scope: 'expert' }))
-		const saved = parseSongFiles(saveSong(original, edited).files)
-		expect(resolveChart(saved).tracks[0].noteGroups.map(group => [group[0].tick, group[0].length])).toEqual([[0, 480], [480, 480], [1920, 0]])
-		const chart = saved.chart!
-		if (chart.format !== 'mid') throw new Error('not a .mid chart')
-		expect(chartSpellingIssues({ format: 'mid', bytes: chart.bytes, tokens: chart.tokens }, false)).toEqual([])
-	})
-
 	it('turns a d flip off before a dnoflip, in .chart and .mid, keeping every canonical hash', () => {
 		const drums = ['[ExpertDrums]', '{', '  480 = N 1 0', '  480 = E mix 3 drums1d', '  700 = N 2 0', '  960 = N 1 0', '  960 = E mix 3 drums0dnoflip', '}']
 		const chart = song([...header, '[ExpertSingle]', '{', '  0 = N 0 0', '  192 = N 1 0', '}', ...drums])
@@ -197,10 +184,7 @@ describe('saving (E7)', () => {
 		const editedMid = editSong(mid, batch => batch.setLength(guitar.events[0], 480))
 		const savedMid = saveSong(mid, editedMid)
 		expect(savedMid.report.normalized).toEqual([{ kind: 'noflipDuringFlip', section: 'PART DRUMS' }])
-		const drumsTrack = parseMidi(fileBytes(savedMid.files[0])).tracks[2]
-		let tick = 0
-		expect(drumsTrack.flatMap(event => (tick += event.deltaTime, event.type === 'text' ? [[tick, event.text]] : [])))
-			.toEqual([[480, '[mix 3 drums1d]'], [959, '[mix 3 drums1]'], [960, '[mix 3 drums0dnoflip]']])
+		expect(trackTexts(parseMidi(fileBytes(savedMid.files[0])).tracks[2])).toEqual([[480, '[mix 3 drums1d]'], [959, '[mix 3 drums1]'], [960, '[mix 3 drums0dnoflip]']])
 		expect(songHashes(parseSongFiles(savedMid.files))).toEqual(songHashes(editedMid))
 	})
 

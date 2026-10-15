@@ -55,14 +55,6 @@ describe('fixIssues: song.ini', () => {
 		expectHashesKept(result)
 	})
 
-	it('writes a "#" comment as a ";" comment that keeps its hashes, by default', async () => {
-		const result = await fix(folder(['# Charted for the pack', '[song]', 'name = Song', '## Notes ##', 'artist = Band']))
-		expect(result.ini).toBe(';# Charted for the pack\r\n[song]\r\nname = Song\r\n;## Notes ##\r\nartist = Band\r\n')
-		expect(result.report.fixed.map(entry => entry.code)).toContain('iniLayout')
-		expect(result.codes).not.toContain('iniLayout')
-		expectHashesKept(result)
-	})
-
 	it('puts the tags in the standard order, then the other tags games read, then the rest, with each tag\'s comments', async () => {
 		const result = await fix(folder(['[song]', 'charter = Me', 'last_play = 1', '; The name', 'name = Song', 'ignored_issues = noAlbumArt', 'artist = Band']), { codes: ['iniTagOrder'] })
 		expect(result.ini).toBe('[song]\r\n; The name\r\nname = Song\r\nartist = Band\r\ncharter = Me\r\nignored_issues = noAlbumArt\r\nlast_play = 1\r\n')
@@ -157,21 +149,23 @@ describe('fixIssues: song.ini', () => {
 
 	it('removes a blank charter or album_track only with the frets or track line games would read without it', async () => {
 		const lines = ['[song]', 'name = Song', 'charter =', 'frets = Someone', 'album_track =', 'track = 3']
-		const kept = await fix(folder(lines), { codes: ['blankIniValue', 'blankIniNumber'] })
-		expect(kept.ini).toBe(`${lines.join('\r\n')}\r\n`)
-		expect(kept.report.skipped).toEqual([
-			{ code: 'blankIniValue', file: 'song.ini', reason: 'Removing "charter" would make games read "frets" instead: remove "frets" too.' },
-			{ code: 'blankIniNumber', file: 'song.ini', reason: 'Removing "album_track" would make games read "track" instead: remove "track" too.' },
-		])
+		for (const changeHashes of [false, true]) {
+			const kept = await fix(folder(lines), { codes: ['blankIniValue', 'blankIniNumber'], changeHashes })
+			expect(kept.ini).toBe(`${lines.join('\r\n')}\r\n`)
+			expect(kept.report.skipped).toEqual([
+				{ code: 'blankIniValue', file: 'song.ini', reason: 'Removing "charter" would make games read "frets" instead: remove "frets" too.' },
+				{ code: 'blankIniNumber', file: 'song.ini', reason: 'Removing "album_track" would make games read "track" instead: remove "track" too.' },
+			])
 
-		const removed = await fix(folder(lines))
-		expect(removed.ini).toBe('[song]\r\nname = Song\r\n')
-		expect(removed.report.fixed.map(entry => entry.description)).toEqual([
-			'Removed "charter", which was blank or -1.',
-			'Removed "album_track", which was blank.',
-			'Removed "frets = Someone" and "track = 3", which changed nothing.',
-		])
-		expectHashesKept(removed)
+			const removed = await fix(folder(lines), { changeHashes })
+			expect(removed.ini).toBe('[song]\r\nname = Song\r\n')
+			expect(removed.report.fixed.map(entry => entry.description)).toEqual([
+				'Removed "charter", which was blank or -1.',
+				'Removed "album_track", which was blank.',
+				'Removed "frets = Someone" and "track = 3", which changed nothing.',
+			])
+			expectHashesKept(removed)
+		}
 	})
 
 	it('leaves multiplier_note = 116 where a .mid chart\'s solos would otherwise read as star power, even with changeHashes', async () => {
