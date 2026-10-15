@@ -376,7 +376,7 @@ function authoredNotes(song: SongDocument, track: Track, note: NoteEvent): (Auth
 }
 
 /** Whether a deprecated tag's issue that one of `keys` is about is reported. */
-const isReported = (issues: readonly Issue[], findings: readonly MetadataFinding[], keys: readonly string[]) => issues.some(issue => issue.code === 'deprecatedIniTag')
+const isTagReported = (issues: readonly Issue[], findings: readonly MetadataFinding[], keys: readonly string[]) => issues.some(issue => issue.code === 'deprecatedIniTag')
 	&& findings.some(finding => finding.metadataIssue === 'deprecatedIniTag' && finding.keys?.some(key => keys.includes(key)))
 
 /**
@@ -404,7 +404,7 @@ function withoutTags(song: SongDocument, keys: readonly string[], edit: (batch: 
 export function fixHopoTags(song: SongDocument, issues: readonly Issue[], findings: readonly MetadataFinding[], record: FixRecord): SongDocument {
 	const context = songContext(song)
 	const { chart, ini } = song
-	if (!isReported(issues, findings, ['hopo_frequency', 'eighthnote_hopo']) || ini === null) return song
+	if (!isTagReported(issues, findings, ['hopo_frequency', 'eighthnote_hopo']) || ini === null) return song
 	if (chart === null || context.chart.kind !== 'parsed' || (chart.format === 'mid' && chart.tokens === null)) {
 		record.skip('deprecatedIniTag', ini.fileName, 'The chart can\'t be read, so it can\'t be rewritten to play the same without the HOPO tags.')
 		return song
@@ -461,7 +461,7 @@ export function fixHopoTags(song: SongDocument, issues: readonly Issue[], findin
  */
 export function fixMultiplierNote(song: SongDocument, issues: readonly Issue[], findings: readonly MetadataFinding[], record: FixRecord): SongDocument {
 	const { chart, ini } = song
-	if (!isReported(issues, findings, ['multiplier_note']) || chart?.format !== 'mid' || chart.tokens === null || ini === null) return song
+	if (!isTagReported(issues, findings, ['multiplier_note']) || chart?.format !== 'mid' || chart.tokens === null || ini === null) return song
 	const tokens = chart.tokens
 	let [moved, dropped] = [0, 0]
 	const result = withoutTags(song, ['multiplier_note'], batch => {
