@@ -9,6 +9,12 @@ const chartTagWords = /overchart|\b6[- ]?fret|open notes|\b2x (kick|bass pedal)|
 const songTagWords = /\b(ft\.|feat\.|featuring|remix(ed)?|full album|live|acoustic|cover|demo|instrumental|remaster(ed)?|version|edit|mix)\b/i
 const featuring = /(^|\s)(ft\.|feat\.|featuring\s)/i
 
+/** Whether an album value marks a single, or no album: "Single", "N/A", "None", "-", or a name ending in "Single" or "(Single)". */
+export function marksSingle(album: string) {
+	const value = album.trim()
+	return /^(singles?|n\/?a|none|-|no album|non[- ]album (single|track))$/i.test(value) || /\bsingle\)?$/i.test(value)
+}
+
 /**
  * Guesses about the metadata's text against the charting guidelines' style: credits joined with "&", single spaces, where
  * featured artists and title tags go, one genre, a four-digit year, and how a single's album is written. Each is a guess,
@@ -57,8 +63,7 @@ export function metadataStyleIssues(metadata: typeof defaultMetadata): MetadataF
 	}
 	// The song name with or without its title tags.
 	const single = `${name.replace(/(\s*(\([^)]*\)|\[[^\]]*\]))+$/, '')} - (Single)`
-	const marksSingle = /^(singles?|n\/?a|none|-|no album|non[- ]album (single|track))$/i.test(album) || /\bsingle\)?$/i.test(album)
-	if (isSet('album') && marksSingle && album !== single && album !== `${name} - (Single)`) {
+	if (isSet('album') && marksSingle(album) && album !== single && album !== `${name} - (Single)`) {
 		add('singleAlbum', `The album value "${album}" marks a single. A single's album is its name followed by " - (Single)": "${single}".`)
 	}
 	return issues

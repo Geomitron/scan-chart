@@ -111,6 +111,8 @@ describe('song.ini values', () => {
 		expect(await values(['album = Album'], codes)).toEqual([['missingAlbumTrack', 'Metadata is missing "album_track": set it to the song\'s position on its album.']])
 		expect(await values(['album = Album', 'album_track = 3'], codes)).toEqual([])
 		expect(await values(['album = Song - (Single)'], codes)).toEqual([])
+		expect(await values(['album = N/A'], codes)).toEqual([])
+		expect(await values(['album = Song - Single'], codes)).toEqual([])
 		expect(await values(['name = Song'], codes)).toEqual([])
 	})
 
