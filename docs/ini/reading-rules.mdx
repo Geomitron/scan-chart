@@ -1,12 +1,182 @@
 ---
-title: "Reading rules"
-description: "How a song.ini file is read."
+title: "Syntax"
+description: "The structure of a song.ini file: its section, its lines, and the forms of its values."
 ---
 
-<Warning>Placeholder for the local preview. This page isn't written yet.</Warning>
+`song.ini` is a text file of `key = value` lines in one `[song]` section:
 
-It will cover:
+```ini
+[song]
+name = Song Name
+artist = Artist
+album = Album
+genre = Rock
+year = 2002
+charter = Charter
+song_length = 215000
+diff_band = 4
+diff_guitar = 4
+diff_drums = 3
+preview_start_time = 45500
+preview_end_time = 75500
+album_track = 3
+```
 
-- Only `song.ini`, and only its `[song]` section
-- Repeated keys: the last one counts
-- Values that mean a key isn't set
+[Metadata](/ini/metadata) and [Settings](/ini/settings) list the keys. A [.sng file](/sng) holds the same keys in its own metadata, with stricter rules.
+
+## Encoding
+
+A scanner decodes `song.ini` as it decodes a `.chart` file: see [Encoding](/chart/syntax#encoding). **Recommended:** UTF-8.
+
+**Edge case:** Clone Hero reads `loading_phrase` and the [settings](/ini/settings) a second time when a song starts, as UTF-8 unless the file starts with a byte order mark. In a `song.ini` saved as ISO-8859-1, the loading screen then shows the accented letters of `loading_phrase` as replacement characters, while the song list shows the name and artist correctly.
+
+## The [song] section
+
+- **Required:** a `[song]` section, on the file's first line. Every key is inside it.
+- A scanner matches the section's name in any letter case, as written between the brackets. **Recommended:** `[song]`, in lowercase.
+- A file must hold only one `[song]` section.
+
+## Lines
+
+Each line after `[song]` is a key line, a comment, or a blank line.
+
+- A line ends at a line feed, or at a carriage return followed by a line feed. A carriage return alone doesn't end a line. **Recommended:** a carriage return and a line feed.
+- A scanner ignores blank lines, and spaces and tabs at the start and the end of each line.
+
+### Comments
+
+```ini
+; Charted for the Example Pack
+```
+
+A comment is a line whose first character, after any spaces, is `;`. A scanner ignores it.
+
+A comment must be on its own line. A `;` after a value is part of the value: see [Invalid forms](#invalid-forms).
+
+{/* review: Q1
+Is a `#` line a comment? Clone Hero and scan-chart skip it as one. YARG reads it as a key it doesn't know, so it has no effect there either. The guidelines allow only `;`, and 25 of the 63,812 surveyed folders use `#`.
+- A. Only `;` | A `#` line is invalid, and a scanner ignores it | None for files: every scanner already ignores the line
+- B. `;` and `#` | `#` is allowed, and an exporter should write `;` | Looser than the guidelines, for no difference in any scanner
+Recommendation: A. The outcome is the same in every scanner, and the guidelines already say so.
+*/}
+
+### Key lines
+
+```text
+<key> = <value>
+```
+
+- **The key** is the text before the first `=`. A scanner matches keys in any letter case. **Recommended:** in lowercase, as these pages write them. A key has no spaces.
+- **The value** is the text after the `=`, without the spaces at its start and end. An exporter must not write a value that starts or ends with white space: YARG removes only spaces and other characters up to U+0020, so a no-break space at either end stays part of the value.
+- **Recommended:** one space on each side of the `=`.
+- An exporter must not put quotation marks around a value. Unlike in a `.chart` file, a scanner keeps them as part of the value.
+- A key must appear only once in a file.
+
+## Values
+
+Each key takes one type of value:
+
+| Type | Form | Example |
+|---|---|---|
+| Text | Any text on one line | `name = Song Name` |
+| Whole number | Digits, with an optional `-` before them, from -2147483648 to 2147483647 | `preview_start_time = 45500` |
+| Boolean | `True` or `False`. **Recommended** | `modchart = True` |
+
+- No key takes a decimal number.
+- Times are in milliseconds.
+- A scanner also reads `true` and `false` in any other letter case, and `1` and `0`, as booleans. They mean the same as `True` and `False`.
+
+{/* review: Q2
+Which boolean spelling is recommended? All three scanners read `True`, `true`, `False`, `false`, `1` and `0` the same in song.ini. The `.sng` specification allows only `True` and `False`, and SngCli copies song.ini's values as written when it packs a folder.
+- A. `True` and `False` | Recommended; the other forms allowed | Batch 1's `five_lane_drums = true`, `pro_drums = true` and `eighthnote_hopo = true` change to `True`. Matches the guidelines, the `.sng` format and scan-chart's exporter
+- B. `true` and `false` | As batch 1 writes them | Differs from the guidelines and the `.sng` specification
+- C. `1` and `0` | As Clone Hero writes `pro_drums`, `five_lane_drums` and `modchart` | A `.sng` file packed from such a song.ini reads them as false in Clone Hero
+Recommendation: A. It's the spelling of the guidelines and of the `.sng` format, so a `.sng` file packed from the song.ini keeps its meaning.
+*/}
+
+### Values that mean not set
+
+A key that isn't in the file isn't set, and a scanner uses its default. [Metadata](/ini/metadata) and [Settings](/ini/settings) give each key's default.
+
+- `-1` also means not set in the `diff_` keys, `preview_start_time` and `preview_end_time`. **Recommended:** leave the key out instead.
+- In every other number key, `-1` is an ordinary number: `album_track = -1` sorts the song first.
+- Text `0` and `-1` are text: `charter = 0` shows the charter as "0".
+
+**Edge case:** when Clone Hero creates a `song.ini` for a folder without one, it writes `-1` for each difficulty without a rating, and `16000`, the default, for `album_track` and `playlist_track`. Tens of thousands of song folders hold these values.
+
+{/* review: Q3
+What do a blank value and `-1` mean?
+- A. A blank value is invalid; `-1` means not set in the `diff_` keys and the preview times only | An exporter should leave the key out instead. In other number keys, `-1` is an ordinary number | Clone Hero's own song.ini exporter writes `-1` difficulties, which stay valid, and a blank `icon`, which becomes invalid. scan-chart, which reads `-1` as not set in every number key, changes to match
+- B. Both invalid | A scanner reads both as a missing key, and an exporter leaves the key out | Tens of thousands of folders Clone Hero wrote become invalid
+- C. Both valid | Both mean not set, in every key | YARG reads a blank number as 0, so a blank value doesn't read the same everywhere
+Recommendation: A. The games agree on `-1` for these keys, and Clone Hero writes it itself. They don't agree on a blank number.
+*/}
+
+## Ignored
+
+- **Sections other than `[song]`.** An exporter may keep them.
+- **Keys a scanner doesn't read.** An exporter should keep them as written. [Metadata](/ini/metadata#ignored) lists the keys of older games.
+
+## Invalid forms
+
+<Accordion title="Lines before [song]">
+Clone Hero and scan-chart ignore them, and read the `[song]` section after them. YARG skips blank lines, but when the first line that isn't blank is a comment or a key line, it misses `[song]` and ignores the whole file. It also misses a `[song]` that comes right after another section's header.
+</Accordion>
+
+<Accordion title="No [song] section">
+A scanner reads the folder as if it had no `song.ini`: see [Files in a song folder](/song-folders#invalid-forms). A `[song]` section with no key lines counts as none. scan-chart reports it as `invalidMetadata`.
+</Accordion>
+
+<Accordion title="Two [song] sections">
+Clone Hero and scan-chart read them as one section, and the last line of each key counts. YARG reads only the last section. A scanner reads them as Clone Hero does.
+</Accordion>
+
+<Accordion title="A section header with spaces or a comment, such as [ song ]">
+No scanner reads `[ song ]` or `[song] ; comment` as `[song]`, so the key lines after it aren't in a `[song]` section.
+</Accordion>
+
+<Accordion title="A comment that starts with #">
+Clone Hero and scan-chart skip it as a comment. YARG reads it as a key that starts with `#`, which it doesn't know, so it has no effect. A scanner ignores the line.
+</Accordion>
+
+<Accordion title="A line that starts with //">
+No scanner reads it as a comment. A scanner ignores it: Clone Hero skips it when it has no `=`, and reads it as a key that no scanner knows when it has one. scan-chart reports a `//` line without `=` as `badIniLine`.
+</Accordion>
+
+<Accordion title="A comment after a value, such as preview_start_time = 45500 ; ms">
+No scanner reads it as a comment: it's part of the value. A text value shows it, and a number followed by a comment is a number in another form, below.
+</Accordion>
+
+<Accordion title="A line without =">
+Clone Hero ignores it. YARG reads the first word as the key, so `name Song` is `name = Song`. A scanner ignores the line. scan-chart reports it as `badIniLine`.
+</Accordion>
+
+<Accordion title="A space inside a key, or a value that starts with =">
+Clone Hero reads `diff guitar = 3` as a key named `diff guitar`, which no scanner knows, and `name = = Song` as the value `= Song`. YARG reads them as the key `diff` with the value `guitar = 3`, and as the value `Song`. A scanner reads them as Clone Hero does.
+</Accordion>
+
+<Accordion title="Quotation marks around a value">
+A scanner keeps them as part of the value, so a text value shows them. A number in quotation marks isn't a number: Clone Hero and scan-chart use the key's default, and YARG reads 0. scan-chart reports a quoted difficulty, such as `diff_guitar = "4"`, as `missingValue`.
+</Accordion>
+
+<Accordion title="A key written more than once">
+A scanner uses the last line. scan-chart reports it as `duplicateIniKey`, and saving an edited song removes the earlier lines.
+</Accordion>
+
+<Accordion title="A number in another form, such as 1.5 or 12abc">
+Clone Hero reads a number as .NET does: an optional sign, then digits, within the 32-bit range, with spaces allowed around them. It uses the key's default for anything else. YARG reads a number's leading digits, so `12abc` is 12 and `1.5` is 1, and reads 0 when there are none. A scanner reads it as Clone Hero does.
+
+scan-chart reads the leading number of most keys, so `12abc` is 12, and rounds `1.5` to 2 and reports it as `invalidValue`. It reads `hopo_frequency`, `multiplier_note`, `sustain_cutoff_threshold` and `chord_snap_threshold` as Clone Hero does, and reports anything else as `invalidValue`. A `delay` with a decimal point means something else again: see [Settings](/ini/settings#invalid-forms).
+</Accordion>
+
+<Accordion title="A boolean in another form, such as yes or 2">
+Clone Hero and scan-chart read any whole number other than 0 as true, and anything else that isn't `true` or `false` as not set. YARG reads a value that starts with `1` or `true` as true, and anything else as false: `2` is false, and `10` is true.
+</Accordion>
+
+<Accordion title="A blank value">
+Clone Hero and scan-chart read a blank number or boolean as not set, and blank text as empty. Clone Hero doesn't list a song whose `name` is blank. When it creates a `song.ini`, Clone Hero writes a blank `icon`.
+
+YARG reads a blank number as 0 and a blank boolean as false, and counts the key as set: a blank `preview_start_time` starts the preview at 0:00, a blank `album_track` sorts the song first, a blank difficulty shows 0 instead of no rating, a blank `sustain_cutoff_threshold` turns off the cutoff of a `.mid` file, and a blank `five_lane_drums` rules out 5-lane drums. It fills a blank text value from the `.chart` file's `[Song]` section.
+
+A scanner reads a blank value as not set.
+</Accordion>

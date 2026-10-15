@@ -1,0 +1,152 @@
+---
+title: "Charting guidelines"
+description: "The Chorus Encore guidelines' recommendations for a chart's notes: timing, difficulties, sustains and phrases."
+---
+
+The [Chorus Encore Application Guidelines](https://docs.google.com/document/d/1XrLKnpL0xawaC90M4lLnhqhExwXM_3JpJnzNqlB_agM) describe how to make and share charts. This page gives their recommendations for a chart's notes, and [Metadata conventions](/metadata-conventions) their style for `song.ini`. Each is a recommendation: a chart that doesn't follow one is still valid.
+
+A chart that follows them starts like this:
+
+```text
+[Song]
+{
+  Resolution = 192
+}
+[SyncTrack]
+{
+  0 = TS 4
+  0 = B 140000
+}
+[Events]
+{
+  0 = E "section Intro"
+  1536 = E "section Verse 1"
+}
+[ExpertSingle]
+{
+  1536 = N 0 352
+  1536 = S 2 768
+  1920 = N 1 0
+  2112 = N 2 0
+}
+```
+
+There's no `Offset`. The first note comes two measures in, about 3.4 seconds after the start of the audio. Its sustain ends 32 ticks, about 71 milliseconds, before the next note.
+
+| Recommendation | scan-chart reports |
+|---|---|
+| [A tempo map in sync with the audio](#tempo-map-and-sync) | `isDefaultBPM`, for a tempo map that was never set |
+| [No Offset](#offset) | Nothing |
+| [Silence before the first note](#leading-silence) | `smallLeadingSilence` |
+| [Expert on every instrument](#expert) | `noExpert` |
+| [Accurate note placement](#note-placement) | Some mistakes, such as `brokenNote` |
+| [Sustain gaps of at least 60 milliseconds](#sustain-gaps) | `badSustainGap` |
+| [No sustains shorter than 200 milliseconds](#short-sustains) | `babySustain` |
+| [Practice sections](#practice-sections) | `noSections`, for a chart with none |
+| [Star power](#star-power) | `noStarPower` |
+| [Solos](#solos) | Nothing |
+
+scan-chart gives each issue a severity. Where a check has two thresholds, it reports a chart that misses the lower one as a **warning**, and a chart that misses only the guidelines' value as a **recommendation**.
+
+## Timing
+
+### Tempo map and sync
+
+A chart should be tempo-mapped, and in sync with its audio: its tempo markers put the chart's beats where the song's beats are, so that notes placed on the beat line up with the music.
+
+- Before the first tempo marker, a scanner plays at 120 BPM: see [[SyncTrack]](/chart/sync-track).
+- scan-chart reports a tempo map that was never set, a single tempo marker at 120 BPM and a single 4/4 time signature, as `isDefaultBPM`, a warning. It can't check that a chart is in sync. It reports a time signature that isn't at the start of a measure as `misalignedTimeSignature`.
+
+### Offset
+
+A `.chart` file's `Offset` should be 0, or left out. The notes line up with the audio through the tempo map and the audio's leading silence instead. [[Song]](/chart/song) deprecates any other `Offset`, and [Settings](/ini/settings#deprecated) deprecates `delay`.
+
+- Changing an `Offset` to 0 moves every note in time, so the audio's leading silence has to change with it.
+- scan-chart doesn't report it.
+
+### Leading silence
+
+The chart's first note should come at least 2 seconds after the start of the audio, or two measures after it if that's sooner. If the notes start earlier, add silence to the start of the audio file, and keep the chart in sync with it.
+
+- The first note is the first note of any track, vocals included.
+- The two measures are at the chart's first tempo and time signature: `2 × numerator × 4 ÷ denominator` beats. In 4/4, they're shorter than 2 seconds only above 240 BPM.
+- The start of the audio is the chart's tick 0, since the chart has no `Offset` or `delay`.
+- scan-chart reports `smallLeadingSilence` for each track whose first note is too early: a warning before 1 second, and a recommendation before the guidelines' time.
+
+## Difficulties
+
+### Expert
+
+Every instrument the chart has should have an Expert difficulty.
+
+- A scanner reads double kicks only from `ExpertDrums`: see [Double kicks](/chart/drums#double-kicks).
+- scan-chart reports an instrument with no Expert as `noExpert`, a warning.
+
+## Note placement
+
+Notes should be placed accurately, by their timing and their relative pitch. The guidelines call this one of the most important rules, and the most subjective. Good note placement balances accuracy, playability and readability: many choices are plainly wrong, but the best way to chart a passage is often a matter of judgment. The guidelines point to the Charting section of the CSC website, the #charting-discussion channel of the Clone Hero Discord server, and the charts of experienced charters.
+
+The guidelines also ask a chart to follow "the standard charting guidelines" in general, which they don't list.
+
+scan-chart can't judge note placement. It reports some plain mistakes, each as a warning:
+
+- `brokenNote`: a note 15 milliseconds or less after the one before it;
+- `invalidChord`: a chord such as all five frets, or three or more drum pads;
+- `difficultyForbiddenNote`: a note a lower difficulty shouldn't have, such as orange on Easy;
+- `difficultyNotReduced`: a lower difficulty with the same notes as a higher one.
+
+## Sustains
+
+### Sustain gaps
+
+When a sustain ends, the next note should start at least 60 milliseconds later. Where a sustain is cut short to make room for the next note, the gap should be 70 to 85 milliseconds.
+
+- The next note is the next note on any lane of the track.
+- No game reads the gap: it's a convention for playing comfortably.
+- Moonscraper can leave the gap for you. Its Sustain Gap setting, off by default, shortens each sustain to end the gap before the next note. It measures the gap in ticks, a 1/16 note by default, or in milliseconds.
+- scan-chart reports `badSustainGap`: a warning under 40 milliseconds, and a recommendation under 60. It doesn't check open sustains or drums, and doesn't report the 70 to 85 milliseconds.
+
+### Short sustains
+
+A sustain should be at least 200 milliseconds long, as a scanner reads it, after the [sustain cutoff](/chart/note-resolution#cut-off-short-sustains).
+
+- Neither game has a minimum in milliseconds. A `.chart` file has no cutoff by default, and a `.mid` file has a cutoff of about a third of a beat: about 169 milliseconds at 120 BPM in Clone Hero.
+- scan-chart reports `babySustain`: a warning under 100 milliseconds, and a recommendation under 200. It doesn't check drums, or a sustain that an open HOPO or tap starts inside.
+
+{/* review: Q12
+How are leading silence, sustain gaps and short sustains measured? The guidelines don't say whether the first note is the chart's or each track's, which note ends a sustain gap, or whether a short sustain is measured as written or as read. scan-chart measures the silence per track, and skips two cases the guidelines don't mention: open sustains for the gap, and a short sustain that an open HOPO or tap starts inside. Their reasons aren't recorded.
+- A. As this page says | The chart's first note, vocals included; the next note on any lane; the sustain as read, after the cutoff; no exceptions | scan-chart's two exceptions stay as scan-chart behaviour, unless you confirm a reason, which then goes on this page as an edge case
+- B. As scan-chart measures | Per track, with both exceptions | The page states rules whose reasons aren't known
+Recommendation: A. It's what the sentences say, and Moonscraper's gap setting measures the same way.
+*/}
+
+## Phrases and sections
+
+### Practice sections
+
+A chart should have practice sections where they fit the song.
+
+- [Practice sections](/chart/events#practice-sections) recommends at least one.
+- With none, Clone Hero makes ten sections, named `0% - 10%` and so on. YARG makes none.
+- scan-chart reports a chart with no sections as `noSections`, a warning.
+
+### Star power
+
+A chart should have star power where it fits. A drums chart doesn't need it.
+
+- Neither game adds star power to a chart that has none: see [Star power](/chart/phrases#star-power).
+- scan-chart reports a track with no star power as `noStarPower`, a warning, when it isn't drums and has more than 50 notes or chords over more than 60 seconds. It reports a star power phrase with no notes as `emptyStarPower`.
+
+### Solos
+
+A chart should have solo sections where they fit: see [Solos](/chart/phrases#solos).
+
+- scan-chart can't check it. It reports a solo with no notes as `emptySoloSection`.
+
+## Differences from the guidelines
+
+The guidelines' rules for a song folder's files are on [Files in a song folder](/song-folders), and their rules for the layout of `song.ini` on [song.ini syntax](/ini/reading-rules). Those pages differ from the guidelines in three places:
+
+- **Background images.** The guidelines say Clone Hero cycles through them in alphabetical order. Both games pick one at random each time the chart is played.
+- **Album art.** The guidelines prefer `.jpg`, for its smaller files. This specification recommends `.png`, keeps art that started as a JPEG as `.jpg`, and also allows `.jpeg`.
+- **Video.** The guidelines prefer `.webm` or `.vp8`, and allow `.ogv`. YARG doesn't read `.vp8` or `.ogv`, so this specification recommends only `video.webm`.
