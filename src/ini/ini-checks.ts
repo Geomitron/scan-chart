@@ -91,17 +91,19 @@ export function songIniIssues(input: SongIniInput): MetadataFinding[] {
 		const one = blankNumbers.length === 1
 		issues.push({
 			metadataIssue: 'blankIniNumber',
+			keys: blankNumbers,
 			description: `In "song.ini", ${keyList(blankNumbers)} ${one ? 'is' : 'are'} blank. Clone Hero reads ${one ? 'it' : 'them'} as not set, and YARG as 0: `
 				+ `remove ${one ? 'that line' : 'those lines'}, or give ${one ? 'it a value' : 'them values'}.`,
 		})
 	}
 	if (blankStyle.length > 0 && styleNotes) {
-		issues.push({ metadataIssue: 'blankIniValue', description: `In "song.ini", ${keyList(blankStyle)} ${blankStyle.length === 1 ? 'is' : 'are'} blank or -1. Remove ${blankStyle.length === 1 ? 'that line' : 'those lines'} instead.` })
+		issues.push({ metadataIssue: 'blankIniValue', keys: blankStyle, description: `In "song.ini", ${keyList(blankStyle)} ${blankStyle.length === 1 ? 'is' : 'are'} blank or -1. Remove ${blankStyle.length === 1 ? 'that line' : 'those lines'} instead.` })
 	}
 	const quoted = keys.filter(key => songSection[key].length >= 2 && songSection[key].startsWith('"') && songSection[key].endsWith('"'))
 	if (quoted.length > 0) {
 		issues.push({
 			metadataIssue: 'quotedIniValue',
+			keys: quoted,
 			description: `In "song.ini", ${keyList(quoted)} ${quoted.length === 1 ? 'is' : 'are'} in quotes. Games show the quotes, and don't read a number in quotes, so remove them.`,
 		})
 	}
@@ -113,6 +115,16 @@ export function songIniIssues(input: SongIniInput): MetadataFinding[] {
 		})
 	}
 	return [...issues, ...values.issues]
+}
+
+/**
+ * song.ini tags in the order scan-chart writes them: the standard's in `defaultMetadata`'s order, then the other tags
+ * some game reads, then the rest, each in the order given.
+ */
+export function standardTagOrder(keys: readonly string[]): string[] {
+	const ranked = keys.filter(key => tagOrder.includes(key)).sort((a, b) => tagOrder.indexOf(a) - tagOrder.indexOf(b))
+	const unranked = keys.filter(key => !tagOrder.includes(key))
+	return [...ranked, ...unranked.filter(key => knownTags.has(key)), ...unranked.filter(key => !knownTags.has(key))]
 }
 
 /** The tags games read as booleans, which read -1, like any whole number but 0, as true. */
@@ -133,7 +145,7 @@ const hasAlbumTrack = (songSection: SongSection) => hasValue(songSection, 'album
 function valueIssues({ songSection, metadata, chart, styleNotes }: SongIniInput): { issues: MetadataFinding[]; missing: string[] } {
 	const issues: MetadataFinding[] = []
 	const missing: string[] = []
-	const add = (metadataIssue: MetadataIssueType, description: string) => issues.push({ metadataIssue, description })
+	const add = (metadataIssue: MetadataIssueType, description: string, keys?: readonly string[]) => issues.push({ metadataIssue, description, keys })
 
 	if (!(metadata.song_length > 0)) {
 		missing.push('song_length')
@@ -153,15 +165,16 @@ function valueIssues({ songSection, metadata, chart, styleNotes }: SongIniInput)
 
 	const icon = songSection.icon
 	if (hasValue(songSection, 'icon') && icon !== '0' && !/^[a-z0-9_-]+$/.test(icon)) {
-		add('iconName', `In "song.ini", "icon" is "${icon}". Write the icon's file name without its extension, in lowercase letters, numbers, "-" and "_".`)
+		add('iconName', `In "song.ini", "icon" is "${icon}". Write the icon's file name without its extension, in lowercase letters, numbers, "-" and "_".`, ['icon'])
 	}
 
 	issues.push(...deprecatedTagIssues(songSection, metadata, chart))
-	const unneeded = unneededKeys(songSection, metadata, chart).map(key => `${key} = ${songSection[key]}`)
+	const unneededTags = unneededKeys(songSection, metadata, chart)
+	const unneeded = unneededTags.map(key => `${key} = ${songSection[key]}`)
 	if (unneeded.length > 0 && styleNotes) {
 		const one = unneeded.length === 1
 		add('defaultIniValue', `In "song.ini", ${keyList(unneeded)} ${one ? 'changes' : 'change'} nothing: games read the song the same without ${one ? 'it' : 'them'}. `
-			+ `Remove ${one ? 'that line' : 'those lines'}.`)
+			+ `Remove ${one ? 'that line' : 'those lines'}.`, unneededTags)
 	}
 
 	// Both flags together are already invalid.
@@ -170,9 +183,9 @@ function valueIssues({ songSection, metadata, chart, styleNotes }: SongIniInput)
 	if (chart !== null && proDrums !== fiveLaneDrums) {
 		const [key, type, name] = proDrums ? ['pro_drums', drumTypes.fourLanePro, '4-lane pro'] as const : ['five_lane_drums', drumTypes.fiveLane, '5-lane'] as const
 		if (chart.drumType === null) {
-			add('redundantDrumType', `"song.ini" sets "${key}", but the chart has no drums track. Remove the tag.`)
+			add('redundantDrumType', `"song.ini" sets "${key}", but the chart has no drums track. Remove the tag.`, [key])
 		} else if (chart.detectedDrumType() === type) {
-			add('redundantDrumType', `"song.ini" sets "${key}", but games already read this drums chart as ${name}. Remove the tag.`)
+			add('redundantDrumType', `"song.ini" sets "${key}", but games already read this drums chart as ${name}. Remove the tag.`, [key])
 		}
 	}
 	return { issues, missing }
@@ -221,25 +234,25 @@ function unneededKeys(songSection: SongSection, metadata: typeof defaultMetadata
  */
 function deprecatedTagIssues(songSection: SongSection, metadata: typeof defaultMetadata, chart: SongIniInput['chart']): MetadataFinding[] {
 	const issues: MetadataFinding[] = []
-	const add = (description: string) => issues.push({ metadataIssue: 'deprecatedIniTag', description })
+	const add = (key: string, description: string) => issues.push({ metadataIssue: 'deprecatedIniTag', description, keys: [key] })
 	const { delay } = metadata
 	if (hasValue(songSection, 'delay') && delay !== 0) {
-		add(`"song.ini" sets "delay" to ${delay} ms, which only older charts need. Change the chart first so it plays the same without it: ${undelayedSyncAdvice(delay)}. Then remove the tag.`)
+		add('delay', `"song.ini" sets "delay" to ${delay} ms, which only older charts need. Change the chart first so it plays the same without it: ${undelayedSyncAdvice(delay)}. Then remove the tag.`)
 	}
 	const changesHopos = (key: string) =>
 		`"song.ini" sets "${key}", which changes which notes are HOPOs. Change the chart first so it plays the same without it, by forcing the notes that change. Then remove the tag.`
 	// Clone Hero and YARG read hopo_frequency over eighthnote_hopo.
 	const hopoFrequency = metadata.hopo_frequency > 0
-	if (hasValue(songSection, 'hopo_frequency') && hopoFrequency) add(changesHopos('hopo_frequency'))
-	if (hasValue(songSection, 'eighthnote_hopo') && metadata.eighthnote_hopo && !hopoFrequency) add(changesHopos('eighthnote_hopo'))
+	if (hasValue(songSection, 'hopo_frequency') && hopoFrequency) add('hopo_frequency', changesHopos('hopo_frequency'))
+	if (hasValue(songSection, 'eighthnote_hopo') && metadata.eighthnote_hopo && !hopoFrequency) add('eighthnote_hopo', changesHopos('eighthnote_hopo'))
 	if (chart?.format === 'mid' && metadata.multiplier_note === 103) {
-		add('"song.ini" sets "multiplier_note" to 103, which makes MIDI note 103 the star power note. Move the star power phrases to note 116 first. Then remove the tag.')
+		add('multiplier_note', '"song.ini" sets "multiplier_note" to 103, which makes MIDI note 103 the star power note. Move the star power phrases to note 116 first. Then remove the tag.')
 	}
 	if (hasValue(songSection, 'frets') && !hasCharter(songSection)) {
-		add('"song.ini" names the charter with "frets", a tag for older charts. Write "charter" instead.')
+		add('frets', '"song.ini" names the charter with "frets", a tag for older charts. Write "charter" instead.')
 	}
 	if (hasValue(songSection, 'track') && !hasAlbumTrack(songSection)) {
-		add('"song.ini" gives the album track with "track", a tag for older charts. Write "album_track" instead.')
+		add('track', '"song.ini" gives the album track with "track", a tag for older charts. Write "album_track" instead.')
 	}
 	return issues
 }
@@ -291,7 +304,7 @@ function layoutIssues(tokens: IniTokens): MetadataFinding[] {
 }
 
 /** Keys for a message: up to four, quoted, then how many more. */
-function keyList(keys: readonly string[]) {
+export function keyList(keys: readonly string[]) {
 	const named = keys.slice(0, keys.length > 4 ? 3 : 4).map(key => `"${key}"`)
 	const rest = keys.length - named.length
 	if (rest > 0) return `${named.join(', ')} and ${rest} more`

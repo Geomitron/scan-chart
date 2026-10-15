@@ -284,6 +284,26 @@ The report says what saving changed beyond your edits:
 
 If you didn't edit the song, its save plan holds every file byte for byte, and nothing is normalized.
 
+### Fix issues
+
+`fixIssues` fixes the issues it can: it scans the song, makes each fix where the scan reports its issue, and returns a new song with a report. Save the fixed song like an edited one:
+
+```ts
+import { fixIssues, parseSong, serializeSong } from 'scan-chart'
+
+const song = await parseSong(await readSongFolder('songs/Example Song'))
+const { song: fixed, report } = await fixIssues(song)
+console.log(`${report.fixed.length} fixes, ${report.renamed.length} files renamed`)
+for (const { code, file, description } of report.fixed) console.log(`${code} in ${file}: ${description}`)
+for (const { code, reason } of report.skipped) console.log(`${code} not fixed: ${reason}`)
+const plan = serializeSong(fixed)
+```
+
+- `issueFixes` lists the codes `fixIssues` fixes, and whether each fix keeps the TrackHashes and the SongHash (`keepsHashes`) or changes them (`changesHashes`).
+- By default, it makes only the fixes that keep every hash. On a song where a fix would change one, such as unquoting a song name, which the SongHash reads, that fix is skipped. Pass `changeHashes: true` to make those fixes too.
+- `codes` limits it to some codes. It doesn't fix a code song.ini's `ignored_issues` lists.
+- The report lists each fix made, each issue left and why, the files renamed and removed, and each hash that changed. A renamed file has its new name in the song's files: when you write the song back to its folder, remove the old file.
+
 ### Convert between `.chart` and `.mid`
 
 `convertChart` gives a new song in the other format, and a report read back from the result:

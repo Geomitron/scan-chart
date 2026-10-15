@@ -143,11 +143,12 @@ export function folderIssue({ folderIssue, description, file }: FolderFinding): 
 	}
 }
 
-/** A metadata issue as a scan finds it. `file` is the .ini file it's in. */
+/** A metadata issue as a scan finds it. `file` is the .ini file it's in; `keys` are the song.ini tags it's about, for the fixes. */
 export interface MetadataFinding {
 	readonly metadataIssue: MetadataIssueType
 	readonly description: string
 	readonly file?: string
+	readonly keys?: readonly string[]
 }
 
 /** A metadata issue as the song.ini scans report it, in the one issue shape. */
