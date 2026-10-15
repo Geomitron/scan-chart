@@ -11,6 +11,7 @@ import { parseRules } from './chart/parse-rules'
 import { calculateCompetitiveHashes, CompetitiveHashes } from './competitive'
 import { resolveChart } from './gameplay-chart'
 import { songIniIssues } from './ini/ini-checks'
+import { metadataStyleIssues } from './ini/metadata-style'
 import { defaultMetadata } from './ini/metadata'
 import { FolderFinding, folderIssue, Issue, metadataIssue } from './issues'
 import { songIniSpellingIssues } from './spelling-issues'
@@ -40,6 +41,8 @@ export interface ScanOptions {
 	readonly extraIniKeys?: readonly (string | RegExp)[]
 	/** Nonstandard spellings every reader reads alike, such as a repeated `.chart` line. Default: `false`. */
 	readonly styleNotes?: boolean
+	/** Guesses about the metadata's style, such as credits joined with "and", which can be wrong. Default: `false`. */
+	readonly metadataStyle?: boolean
 	/** Remove style tags, such as `<b>`, from the metadata's text values, for plain-text display. Default: `false`. */
 	readonly removeStyleTags?: boolean
 }
@@ -120,6 +123,7 @@ export async function scanSongFolder(files: readonly SongFile[], options: ScanOp
 			},
 			extraIniKeys: options.extraIniKeys ?? [],
 		}))
+		if (options.metadataStyle) metadataIssues.push(...metadataStyleIssues(context.ini.metadata))
 	}
 
 	// The album art's names are always checked. The art is read only when it's asked for, or hashed.

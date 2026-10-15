@@ -105,6 +105,7 @@ The work that costs more is off by default. Turn it on with the second argument:
 | `fileHashes: true` | MD5 of the whole folder, a hash of the chart and its parse settings, and MD5 of the album art | `fileHashes` |
 | `albumArt: true` | The album art file, as written, and the issues found decoding it | `albumArt` |
 | `styleNotes: true` | Style notes: nonstandard spellings that every program reads the same way | `issues` |
+| `metadataStyle: true` | Guesses about the metadata's style, such as credits joined with "and", which can be wrong | `issues` |
 
 A result field you didn't ask for is `null`.
 
