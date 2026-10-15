@@ -267,7 +267,7 @@ export function classifyChartFile(
 			// GH-era charts write ", 2004" so the year reads well after the artist; Clone Hero removes that prefix.
 			year: (metadata['Year']?.startsWith(', ') ? metadata['Year'].slice(2) : metadata['Year']) || undefined,
 			charter: metadata['Charter'] || undefined,
-			diff_guitar: Number(metadata['Difficulty']) || undefined,
+			diff_band: Number(metadata['Difficulty']) || undefined,
 			// "Offset" and "PreviewStart" are in units of seconds.
 			// NOTE: [Song].Offset pairs with song.ini's `delay`, and games read it only when `delay` is 0 or missing.
 			// It's exposed under the `chart_offset` key so it never overwrites the ini-origin `delay` on merge.

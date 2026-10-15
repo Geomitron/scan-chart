@@ -80,7 +80,7 @@ function serializeSongSection(chart: ParsedChart): string[] {
 	if (m.preview_start_time != null) {
 		lines.push(`  PreviewStart = ${m.preview_start_time / 1000}`)
 	}
-	if (m.diff_guitar != null) lines.push(`  Difficulty = ${m.diff_guitar}`)
+	if (m.diff_band != null) lines.push(`  Difficulty = ${m.diff_band}`)
 
 	// Round-trip any `[Song]` keys the parser didn't claim (deprecated
 	// Moonscraper / GHTCP fields — `Player2`, `HoPo`, `PreviewEnd`, `MediaType`,

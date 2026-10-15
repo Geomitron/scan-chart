@@ -125,8 +125,10 @@ describe('writeChartFile round-trip: [Song] metadata', () => {
 
 	it('preserves diff_* difficulty fields', () => {
 		const chart = createEmptyChart()
-		chart.metadata.diff_guitar = 5
-		expect(roundTrip(chart).metadata.diff_guitar).toBe(5)
+		chart.metadata.diff_band = 5
+		chart.metadata.diff_guitar = 3
+		expect(roundTrip(chart).metadata).toMatchObject({ diff_band: 5 })
+		expect(roundTrip(chart).metadata.diff_guitar).toBeUndefined()
 	})
 
 	it('does not leak ini `delay` into chart_offset', () => {

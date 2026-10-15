@@ -24,7 +24,7 @@ describe('the [Song] normalization', () => {
 
 	it('adds a key only song.ini sets, as scan-chart writes [Song]', () => {
 		const normalized = songSectionAgreement(song(['Resolution = 192'],
-			'[song]\nartist = Band\nyear = 2002\ndiff_guitar = 4\nsong_length = 200000\npreview_end_time = 61500\nicon = x\n'))
+			'[song]\nartist = Band\nyear = 2002\ndiff_band = 4\nsong_length = 200000\npreview_end_time = 61500\nicon = x\n'))
 		expect(songLines(normalized)).toEqual(['Resolution = 192', 'Artist = "Band"', 'Year = ", 2002"', 'Difficulty = 4', 'Length = 200', 'PreviewEnd = 61.5'])
 	})
 
@@ -45,12 +45,12 @@ describe('the [Song] normalization', () => {
 	})
 
 	it('treats a Difficulty of 0 as a difficulty, and only song.ini\'s -1 as none (Geo, 2026-10-12)', () => {
-		expect(songLines(songSectionAgreement(song(['Resolution = 192'], '[song]\ndiff_guitar = 0\n')))).toEqual(['Resolution = 192', 'Difficulty = 0'])
-		expect(songLines(songSectionAgreement(song(['Difficulty = 4'], '[song]\ndiff_guitar = 0\n')))).toEqual(['Difficulty = 0'])
-		expect(songSectionAgreement(song(['Difficulty = 0'], '[song]\ndiff_guitar = 0\n'))).toBeNull()
-		// Clone Hero doesn't read [Song] Difficulty when there's a song.ini, so a value only [Song] sets is removed.
+		expect(songLines(songSectionAgreement(song(['Resolution = 192'], '[song]\ndiff_band = 0\n')))).toEqual(['Resolution = 192', 'Difficulty = 0'])
+		expect(songLines(songSectionAgreement(song(['Difficulty = 4'], '[song]\ndiff_band = 0\n')))).toEqual(['Difficulty = 0'])
+		expect(songSectionAgreement(song(['Difficulty = 0'], '[song]\ndiff_band = 0\n'))).toBeNull()
+		// A value only [Song] sets is removed, as the other keys Clone Hero doesn't read from [Song] are.
 		expect(songLines(songSectionAgreement(song(['Difficulty = 0', 'Resolution = 192'], '[song]\nname = Song\n')))).toEqual(['Resolution = 192', 'Name = "Song"'])
-		expect(songLines(songSectionAgreement(song(['Difficulty = 0', 'Resolution = 192'], '[song]\ndiff_guitar = -1\n')))).toEqual(['Resolution = 192'])
+		expect(songLines(songSectionAgreement(song(['Difficulty = 0', 'Resolution = 192'], '[song]\ndiff_band = -1\n')))).toEqual(['Resolution = 192'])
 	})
 
 	it('leaves each key on the line Clone Hero reads', () => {

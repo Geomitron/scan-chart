@@ -72,7 +72,7 @@ describe('setMetadata', () => {
 		const song = parseSongFiles([file('notes.chart', chartText), file('guitar.ogg', 'ogg')])
 		const edited = editSong(song, batch => batch.setMetadata('loading_phrase', 'Hello'))
 		expect(edited.files.map(saved => saved.fileName)).toEqual(['notes.chart', 'guitar.ogg', 'song.ini'])
-		expect(edited.ini?.tokens.text).toBe('[song]\r\nname = Chart <b>Name</b>\r\nartist = Chart Artist\r\nyear = 2002\r\ndiff_guitar = 4\r\n'
+		expect(edited.ini?.tokens.text).toBe('[song]\r\nname = Chart <b>Name</b>\r\nartist = Chart Artist\r\nyear = 2002\r\ndiff_band = 4\r\n'
 			+ 'delay = 561\r\npreview_start_time = 45280\r\nloading_phrase = Hello\r\n')
 		expect(songMetadata(edited)).toEqual({ ...songMetadata(song), loading_phrase: 'Hello' })
 		const [before, after] = [calculateCompetitiveHashes(song), calculateCompetitiveHashes(edited)]
@@ -84,7 +84,7 @@ describe('setMetadata', () => {
 		const song = parseSongFiles([file('notes.chart', chartText), file('song.ini', '; empty\n')])
 		const edited = editSong(song, batch => batch.setMetadata('name', 'Renamed'))
 		expect(edited.files).toBe(song.files)
-		expect(edited.ini?.tokens.text).toBe('; empty\n[song]\nname = Renamed\nartist = Chart Artist\nyear = 2002\ndiff_guitar = 4\n'
+		expect(edited.ini?.tokens.text).toBe('; empty\n[song]\nname = Renamed\nartist = Chart Artist\nyear = 2002\ndiff_band = 4\n'
 			+ 'delay = 561\npreview_start_time = 45280\n')
 	})
 

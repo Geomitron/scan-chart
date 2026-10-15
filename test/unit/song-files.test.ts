@@ -44,7 +44,7 @@ describe('song files', () => {
 	it('give [Song]\'s metadata when there\'s no song.ini, read as song.ini values are', async () => {
 		const files = [{ fileName: 'notes.chart', data: chart }, { fileName: 'song.ogg', data: new Uint8Array(0) }]
 		const { metadata, issues } = await parseSongMetadata(files)
-		expect(metadata).toMatchObject({ name: 'Chart <b>Name</b>', artist: 'Chart Artist', year: '2002', diff_guitar: 4, preview_start_time: 45280, chartOffsetMs: 561 })
+		expect(metadata).toMatchObject({ name: 'Chart <b>Name</b>', artist: 'Chart Artist', year: '2002', diff_band: 4, preview_start_time: 45280, chartOffsetMs: 561 })
 		expect((await parseSongMetadata(files, { removeStyleTags: true })).metadata.name).toBe('Chart Name')
 		expect(issues).toEqual([{ scope: 'folder', code: 'noMetadata', severity: 'error', instrument: null, difficulty: null, tick: null, msTime: null, message: 'This chart doesn\'t have "song.ini".' }])
 	})
