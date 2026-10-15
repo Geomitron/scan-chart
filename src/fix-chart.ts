@@ -6,8 +6,9 @@ import { midiSourceTrackInstrument } from './chart/midi-file-parser'
 import { removeMidiTrackChunks } from './chart/midi-tokens'
 import type { ParsedChartFile } from './chart/parse-chart-file'
 import { EventType, eventTypes } from './chart/raw-types'
+import { NoteEvent, noteFlags, noteTypes } from './chart/types'
 import { FixRecord, hashChanges, hashNames } from './fix-report'
-import type { Issue } from './issues'
+import type { Issue, IssueCode } from './issues'
 import { songContext } from './song-context'
 import { AuthoredElement, continueEdits, editSong, SongDocument } from './song-document'
 import { songHashes } from './song-save'
@@ -277,4 +278,136 @@ function starPowerFromSolos(instrument: Instrument, events: readonly { scope: st
 	if (getInstrumentType(instrument) === instrumentTypes.drums || multiplierNote === 116) return false
 	const count = (type: EventType) => events.filter(event => event.scope === 'instrument' && event.type === type).length
 	return multiplierNote === 103 || (count(eventTypes.starPower) === 0 && count(eventTypes.soloSection) > 1)
+}
+
+/** The event type of each fret note type, as a `.chart` line or MIDI note writes it. */
+const fretEventTypes = new Map<number, EventType>([
+	[noteTypes.open, eventTypes.open], [noteTypes.green, eventTypes.green], [noteTypes.red, eventTypes.red], [noteTypes.yellow, eventTypes.yellow],
+	[noteTypes.blue, eventTypes.blue], [noteTypes.orange, eventTypes.orange], [noteTypes.black1, eventTypes.black1], [noteTypes.black2, eventTypes.black2],
+	[noteTypes.black3, eventTypes.black3], [noteTypes.white1, eventTypes.white1], [noteTypes.white2, eventTypes.white2], [noteTypes.white3, eventTypes.white3],
+])
+
+/** The sustains of one track to change: each note's new length, in ticks, and the code each change fixes. */
+interface SustainEdits {
+	readonly track: Track
+	readonly lengths: Map<NoteEvent, { length: number; code: 'badSustainGap' | 'babySustain' }>
+}
+
+/**
+ * Shortens each sustain that ends less than `gapMs` before the next note to end `gapMs` before it (`badSustainGap`),
+ * and removes each sustain shorter than `minMs` (`babySustain`), measured as the checks measure them. A shortened
+ * sustain left shorter than `minMs` is removed with `removeShort`, when `babySustain` is fixed too. Both change the
+ * TrackHash.
+ */
+export function fixSustains(
+	song: SongDocument,
+	issues: readonly Issue[],
+	{ gapMs, minMs, removeShort }: { gapMs: number; minMs: number; removeShort: boolean },
+	record: FixRecord,
+): SongDocument {
+	const { chart } = song
+	const parsed = parsedChart(song)
+	const found = issues.filter(issue => (issue.code === 'badSustainGap' || issue.code === 'babySustain') && issue.tick !== null)
+	if (chart === null || parsed === null || found.length === 0 || (chart.format === 'mid' && chart.tokens === null)) return song
+	const msLength = (note: NoteEvent, length: number) => msAtTick(parsed, note.tick + length) - note.msTime
+	const tracks: SustainEdits[] = []
+	for (const track of parsed.trackData.filter(track => getInstrumentType(track.instrument) !== instrumentTypes.drums)) {
+		const ticksOf = (code: IssueCode) => new Set(found.filter(issue => issue.code === code && issue.instrument === track.instrument && issue.difficulty === track.difficulty).map(issue => issue.tick))
+		const [gapTicks, babyTicks] = [ticksOf('badSustainGap'), ticksOf('babySustain')]
+		const lengths: SustainEdits['lengths'] = new Map()
+		track.noteEventGroups.forEach((group, index) => {
+			if (babyTicks.has(group[0].tick)) {
+				const nextOpen = track.noteEventGroups[index + 1]?.find(note => note.type === noteTypes.open)
+				for (const note of group) {
+					// The check doesn't count a short sustain before a HOPO or tap open note.
+					const beforeOpen = nextOpen !== undefined && nextOpen.tick < note.tick + note.length && (nextOpen.flags & (noteFlags.hopo | noteFlags.tap)) !== 0
+					if (note.msLength > 0 && note.msLength < minMs && !beforeOpen) lengths.set(note, { length: 0, code: 'babySustain' })
+				}
+			}
+			if (!gapTicks.has(group[0].tick)) return
+			const start = group[0].msTime
+			for (const earlier of track.noteEventGroups.slice(0, index)) {
+				for (const note of earlier) {
+					const end = note.msTime + note.msLength
+					if (note.msLength <= 0 || note.type === noteTypes.open || start < end || start - end >= gapMs) continue
+					const length = Math.max(0, Math.floor(tickAtMs(parsed, start - gapMs)) - note.tick)
+					const shortened = removeShort && msLength(note, length) < minMs ? 0 : length
+					const previous = lengths.get(note)
+					if (previous === undefined || shortened < previous.length) lengths.set(note, { length: shortened, code: previous?.code ?? 'badSustainGap' })
+				}
+			}
+		})
+		if (lengths.size > 0) tracks.push({ track, lengths })
+	}
+
+	const apply = (chosen: readonly SustainEdits[]) => editSong(song, batch => {
+		for (const { track, lengths } of chosen) {
+			for (const [note, { length }] of lengths) {
+				const events = authoredNotes(song, track, note)
+				if (events.length === 0) throw new RangeError(`the note at tick ${note.tick} isn't written as one event`)
+				for (const event of events) batch.setLength(event, length)
+			}
+		}
+	})
+	// Each note changed is no longer than asked for, and every other note and phrase stays.
+	const problem = (edited: SongDocument, chosen: readonly SustainEdits[]) => {
+		const after = parsedChart(edited)
+		if (after === null) return 'would make the chart unreadable'
+		const tracksAfter = new Map(after.trackData.map(track => [trackName(track), track]))
+		const expected = parsed.trackData.map(track => {
+			const asked = chosen.find(edits => trackName(edits.track) === trackName(track))?.lengths
+			const notesAfter = tracksAfter.get(trackName(track))?.noteEventGroups.flat() ?? []
+			return {
+				...track,
+				noteEventGroups: track.noteEventGroups.map(group => group.map(note => {
+					const length = asked?.get(note)?.length
+					const resolved = length === undefined ? undefined : notesAfter.find(candidate => candidate.tick === note.tick && candidate.type === note.type)?.length
+					return resolved === undefined || resolved > length! ? note : { ...note, length: resolved }
+				})),
+			}
+		})
+		const difference = gameplayDifference({ ...parsed, trackData: expected }, after)
+		return difference === null ? null : `would change ${difference}`
+	}
+	const { song: fixed, chosen } = chooseEdits(song, tracks, apply, problem, (edits, problem) => {
+		for (const code of new Set([...edits.lengths.values()].map(edit => edit.code))) record.skip(code, chart.fileName, `Changing the ${trackName(edits.track)} sustains ${problem}.`)
+	})
+	for (const { track, lengths } of chosen) {
+		const count = (code: 'badSustainGap' | 'babySustain') => [...lengths.values()].filter(edit => edit.code === code).length
+		const [gaps, babies] = [count('badSustainGap'), count('babySustain')]
+		if (gaps > 0) {
+			record.fixed.push({ code: 'badSustainGap', file: chart.fileName,
+				description: `Shortened ${gaps} ${trackName(track)} ${gaps === 1 ? 'sustain' : 'sustains'} to end ${gapMs} ms before the next note.` })
+		}
+		if (babies > 0) {
+			record.fixed.push({ code: 'babySustain', file: chart.fileName,
+				description: `Removed ${babies} ${trackName(track)} ${babies === 1 ? 'sustain' : 'sustains'} shorter than ${minMs} ms.` })
+		}
+	}
+	return fixed
+}
+
+/** The authored events of a parsed fret note: its `.chart` lines, or its MIDI notes on its difficulty. */
+function authoredNotes(song: SongDocument, track: Track, note: NoteEvent): (AuthoredElement & { length: number })[] {
+	const { chart } = song
+	const type = fretEventTypes.get(note.type)
+	if (chart === null || type === undefined) return []
+	if (chart.format === 'chart') {
+		const section = chartAuthoredTracks(chart.tokens).find(candidate => candidate.isRead && candidate.instrument === track.instrument && candidate.difficulty === track.difficulty)
+		return section?.events.filter(event => event.tick === note.tick && event.type === type) ?? []
+	}
+	const midiTrack = chart.tokens === null ? undefined : midiAuthoredTracks(chart.tokens).find(candidate => candidate.isFirst && candidate.instrument === track.instrument)
+	return midiTrack?.events.filter(event => event.scope === track.difficulty && event.tick === note.tick && event.type === type) ?? []
+}
+
+/** The tick at a time in milliseconds, from the chart's tempo map, as a fraction. */
+function tickAtMs(chart: ParsedChartFile, ms: number): number {
+	const tempo = [...chart.tempos].reverse().find(candidate => candidate.msTime <= ms) ?? chart.tempos[0]
+	return tempo.tick + (ms - tempo.msTime) * tempo.beatsPerMinute * chart.resolution / 60000
+}
+
+/** The time of a tick in milliseconds, from the chart's tempo map. */
+function msAtTick(chart: ParsedChartFile, tick: number): number {
+	const tempo = [...chart.tempos].reverse().find(candidate => candidate.tick <= tick) ?? chart.tempos[0]
+	return tempo.msTime + (tick - tempo.tick) * 60000 / (tempo.beatsPerMinute * chart.resolution)
 }

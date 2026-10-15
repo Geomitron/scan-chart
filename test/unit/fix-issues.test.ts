@@ -2,6 +2,7 @@ import { MidiData, writeMidi } from '@geomitron/midi-file'
 import { describe, expect, it } from 'vitest'
 
 import { fixIssues, type FixOptions } from 'src/fix-issues'
+import { resolveChart } from 'src/gameplay-chart'
 import { serializeSong } from 'src/save-plan'
 import { scanSongFolder } from 'src/scan-song-folder'
 import { documentFiles, parseSong } from 'src/song-document'
@@ -336,5 +337,52 @@ describe('fixIssues: empty tracks and phrases', () => {
 		expect(result.report.fixed.map(entry => entry.description)).toEqual(['Removed the guitar star power phrase with no notes at tick 2400.'])
 		expect(result.report.skipped).toEqual([{ code: 'emptyStarPower', file: 'notes.mid', reason: 'The guitar star power phrase at tick 900 has notes on another difficulty.' }])
 		expectHashesKept(result)
+	})
+})
+
+describe('fixIssues: sustains', () => {
+	const ini = ['[song]', 'name = Song']
+	const chartText = (result: Awaited<ReturnType<typeof fix>>) => decode((result.song.chart as { tokens: { bytes: Uint8Array } }).tokens.bytes)
+	const expert = (...lines: string[]) => chartFile(['[ExpertSingle]', '{', ...lines.map(line => `  ${line}`), '}'])
+	const hashKeys = (result: Awaited<ReturnType<typeof fix>>) => result.report.hashes.map(change => change.key)
+
+	it('removes sustains shorter than 200 ms only with changeHashes, changing the TrackHash', async () => {
+		const short = folder(ini, expert('768 = N 0 30', '960 = N 1 60', '1152 = N 2 96'))
+		const kept = await fix(short, { codes: ['babySustain'] })
+		expect(kept.report.skipped).toEqual([{ code: 'babySustain', file: null, reason: 'Its fix changes a canonical hash: fix it with changeHashes.' }])
+		expectHashesKept(kept)
+
+		const removed = await fix(short, { codes: ['babySustain'], changeHashes: true })
+		expect(chartText(removed)).toContain('768 = N 0 0\r\n  960 = N 1 0\r\n  1152 = N 2 96')
+		expect(removed.report.fixed).toEqual([{ code: 'babySustain', file: 'notes.chart', description: 'Removed 2 expert guitar sustains shorter than 200 ms.' }])
+		expect(hashKeys(removed)).toEqual(['canonical:guitar:expert', 'canonical:song'])
+		expect(removed.codes).not.toContain('babySustain')
+
+		const under100 = await fix(short, { codes: ['babySustain'], changeHashes: true, minSustainMs: 100 })
+		expect(chartText(under100)).toContain('768 = N 0 0\r\n  960 = N 1 60')
+	})
+
+	it('shortens a sustain to end 60 ms before the next note, and removes it when that leaves it too short', async () => {
+		// At 120 BPM and 192 ticks per beat, a tick is 2.6 ms: the sustain ends 57 ms before the next note.
+		const gap = await fix(folder(ini, expert('768 = N 0 170', '960 = N 1 0')), { codes: ['badSustainGap'], changeHashes: true })
+		expect(chartText(gap)).toContain('768 = N 0 168\r\n')
+		expect(gap.report.fixed).toEqual([{ code: 'badSustainGap', file: 'notes.chart', description: 'Shortened 1 expert guitar sustain to end 60 ms before the next note.' }])
+		expect(gap.codes).not.toContain('badSustainGap')
+		expect(hashKeys(gap)).toEqual(['canonical:guitar:expert', 'canonical:song'])
+
+		const tight = folder(ini, expert('768 = N 0 80', '864 = N 1 0'))
+		expect(chartText(await fix(tight, { codes: ['badSustainGap'], changeHashes: true }))).toContain('768 = N 0 72\r\n')
+		const both = await fix(tight, { codes: ['badSustainGap', 'babySustain'], changeHashes: true })
+		expect(chartText(both)).toContain('768 = N 0 0\r\n')
+		expect(both.codes.filter(code => code === 'badSustainGap' || code === 'babySustain')).toEqual([])
+	})
+
+	it('removes a short .mid sustain on its difficulty', async () => {
+		const mid = midi({ 'PART GUITAR': [{ tick: 0, noteNumber: 96, length: 180 }, { tick: 960, noteNumber: 97 }, { tick: 0, noteNumber: 84, length: 180 }, { tick: 960, noteNumber: 85 }] })
+		const result = await fix(folder(ini, mid, 'notes.mid'), { codes: ['babySustain'], changeHashes: true })
+		expect(result.report.fixed.map(entry => entry.description)).toEqual(['Removed 1 expert guitar sustain shorter than 200 ms.', 'Removed 1 hard guitar sustain shorter than 200 ms.'])
+		const notes = resolveChart(result.song).tracks.flatMap(track => track.noteGroups.flat().map(note => [track.difficulty, note.tick, note.length]))
+		expect(notes).toEqual([['expert', 0, 0], ['expert', 960, 0], ['hard', 0, 0], ['hard', 960, 0]])
+		expect(hashKeys(result)).toEqual(['canonical:guitar:expert', 'canonical:guitar:hard', 'canonical:song'])
 	})
 })
