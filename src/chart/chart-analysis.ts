@@ -103,6 +103,8 @@ export const chartIssueMessages: { readonly [issue in ChartIssueType]: string } 
 	invalidLyric: 'This lyric is on the EVENTS track instead of PART VOCALS and will not be displayed.',
 	invalidPhraseStart: 'This phrase_start is on the EVENTS track. Vocal phrase boundaries in .mid charts must be MIDI note 105 (player 1) or 106 (player 2) on PART VOCALS.',
 	invalidPhraseEnd: 'This phrase_end is on the EVENTS track. Vocal phrase boundaries in .mid charts must be MIDI note 105 (player 1) or 106 (player 2) on PART VOCALS.',
+	chartOffset: "The chart's [Song] Offset isn't 0.",
+	emptyTrack: "This track has no notes, so games don't list it.",
 }
 
 /** The statistics of a chart parsed with `settings` from a file of `format`. */

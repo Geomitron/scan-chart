@@ -81,6 +81,12 @@ export function midiTrackInstrument(trackName: string): Instrument | null {
 	return Object.prototype.hasOwnProperty.call(instrumentNameMap, trackName) ? instrumentNameMap[trackName as InstrumentTrackName] : null
 }
 
+/** The instrument a MIDI track's name, as written in any letter case, stands for, or `null`. */
+export function midiSourceTrackInstrument(sourceName: string): Instrument | null {
+	const trackName = trackNamesByLowercase.get(toLowerInvariant(sourceName))
+	return trackName === undefined ? null : midiTrackInstrument(trackName)
+}
+
 const sysExDifficultyMap = ['easy', 'medium', 'hard', 'expert'] as const
 const discoFlipDifficultyMap = ['easy', 'medium', 'hard', 'expert'] as const
 const fiveFretDiffStarts = { easy: 59, medium: 71, hard: 83, expert: 95 }
