@@ -1,6 +1,7 @@
 import { MidiData, MidiEvent, MidiSetTempoEvent, MidiTextEvent, MidiTimeSignatureEvent } from '@geomitron/midi-file'
 
 import { difficulties, Difficulty, getInstrumentType, Instrument, InstrumentType, instrumentTypes } from '../types'
+import { discoFlipDifficultyMap } from './chart-file-parser'
 import { midiTokensToMidiData, MidiTokens, readMidiTokens } from './midi-tokens'
 import { DrumMixEvent, EventType, eventTypes, RawChartData, VocalTrackData } from './raw-types'
 import { IniChartModifiers } from './types'
@@ -87,17 +88,21 @@ export function midiSourceTrackInstrument(sourceName: string): Instrument | null
 	return trackName === undefined ? null : midiTrackInstrument(trackName)
 }
 
-/** The tracks of a `.mid` file that Clone Hero's names make an instrument's, in file order, each with its name as written. */
-export function midiInstrumentTracks(tokens: MidiTokens): { name: string; instrument: Instrument }[] {
-	const tracks: { name: string; instrument: Instrument }[] = []
+/**
+ * The tracks of a `.mid` file that Clone Hero's names make an instrument's, in file order, each with its name as written
+ * and the index of its chunk.
+ */
+export function midiInstrumentTracks(tokens: MidiTokens): { name: string; instrument: Instrument; chunkIndex: number }[] {
+	const tracks: { name: string; instrument: Instrument; chunkIndex: number }[] = []
 	// The first track is the conductor track. A track is named by its last name at tick 0.
-	for (const chunk of tokens.chunks.filter(chunk => chunk.kind === 'track').slice(1)) {
-		if (chunk.kind !== 'track') continue
+	const firstTrack = tokens.chunks.findIndex(chunk => chunk.kind === 'track')
+	tokens.chunks.forEach((chunk, chunkIndex) => {
+		if (chunk.kind !== 'track' || chunkIndex === firstTrack) return
 		const names = chunk.events.filter(({ tick, event }) => tick === 0 && event.type === 'trackName').map(({ event }) => (event as { text: string }).text)
 		const name = names[names.length - 1]
 		const instrument = name === undefined ? null : midiSourceTrackInstrument(name)
-		if (instrument !== null) tracks.push({ name, instrument })
-	}
+		if (instrument !== null) tracks.push({ name, instrument, chunkIndex })
+	})
 	return tracks
 }
 
@@ -108,8 +113,6 @@ export function repeatedMidiInstruments(tokens: MidiTokens): Instrument[] {
 	return [...trackCounts].filter(([, count]) => count > 1).map(([instrument]) => instrument)
 }
 
-const sysExDifficultyMap = ['easy', 'medium', 'hard', 'expert'] as const
-const discoFlipDifficultyMap = ['easy', 'medium', 'hard', 'expert'] as const
 const fiveFretDiffStarts = { easy: 59, medium: 71, hard: 83, expert: 95 }
 const sixFretDiffStarts = { easy: 58, medium: 70, hard: 82, expert: 94 }
 const drumsDiffStarts = { easy: 60, medium: 72, hard: 84, expert: 96 }
@@ -833,7 +836,7 @@ function scanInstrumentTrack(
 			if (instrumentType === instrumentTypes.drums) {
 				const discoFlipMatch = midiDiscoFlipRegex.exec(event.text)
 				if (discoFlipMatch) {
-					const difficulty = sysExDifficultyMap[Number(discoFlipMatch[1])]
+					const difficulty = discoFlipDifficultyMap[Number(discoFlipMatch[1])]
 					const flag = discoFlipMatch[3] as 'd' | 'dnoflip' | 'easy' | 'easynokick' | ''
 					// An `easy` or `easynokick` event sets no disco flip, and stays a text event.
 					if (flag !== 'easy' && flag !== 'easynokick') {

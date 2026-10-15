@@ -8,6 +8,7 @@
 
 import type { DrumType, Instrument } from '../types'
 import { drumTypes, getInstrumentType, instrumentTypes } from '../types'
+import { drumMixText } from './disco-flip'
 import { codaTicksFromFreestyle, drumMixEvents, unwrapEventBrackets } from './writer-shared'
 import { computeHopoThresholdTicks, isNaturalHopo } from './natural-hopo'
 import type { NoteEvent, NoteType } from './types'
@@ -514,10 +515,8 @@ function serializeTrackSection(track: ParsedTrack, chart: ParsedChart): string[]
 
 	// Disco flips → `mix <diff> drums<configuration><flag>` text events.
 	if (isDrums) {
-		const diffIdx: Record<string, number> = { easy: 0, medium: 1, hard: 2, expert: 3 }
-		const di = diffIdx[track.difficulty] ?? 3
-		for (const { tick, configuration, flag } of drumMixEvents(track)) {
-			events.push({ tick, sortKey: 2, kind: 'E', text: `mix ${di} drums${configuration}${flag}` })
+		for (const event of drumMixEvents(track)) {
+			events.push({ tick: event.tick, sortKey: 2, kind: 'E', text: drumMixText(track.difficulty, event) })
 		}
 	}
 

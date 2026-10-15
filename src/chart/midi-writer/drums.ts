@@ -3,12 +3,12 @@
  */
 import type { MidiEvent } from '@geomitron/midi-file'
 
-import type { Difficulty } from '../../types'
 import { drumTypes } from '../../types'
 import type { NoteType } from '../types'
 import { noteFlags, noteTypes } from '../types'
 import { drumsDiffStarts } from '../midi-note-numbers'
 import type { ParsedChart } from '../parse-chart-and-ini'
+import { drumMixText } from '../disco-flip'
 import { drumMixEvents, wrapEventBrackets } from '../writer-shared'
 import {
 	addNoteOnOff,
@@ -253,10 +253,8 @@ function emitDrumNotes(events: AbsoluteEvent[], td: ParsedTrack, context: DrumNo
 	const { chart, emittedTomMarker, emittedFlam, conflictedGreenTomTicks } = context
 	let hasAccentsOrGhosts = false
 	const base = drumsDiffStarts[td.difficulty]
-	const diffIdx: Record<Difficulty, number> = { easy: 0, medium: 1, hard: 2, expert: 3 }
-	const di = diffIdx[td.difficulty] ?? 3
-	for (const { tick, configuration, flag } of drumMixEvents(td)) {
-		events.push({ tick, event: metaTextEvent(`[mix ${di} drums${configuration}${flag}]`) })
+	for (const event of drumMixEvents(td)) {
+		events.push({ tick: event.tick, event: metaTextEvent(`[${drumMixText(td.difficulty, event)}]`) })
 	}
 
 	const drumType = chart.drumType

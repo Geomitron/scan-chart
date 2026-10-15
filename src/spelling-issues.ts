@@ -1,7 +1,7 @@
 import { chartEventSection, ChartFileTokens, chartSectionLines, chartSectionTrack, ChartSectionToken } from './chart/chart-file-parser'
 import { ChartEventSection, ChartLineSpelling, chartSectionSpellings, chartSongSpellings } from './chart/chart-line-spelling'
 import { chartModifiersWithoutNotes } from './chart/chart-modifiers'
-import { chartSectionNoflips, midiTrackNoflips } from './chart/disco-flip'
+import { chartSectionNoflips, midiTrackNoflips, type NoflipDuringFlip } from './chart/disco-flip'
 import { midiTrackInstrument, repeatedMidiInstruments } from './chart/midi-file-parser'
 import { midiPitchKey } from './chart/midi-note-numbers'
 import { midiNormalizations } from './chart/midi-normalize'
@@ -75,7 +75,8 @@ export function chartSpellingIssues(source: ChartSource, styleNotes: boolean): I
 			const checkOrder = ordered && !unsorted.has(section.name)
 			if (isRead && section.name === 'Song') respelled.push(...lineIssues(tokens, section, chartSongSpellings))
 			// Few drums sections have a dnoflip event.
-			if (isRead && track?.instrument === 'drums' && isBefore(tokens.text.indexOf('dnoflip', section.bodyStart), section.bodyEnd)) {
+			const noflip = isRead && track?.instrument === 'drums' ? tokens.text.indexOf('dnoflip', section.bodyStart) : -1
+			if (track !== null && noflip !== -1 && noflip < section.bodyEnd) {
 				const found = chartSectionNoflips(chartSectionLines(tokens, section).map(line => line.text), track.difficulty)
 				if (found.length > 0) respelled.push(['discoNoflipDuringFlip', section.name, noflipMessage(found)])
 			}
@@ -121,11 +122,8 @@ function modifierMessage(lines: readonly string[]): string {
 			+ 'Saving an edit removes them: move them to their notes\' ticks first to keep what they meant.'
 }
 
-/** Whether an offset found with `indexOf` is before `end`. */
-const isBefore = (offset: number, end: number) => offset !== -1 && offset < end
-
 /** The message about one difficulty's `dnoflip` mix events that come while a `d` flip is on, naming the first. */
-function noflipMessage(found: readonly { readonly noflipTick: number }[]): string {
+function noflipMessage(found: readonly NoflipDuringFlip[]): string {
 	const events = found.length === 1 ? `The "dnoflip" mix event at tick ${found[0].noflipTick} comes`
 		: `${found.length.toLocaleString('en-US')} "dnoflip" mix events, such as the one at tick ${found[0].noflipTick}, come`
 	return `${events} while a "d" disco flip is on. Clone Hero 1.1 keeps the flip on, and other programs start no-flip there. `

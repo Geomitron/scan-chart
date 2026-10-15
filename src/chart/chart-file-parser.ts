@@ -90,7 +90,8 @@ const trackNameMap = {
 } as const
 /* eslint-enable @typescript-eslint/naming-convention */
 
-const discoFlipDifficultyMap = ['easy', 'medium', 'hard', 'expert'] as const
+/** The difficulties in the order a disco flip mix event numbers them, from 0. */
+export const discoFlipDifficultyMap = ['easy', 'medium', 'hard', 'expert'] as const
 
 /**
  * `[Song]` keys that a typed metadata field claims. Anything outside this set
