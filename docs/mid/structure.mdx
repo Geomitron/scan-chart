@@ -16,9 +16,9 @@ TEMPO TRACK
 
 EVENTS
   0      Track name      EVENTS
-  0      Text            [section Intro]
-  1920   Text            [section Verse 1]
-  4320   Text            [end]
+  0      Text            section Intro
+  1920   Text            section Verse 1
+  4320   Text            end
   4320   End of track
 
 PART GUITAR
@@ -36,11 +36,11 @@ These pages list each track under its name, with one event per line after its ti
 
 - **Required:** MIDI format 1, in which every track has its own timeline.
 - The file starts with a header chunk, `MThd`, whose body is 6 bytes long. It holds the format, the number of tracks and the resolution.
-- One `MTrk` chunk follows for each track. The header's track count must equal the number of `MTrk` chunks, and the file must hold no other chunks.
+- **Required:** after the header, only `MTrk` chunks, one for each track the header counts.
 
 ## Resolution
 
-The header's division is the chart's resolution: the number of ticks in a quarter note. **Required:** a whole number from 1 to 32767. A division in SMPTE frames is invalid.
+The header's division is the chart's resolution: the number of ticks in a quarter note. **Required:** a number of ticks, from 1 to 32767.
 
 Unlike a `.chart` file's [Resolution](/chart/song#resolution), it is always written, and it can't be more than 32767.
 
@@ -54,32 +54,18 @@ Unlike a `.chart` file's [Resolution](/chart/song#resolution), it is always writ
 | A vocal part, such as `PART VOCALS` | Vocal notes, lyrics and phrases. See [Vocals and harmonies](/mid/vocals) | |
 
 - The other tracks follow the tempo track, in any order, except that harmonies come in order. See [Vocals and harmonies](/mid/vocals#vocal-tracks).
-- `EVENTS`, each instrument and each vocal part must have only one track.
+- **Required:** one track at most for `EVENTS`, for each instrument and for each vocal part.
 
 A `.chart` file has a section for each instrument and difficulty. A `.mid` file has one track for each instrument, which holds all of its difficulties.
 
 ### Track names
 
-Every track starts with its name: a track name event, `FF 03`, at tick 0. A track must have exactly one, as its first event.
+Every track starts with its name, a track name event, `FF 03`:
 
-{/* review: Q1
-Must the track name be the track's first event, and the only name? Clone Hero and scan-chart use the last name at tick 0, and YARG the first name it recognizes. YARG also skips the first event of the EVENTS, BEAT, VENUE and vocal tracks, taking it to be the name, and reads every tempo late when the tempo track's first event isn't at tick 0.
-- A. One name, first | Exactly one name, as the track's first event, at tick 0. Several names, or an event before the name, are invalid | Strictest. Every scanner reads such a file the same way
-- B. One name at tick 0 | Exactly one name, anywhere among the events at tick 0 | A valid file can lose its first practice section in YARG
-- C. Several names allowed | The last name at tick 0 counts, as in Clone Hero | YARG reads such a file differently
-Recommendation: A. It is the only form every scanner reads the same way, and GuitarGame_ChartFormats says the name is a track's first event.
-*/}
+- **Required:** exactly one name in each track, as its first event, at tick 0.
+- **Required:** the name exactly as these pages list it, in capitals, such as `PART GUITAR`.
 
-A name must be written as these pages list it, in capitals: `PART GUITAR`, not `Part Guitar`.
-
-{/* review: Q2
-Must track names be in capitals? Clone Hero and scan-chart read a name in any letter case, so `part guitar` is lead guitar there. YARG matches names exactly, in its song scan and in its gameplay, so it ignores that track.
-- A. Capitals required | A name in another letter case is invalid. Clone Hero and scan-chart read it, and YARG ignores the track | Charts with lowercase names become invalid, though they play in Clone Hero
-- B. Any letter case | Names are read as Clone Hero reads them | YARG misses a track of a valid file
-Recommendation: A. YARG compares names exactly, chart editors write capitals, and scan-chart's export writes names in capitals.
-*/}
-
-The first track's name has no meaning. **Recommended:** `TEMPO TRACK`. It must not be `EVENTS`, or the name of an instrument or vocal part.
+The first track's name has no meaning. **Required:** a name other than `EVENTS` and the names of instrument and vocal tracks. **Recommended:** `TEMPO TRACK`.
 
 ## MIDI events
 
@@ -103,14 +89,13 @@ Delta times can't be negative, so a track's events are always in tick order.
 A scanner reads a track's events at one tick in the order the file holds them. The order matters for:
 
 - a note-off and a note-on of one pitch. See [Note pairing](/mid/note-pairing#events-at-one-tick);
-- text events that change the notes after them, such as `[ENHANCED_OPENS]`. See [Note modifiers](/mid/modifiers#open-notes);
-- two tempos, or two time signatures, at one tick. See [Invalid forms](#invalid-forms).
+- text events that change the notes after them, such as `ENHANCED_OPENS`. See [Note modifiers](/mid/modifiers#open-notes).
 
 **Recommended:** at one tick, the time signature before the tempo, as in a `.chart` file.
 
 ## The tempo track
 
-The first track holds the chart's tempos and time signatures. It's the `.mid` form of a `.chart` file's [[SyncTrack]](/chart/sync-track). A scanner reads tempos and time signatures only from this track. It should hold only its name, tempos and time signatures.
+The first track holds the chart's tempos and time signatures. It's the `.mid` form of a `.chart` file's [[SyncTrack]](/chart/sync-track). A scanner reads tempos and time signatures only from this track. **Recommended:** only its name, tempos and time signatures.
 
 ### Tempos
 
@@ -123,7 +108,8 @@ A tempo event, `FF 51`, sets the tempo from its tick to the next tempo. Its 3 by
 | `400000` | 150 BPM |
 
 - The tempo in BPM is 60,000,000 divided by the value.
-- The value must be a whole number from 1 to 16,777,215.
+- **Required:** a whole number from 1 to 16,777,215.
+- **Required:** one tempo at most at a tick.
 
 A `.chart` tempo is in thousandths of a beat per minute instead. See [Tempo markers](/chart/sync-track#tempo-markers). Neither format can hold every tempo of the other exactly.
 
@@ -138,8 +124,8 @@ A time signature event, `FF 58`, sets the meter from its tick to the next time s
 | `6 3` | 6/8 |
 | `7 4` | 7/16 |
 
-- The numerator must be a whole number from 1 to 255.
-- The exponent must be a whole number from 0 to 7, for the denominators 1 to 128.
+- **Required:** a numerator from 1 to 255, and an exponent from 0 to 7, for the denominators 1 to 128.
+- **Required:** one time signature at most at a tick.
 - The event's last two bytes, MIDI clocks per metronome click and 32nd notes per quarter note, have no effect.
 
 Unlike in a `.chart` file, the exponent is always written. Time signatures only change the beat lines, as in a `.chart` file. See [Time signatures](/chart/sync-track#time-signatures).
@@ -157,15 +143,7 @@ Text events hold practice sections, lyrics and the other events these pages list
 - **Required:** in `EVENTS` and instrument tracks, every text is a text event, `FF 01`. Vocal tracks hold lyrics. See [Lyrics](/mid/vocals#lyrics).
 - **Required:** text is UTF-8. A `.mid` file has no byte order mark.
 
-{/* review: Q3
-Must text be UTF-8, in `FF 01` text events? Clone Hero decodes text only as UTF-8, and reads only `FF 01` events in EVENTS and instrument tracks. YARG reads the whole file again as ISO-8859-1 when any byte isn't valid UTF-8, and reads text types `FF 04` to `FF 09` too. scan-chart decides the encoding event by event, and reads `FF 05`, `FF 06` and `FF 07` too.
-- A. Both required | Other bytes, and other text types, are invalid | Charts with ISO-8859-1 text, or sections written as marker events, become invalid
-- B. UTF-8 required, any text type | Text may be any type scan-chart reads | A valid section written as a marker event is missing in Clone Hero
-- C. Both recommended | ISO-8859-1 is allowed, as in a .chart file without a byte order mark | Valid files show other characters, and lose events, in Clone Hero
-Recommendation: A. It is the only form Clone Hero reads in full, and scan-chart's export already writes it.
-*/}
-
-Unlike in a `.chart` file, square brackets aren't removed before the text is read: Clone Hero reads `[section Intro]` as a practice section, and `section Intro` as nothing. [EVENTS track](/mid/events) says which events need them.
+In `EVENTS` and instrument tracks, square brackets around the whole text are optional, as in a `.chart` file: `[section Intro]` means the same as `section Intro`. **Recommended:** no brackets. In a vocal track, text that starts with `[` is never a lyric. See [Lyrics](/mid/vocals#lyrics).
 
 ## Ignored
 
@@ -221,7 +199,7 @@ Clone Hero and scan-chart refuse the file. YARG's song scan refuses a resolution
 </Accordion>
 
 <Accordion title="More than one track name at tick 0, or an event before the name">
-Clone Hero and scan-chart use the last name at tick 0, and YARG uses the first name it recognizes. YARG skips the first event of the EVENTS, BEAT, VENUE and vocal tracks, taking it to be the name. It reads every tempo and time signature late when the tempo track's first event isn't at tick 0. Saving with scan-chart removes every name at tick 0 but the last.
+Clone Hero and scan-chart use the last name at tick 0, and YARG uses the first name it recognizes. YARG skips the first event of the EVENTS, BEAT, VENUE and vocal tracks, taking it to be the name. It reads every tempo and time signature late when the tempo track's first event isn't at tick 0. scan-chart reports `multipleMidiTrackNames` for a track with more than one name at tick 0, and saving with scan-chart removes every name at tick 0 but the last.
 </Accordion>
 
 <Accordion title="A name in another letter case">

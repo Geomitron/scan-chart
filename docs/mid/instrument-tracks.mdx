@@ -39,15 +39,8 @@ Here Expert has a green and red chord at tick 1920, held to tick 2400, then a ye
 
 These are the instruments of a `.chart` file's [section names](/chart/instrument-sections#section-names). A `.mid` file has one track for each instrument, where a `.chart` file has a section for each instrument and difficulty. Vocal tracks are on [Vocals and harmonies](/mid/vocals).
 
-- A name must be written as the table shows it, in capitals. See [Track names](/mid/structure#track-names).
-- An instrument must have only one track.
-
-{/* review: Q5
-Two tracks for one instrument. Clone Hero reads the first, even when it has no notes, and counts `T1 GEMS` and `PART GUITAR` as one instrument, and `PART DRUM` and `PART DRUMS`. YARG's song list uses the first track that has a note. YARG's gameplay uses the last `PART GUITAR` or `PART DRUMS`, and otherwise the first track that holds anything, so its song list and the notes it plays can differ.
-- A. Invalid, the first counts | A scanner reads the first track, even one without notes | Clone Hero's reading. scan-chart's TrackHash already uses the first track
-- B. Invalid, the first with notes counts | As YARG's song list | Differs from Clone Hero, and from the .chart rule
-Recommendation: A. It is Clone Hero's reading, and the .chart rule for a section name that appears twice. scan-chart reports nothing for a repeated track today; a report like the one for a repeated .chart section would help.
-*/}
+- **Required:** each name as the table shows it, in capitals. See [Track names](/mid/structure#track-names).
+- **Required:** one track at most for each instrument.
 
 **Edge case:** YARG doesn't read `PART KEYS GHL`.
 
@@ -66,7 +59,7 @@ A note is a note-on and the note-off that ends it. See [Note pairing](/mid/note-
 | Blue | 63 | 75 | 87 | 99 |
 | Orange | 64 | 76 | 88 | 100 |
 
-- The open note is a note only in a track that has `[ENHANCED_OPENS]`. See [Open notes](/mid/modifiers#open-notes).
+- The open note is a note only in a track that has `ENHANCED_OPENS`. See [Open notes](/mid/modifiers#open-notes).
 - The next two numbers of each difficulty, such as 101 and 102 on Expert, are modifiers. See [Note modifiers](/mid/modifiers#forced).
 
 ### 6-fret
@@ -118,14 +111,11 @@ In a `.chart` file each difficulty's section has its own phrases. In a `.mid` fi
 ## Notes at one tick
 
 - Notes of different lanes at one tick, in one difficulty, form a chord. Each note ends at its own note-off, so a chord's sustains can end at different ticks.
-- An open note may be in a chord with fret notes when it's written as a note: on 5-fret after `[ENHANCED_OPENS]`, and on 6-fret. The player holds the fret notes and strums.
-- A track must not hold two notes of one number at one tick. See [Note pairing](/mid/note-pairing#invalid-forms).
+- An open note may be in a chord with fret notes when it's written as a note: on 5-fret after `ENHANCED_OPENS`, and on 6-fret. The player holds the fret notes and strums.
 
 ## Difficulties
 
 A difficulty is a track only if it holds at least one note. [How notes resolve](/chart/note-resolution) says how a scanner turns its notes into the notes a player plays, with the `.mid` differences on [Note pairing](/mid/note-pairing#the-sustain-cutoff) and [Note modifiers](/mid/modifiers#natural-hopos).
-
-**Edge case: a difficulty without notes.** A difficulty that holds only modifiers, such as a forcing note, isn't a track: it gets no hash, and YARG and scan-chart don't list it. Clone Hero's song list still offers it, because its song scan counts any note numbered 58 to 66, 70 to 78, 82 to 90 or 94 to 102 as a note of that difficulty. An exporter should not write a modifier in a difficulty without notes.
 
 ## Deprecated
 
@@ -136,7 +126,7 @@ scan-chart's export writes both under their new names.
 
 ## Ignored
 
-- **A note number the tables don't list,** such as 67 to 69, between Easy and Medium. Rock Band charts use notes 40 to 59 on 5-fret tracks, and 24 to 51 on drums, for animations, which YARG reads. Without `[ENHANCED_OPENS]`, 59 is one of them.
+- **A note number the tables don't list,** such as 67 to 69, between Easy and Medium. Rock Band charts use notes 40 to 59 on 5-fret tracks, and 24 to 51 on drums, for animations, which YARG reads. Without `ENHANCED_OPENS`, 59 is one of them.
 - **A note's channel and velocity,** except where a page gives them a meaning: drum accents and ghosts, and a lane's difficulties.
 - **Tracks for instruments of other games:** Pro keys (`PART REAL_KEYS_X`, `PART REAL_KEYS_H`, `PART REAL_KEYS_M` and `PART REAL_KEYS_E`), Pro guitar and bass (`PART REAL_GUITAR`, `PART REAL_GUITAR_22`, `PART REAL_BASS` and `PART REAL_BASS_22`), `PART REAL_GUITAR_BONUS`, `PART ELITE_DRUMS`, `PART REAL_DRUMS_PS`, `PART DRUMS_2X`, and animation tracks such as `PART KEYS_ANIM_LH`. Clone Hero reads none of them. YARG reads Pro keys, Pro guitar and Elite drums. An exporter should keep them when rewriting a file, and scan-chart writes them back as they are.
 
@@ -145,9 +135,13 @@ scan-chart's export writes both under their new names.
 <Accordion title="Two tracks for one instrument">
 Clone Hero reads the first, even when it has no notes. `T1 GEMS` and `PART GUITAR` are one instrument there, and so are `PART DRUM` and `PART DRUMS`. YARG's song list uses the first track that has a note. YARG's gameplay uses the last `PART GUITAR` or `PART DRUMS`, and otherwise the first track that holds anything, so the song list and the notes played can differ.
 
-scan-chart reads every track, and its TrackHash uses the first. Saving with scan-chart keeps every track. scan-chart's export writes only the first, under its standard name.
+scan-chart reports `multipleMidiTracks`. It reads every track, and its TrackHash uses the first. Saving with scan-chart keeps every track. scan-chart's export writes only the first, under its standard name.
 </Accordion>
 
 <Accordion title="Two notes of one number at one tick">
 Clone Hero and scan-chart keep the one with the longer sustain, as in a `.chart` file. YARG keeps the one that the first note-off ends. See [Note pairing](/mid/note-pairing#invalid-forms).
+</Accordion>
+
+<Accordion title="Modifiers in a difficulty without notes">
+The difficulty isn't a track: it gets no hash, and YARG and scan-chart don't list it. Clone Hero's song list still offers it, because its song scan counts any note numbered 58 to 66, 70 to 78, 82 to 90 or 94 to 102 as a note of that difficulty. scan-chart keeps the modifiers when saving, and its export leaves them out.
 </Accordion>
