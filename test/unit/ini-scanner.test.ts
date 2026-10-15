@@ -112,7 +112,7 @@ describe('scanIni: unknownIniValues', () => {
 		const result = scanIni(files)
 		// Every key but name and the three Clone Hero reads, playlist, sub_playlist and explicit_lyrics, is preserved
 		expect(Object.keys(result.unknownIniValues)).toHaveLength(35)
-		expect(result.metadata).toMatchObject({ playlist: 'my setlist', sub_playlist: 'favorites', explicit_lyrics: true })
+		expect(result.metadata).toMatchObject({ playlist: 'My Setlist', sub_playlist: 'Favorites', explicit_lyrics: true })
 		expect(result.unknownIniValues.diff_vocals_harm).toBe('3')
 		expect(result.unknownIniValues.diff_guitar_real).toBe('5')
 		expect(result.unknownIniValues.sysex_slider).toBe('True')
@@ -171,10 +171,10 @@ describe('scanIni: unknownIniValues', () => {
 			.toEqual(['Metadata is missing the "album" property.'])
 	})
 
-	it('reads playlist and sub_playlist in lowercase, as Clone Hero does, and explicit_lyrics as true or false', () => {
+	it('reads playlist and sub_playlist as written, and explicit_lyrics as true or false', () => {
 		const read = (lines: string[]) => scanIni(buildIni(['[Song]', ...lines])).metadata!
 		expect(read(['playlist = My <b>Setlist</b>', 'sub_playlist = Favorites', 'explicit_lyrics = True']))
-			.toMatchObject({ playlist: 'my setlist', sub_playlist: 'favorites', explicit_lyrics: true })
+			.toMatchObject({ playlist: 'My Setlist', sub_playlist: 'Favorites', explicit_lyrics: true })
 		expect(read(['playlist =', 'explicit_lyrics = maybe'])).toMatchObject({ playlist: '', sub_playlist: '', explicit_lyrics: false })
 	})
 

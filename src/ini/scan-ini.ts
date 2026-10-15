@@ -212,9 +212,6 @@ export function extractSongMetadata(songSection: { readonly [key: string]: strin
 	}
 
 	metadata.icon = metadata.icon.toLowerCase() // Icons are interpreted as lowercase in CH
-	// So are playlists
-	metadata.playlist = metadata.playlist.toLowerCase()
-	metadata.sub_playlist = metadata.sub_playlist.toLowerCase()
 	if (metadata.icon === metadata.charter.toLowerCase()) {
 		// Setting `icon` can be redundant
 		metadata.icon = ''
