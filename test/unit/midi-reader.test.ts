@@ -45,3 +45,10 @@ describe('the .mid reader pairs a SysEx phrase as Clone Hero does', () => {
 		for (const parse of Object.values(parsers)) expect(tapTicks(data, parse)).toEqual([0, 100, 200, 300])
 	})
 })
+
+describe('the .mid reader refuses what Clone Hero refuses', () => {
+	it('refuses a tempo of 0, which is an infinite BPM, in every profile', () => {
+		const data = guitarMidi(greens, [{ tick: 0, microsecondsPerBeat: 500000 }, { tick: 480, microsecondsPerBeat: 0 }])
+		for (const parse of Object.values(parsers)) expect(() => parse(data, 'mid')).toThrow('Tempo at tick 480 was zero')
+	})
+})
