@@ -5,7 +5,7 @@ import { contentNames, hasContentExtension } from './assets/scan-media'
 import { ignoredIssueCodes, keyList, standardTagOrder } from './ini/ini-checks'
 import { asUtf8Ini, rewriteSongIni } from './ini/ini-edit'
 import { IniTokens, parseIniTokens } from './ini/parse-ini'
-import { fixEmptyPhrases, fixEmptyTracks, fixHopoTags, fixSustains } from './fix-chart'
+import { fixEmptyPhrases, fixEmptyTracks, fixHopoTags, fixMultiplierNote, fixSustains } from './fix-chart'
 import { FixRecord, FixReport, hashChanges, hashNames } from './fix-report'
 import type { Issue, IssueCode, MetadataFinding } from './issues'
 import { scanSong } from './scan-song-folder'
@@ -102,7 +102,7 @@ export async function fixIssues(song: SongDocument, options: FixOptions = {}): P
 	// A sustain the gap fix leaves short is removed when the short sustain fix is on.
 	const songSection = songContext(song).ini.songSection
 	const removeShort = asked.includes('babySustain') && options.changeHashes === true && !(songSection !== null && ignoredIssueCodes(songSection).codes.has('babySustain'))
-	const rewritten = fixHopoTags(song, issues, iniFindings, record)
+	const rewritten = fixMultiplierNote(fixHopoTags(song, issues, iniFindings, record), issues, iniFindings, record)
 	const sustained = fixSustains(rewritten, issues, { gapMs: options.sustainGapMs ?? 60, minMs: options.minSustainMs ?? 200, removeShort }, record)
 	const charted = fixEmptyTracks(fixEmptyPhrases(sustained, issues, record), issues, record)
 	const fixed = await fixFiles(fixSongIni(charted, issues, iniFindings, songLength, options, record), issues, options, record)

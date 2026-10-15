@@ -431,3 +431,30 @@ describe('fixIssues: the HOPO threshold tags', () => {
 		expectHashesKept(result)
 	})
 })
+
+describe('fixIssues: multiplier_note = 103', () => {
+	const phrases = (song: SongDocument) => resolveChart(song).tracks.map(track => [track.instrument, track.difficulty,
+		track.noteGroups.flat().map(note => [note.tick, note.length, note.type, note.flags]),
+		track.starPower.map(phrase => [phrase.tick, phrase.length]), track.solos.map(phrase => [phrase.tick, phrase.length])])
+
+	it('moves guitar and keys star power from note 103 to 116, dropping the notes 116 the tag ignores, and keeps the drums solos', async () => {
+		const guitar = [0, 960, 1920].map(tick => ({ tick, noteNumber: 96 }))
+		const mid = midi({
+			'PART GUITAR': [...guitar, { tick: 900, noteNumber: 103, length: 120 }, { tick: 1900, noteNumber: 103, length: 100 }, { tick: 0, noteNumber: 116, length: 60 }],
+			'PART DRUMS': [{ tick: 0, noteNumber: 96 }, { tick: 960, noteNumber: 97 }, { tick: 0, noteNumber: 103, length: 1000 }],
+		})
+		const files = folder(['[song]', 'name = Song', 'multiplier_note = 103'], mid, 'notes.mid')
+		const original = await parseSong(files)
+		const result = await fix(files, { codes: ['deprecatedIniTag'] })
+		expect(result.ini).toBe('[song]\r\nname = Song\r\n')
+		expect(result.report.fixed).toEqual([{ code: 'deprecatedIniTag', file: 'notes.mid',
+			description: 'Moved 2 star power phrases from note 103 to note 116, removed 1 note 116 that "multiplier_note = 103" made games ignore, and removed "multiplier_note".' }])
+		expect(phrases(result.song)).toEqual(phrases(original))
+		const [guitarTrack, drumsTrack] = authoredTracks(result.song.chart!)
+		expect(guitarTrack.events.filter(event => event.scope === 'instrument').map(event => [event.type, event.tick, event.length]))
+			.toEqual([['starPower', 900, 120], ['starPower', 1900, 100]])
+		expect(drumsTrack.events.filter(event => event.scope === 'instrument').map(event => [event.type, event.tick])).toEqual([['soloSection', 0]])
+		expect(result.codes.filter(code => code === 'deprecatedIniTag' || code === 'badStarPower')).toEqual([])
+		expectHashesKept(result)
+	})
+})
