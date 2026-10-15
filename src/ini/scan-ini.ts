@@ -351,7 +351,7 @@ function getIniBoolean(songSection: { readonly [key: string]: string }, key: Met
  * is 0, and "true" or "false" match in any letter case (e.g. "2" and "TRUE" are `true`; "yes" is not a boolean).
  * @returns `true`/`false` if `value` is a recognized boolean, or `null` otherwise.
  */
-function parseBoolean(value: string | undefined): boolean | null {
+export function parseBoolean(value: string | undefined): boolean | null {
 	if (value === undefined) return null
 	const integer = parseDotnetInt(value)
 	if (integer !== null) return integer !== 0

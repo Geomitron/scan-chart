@@ -6,6 +6,8 @@ import { decodeAlbumArt, findAlbumArt } from './assets/scan-image'
 import { scanVideo } from './assets/scan-video'
 import type { ChartStats } from './chart/chart-analysis'
 import { getChartHash } from './chart/chart-hash'
+import { parseChartSource } from './chart/parse-chart-file'
+import { parseRules } from './chart/parse-rules'
 import { calculateCompetitiveHashes, CompetitiveHashes } from './competitive'
 import { resolveChart } from './gameplay-chart'
 import { songIniIssues } from './ini/ini-checks'
@@ -87,10 +89,6 @@ export async function scanSongFolder(files: readonly SongFile[], options: ScanOp
 	let chartIssues: readonly Issue[] = []
 	const chartFile = song.chart?.fileName
 
-	if (song.ini !== null && context.ini.songSection !== null) {
-		metadataIssues.push(...songIniIssues(song.ini.tokens, context.ini.songSection, options.extraIniKeys ?? []))
-	}
-
 	if (context.chart.kind === 'failed') folderIssues.push({ folderIssue: 'badChart', description: context.chart.error, file: chartFile })
 	if (context.chart.kind === 'parsed') {
 		const analysis = analyzeChart(resolveChart(song), { styleNotes: options.styleNotes })
@@ -107,6 +105,21 @@ export async function scanSongFolder(files: readonly SongFile[], options: ScanOp
 			}
 		}
 		if (context.ini.metadata !== null) metadataIssues.push(...difficultyIssues(metadata, stats))
+	}
+	if (song.ini !== null && context.ini.metadata !== null && context.ini.songSection !== null) {
+		const { chart, settings } = context
+		metadataIssues.push(...songIniIssues({
+			tokens: song.ini.tokens,
+			songSection: context.ini.songSection,
+			metadata: context.ini.metadata,
+			requiredKeys: stats === null ? [] : chartedDifficultyKeys(stats),
+			chart: chart.kind !== 'parsed' || stats === null ? null : {
+				format: chart.source.format,
+				drumType: stats.instruments.includes('drums') ? chart.parsed.drumType : null,
+				detectedDrumType: () => parseChartSource(chart.source, { ...settings, pro_drums: false, five_lane_drums: false }, parseRules.canonical20260801).drumType,
+			},
+			extraIniKeys: options.extraIniKeys ?? [],
+		}))
 	}
 
 	// The album art's names are always checked. The art is read only when it's asked for, or hashed.
@@ -146,22 +159,29 @@ export async function scanSongFolder(files: readonly SongFile[], options: ScanOp
 	}
 }
 
+/** Each instrument's song.ini difficulty rating. */
+const ratings: readonly (readonly [Instrument, keyof typeof defaultMetadata])[] = [
+	['guitar', 'diff_guitar'],
+	['guitarcoop', 'diff_guitar_coop'],
+	['rhythm', 'diff_rhythm'],
+	['bass', 'diff_bass'],
+	['drums', 'diff_drums'],
+	['keys', 'diff_keys'],
+	['keysghl', 'diff_keys_ghl'],
+	['guitarghl', 'diff_guitarghl'],
+	['guitarcoopghl', 'diff_guitar_coop_ghl'],
+	['rhythmghl', 'diff_rhythm_ghl'],
+	['bassghl', 'diff_bassghl'],
+]
+
+/** The difficulty ratings a chart needs: one for each charted instrument, and for vocals. */
+function chartedDifficultyKeys(stats: ChartStats): string[] {
+	return [...ratings.filter(([instrument]) => stats.instruments.includes(instrument)).map(([, key]) => key), ...(stats.hasVocals ? ['diff_vocals'] : [])]
+}
+
 /** song.ini difficulty ratings missing for a charted instrument, or set for one that isn't charted. */
 function difficultyIssues(metadata: SongMetadata, stats: ChartStats) {
 	const issues: { metadataIssue: 'missingValue' | 'extraValue'; description: string }[] = []
-	const ratings: readonly (readonly [Instrument, keyof typeof defaultMetadata])[] = [
-		['guitar', 'diff_guitar'],
-		['guitarcoop', 'diff_guitar_coop'],
-		['rhythm', 'diff_rhythm'],
-		['bass', 'diff_bass'],
-		['drums', 'diff_drums'],
-		['keys', 'diff_keys'],
-		['keysghl', 'diff_keys_ghl'],
-		['guitarghl', 'diff_guitarghl'],
-		['guitarcoopghl', 'diff_guitar_coop_ghl'],
-		['rhythmghl', 'diff_rhythm_ghl'],
-		['bassghl', 'diff_bassghl'],
-	]
 	for (const [instrument, key] of ratings) {
 		if (stats.instruments.includes(instrument) && metadata[key] === defaultMetadata[key]) {
 			issues.push({ metadataIssue: 'missingValue', description: `Metadata is missing a "${key}" value.` })

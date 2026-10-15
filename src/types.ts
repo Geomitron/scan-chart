@@ -341,3 +341,9 @@ export type MetadataIssueType =
 	| 'blankIniValue' // A "song.ini" value is blank or -1
 	| 'quotedIniValue' // A "song.ini" value is in quotes
 	| 'unknownIniTag' // "song.ini" has a tag no reader documents
+	| 'missingSongLength' // "song.ini" doesn't set song_length
+	| 'missingAlbumTrack' // "song.ini" doesn't set album_track, and the album isn't a single
+	| 'difficultyRange' // A difficulty rating is outside 0 to 10
+	| 'iconName' // The icon isn't written as an icon's name
+	| 'deprecatedIniTag' // A tag only older charts need changes how the chart reads
+	| 'redundantDrumType' // pro_drums or five_lane_drums sets the drum type games already read

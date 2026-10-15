@@ -1,11 +1,26 @@
 import { toLowerInvariant, trimDotnet } from '../shared/text'
-import type { MetadataIssueType } from '../types'
+import { type DrumType, drumTypes, type MetadataIssueType } from '../types'
 import { defaultMetadata } from './metadata'
 import type { IniTokens } from './parse-ini'
-import { knownIniKeys } from './scan-ini'
+import { knownIniKeys, parseBoolean } from './scan-ini'
 
 type MetadataFinding = { metadataIssue: MetadataIssueType; description: string }
 type SongSection = { readonly [key: string]: string }
+
+/** What the song.ini checks read. */
+export interface SongIniInput {
+	readonly tokens: IniTokens
+	/** The `[song]` section as read. */
+	readonly songSection: SongSection
+	/** The metadata read from it. */
+	readonly metadata: typeof defaultMetadata
+	/** Keys another issue asks to set, such as a charted instrument's difficulty, which aren't reported as blank. */
+	readonly requiredKeys: readonly string[]
+	/** The chart's format and drum type, or `null` when it didn't parse. `detectedDrumType` reads it without song.ini's drum flags. */
+	readonly chart: { readonly format: 'chart' | 'mid'; readonly drumType: DrumType | null; readonly detectedDrumType: () => DrumType | null } | null
+	/** Tags a caller's game reads. */
+	readonly extraIniKeys: readonly (string | RegExp)[]
+}
 
 /** The tags of GuitarGame_ChartFormats' song.ini standard, besides the ones scan-chart reads. */
 const standardTags = [
@@ -24,10 +39,11 @@ const knownTags = new Set([...standardTags, ...knownIniKeys, 'explicit_lyrics'])
 const tagOrder = Object.keys(defaultMetadata)
 
 /**
- * The charting recommendations about how song.ini is written: its layout, its tags' order, blank and quoted values,
- * and tags no reader documents. `songSection` is the `[song]` section as read; `extraIniKeys` are tags a caller's game reads.
+ * The charting recommendations about song.ini: how it's written (its layout, its tags' order, blank and quoted values,
+ * and tags no reader documents), then its values.
  */
-export function songIniIssues(tokens: IniTokens, songSection: SongSection, extraIniKeys: readonly (string | RegExp)[]): MetadataFinding[] {
+export function songIniIssues(input: SongIniInput): MetadataFinding[] {
+	const { tokens, songSection, extraIniKeys } = input
 	const isExtra = (key: string) => extraIniKeys.some(extra => typeof extra === 'string' ? toLowerInvariant(extra) === key : extra.test(key))
 	// A line starting with "//" is reported as a comment, though readers read one with "=" in it as a key.
 	const keys = Object.keys(songSection).filter(key => !key.startsWith('//'))
@@ -44,7 +60,8 @@ export function songIniIssues(tokens: IniTokens, songSection: SongSection, extra
 		}
 	}
 
-	const blank = known.filter(key => songSection[key] === '' || songSection[key] === '-1')
+	const values = valueIssues(input)
+	const blank = known.filter(key => isBlank(songSection[key]) && !input.requiredKeys.includes(key) && !values.missing.includes(key))
 	if (blank.length > 0) {
 		issues.push({ metadataIssue: 'blankIniValue', description: `In "song.ini", ${keyList(blank)} ${blank.length === 1 ? 'is' : 'are'} blank or -1. Remove ${blank.length === 1 ? 'that line' : 'those lines'} instead.` })
 	}
@@ -60,6 +77,93 @@ export function songIniIssues(tokens: IniTokens, songSection: SongSection, extra
 			metadataIssue: 'unknownIniTag',
 			description: `"song.ini" has tags that aren't in the song.ini standard: ${keyList(unknown)}. Remove them, unless a game you chart for reads them.`,
 		})
+	}
+	return [...issues, ...values.issues]
+}
+
+const isBlank = (value: string | undefined) => value === '' || value === '-1'
+/** Whether a value is set: present, and not blank or -1. */
+const isSet = (value: string | undefined): value is string => value !== undefined && !isBlank(value)
+// Whether every reader reads charter and album_track over their older tags, frets and track.
+const hasCharter = (songSection: SongSection) => isSet(songSection.charter) && songSection.charter !== '0'
+const hasAlbumTrack = (songSection: SongSection) => isSet(songSection.album_track) && !isNaN(parseFloat(songSection.album_track))
+
+/**
+ * The charting recommendations about song.ini's values, and the keys reported missing: song_length and album_track
+ * unset, a difficulty outside 0 to 10, an icon that isn't an icon's name, a tag for older charts that changes how the
+ * chart reads, and a drum type flag the chart doesn't need.
+ */
+function valueIssues({ songSection, metadata, chart }: SongIniInput): { issues: MetadataFinding[]; missing: string[] } {
+	const issues: MetadataFinding[] = []
+	const missing: string[] = []
+	const add = (metadataIssue: MetadataIssueType, description: string) => issues.push({ metadataIssue, description })
+
+	if (!(metadata.song_length > 0)) {
+		missing.push('song_length')
+		add('missingSongLength', 'Metadata is missing "song_length": set it to the length of the longest audio file, in milliseconds.')
+	}
+	// A single's album is its name followed by " - (Single)".
+	if (metadata.album_track === defaultMetadata.album_track && metadata.album !== defaultMetadata.album && !/\bsingle\)?$/i.test(metadata.album.trim())) {
+		missing.push('album_track')
+		add('missingAlbumTrack', 'Metadata is missing "album_track": set it to the song\'s position on its album.')
+	}
+
+	for (const key of Object.keys(songSection).filter(key => key.startsWith('diff_'))) {
+		const value = Number(songSection[key])
+		if (Number.isInteger(value) && value !== -1 && (value < 0 || value > 10)) {
+			add('difficultyRange', `In "song.ini", "${key}" is ${value}. Difficulties go from 0 to 6, or up to 10 for very hard charts.`)
+		}
+	}
+
+	const icon = songSection.icon
+	if (isSet(icon) && icon !== '0' && !/^[a-z0-9_-]+$/.test(icon)) {
+		add('iconName', `In "song.ini", "icon" is "${icon}". Write the icon's file name without its extension, in lowercase letters, numbers, "-" and "_".`)
+	}
+
+	issues.push(...deprecatedTagIssues(songSection, metadata, chart))
+
+	// Both flags together are already invalid.
+	const proDrums = parseBoolean(songSection.pro_drums) === true
+	const fiveLaneDrums = parseBoolean(songSection.five_lane_drums) === true
+	if (chart !== null && proDrums !== fiveLaneDrums) {
+		const [key, type, name] = proDrums ? ['pro_drums', drumTypes.fourLanePro, '4-lane pro'] as const : ['five_lane_drums', drumTypes.fiveLane, '5-lane'] as const
+		if (chart.drumType === null) {
+			add('redundantDrumType', `"song.ini" sets "${key}", but the chart has no drums track. Remove the tag.`)
+		} else if (chart.detectedDrumType() === type) {
+			add('redundantDrumType', `"song.ini" sets "${key}", but games already read this drums chart as ${name}. Remove the tag.`)
+		}
+	}
+	return { issues, missing }
+}
+
+/**
+ * The tags only older charts need, which the charting guidelines forbid, when they change how the chart reads. The
+ * chart is changed to read the same without one before it's removed.
+ */
+function deprecatedTagIssues(songSection: SongSection, metadata: typeof defaultMetadata, chart: SongIniInput['chart']): MetadataFinding[] {
+	const issues: MetadataFinding[] = []
+	const add = (description: string) => issues.push({ metadataIssue: 'deprecatedIniTag', description })
+	const { delay } = metadata
+	if (isSet(songSection.delay) && delay !== 0) {
+		const fix = delay > 0
+			? `start the audio ${delay} ms earlier, by removing its first ${delay} ms, or move every note ${delay} ms later`
+			: `add ${-delay} ms of silence to the start of the audio, or move every note ${-delay} ms earlier`
+		add(`"song.ini" sets "delay" to ${delay} ms, which only older charts need. Change the chart first so it plays the same without it: ${fix}. Then remove the tag.`)
+	}
+	const changesHopos = (key: string) =>
+		`"song.ini" sets "${key}", which changes which notes are HOPOs. Change the chart first so it plays the same without it, by forcing the notes that change. Then remove the tag.`
+	// Clone Hero and YARG read hopo_frequency over eighthnote_hopo.
+	const hopoFrequency = metadata.hopo_frequency > 0
+	if (isSet(songSection.hopo_frequency) && hopoFrequency) add(changesHopos('hopo_frequency'))
+	if (isSet(songSection.eighthnote_hopo) && metadata.eighthnote_hopo && !hopoFrequency) add(changesHopos('eighthnote_hopo'))
+	if (chart?.format === 'mid' && metadata.multiplier_note === 103) {
+		add('"song.ini" sets "multiplier_note" to 103, which makes MIDI note 103 the star power note. Move the star power phrases to note 116 first. Then remove the tag.')
+	}
+	if (isSet(songSection.frets) && !hasCharter(songSection)) {
+		add('"song.ini" names the charter with "frets", a tag for older charts. Write "charter" instead.')
+	}
+	if (isSet(songSection.track) && !hasAlbumTrack(songSection)) {
+		add('"song.ini" gives the album track with "track", a tag for older charts. Write "album_track" instead.')
 	}
 	return issues
 }
