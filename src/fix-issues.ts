@@ -2,10 +2,10 @@ import { contentType, readAudioInfo } from './assets/media-headers'
 import { scanAudio } from './assets/scan-audio'
 import { imageSize } from './assets/scan-image'
 import { contentNames, hasContentExtension } from './assets/scan-media'
-import { keyList, standardTagOrder } from './ini/ini-checks'
+import { ignoredIssueCodes, keyList, standardTagOrder } from './ini/ini-checks'
 import { asUtf8Ini, rewriteSongIni } from './ini/ini-edit'
 import { IniTokens, parseIniTokens } from './ini/parse-ini'
-import { fixEmptyPhrases, fixEmptyTracks } from './fix-chart'
+import { fixEmptyPhrases, fixEmptyTracks, fixSustains } from './fix-chart'
 import { FixRecord, FixReport, hashChanges, hashNames } from './fix-report'
 import type { Issue, IssueCode, MetadataFinding } from './issues'
 import { scanSong } from './scan-song-folder'
@@ -41,6 +41,8 @@ export const issueFixes: { readonly [code in IssueCode]?: 'keepsHashes' | 'chang
 	emptyStarPower: 'keepsHashes',
 	emptySoloSection: 'keepsHashes',
 	emptyFlexLane: 'keepsHashes',
+	badSustainGap: 'changesHashes',
+	babySustain: 'changesHashes',
 }
 
 export type { FixReport } from './fix-report'
@@ -51,6 +53,10 @@ export interface FixOptions {
 	readonly codes?: readonly IssueCode[]
 	/** Also make the fixes that change a canonical hash. Default: `false`. */
 	readonly changeHashes?: boolean
+	/** The gap the sustain gap fix leaves before the next note, in milliseconds. Default: 60, the charting guidelines'. */
+	readonly sustainGapMs?: number
+	/** The shortest sustain the short sustain fix keeps, in milliseconds. Default: 200, the charting guidelines'. */
+	readonly minSustainMs?: number
 	/** The album art sizes accepted, as `ScanOptions.albumArtSizes` says: square art of another size is resized to the first. Default: `[512]`. */
 	readonly albumArtSizes?: readonly number[]
 	/**
@@ -93,7 +99,11 @@ export async function fixIssues(song: SongDocument, options: FixOptions = {}): P
 	})
 
 	const songLength = issues.some(issue => issue.code === 'missingSongLength' || issue.code === 'songLengthMismatch') ? await longestAudio(song.files) : null
-	const charted = fixEmptyTracks(fixEmptyPhrases(song, issues, record), issues, record)
+	// A sustain the gap fix leaves short is removed when the short sustain fix is on.
+	const songSection = songContext(song).ini.songSection
+	const removeShort = asked.includes('babySustain') && options.changeHashes === true && !(songSection !== null && ignoredIssueCodes(songSection).codes.has('babySustain'))
+	const sustained = fixSustains(song, issues, { gapMs: options.sustainGapMs ?? 60, minMs: options.minSustainMs ?? 200, removeShort }, record)
+	const charted = fixEmptyTracks(fixEmptyPhrases(sustained, issues, record), issues, record)
 	const fixed = await fixFiles(fixSongIni(charted, issues, iniFindings, songLength, options, record), issues, options, record)
 	return {
 		song: fixed,
