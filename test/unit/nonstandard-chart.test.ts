@@ -214,6 +214,23 @@ describe('saving a nonstandard .chart file', () => {
 		expect(normalized(text).text).toBe('[Song]\r\n{\r\n  Resolution = 192\r\n}\r\n[SyncTrack]\r\n{\r\n  0 = B 120000\r\n}\r\n[ExpertSingle]\r\n{\r\n  0 = N 0 0\r\n}\r\n')
 	})
 
+	it('removes the earlier of two tempo markers or time signatures at a tick, which readers don\'t use', () => {
+		const text = chartText([
+			['Song', ['Resolution = 192']],
+			['SyncTrack', ['0 = TS 4', '0 = B 100000', '0 = TS 3', '0 = B 120000', '768 = B 140000', '768 = B 140000', '768 = B 150000', '960 = B x']],
+			['ExpertSingle', ['0 = N 0 0', '960 = N 1 0']],
+		])
+		const result = normalized(text)
+		expect(result.kinds).toEqual(['unreadableLines:SyncTrack', 'order:SyncTrack', 'duplicateLines:SyncTrack', 'repeatedMarkers:SyncTrack'])
+		expect(result.text).toBe(chartText([
+			['Song', ['Resolution = 192']],
+			['SyncTrack', ['0 = TS 3', '0 = B 120000', '768 = B 150000']],
+			['ExpertSingle', ['0 = N 0 0', '960 = N 1 0']],
+		]))
+		const hashes = (chartFile: string) => songHashes(parseSongFiles([{ fileName: 'notes.chart', data: encode(chartFile) }, songIni]))
+		expect(hashes(result.text)).toEqual(hashes(text))
+	})
+
 	// [Song] agrees with song.ini, so the [Song] normalization has nothing to do.
 	const savedHead: [string, string[]][] = [['Song', ['Resolution = 192', 'Name = "Test"', 'Length = 60']], head[1]]
 

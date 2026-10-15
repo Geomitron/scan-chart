@@ -5,6 +5,8 @@ import {
 	chartEventSection,
 	chartSectionLines,
 	chartSectionTrack,
+	chartSyncTempo,
+	chartSyncTS,
 	defaultChartResolution,
 	tokenizeChartFile,
 } from './chart-file-parser'
@@ -13,8 +15,9 @@ import { ChartLineSpelling, chartSectionSpellings, chartSongSpellings } from './
 /**
  * A kind of nonstandard `.chart` spelling. The standard is what the `.chart` encoder writes and nearly every library
  * file already uses: CRLF line endings, two-space indentation, no blank lines in a section, lines in tick order, no
- * repeated lines or sections, bare text events in instrument sections, every line in its standard spelling, and
- * `[Song]` and `[SyncTrack]` as the first two sections, with a `Resolution`.
+ * repeated lines or sections, one tempo marker and one time signature at a tick, bare text events in instrument
+ * sections, every line in its standard spelling, and `[Song]` and `[SyncTrack]` as the first two sections, with a
+ * `Resolution`.
  */
 export type ChartNormalizationKind =
 	| 'lineEndings'
@@ -23,6 +26,7 @@ export type ChartNormalizationKind =
 	| 'spacing'
 	| 'order'
 	| 'duplicateLines'
+	| 'repeatedMarkers'
 	| 'quotedTrackEvents'
 	| 'repeatedSections'
 	| 'sectionOrder'
@@ -40,8 +44,10 @@ type Splice = { start: number; end: number; text: string }
 
 /**
  * Every normalization a `.chart` file needs. A normalization keeps the meaning, but some change what an older reader
- * saw, and so a hash: saving decides where each applies (E7). Content is never normalized: values, redundant markers
- * and unrecognized lines stay as written, and the byte-order mark and encoding are kept. A malformed file gets none.
+ * saw, and so a hash: saving decides where each applies (E7). Content is otherwise never normalized: values, redundant
+ * markers and unrecognized lines stay as written, and the byte-order mark and encoding are kept. The exception is a
+ * second tempo marker or time signature at a tick, which readers use instead of the first, so the first is removed. A
+ * malformed file gets none.
  *
  * A line in a nonstandard spelling is written the way scan-chart reads it (chart-line-spelling.ts): `lineSpelling`
  * writes the standard spelling, and `unreadableLines` removes a line scan-chart can't read. They come first, so the
@@ -76,6 +82,7 @@ export function chartNormalizations(tokens: ChartFileTokens): ChartNormalization
 		add('spacing', name, current => sectionSplices(current, name, spacing))
 		add('order', name, current => sectionSplices(current, name, lines => order(lines, name)))
 		add('duplicateLines', name, current => sectionSplices(current, name, withoutDuplicates))
+		if (name === 'SyncTrack') add('repeatedMarkers', name, current => sectionSplices(current, name, withoutEarlierMarkers))
 		if (chartSectionTrack(name) !== null) add('quotedTrackEvents', name, current => sectionSplices(current, name, unquoted))
 	}
 	// Last, because removing and moving sections moves the others.
@@ -283,6 +290,27 @@ function withoutDuplicates(lines: string[]): string[] {
 		if (seen.has(text)) return false
 		seen.add(text)
 		return true
+	})
+}
+
+/**
+ * Of the tempo markers at a tick, the last, and of the time signatures, the last: readers use it (the canonical rules'
+ * `lastAtEachTick`), so the others have no effect. Only lines a reader reads as markers count.
+ */
+function withoutEarlierMarkers(lines: string[]): string[] {
+	const markerAt = (line: string) => {
+		const text = trimmed(line)
+		const tick = (chartSyncTempo.exec(text) ?? chartSyncTS.exec(text))?.[1]
+		return tick === undefined ? null : `${tick} ${text.includes(' = B ') ? 'B' : 'TS'}`
+	}
+	const lastIndex = new Map<string, number>()
+	lines.forEach((line, index) => {
+		const marker = markerAt(line)
+		if (marker !== null) lastIndex.set(marker, index)
+	})
+	return lines.filter((line, index) => {
+		const marker = markerAt(line)
+		return marker === null || lastIndex.get(marker) === index
 	})
 }
 
