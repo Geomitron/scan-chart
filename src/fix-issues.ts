@@ -2,12 +2,12 @@ import { contentType, readAudioInfo } from './assets/media-headers'
 import { scanAudio } from './assets/scan-audio'
 import { imageSize } from './assets/scan-image'
 import { contentNames, hasContentExtension } from './assets/scan-media'
+import { fixEmptyPhrases, fixEmptyTracks, fixHopoTags, fixMultiplierNote, fixSustains } from './fix-chart'
 import { ignoredIssueCodes, keyList } from './ini/ini-checks'
-import { asUtf8Ini, rewriteSongIni } from './ini/ini-edit'
+import { asUtf8Ini, rewriteSongIni, songIniRepeats } from './ini/ini-edit'
 import { isBooleanTag, isNumberTag } from './ini/metadata'
 import { IniTokens, parseIniTokens } from './ini/parse-ini'
-import { fixEmptyPhrases, fixEmptyTracks, fixHopoTags, fixMultiplierNote, fixSustains } from './fix-chart'
-import { FixRecord, FixReport, hashChanges, hashNames } from './fix-report'
+import { chooseEdits, FixRecord, hashChanges, hashNames, IniFixSubject, issueFixTable } from './issue-fixes'
 import type { Issue, IssueCode, MetadataFinding } from './issues'
 import { scanSong, songIniFindings } from './scan-song-folder'
 import { getBasename, hasCrowdOrPreviewName } from './shared/file-names'
@@ -16,37 +16,6 @@ import { songContext } from './song-context'
 import { continueEdits, SongDocument, withSongIni } from './song-document'
 import { readFileBytes, readRange, type SongFile } from './song-files'
 import { songHashes } from './song-save'
-
-/**
- * For each issue code `fixIssues` can fix, whether its fix keeps the canonical hashes or changes them. A fix that keeps
- * them is made by default. Where a song needs one that would change a hash after all, such as unquoting a song name,
- * which the SongHash reads, it waits for `changeHashes`; where a fix meant to read alike would change one, it's wrong
- * for that song, and isn't made.
- */
-export const issueFixes: { readonly [code in IssueCode]?: 'keepsHashes' | 'changesHashes' } = {
-	fileNameCase: 'keepsHashes',
-	extensionMismatch: 'keepsHashes',
-	albumArtSize: 'keepsHashes',
-	iniLayout: 'keepsHashes',
-	iniTagOrder: 'keepsHashes',
-	blankIniValue: 'keepsHashes',
-	blankIniNumber: 'keepsHashes',
-	quotedIniValue: 'keepsHashes',
-	defaultIniValue: 'keepsHashes',
-	iconName: 'keepsHashes',
-	deprecatedIniTag: 'keepsHashes',
-	redundantDrumType: 'keepsHashes',
-	missingSongLength: 'keepsHashes',
-	songLengthMismatch: 'keepsHashes',
-	emptyTrack: 'keepsHashes',
-	emptyStarPower: 'keepsHashes',
-	emptySoloSection: 'keepsHashes',
-	emptyFlexLane: 'keepsHashes',
-	badSustainGap: 'changesHashes',
-	babySustain: 'changesHashes',
-}
-
-export type { FixReport } from './fix-report'
 
 /** What `fixIssues` fixes, and how. */
 export interface FixOptions {
@@ -67,18 +36,28 @@ export interface FixOptions {
 	readonly resizeImage?: (image: Uint8Array, size: number) => Promise<Uint8Array>
 }
 
+/** What `fixIssues` did. The hashes are the canonical ones, keyed as `canonical:guitar:expert` and `canonical:song`. */
+export interface FixReport {
+	/** Each fix made: the code of the issue it fixes, the file it changes, and what it does. */
+	readonly fixed: readonly { readonly code: IssueCode; readonly file: string; readonly description: string }[]
+	/** Each issue found that wasn't fixed, and why. */
+	readonly skipped: readonly { readonly code: IssueCode; readonly file: string | null; readonly reason: string }[]
+	/** Files renamed. Writing the song back to its folder, remove each `from` file. */
+	readonly renamed: readonly { readonly from: string; readonly to: string }[]
+	/** Each hash the fixes changed, with its value before and after, or `null` where the song had or has no such hash. */
+	readonly hashes: readonly { readonly key: string; readonly before: string | null; readonly after: string | null }[]
+}
+
 /**
- * Fixes the song's issues that `issueFixes` lists, found by scanning it, and returns the fixed song with a report,
- * leaving `song` as it was. A fix is made only where its issue is reported, and not where song.ini's `ignored_issues`
- * lists its code. Save the fixed song like any other: `serializeSong` keeps every hash the fixes didn't change.
+ * Fixes the song's issues that `issueFixes` lists and returns the fixed song with a report, leaving `song` as it was.
+ * A fix is made only where a scan reports its issue, and not for a code song.ini's `ignored_issues` lists. Save the
+ * fixed song like any other.
  */
 export async function fixIssues(song: SongDocument, options: FixOptions = {}): Promise<{ readonly song: SongDocument; readonly report: FixReport }> {
-	const asked = options.codes ?? (Object.keys(issueFixes) as IssueCode[])
-	const { scanned, iniFindings } = await scanSong(song, {
-		styleNotes: true,
-		mediaIssues: asked.some(code => mediaCodes.includes(code)),
-		albumArtSizes: options.albumArtSizes,
-	})
+	const asked = options.codes ?? (Object.keys(issueFixTable) as IssueCode[])
+	const scanned = await scanSong(song, { styleNotes: true, mediaIssues: asked.some(code => issueFixTable[code]?.media), albumArtSizes: options.albumArtSizes })
+	const context = songContext(song)
+	const ignored = context.ini.songSection === null ? new Set<IssueCode>() : ignoredIssueCodes(context.ini.songSection).codes
 	const skipped: FixReport['skipped'][number][] = []
 	const record: FixRecord = {
 		fixed: [],
@@ -87,46 +66,36 @@ export async function fixIssues(song: SongDocument, options: FixOptions = {}): P
 			if (!skipped.some(entry => entry.code === code && entry.file === file && entry.reason === reason)) skipped.push({ code, file, reason })
 		},
 	}
-	for (const issue of scanned.ignoredIssues) {
-		if (asked.includes(issue.code) && issueFixes[issue.code] !== undefined) record.skip(issue.code, issue.file, 'song.ini\'s "ignored_issues" lists it.')
+	/** Whether a code's fix is asked for and made with these options. */
+	const makes = (code: IssueCode) => {
+		const fix = issueFixTable[code]
+		return fix !== undefined && asked.includes(code) && !ignored.has(code) && (fix.hashes !== 'changesHashes' || options.changeHashes === true)
 	}
-	const issues = scanned.issues.filter(issue => {
-		if (!asked.includes(issue.code)) return false
-		const fix = issueFixes[issue.code]
-		if (fix === undefined) record.skip(issue.code, issue.file, 'fixIssues has no fix for it.')
-		else if (fix === 'changesHashes' && !options.changeHashes) record.skip(issue.code, issue.file, 'Its fix changes a canonical hash: fix it with changeHashes.')
-		return fix === 'keepsHashes' || (fix === 'changesHashes' && options.changeHashes)
-	})
+	for (const issue of [...scanned.ignoredIssues, ...scanned.issues]) {
+		if (!asked.includes(issue.code) || makes(issue.code)) continue
+		record.skip(issue.code, issue.file, issueFixTable[issue.code] === undefined ? 'fixIssues has no fix for it.'
+			: ignored.has(issue.code) ? 'song.ini\'s "ignored_issues" lists it.'
+			: 'Its fix changes a canonical hash: fix it with changeHashes.')
+	}
+	const issues = scanned.issues.filter(issue => makes(issue.code))
+	const findings = songIniFindings(song, context, scanned.stats, { styleNotes: true })
 
-	const songSection = songContext(song).ini.songSection
-	const ignored = songSection === null ? new Set<IssueCode>() : ignoredIssueCodes(songSection).codes
-	const fixes = (code: IssueCode) => asked.includes(code) && !ignored.has(code)
-		&& (issueFixes[code] === 'keepsHashes' || (issueFixes[code] === 'changesHashes' && options.changeHashes === true))
+	let fixed = fixMultiplierNote(fixHopoTags(song, issues, findings, record), issues, findings, record)
+	fixed = fixSustains(fixed, issues, { gapMs: options.sustainGapMs ?? 60, minMs: options.minSustainMs ?? 200, removeShort: makes('babySustain') }, record)
+	fixed = fixEmptyTracks(fixEmptyPhrases(fixed, issues, record), issues, record)
 	const songLength = issues.some(issue => issue.code === 'missingSongLength' || issue.code === 'songLengthMismatch') ? await longestAudio(song.files) : null
-	// A sustain the gap fix leaves short is removed when the short sustain fix is on.
-	const removeShort = fixes('babySustain')
-	const rewritten = fixMultiplierNote(fixHopoTags(song, issues, iniFindings, record), issues, iniFindings, record)
-	const sustained = fixSustains(rewritten, issues, { gapMs: options.sustainGapMs ?? 60, minMs: options.minSustainMs ?? 200, removeShort }, record)
-	const charted = fixEmptyTracks(fixEmptyPhrases(sustained, issues, record), issues, record)
-	const metadataCodes = new Set(issues.filter(issue => issue.scope === 'metadata').map(issue => issue.code))
-	let fixedIni = fixSongIni(charted, metadataCodes, iniFindings, songLength, options, record)
+	let rewritten = fixSongIni(fixed, new Set(issues.map(issue => issue.code)), findings, songLength, options, record)
 	// A song.ini fix can leave another line changing nothing, such as five_lane_drums = False once pro_drums is gone,
-	// so the song.ini checks run again on the fixed song, twice at most.
-	for (let round = 0; round < 2 && fixedIni !== charted; round++) {
-		const findings = songIniFindings(fixedIni, scanned.stats, { styleNotes: true }).filter(finding => fixes(finding.metadataIssue))
-		const again = fixSongIni(fixedIni, new Set(findings.map(finding => finding.metadataIssue)), findings, null, options, record)
-		if (again === fixedIni) break
-		fixedIni = again
+	// so song.ini is checked again, twice at most.
+	for (let round = 0; round < 2 && rewritten !== fixed; round++) {
+		const again = songIniFindings(rewritten, songContext(rewritten), scanned.stats, { styleNotes: true }).filter(finding => makes(finding.metadataIssue))
+		const next = fixSongIni(rewritten, new Set(again.map(finding => finding.metadataIssue)), again, null, options, record)
+		if (next === rewritten) break
+		rewritten = next
 	}
-	const fixed = await fixFiles(fixedIni, issues, options, record)
-	return {
-		song: fixed,
-		report: { fixed: record.fixed, skipped, renamed: record.renamed, hashes: hashChanges(songHashes(song), songHashes(fixed)) },
-	}
+	fixed = await fixFiles(rewritten, issues, options, record)
+	return { song: fixed, report: { fixed: record.fixed, skipped, renamed: record.renamed, hashes: hashChanges(songHashes(song), songHashes(fixed)) } }
 }
-
-/** The codes whose issues only a scan that reads the media files finds. */
-const mediaCodes: readonly IssueCode[] = ['songLengthMismatch', 'extensionMismatch', 'albumArtSize']
 
 /**
  * The length of the longest audio file, not counting crowd or preview audio, in whole milliseconds, read from the
@@ -144,28 +113,18 @@ async function longestAudio(files: readonly SongFile[]): Promise<{ ms: number } 
 	return { ms: Math.round(longest) }
 }
 
-/** One change to song.ini, which fixes one issue for one tag, or lays out or orders the file. */
-interface IniFix {
+/** One song.ini change, which fixes one tag's issue, or lays out or orders the file. */
+interface IniFix extends IniFixSubject {
 	readonly code: IssueCode
-	/** The tag or line it's about, for the report, such as `delay = 0`. */
-	readonly subject: string
 	readonly layout?: true
 	readonly order?: true
 	readonly remove?: readonly string[]
 	readonly set?: readonly (readonly [key: string, value: string])[]
-	/** Whether games read the song alike after it. A fix that does and changes a hash anyway is wrong for this song. */
-	readonly readsAlike: boolean
 }
 
-const iniCodes: readonly IssueCode[] = [
-	'iniLayout', 'iniTagOrder', 'blankIniValue', 'blankIniNumber', 'quotedIniValue', 'defaultIniValue', 'iconName', 'deprecatedIniTag', 'redundantDrumType',
-	'missingSongLength', 'songLengthMismatch',
-]
-
 /**
- * Rewrites song.ini for its issues, as `rewriteSongIni` writes it: its layout and tag order, and its values. Every
- * change is checked against the canonical hashes: one that changes a hash is left out, unless it's meant to change how
- * games read the song and `changeHashes` is set. `songLength` is the longest audio file's, when an issue asks for it.
+ * Rewrites song.ini for the reported codes. A change that would change a canonical hash isn't made, unless its code's
+ * fix may change hashes and `changeHashes` is set.
  */
 function fixSongIni(
 	song: SongDocument,
@@ -175,7 +134,7 @@ function fixSongIni(
 	options: FixOptions,
 	record: FixRecord,
 ): SongDocument {
-	const codes = new Set(iniCodes.filter(code => reported.has(code)))
+	const codes = new Set([...reported].filter(code => issueFixTable[code]?.steps.includes('songIni')))
 	const ini = song.ini
 	if (codes.size === 0 || ini === null) return song
 	let tokens: IniTokens
@@ -189,10 +148,10 @@ function fixSongIni(
 	const keysOf = (code: IssueCode) => codes.has(code) ? findings.filter(finding => finding.metadataIssue === code).flatMap(finding => finding.keys ?? []) : []
 
 	const fixes: IniFix[] = []
-	if (codes.has('iniLayout')) fixes.push({ code: 'iniLayout', subject: '', layout: true, readsAlike: true })
-	if (codes.has('iniTagOrder')) fixes.push({ code: 'iniTagOrder', subject: '', order: true, readsAlike: true })
+	if (codes.has('iniLayout')) fixes.push({ code: 'iniLayout', subject: 'the layout', layout: true })
+	if (codes.has('iniTagOrder')) fixes.push({ code: 'iniTagOrder', subject: 'the tag order', order: true })
 	for (const code of ['blankIniValue', 'blankIniNumber', 'defaultIniValue', 'redundantDrumType'] as const) {
-		for (const key of keysOf(code)) fixes.push({ code, subject: code === 'defaultIniValue' ? `${key} = ${songSection[key]}` : key, remove: [key], readsAlike: true })
+		for (const key of keysOf(code)) fixes.push({ code, subject: code === 'defaultIniValue' ? `${key} = ${songSection[key]}` : key, remove: [key] })
 	}
 	for (const key of keysOf('quotedIniValue')) {
 		const unquoted = trimDotnet(songSection[key].slice(1, -1))
@@ -201,76 +160,62 @@ function fixSongIni(
 			record.skip('quotedIniValue', ini.fileName, `Games read the default for a quoted number or true/false value: write the value you mean for "${key}" without quotes.`)
 			continue
 		}
-		fixes.push({ code: 'quotedIniValue', subject: key, ...unquoted === '' ? { remove: [key] } : { set: [[key, unquoted]] }, readsAlike: false })
+		fixes.push({ code: 'quotedIniValue', subject: key, ...unquoted === '' ? { remove: [key] } : { set: [[key, unquoted]] } })
 	}
 	if (codes.has('iconName')) {
 		const icon = songSection.icon
 		const name = icon.replace(/\.[a-z0-9]+$/i, '').toLowerCase()
-		if (/^[a-z0-9_-]+$/.test(name)) fixes.push({ code: 'iconName', subject: 'icon', set: [['icon', name]], readsAlike: false })
+		if (/^[a-z0-9_-]+$/.test(name)) fixes.push({ code: 'iconName', subject: 'icon', value: name, set: [['icon', name]] })
 		else record.skip('iconName', ini.fileName, `Without its extension and in lowercase, "${icon}" has other characters than a-z, 0-9, "-" and "_": choose an icon name.`)
 	}
 	for (const key of keysOf('deprecatedIniTag')) {
 		const newer = key === 'frets' ? 'charter' : key === 'track' ? 'album_track' : null
-		if (newer !== null) fixes.push({ code: 'deprecatedIniTag', subject: key, set: [[newer, songSection[key]]], remove: [key], readsAlike: true })
+		if (newer !== null) fixes.push({ code: 'deprecatedIniTag', subject: key, value: newer, set: [[newer, songSection[key]]], remove: [key] })
 		else if (key === 'delay') record.skip('deprecatedIniTag', ini.fileName, 'Removing "delay" moves every note against the audio: the audio or the notes have to change first.')
 	}
 	for (const code of ['missingSongLength', 'songLengthMismatch'] as const) {
 		if (!codes.has(code) || songLength === null) continue
-		if ('ms' in songLength) fixes.push({ code, subject: 'song_length', set: [['song_length', String(songLength.ms)]], readsAlike: false })
+		if ('ms' in songLength) fixes.push({ code, subject: 'song_length', value: String(songLength.ms), set: [['song_length', String(songLength.ms)]] })
 		else record.skip(code, ini.fileName, songLength.reason)
 	}
 	if (fixes.length === 0) return song
 
 	const before = songHashes(song)
 	const apply = (chosen: readonly IniFix[]) => continueEdits(song, withSongIni(song, rewriteSongIni(tokens, {
-		layout: chosen.some(fix => fix.layout),
+		layout: chosen.some(fix => fix.layout === true),
 		order: chosen.some(fix => fix.order === true),
 		remove: new Set(chosen.flatMap(fix => fix.remove ?? [])),
 		set: new Map(chosen.flatMap(fix => fix.set ?? [])),
 	})))
-	let chosen: readonly IniFix[] = fixes
-	let fixed = apply(chosen)
-	if (hashChanges(before, songHashes(fixed)).length > 0) {
-		chosen = fixes.filter(fix => {
-			const changes = hashChanges(before, songHashes(apply([fix])))
-			if (changes.length === 0 || (!fix.readsAlike && options.changeHashes)) return true
-			record.skip(fix.code, ini.fileName, fix.readsAlike
-				? `Fixing "${fix.subject}" would change ${hashNames(changes)}, so games would read the song differently.`
-				: `Fixing "${fix.subject}" changes ${hashNames(changes)}: fix it with changeHashes.`)
-			return false
-		})
-		fixed = chosen.length === 0 ? song : apply(chosen)
-		const changes = hashChanges(before, songHashes(fixed))
-		if (changes.length > 0 && !options.changeHashes) {
-			// Fixes that each keep the hashes change one together: only the layout and the order are left.
-			for (const fix of chosen.filter(fix => !fix.layout && !fix.order)) record.skip(fix.code, ini.fileName, `With the other fixes, fixing "${fix.subject}" would change ${hashNames(changes)}.`)
-			chosen = chosen.filter(fix => fix.layout || fix.order)
-			fixed = chosen.length === 0 ? song : apply(chosen)
-		}
+	const mayChange = (fix: IniFix) => issueFixTable[fix.code]!.hashes !== 'keepsHashes'
+	const changedAlone = new Map<IniFix, readonly string[]>()
+	const changesOf = (fix: IniFix) => {
+		let keys = changedAlone.get(fix)
+		if (keys === undefined) changedAlone.set(fix, keys = hashChanges(before, songHashes(apply([fix]))).map(change => change.key))
+		return keys
 	}
-	for (const code of iniCodes) {
-		const ofCode = chosen.filter(fix => fix.code === code)
-		if (ofCode.length > 0) record.fixed.push({ code, file: ini.fileName, description: iniFixDescription(code, ofCode) })
+	// With changeHashes, the fixes that may change hashes may change the ones each changes alone.
+	const problem = (edited: SongDocument, chosen: readonly IniFix[]) => {
+		const changes = hashChanges(before, songHashes(edited))
+		const allowed = new Set(options.changeHashes ? chosen.filter(mayChange).flatMap(changesOf) : [])
+		return changes.every(change => allowed.has(change.key)) ? null : `would change ${hashNames(changes)}`
 	}
-	return fixed
-}
+	const { song: rewritten, chosen } = chooseEdits(song, fixes, apply, problem, (fix, problem) => record.skip(fix.code, ini.fileName, mayChange(fix)
+		? `Fixing "${fix.subject}" ${problem}: fix it with changeHashes.`
+		: `Fixing "${fix.subject}" ${problem}, so games would read the song differently.`))
 
-function iniFixDescription(code: IssueCode, fixes: readonly IniFix[]): string {
-	const list = keyList(fixes.map(fix => fix.subject))
-	const was = fixes.length === 1 ? 'was' : 'were'
-	switch (code) {
-		case 'iniLayout': return 'Wrote "[song]" first, comments with ";", and the lines games don\'t read as comments.'
-		case 'iniTagOrder': return 'Put the tags in the standard order.'
-		case 'blankIniValue': return `Removed ${list}, which ${was} blank or -1.`
-		case 'blankIniNumber': return `Removed ${list}, which ${was} blank.`
-		case 'quotedIniValue': return `Removed the quotes around ${list}.`
-		case 'defaultIniValue': return `Removed ${list}, which changed nothing.`
-		case 'iconName': return `Changed "icon" to "${fixes[0].set![0][1]}".`
-		case 'deprecatedIniTag': return `Renamed ${fixes.map(fix => `"${fix.subject}" to "${fix.set![0][0]}"`).join(' and ')}.`
-		case 'missingSongLength':
-		case 'songLengthMismatch': return `Set "song_length" to ${fixes[0].set![0][1]}, the length of the longest audio file in milliseconds.`
-		default: return `Removed ${list}, which games read the drums the same without.`
+	// A rewrite of the whole file merges [song] sections, and keeps only the line Clone Hero reads of a repeated tag.
+	const repeats = songIniRepeats(tokens)
+	const merged = [...repeats.sections > 1 ? [`merged its ${repeats.sections} "[song]" sections`] : [],
+		...repeats.keys.length > 0 ? [`kept only the last line of ${keyList(repeats.keys)}, the one Clone Hero reads`] : []]
+	const rewrites = chosen.find(fix => fix.layout === true) ?? chosen.find(fix => fix.order === true)
+	for (const code of Object.keys(issueFixTable) as IssueCode[]) {
+		const ofCode = chosen.filter(fix => fix.code === code)
+		if (ofCode.length === 0) continue
+		const also = merged.length > 0 && rewrites?.code === code ? ` It also ${merged.join(' and ')}.` : ''
+		record.fixed.push({ code, file: ini.fileName, description: issueFixTable[code]!.describe!(ofCode) + also })
 	}
+	return rewritten
 }
 
 /** What the file fixes do to one file: its new name, its new bytes, and the issues they fix. */

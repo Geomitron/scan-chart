@@ -1,19 +1,19 @@
-import { sameAsJson } from './chart/chart-analysis'
 import { chartAuthoredTracks, midiAuthoredTracks } from './chart/authored-view'
+import { sameAsJson } from './chart/chart-analysis'
 import { spliceChartText } from './chart/chart-edit'
 import { chartSectionTrack, ChartFileTokens, ChartSectionToken } from './chart/chart-file-parser'
 import { midiSourceTrackInstrument } from './chart/midi-file-parser'
+import type { MidiTokens } from './chart/midi-tokens'
 import { removeMidiTrackChunks } from './chart/midi-tokens'
-import { parseChartSource, type ParsedChartFile } from './chart/parse-chart-file'
+import { msAtTick, parseChartSource, type ParsedChartFile, tickAtMs } from './chart/parse-chart-file'
 import { parseRules } from './chart/parse-rules'
 import { EventType, eventTypes } from './chart/raw-types'
 import { NoteEvent, noteFlags, noteTypes } from './chart/types'
-import { FixRecord, hashChanges, hashNames } from './fix-report'
 import { asUtf8Ini, rewriteSongIni } from './ini/ini-edit'
-import type { IniTokens } from './ini/parse-ini'
+import { chooseEdits, FixRecord, hashChanges, hashNames, issueFixTable } from './issue-fixes'
 import type { Issue, IssueCode, MetadataFinding } from './issues'
 import { songContext } from './song-context'
-import { AuthoredElement, continueEdits, editSong, SongDocument, withSongIni } from './song-document'
+import { AuthoredElement, continueEdits, editSong, RawSongEditBatch, SongDocument, withSongIni } from './song-document'
 import { songHashes } from './song-save'
 import { Difficulty, getInstrumentType, Instrument, instrumentTypes } from './types'
 
@@ -25,6 +25,19 @@ function parsedChart(song: SongDocument): ParsedChartFile | null {
 	return chart.kind === 'parsed' ? chart.parsed : null
 }
 
+/** A track as messages name it, such as "expert guitar", or "guitar" for a `.mid` track's every difficulty. */
+const trackLabel = (track: { readonly instrument: Instrument; readonly difficulty: Difficulty | null }) =>
+	track.difficulty === null ? track.instrument : `${track.difficulty} ${track.instrument}`
+
+/** The `.chart` section a reader reads for a track. */
+const chartSectionOf = (tokens: ChartFileTokens, instrument: Instrument, difficulty: Difficulty) =>
+	chartAuthoredTracks(tokens).find(track => track.isRead && track.instrument === instrument && track.difficulty === difficulty)
+
+/** The `.mid` track a reader reads for an instrument. */
+const midiTrackOf = (tokens: MidiTokens, instrument: Instrument) => midiAuthoredTracks(tokens).find(track => track.isFirst && track.instrument === instrument)
+
+const isFret = (instrument: Instrument) => getInstrumentType(instrument) !== instrumentTypes.drums
+
 /**
  * The first way two parses of a chart play differently, or `null` when they play alike: the drum type, the tempo map, a
  * track, or a note's tick, length, type or flags, and, with `phrases`, star power, solos, flex lanes and drum fills.
@@ -35,7 +48,7 @@ export function gameplayDifference(a: ParsedChartFile, b: ParsedChartFile, phras
 	if (drumType(a) !== drumType(b)) return 'the drum type'
 	const tempoMap = (chart: ParsedChartFile) => [chart.tempos.map(tempo => [tempo.tick, tempo.beatsPerMinute]), chart.timeSignatures.map(signature => [signature.tick, signature.numerator, signature.denominator])]
 	if (!sameAsJson(tempoMap(a), tempoMap(b))) return 'the tempo map'
-	const tracks = (chart: ParsedChartFile) => new Map(chart.trackData.map(track => [trackName(track), track]))
+	const tracks = (chart: ParsedChartFile) => new Map(chart.trackData.map(track => [trackLabel(track), track]))
 	const [tracksA, tracksB] = [tracks(a), tracks(b)]
 	for (const name of new Set([...tracksA.keys(), ...tracksB.keys()])) {
 		const [x, y] = [tracksA.get(name), tracksB.get(name)]
@@ -59,47 +72,6 @@ type PhraseField = (typeof phraseFields)[number][0]
 function phraseRanges(track: Track, field: PhraseField) {
 	return (track[field] as readonly { tick: number; length: number; isDouble?: boolean; isCoda?: boolean }[])
 		.map(phrase => [phrase.tick, phrase.length, phrase.isDouble ?? phrase.isCoda ?? null])
-}
-
-const trackName = (track: { instrument: Instrument; difficulty: Difficulty }) => `${track.difficulty} ${track.instrument}`
-
-/**
- * Applies the edits that keep `problem` away: all of them, or else each that passes alone, and then those together.
- * Each edit left out is skipped with its problem, which completes a sentence about the edit, such as "would change the
- * drum type". Returns the song with the edits chosen.
- */
-function chooseEdits<T>(
-	song: SongDocument,
-	edits: readonly T[],
-	apply: (chosen: readonly T[]) => SongDocument,
-	problem: (edited: SongDocument, chosen: readonly T[]) => string | null,
-	skip: (edit: T, problem: string) => void,
-): { song: SongDocument; chosen: readonly T[] } {
-	const check = (chosen: readonly T[]) => {
-		try {
-			const edited = apply(chosen)
-			return { edited, reason: problem(edited, chosen) }
-		} catch (error) {
-			return { edited: song, reason: `fails: ${error instanceof Error ? error.message : String(error)}` }
-		}
-	}
-	if (edits.length === 0) return { song, chosen: [] }
-	const all = check(edits)
-	if (all.reason === null) return { song: all.edited, chosen: edits }
-	if (edits.length === 1) {
-		skip(edits[0], all.reason)
-		return { song, chosen: [] }
-	}
-	const chosen = edits.filter(edit => {
-		const { reason } = check([edit])
-		if (reason !== null) skip(edit, reason)
-		return reason === null
-	})
-	if (chosen.length === 0) return { song, chosen }
-	const together = check(chosen)
-	if (together.reason === null) return { song: together.edited, chosen }
-	for (const edit of chosen) skip(edit, `${together.reason}, with the other fixes`)
-	return { song, chosen: [] }
 }
 
 /**
@@ -131,18 +103,17 @@ export function fixEmptyTracks(song: SongDocument, issues: readonly Issue[], rec
 			return track !== null && isReported(track.instrument, track.difficulty)
 		})
 		const apply = (chosen: readonly string[]) => {
-			if (song.chart?.format !== 'chart') return song
-			const { tokens } = song.chart
-			const ranges = tokens.sections.filter(section => chosen.includes(section.name)).map(section => ({ ...sectionRange(tokens, section), text: '' }))
-			return continueEdits(song, { ...song, chart: { ...song.chart, tokens: spliceChartText(tokens, ranges) } })
+			const ranges = chart.tokens.sections.filter(section => chosen.includes(section.name)).map(section => ({ ...sectionRange(chart.tokens, section), text: '' }))
+			return continueEdits(song, { ...song, chart: { ...chart, tokens: spliceChartText(chart.tokens, ranges) } })
 		}
 		const { song: fixed, chosen } = chooseEdits(song, names, apply, edited => keepsGameplay(song, edited, true),
 			(name, problem) => record.skip('emptyTrack', chart.fileName, `Removing the [${name}] section ${problem}.`))
 		for (const name of chosen) record.fixed.push({ code: 'emptyTrack', file: chart.fileName, description: `Removed the [${name}] section, which has no notes.` })
 		return fixed
 	}
-	if (chart.tokens === null) return song
-	const tracks = chart.tokens.chunks.flatMap((chunk, index) => chunk.kind === 'track' ? [{ chunk, index }] : []).slice(1).flatMap(({ chunk, index }) => {
+	const { tokens } = chart
+	if (tokens === null) return song
+	const tracks = tokens.chunks.flatMap((chunk, index) => chunk.kind === 'track' ? [{ chunk, index }] : []).slice(1).flatMap(({ chunk, index }) => {
 		// A track is named by its last name at tick 0.
 		const names = chunk.events.filter(({ tick, event }) => tick === 0 && event.type === 'trackName').map(({ event }) => (event as { text: string }).text)
 		const name = names[names.length - 1]
@@ -150,9 +121,8 @@ export function fixEmptyTracks(song: SongDocument, issues: readonly Issue[], rec
 		return instrument !== null && isReported(instrument, null) ? [{ name, index }] : []
 	})
 	const apply = (chosen: readonly { name: string; index: number }[]) => {
-		if (song.chart?.format !== 'mid' || song.chart.tokens === null) return song
-		const tokens = removeMidiTrackChunks(song.chart.tokens, chosen.map(track => track.index))
-		return continueEdits(song, { ...song, chart: { ...song.chart, bytes: tokens.data, tokens } })
+		const edited = removeMidiTrackChunks(tokens, chosen.map(track => track.index))
+		return continueEdits(song, { ...song, chart: { ...chart, bytes: edited.data, tokens: edited } })
 	}
 	const { song: fixed, chosen } = chooseEdits(song, tracks, apply, edited => keepsGameplay(song, edited, true),
 		(track, problem) => record.skip('emptyTrack', chart.fileName, `Removing the "${track.name}" track ${problem}.`))
@@ -168,9 +138,6 @@ function sectionRange(tokens: ChartFileTokens, section: ChartSectionToken): { st
 	return { start, end: lineEnd === -1 ? text.length : lineEnd + 1 }
 }
 
-const emptyPhraseFields = { emptyStarPower: 'starPowerSections', emptySoloSection: 'soloSections', emptyFlexLane: 'flexLanes' } as const
-const phraseNames = { emptyStarPower: 'star power', emptySoloSection: 'solo', emptyFlexLane: 'flex lane' } as const
-
 /** One phrase to remove: where it starts, and the authored events that write it. */
 interface PhraseRemoval {
 	readonly instrument: Instrument
@@ -181,51 +148,51 @@ interface PhraseRemoval {
 }
 
 /**
- * Removes star power, solo and flex lane phrases with no notes (`emptyStarPower`, `emptySoloSection`,
- * `emptyFlexLane`). A `.mid` phrase, which every difficulty shares, is removed only when it has no notes on any. The
- * canonical hashes leave out phrases with no notes, so a removal that changes a note or a hash is left out.
+ * Removes the phrases with no notes that `issueFixTable` names, such as star power (`emptyStarPower`). A `.mid` phrase,
+ * which every difficulty shares, is removed only when it has no notes on any. A removal that changes a note, another
+ * phrase or a canonical hash isn't made.
  */
 export function fixEmptyPhrases(song: SongDocument, issues: readonly Issue[], record: FixRecord): SongDocument {
 	let fixed = song
-	for (const code of ['emptyStarPower', 'emptySoloSection', 'emptyFlexLane'] as const) {
+	for (const code of new Set(issues.map(issue => issue.code))) {
 		const found = issues.filter(issue => issue.code === code && issue.instrument !== null && issue.difficulty !== null && issue.tick !== null)
-		if (found.length > 0) fixed = removeEmptyPhrases(fixed, code, found, record)
+		if (issueFixTable[code]?.phrases !== undefined && found.length > 0) fixed = removeEmptyPhrases(fixed, code, found, record)
 	}
 	return fixed
 }
 
-function removeEmptyPhrases(song: SongDocument, code: keyof typeof emptyPhraseFields, found: readonly Issue[], record: FixRecord): SongDocument {
+function removeEmptyPhrases(song: SongDocument, code: IssueCode, found: readonly Issue[], record: FixRecord): SongDocument {
 	const { chart } = song
 	const parsed = parsedChart(song)
+	const { field, name } = issueFixTable[code]!.phrases!
 	if (chart === null || parsed === null || (chart.format === 'mid' && chart.tokens === null)) return song
-	const field = emptyPhraseFields[code]
 	const skip = (reason: string) => record.skip(code, chart.fileName, reason)
+	/** The phrase's event types: a `.mid` track's star power is its solo notes where it reads them as star power. */
+	const typesOf = (instrument: Instrument, events: readonly { scope?: string; type: EventType }[]): readonly EventType[] =>
+		field === 'flexLanes' ? [eventTypes.flexLaneSingle, eventTypes.flexLaneDouble]
+		: field === 'soloSections' || (chart.format === 'mid' && starPowerFromSolos(instrument, events, songContext(song).settings.multiplier_note)) ? [eventTypes.soloSection]
+		: [eventTypes.starPower]
 	const removals: PhraseRemoval[] = []
 	if (chart.format === 'chart') {
 		for (const { instrument, difficulty, tick } of found) {
-			const section = chartAuthoredTracks(chart.tokens).find(track => track.isRead && track.instrument === instrument && track.difficulty === difficulty)
-			const events = section?.events ?? []
-			const elements = code === 'emptySoloSection' ? soloEvents(events, tick!)
-				: events.filter(event => event.tick === tick && (code === 'emptyStarPower' ? event.type === eventTypes.starPower : isFlexLane(event.type)))
-			if (elements.length === 0) skip(`The ${difficulty} ${instrument} ${phraseNames[code]} phrase at tick ${tick} isn't written as one event.`)
+			const events = chartSectionOf(chart.tokens, instrument!, difficulty!)?.events ?? []
+			const elements = field === 'soloSections' ? soloEvents(events, tick!) : events.filter(event => event.tick === tick && typesOf(instrument!, []).includes(event.type))
+			if (elements.length === 0) skip(`The ${difficulty} ${instrument} ${name} phrase at tick ${tick} isn't written as one event.`)
 			else removals.push({ instrument: instrument!, difficulty, tick: tick!, elements })
 		}
 	} else {
-		const settings = songContext(song).settings
 		for (const key of new Set(found.map(issue => `${issue.instrument} ${issue.tick}`))) {
 			const { instrument, tick } = found.find(issue => `${issue.instrument} ${issue.tick}` === key)!
 			// A .mid phrase is every difficulty's: it's removed only when no difficulty's notes are in it.
 			const holding = parsed.trackData.filter(track => track.instrument === instrument && track[field].some(phrase => phrase.tick === tick))
 			if (holding.some(track => !found.some(issue => issue.instrument === instrument && issue.difficulty === track.difficulty && issue.tick === tick))) {
-				skip(`The ${instrument} ${phraseNames[code]} phrase at tick ${tick} has notes on another difficulty.`)
+				skip(`The ${instrument} ${name} phrase at tick ${tick} has notes on another difficulty.`)
 				continue
 			}
-			const track = midiAuthoredTracks(chart.tokens!).find(candidate => candidate.isFirst && candidate.instrument === instrument)!
-			const types: readonly EventType[] = code === 'emptySoloSection' ? [eventTypes.soloSection]
-				: code === 'emptyFlexLane' ? [eventTypes.flexLaneSingle, eventTypes.flexLaneDouble]
-				: [starPowerFromSolos(instrument!, track.events, settings.multiplier_note) ? eventTypes.soloSection : eventTypes.starPower]
-			const elements = track.events.filter(event => event.scope === 'instrument' && event.tick === tick && types.includes(event.type))
-			if (elements.length === 0) skip(`The ${instrument} ${phraseNames[code]} phrase at tick ${tick} isn't written as one event.`)
+			const events = midiTrackOf(chart.tokens!, instrument!)!.events
+			const types = typesOf(instrument!, events)
+			const elements = events.filter(event => event.scope === 'instrument' && event.tick === tick && types.includes(event.type))
+			if (elements.length === 0) skip(`The ${instrument} ${name} phrase at tick ${tick} isn't written as one event.`)
 			else removals.push({ instrument: instrument!, difficulty: null, tick: tick!, elements })
 		}
 	}
@@ -237,28 +204,23 @@ function removeEmptyPhrases(song: SongDocument, code: keyof typeof emptyPhraseFi
 	const problem = (edited: SongDocument, chosen: readonly PhraseRemoval[]) => {
 		const reason = keepsGameplay(song, edited, false)
 		if (reason !== null) return reason
-		const after = new Map(parsedChart(edited)!.trackData.map(track => [trackName(track), track]))
+		const after = new Map(parsedChart(edited)!.trackData.map(track => [trackLabel(track), track]))
 		for (const track of parsed.trackData) {
 			const removed = (tick: number) => chosen.some(removal => removal.instrument === track.instrument && (removal.difficulty ?? track.difficulty) === track.difficulty && removal.tick === tick)
 			const expected = phraseRanges(track, field).filter(([tick]) => !removed(tick as number))
-			if (!sameAsJson(phraseRanges(after.get(trackName(track))!, field), expected)) return `would change other ${trackName(track)} ${phraseNames[code]} phrases`
+			if (!sameAsJson(phraseRanges(after.get(trackLabel(track))!, field), expected)) return `would change other ${trackLabel(track)} ${name} phrases`
 		}
 		return null
 	}
 	const { song: fixed, chosen } = chooseEdits(song, removals, apply, problem,
-		(removal, problem) => skip(`Removing the ${`${removal.difficulty ?? ''} ${removal.instrument}`.trim()} ${phraseNames[code]} phrase at tick ${removal.tick} ${problem}.`))
-	for (const name of new Set(chosen.map(removal => `${removal.difficulty ?? ''} ${removal.instrument}`.trim()))) {
-		const ticks = chosen.filter(removal => `${removal.difficulty ?? ''} ${removal.instrument}`.trim() === name).map(removal => removal.tick)
-		record.fixed.push({
-			code,
-			file: chart.fileName,
-			description: `Removed the ${name} ${phraseNames[code]} ${ticks.length === 1 ? 'phrase' : 'phrases'} with no notes at ${ticks.length === 1 ? 'tick' : 'ticks'} ${ticks.join(', ')}.`,
-		})
+		(removal, problem) => skip(`Removing the ${trackLabel(removal)} ${name} phrase at tick ${removal.tick} ${problem}.`))
+	for (const label of new Set(chosen.map(trackLabel))) {
+		const ticks = chosen.filter(removal => trackLabel(removal) === label).map(removal => removal.tick)
+		const one = ticks.length === 1
+		record.fixed.push({ code, file: chart.fileName, description: `Removed the ${label} ${name} ${one ? 'phrase' : 'phrases'} with no notes at ${one ? 'tick' : 'ticks'} ${ticks.join(', ')}.` })
 	}
 	return fixed
 }
-
-const isFlexLane = (type: EventType) => type === eventTypes.flexLaneSingle || type === eventTypes.flexLaneDouble
 
 /** The `solo` and `soloend` events of the `.chart` solo starting at `tick`, paired as the parser pairs them. */
 function soloEvents<E extends { tick: number; type: EventType }>(events: readonly E[], tick: number): E[] {
@@ -277,8 +239,8 @@ function soloEvents<E extends { tick: number; type: EventType }>(events: readonl
  * Whether a `.mid` track reads its solo notes (103) as star power, as Clone Hero's guitar and keys tracks do with
  * `multiplier_note = 103`, or with more than one solo and no star power (116) unless `multiplier_note = 116`.
  */
-function starPowerFromSolos(instrument: Instrument, events: readonly { scope: string; type: EventType }[], multiplierNote: number): boolean {
-	if (getInstrumentType(instrument) === instrumentTypes.drums || multiplierNote === 116) return false
+function starPowerFromSolos(instrument: Instrument, events: readonly { scope?: string; type: EventType }[], multiplierNote: number): boolean {
+	if (!isFret(instrument) || multiplierNote === 116) return false
 	const count = (type: EventType) => events.filter(event => event.scope === 'instrument' && event.type === type).length
 	return multiplierNote === 103 || (count(eventTypes.starPower) === 0 && count(eventTypes.soloSection) > 1)
 }
@@ -290,17 +252,19 @@ const fretEventTypes = new Map<number, EventType>([
 	[noteTypes.black3, eventTypes.black3], [noteTypes.white1, eventTypes.white1], [noteTypes.white2, eventTypes.white2], [noteTypes.white3, eventTypes.white3],
 ])
 
-/** The sustains of one track to change: each note's new length, in ticks, and the code each change fixes. */
+/** How a sustain fix changes a note: its new length in ticks, and why. */
+type SustainChange = { length: number; reason: 'gap' | 'short' | 'leftShort' }
+
+/** The sustains of one track to change. */
 interface SustainEdits {
 	readonly track: Track
-	readonly lengths: Map<NoteEvent, { length: number; code: 'badSustainGap' | 'babySustain' }>
+	readonly changes: Map<NoteEvent, SustainChange>
 }
 
 /**
  * Shortens each sustain that ends less than `gapMs` before the next note to end `gapMs` before it (`badSustainGap`),
- * and removes each sustain shorter than `minMs` (`babySustain`), measured as the checks measure them. A shortened
- * sustain left shorter than `minMs` is removed with `removeShort`, when `babySustain` is fixed too. Both change the
- * TrackHash.
+ * and removes each sustain shorter than `minMs` (`babySustain`), as the checks measure them. With `removeShort`, a
+ * sustain the gap fix leaves shorter than `minMs` is removed too.
  */
 export function fixSustains(
 	song: SongDocument,
@@ -312,20 +276,20 @@ export function fixSustains(
 	const parsed = parsedChart(song)
 	const found = issues.filter(issue => (issue.code === 'badSustainGap' || issue.code === 'babySustain') && issue.tick !== null)
 	if (chart === null || parsed === null || found.length === 0 || (chart.format === 'mid' && chart.tokens === null)) return song
-	const msLength = (note: NoteEvent, length: number) => msAtTick(parsed, note.tick + length) - note.msTime
+	const msAt = (tick: number) => msAtTick(parsed.tempos, parsed.resolution, tick)
 	const tracks: SustainEdits[] = []
-	for (const track of parsed.trackData.filter(track => getInstrumentType(track.instrument) !== instrumentTypes.drums)) {
+	for (const track of parsed.trackData.filter(track => isFret(track.instrument))) {
 		const ticksOf = (code: IssueCode) => new Set(found.filter(issue => issue.code === code && issue.instrument === track.instrument && issue.difficulty === track.difficulty).map(issue => issue.tick))
-		const [gapTicks, babyTicks] = [ticksOf('badSustainGap'), ticksOf('babySustain')]
-		const lengths: SustainEdits['lengths'] = new Map()
+		const [gapTicks, shortTicks] = [ticksOf('badSustainGap'), ticksOf('babySustain')]
+		const changes: SustainEdits['changes'] = new Map()
 		const held = new Set<NoteEvent>()
 		track.noteEventGroups.forEach((group, index) => {
-			if (babyTicks.has(group[0].tick)) {
+			if (shortTicks.has(group[0].tick)) {
 				const nextOpen = track.noteEventGroups[index + 1]?.find(note => note.type === noteTypes.open)
 				for (const note of group) {
 					// The check doesn't count a short sustain before a HOPO or tap open note.
 					const beforeOpen = nextOpen !== undefined && nextOpen.tick < note.tick + note.length && (nextOpen.flags & (noteFlags.hopo | noteFlags.tap)) !== 0
-					if (note.msLength > 0 && note.msLength < minMs && !beforeOpen) lengths.set(note, { length: 0, code: 'babySustain' })
+					if (note.msLength > 0 && note.msLength < minMs && !beforeOpen) changes.set(note, { length: 0, reason: 'short' })
 				}
 			}
 			if (!gapTicks.has(group[0].tick)) return
@@ -334,45 +298,45 @@ export function fixSustains(
 				for (const note of earlier) {
 					const end = note.msTime + note.msLength
 					if (note.msLength <= 0 || note.type === noteTypes.open || start < end || start - end >= gapMs) continue
-					const endTick = Math.max(note.tick, Math.floor(tickAtMs(parsed, start - gapMs)))
+					const endTick = Math.max(note.tick, Math.floor(tickAtMs(parsed.tempos, parsed.resolution, start - gapMs)))
 					// A sustain held over other notes would end too close to one of them.
-					const endMs = msAtTick(parsed, endTick)
-					if (endTick > note.tick && track.noteEventGroups.some(other => other !== group && other[0].tick >= endTick && other[0].msTime < endMs + gapMs)) {
+					if (endTick > note.tick && track.noteEventGroups.some(other => other !== group && other[0].tick >= endTick && other[0].msTime < msAt(endTick) + gapMs)) {
 						held.add(note)
 						continue
 					}
-					const shortened = removeShort && msLength(note, endTick - note.tick) < minMs ? 0 : endTick - note.tick
-					const previous = lengths.get(note)
-					if (previous === undefined || shortened < previous.length) lengths.set(note, { length: shortened, code: previous?.code ?? 'badSustainGap' })
+					const change: SustainChange = removeShort && msAt(endTick) - note.msTime < minMs ? { length: 0, reason: 'leftShort' } : { length: endTick - note.tick, reason: 'gap' }
+					const previous = changes.get(note)
+					if (previous === undefined || change.length < previous.length) changes.set(note, change)
 				}
 			}
 		})
 		if (held.size > 0) {
-			record.skip('badSustainGap', chart.fileName, `${held.size} ${trackName(track)} ${held.size === 1 ? 'sustain is' : 'sustains are'} held over other notes: `
-				+ `shortening ${held.size === 1 ? 'it' : 'them'} would end ${held.size === 1 ? 'it' : 'them'} too close to one.`)
+			const one = held.size === 1
+			record.skip('badSustainGap', chart.fileName, `${held.size} ${trackLabel(track)} ${one ? 'sustain is' : 'sustains are'} held over other notes: `
+				+ `shortening ${one ? 'it' : 'them'} would end ${one ? 'it' : 'them'} too close to one.`)
 		}
 		// A note the parser moved or made, such as a snapped chord's note or a forced open note, has no event of its own.
-		for (const [note, { code }] of lengths) {
+		for (const [note, { reason }] of changes) {
 			if (authoredNotes(song, track, note).length > 0) continue
-			lengths.delete(note)
-			record.skip(code, chart.fileName, `The ${trackName(track)} note at tick ${note.tick} isn't written as a note of its type and tick.`)
+			changes.delete(note)
+			record.skip(reason === 'short' ? 'babySustain' : 'badSustainGap', chart.fileName, `The ${trackLabel(track)} note at tick ${note.tick} isn't written as a note of its type and tick.`)
 		}
-		if (lengths.size > 0) tracks.push({ track, lengths })
+		if (changes.size > 0) tracks.push({ track, changes })
 	}
 
 	const apply = (chosen: readonly SustainEdits[]) => editSong(song, batch => {
-		for (const { track, lengths } of chosen) {
-			for (const [note, { length }] of lengths) for (const event of authoredNotes(song, track, note)) batch.setLength(event, length)
+		for (const { track, changes } of chosen) {
+			for (const [note, { length }] of changes) for (const event of authoredNotes(song, track, note)) batch.setLength(event, length)
 		}
 	})
 	// Each note changed is no longer than asked for, and every other note and phrase stays.
 	const problem = (edited: SongDocument, chosen: readonly SustainEdits[]) => {
 		const after = parsedChart(edited)
 		if (after === null) return 'would make the chart unreadable'
-		const tracksAfter = new Map(after.trackData.map(track => [trackName(track), track]))
+		const tracksAfter = new Map(after.trackData.map(track => [trackLabel(track), track]))
 		const expected = parsed.trackData.map(track => {
-			const asked = chosen.find(edits => trackName(edits.track) === trackName(track))?.lengths
-			const notesAfter = tracksAfter.get(trackName(track))?.noteEventGroups.flat() ?? []
+			const asked = chosen.find(edits => edits.track === track)?.changes
+			const notesAfter = tracksAfter.get(trackLabel(track))?.noteEventGroups.flat() ?? []
 			return {
 				...track,
 				noteEventGroups: track.noteEventGroups.map(group => group.map(note => {
@@ -386,19 +350,17 @@ export function fixSustains(
 		return difference === null ? null : `would change ${difference}`
 	}
 	const { song: fixed, chosen } = chooseEdits(song, tracks, apply, problem, (edits, problem) => {
-		for (const code of new Set([...edits.lengths.values()].map(edit => edit.code))) record.skip(code, chart.fileName, `Changing the ${trackName(edits.track)} sustains ${problem}.`)
+		const codes = new Set([...edits.changes.values()].map(change => change.reason === 'short' ? 'babySustain' : 'badSustainGap' as const))
+		for (const code of codes) record.skip(code, chart.fileName, `Changing the ${trackLabel(edits.track)} sustains ${problem}.`)
 	})
-	for (const { track, lengths } of chosen) {
-		const count = (code: 'badSustainGap' | 'babySustain') => [...lengths.values()].filter(edit => edit.code === code).length
-		const [gaps, babies] = [count('badSustainGap'), count('babySustain')]
-		if (gaps > 0) {
-			record.fixed.push({ code: 'badSustainGap', file: chart.fileName,
-				description: `Shortened ${gaps} ${trackName(track)} ${gaps === 1 ? 'sustain' : 'sustains'} to end ${gapMs} ms before the next note.` })
-		}
-		if (babies > 0) {
-			record.fixed.push({ code: 'babySustain', file: chart.fileName,
-				description: `Removed ${babies} ${trackName(track)} ${babies === 1 ? 'sustain' : 'sustains'} shorter than ${minMs} ms.` })
-		}
+	for (const { track, changes } of chosen) {
+		const count = (reason: SustainChange['reason']) => [...changes.values()].filter(change => change.reason === reason).length
+		const sustains = (count: number) => `${count} ${trackLabel(track)} ${count === 1 ? 'sustain' : 'sustains'}`
+		const [gaps, short, leftShort] = [count('gap'), count('short'), count('leftShort')]
+		// A sustain the gap fix left too short is shortened, then removed: both are listed.
+		if (gaps + leftShort > 0) record.fixed.push({ code: 'badSustainGap', file: chart.fileName, description: `Shortened ${sustains(gaps + leftShort)} to end ${gapMs} ms before the next note.` })
+		if (short > 0) record.fixed.push({ code: 'babySustain', file: chart.fileName, description: `Removed ${sustains(short)} shorter than ${minMs} ms.` })
+		if (leftShort > 0) record.fixed.push({ code: 'babySustain', file: chart.fileName, description: `Removed ${sustains(leftShort)} that shortening left shorter than ${minMs} ms.` })
 	}
 	return fixed
 }
@@ -408,39 +370,41 @@ function authoredNotes(song: SongDocument, track: Track, note: NoteEvent): (Auth
 	const { chart } = song
 	const type = fretEventTypes.get(note.type)
 	if (chart === null || type === undefined) return []
-	if (chart.format === 'chart') {
-		const section = chartAuthoredTracks(chart.tokens).find(candidate => candidate.isRead && candidate.instrument === track.instrument && candidate.difficulty === track.difficulty)
-		return section?.events.filter(event => event.tick === note.tick && event.type === type) ?? []
-	}
-	const midiTrack = chart.tokens === null ? undefined : midiAuthoredTracks(chart.tokens).find(candidate => candidate.isFirst && candidate.instrument === track.instrument)
+	if (chart.format === 'chart') return chartSectionOf(chart.tokens, track.instrument, track.difficulty)?.events.filter(event => event.tick === note.tick && event.type === type) ?? []
+	const midiTrack = chart.tokens === null ? undefined : midiTrackOf(chart.tokens, track.instrument)
 	return midiTrack?.events.filter(event => event.scope === track.difficulty && event.tick === note.tick && event.type === type) ?? []
 }
 
-/** The tick at a time in milliseconds, from the chart's tempo map, as a fraction. */
-function tickAtMs(chart: ParsedChartFile, ms: number): number {
-	const tempo = [...chart.tempos].reverse().find(candidate => candidate.msTime <= ms) ?? chart.tempos[0]
-	return tempo.tick + (ms - tempo.msTime) * tempo.beatsPerMinute * chart.resolution / 60000
-}
+/** Whether a deprecated tag's issue that one of `keys` is about is reported. */
+const isReported = (issues: readonly Issue[], findings: readonly MetadataFinding[], keys: readonly string[]) => issues.some(issue => issue.code === 'deprecatedIniTag')
+	&& findings.some(finding => finding.metadataIssue === 'deprecatedIniTag' && finding.keys?.some(key => keys.includes(key)))
 
-/** The time of a tick in milliseconds, from the chart's tempo map. */
-function msAtTick(chart: ParsedChartFile, tick: number): number {
-	const tempo = [...chart.tempos].reverse().find(candidate => candidate.tick <= tick) ?? chart.tempos[0]
-	return tempo.msTime + (tick - tempo.tick) * 60000 / (tempo.beatsPerMinute * chart.resolution)
+/**
+ * The song with `edit` made to its chart and `keys` removed from song.ini, if it plays the same, phrases and canonical
+ * hashes included; otherwise what's wrong, ending a sentence about the rewrite.
+ */
+function withoutTags(song: SongDocument, keys: readonly string[], edit: (batch: RawSongEditBatch) => void): { song: SongDocument } | { problem: string } {
+	let fixed: SongDocument
+	try {
+		const tokens = rewriteSongIni(asUtf8Ini(song.ini!.tokens), { layout: false, order: false, remove: new Set(keys), set: new Map() })
+		const edited = editSong(song, edit)
+		fixed = continueEdits(edited, withSongIni(edited, tokens))
+	} catch (error) {
+		return { problem: `fails: ${error instanceof Error ? error.message : String(error)}` }
+	}
+	const problem = keepsGameplay(song, fixed, true)
+	return problem === null ? { song: fixed } : { problem }
 }
 
 /**
- * Forces the notes whose HOPO or strum differs between song.ini's HOPO threshold and the format's own, so every note
- * plays the same without `hopo_frequency` and `eighthnote_hopo`, then removes them from song.ini
- * (`deprecatedIniTag`). A `.chart` note is forced by adding or removing its `N 5` line, which swaps HOPO and strum; a
- * `.mid` note gets a one-tick force HOPO or force strum note on its difficulty. The rewrite is checked: every note,
- * phrase and canonical hash stays, or it isn't made.
+ * Forces the notes whose HOPO or strum `hopo_frequency` or `eighthnote_hopo` changes, then removes the tags
+ * (`deprecatedIniTag`), so every note plays the same. A `.chart` note's `N 5` line, which swaps HOPO and strum, is
+ * added or removed; a `.mid` note gets a one-tick force HOPO or force strum note on its difficulty.
  */
 export function fixHopoTags(song: SongDocument, issues: readonly Issue[], findings: readonly MetadataFinding[], record: FixRecord): SongDocument {
-	const reported = issues.some(issue => issue.code === 'deprecatedIniTag')
-		&& findings.some(finding => finding.metadataIssue === 'deprecatedIniTag' && finding.keys?.some(key => key === 'hopo_frequency' || key === 'eighthnote_hopo'))
 	const context = songContext(song)
 	const { chart, ini } = song
-	if (!reported || ini === null) return song
+	if (!isReported(issues, findings, ['hopo_frequency', 'eighthnote_hopo']) || ini === null) return song
 	if (chart === null || context.chart.kind !== 'parsed' || (chart.format === 'mid' && chart.tokens === null)) {
 		record.skip('deprecatedIniTag', ini.fileName, 'The chart can\'t be read, so it can\'t be rewritten to play the same without the HOPO tags.')
 		return song
@@ -449,52 +413,35 @@ export function fixHopoTags(song: SongDocument, issues: readonly Issue[], findin
 	// Without hopo_frequency, eighthnote_hopo = True would apply, so it goes too.
 	const keys = [...settings.hopo_frequency > 0 ? ['hopo_frequency'] : [], ...settings.eighthnote_hopo ? ['eighthnote_hopo'] : []]
 	const tags = keys.map(key => `"${key}"`).join(' and ')
-	const skip = (problem: string) => record.skip('deprecatedIniTag', ini.fileName, `Rewriting the chart to play the same without ${tags} ${problem}.`)
 	const withTags = context.chart.parsed
 	const without = parseChartSource(context.chart.source, { ...settings, hopo_frequency: 0, eighthnote_hopo: false }, parseRules.canonical20260801)
-
 	let forced = 0
-	let tokens: IniTokens
-	try {
-		tokens = rewriteSongIni(asUtf8Ini(ini.tokens), { layout: false, order: false, remove: new Set(keys), set: new Map() })
-	} catch {
-		record.skip('deprecatedIniTag', ini.fileName, 'song.ini can\'t be decoded, so it can\'t be rewritten.')
-		return song
-	}
-	let fixed: SongDocument
-	try {
-		const edited = editSong(song, batch => {
-			for (const track of withTags.trackData.filter(track => getInstrumentType(track.instrument) !== instrumentTypes.drums)) {
-				const plain = without.trackData.find(candidate => trackName(candidate) === trackName(track))
-				if (plain === undefined || plain.noteEventGroups.length !== track.noteEventGroups.length) throw new RangeError(`the ${trackName(track)} notes don't line up`)
-				track.noteEventGroups.forEach((group, index) => {
-					const hopoOrStrum = (flags: number) => flags & (noteFlags.hopo | noteFlags.strum)
-					const plainGroup = plain.noteEventGroups[index]
-					if (plainGroup[0].tick !== group[0].tick) throw new RangeError(`the ${trackName(track)} notes don't line up`)
-					if (hopoOrStrum(group[0].flags) === hopoOrStrum(plainGroup[0].flags)) return
-					forced++
-					const tick = group[0].tick
-					if (chart.format === 'chart') {
-						const section = chartAuthoredTracks(chart.tokens).find(candidate => candidate.isRead && trackName(candidate) === trackName(track))!
-						const unnatural = section.events.filter(event => event.tick === tick && event.type === eventTypes.forceUnnatural)
-						if (unnatural.length > 0) for (const event of unnatural) batch.remove(event)
-						else batch.addToChartSection(section.section, tick, eventTypes.forceUnnatural, 0)
-					} else {
-						const midiTrack = midiAuthoredTracks(chart.tokens!).find(candidate => candidate.isFirst && candidate.instrument === track.instrument)!
-						const type = group[0].flags & noteFlags.hopo ? eventTypes.forceHopo : eventTypes.forceStrum
-						batch.addToMidiTrack(midiTrack.chunk, track.difficulty, tick, type, 1)
-					}
-				})
-			}
-		})
-		fixed = continueEdits(edited, withSongIni(edited, tokens))
-	} catch (error) {
-		skip(`fails: ${error instanceof Error ? error.message : String(error)}`)
-		return song
-	}
-	const problem = keepsGameplay(song, fixed, true)
-	if (problem !== null) {
-		skip(problem)
+	const result = withoutTags(song, keys, batch => {
+		forced = 0
+		for (const track of withTags.trackData.filter(track => isFret(track.instrument))) {
+			const plain = without.trackData.find(candidate => trackLabel(candidate) === trackLabel(track))
+			if (plain === undefined || plain.noteEventGroups.length !== track.noteEventGroups.length) throw new RangeError(`the ${trackLabel(track)} notes don't line up`)
+			track.noteEventGroups.forEach((group, index) => {
+				const hopoOrStrum = (flags: number) => flags & (noteFlags.hopo | noteFlags.strum)
+				const plainGroup = plain.noteEventGroups[index]
+				if (plainGroup[0].tick !== group[0].tick) throw new RangeError(`the ${trackLabel(track)} notes don't line up`)
+				if (hopoOrStrum(group[0].flags) === hopoOrStrum(plainGroup[0].flags)) return
+				forced++
+				const tick = group[0].tick
+				if (chart.format === 'chart') {
+					const section = chartSectionOf(chart.tokens, track.instrument, track.difficulty)!
+					const unnatural = section.events.filter(event => event.tick === tick && event.type === eventTypes.forceUnnatural)
+					if (unnatural.length > 0) for (const event of unnatural) batch.remove(event)
+					else batch.addToChartSection(section.section, tick, eventTypes.forceUnnatural, 0)
+				} else {
+					const type = group[0].flags & noteFlags.hopo ? eventTypes.forceHopo : eventTypes.forceStrum
+					batch.addToMidiTrack(midiTrackOf(chart.tokens!, track.instrument)!.chunk, track.difficulty, tick, type, 1)
+				}
+			})
+		}
+	})
+	if ('problem' in result) {
+		record.skip('deprecatedIniTag', ini.fileName, `Rewriting the chart to play the same without ${tags} ${result.problem}.`)
 		return song
 	}
 	record.fixed.push({
@@ -504,47 +451,36 @@ export function fixHopoTags(song: SongDocument, issues: readonly Issue[], findin
 			? `Removed ${tags}, without which every note reads the same.`
 			: `Forced ${forced} ${forced === 1 ? 'note' : 'notes'} to play the same without ${tags}, and removed ${keys.length === 1 ? 'it' : 'them'}.`,
 	})
-	return fixed
+	return result.song
 }
 
 /**
- * Moves a `.mid` file's star power from note 103 to note 116 in each guitar and keys track, removing the notes 116 there,
- * which `multiplier_note = 103` makes games ignore, then removes the tag (`deprecatedIniTag`). The drums tracks, where
- * note 103 marks solos whatever the tag, keep theirs. The rewrite is checked: every note, phrase and canonical hash
- * stays, or it isn't made.
+ * Moves a `.mid` file's star power from note 103 to note 116 in each guitar and keys track, removes the notes 116 there,
+ * which `multiplier_note = 103` makes games ignore, then removes the tag (`deprecatedIniTag`). The drums tracks keep
+ * their notes 103, which mark solos whatever the tag.
  */
 export function fixMultiplierNote(song: SongDocument, issues: readonly Issue[], findings: readonly MetadataFinding[], record: FixRecord): SongDocument {
-	const reported = issues.some(issue => issue.code === 'deprecatedIniTag')
-		&& findings.some(finding => finding.metadataIssue === 'deprecatedIniTag' && finding.keys?.includes('multiplier_note'))
 	const { chart, ini } = song
-	if (!reported || chart?.format !== 'mid' || chart.tokens === null || ini === null) return song
-	const skip = (problem: string) => record.skip('deprecatedIniTag', ini.fileName, `Moving the star power to note 116 ${problem}.`)
+	if (!isReported(issues, findings, ['multiplier_note']) || chart?.format !== 'mid' || chart.tokens === null || ini === null) return song
+	const tokens = chart.tokens
 	let [moved, dropped] = [0, 0]
-	let fixed: SongDocument
-	try {
-		const tokens = rewriteSongIni(asUtf8Ini(ini.tokens), { layout: false, order: false, remove: new Set(['multiplier_note']), set: new Map() })
-		const edited = editSong(song, batch => {
-			for (const track of midiAuthoredTracks(chart.tokens!).filter(track => track.isFirst && getInstrumentType(track.instrument) !== instrumentTypes.drums)) {
-				for (const event of track.events.filter(event => event.scope === 'instrument')) {
-					if (event.type === eventTypes.soloSection) {
-						batch.remove(event)
-						batch.addToMidiTrack(track.chunk, 'instrument', event.tick, eventTypes.starPower, event.length, { velocity: event.velocity, channel: event.channel })
-						moved++
-					} else if (event.type === eventTypes.starPower) {
-						batch.remove(event)
-						dropped++
-					}
+	const result = withoutTags(song, ['multiplier_note'], batch => {
+		[moved, dropped] = [0, 0]
+		for (const track of midiAuthoredTracks(tokens).filter(track => track.isFirst && isFret(track.instrument))) {
+			for (const event of track.events.filter(event => event.scope === 'instrument')) {
+				if (event.type === eventTypes.soloSection) {
+					batch.remove(event)
+					batch.addToMidiTrack(track.chunk, 'instrument', event.tick, eventTypes.starPower, event.length, { velocity: event.velocity, channel: event.channel })
+					moved++
+				} else if (event.type === eventTypes.starPower) {
+					batch.remove(event)
+					dropped++
 				}
 			}
-		})
-		fixed = continueEdits(edited, withSongIni(edited, tokens))
-	} catch (error) {
-		skip(`fails: ${error instanceof Error ? error.message : String(error)}`)
-		return song
-	}
-	const problem = keepsGameplay(song, fixed, true)
-	if (problem !== null) {
-		skip(problem)
+		}
+	})
+	if ('problem' in result) {
+		record.skip('deprecatedIniTag', ini.fileName, `Moving the star power to note 116 ${result.problem}.`)
 		return song
 	}
 	const ignored = dropped === 0 ? '' : `, removed ${dropped} ${dropped === 1 ? 'note' : 'notes'} 116 that "multiplier_note = 103" made games ignore,`
@@ -553,5 +489,5 @@ export function fixMultiplierNote(song: SongDocument, issues: readonly Issue[], 
 		file: chart.fileName,
 		description: `Moved ${moved} star power ${moved === 1 ? 'phrase' : 'phrases'} from note 103 to note 116${ignored} and removed "multiplier_note".`,
 	})
-	return fixed
+	return result.song
 }

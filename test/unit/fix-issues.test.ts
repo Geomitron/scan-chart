@@ -2,7 +2,8 @@ import { MidiData, writeMidi } from '@geomitron/midi-file'
 import { describe, expect, it } from 'vitest'
 
 import { authoredTracks } from 'src/authored'
-import { fixIssues, type FixOptions, issueFixes } from 'src/fix-issues'
+import { fixIssues, type FixOptions } from 'src/fix-issues'
+import { type FixHashes, issueFixes } from 'src/issue-fixes'
 import { resolveChart } from 'src/gameplay-chart'
 import { serializeSong } from 'src/save-plan'
 import { scanSongFolder } from 'src/scan-song-folder'
@@ -87,6 +88,14 @@ describe('fixIssues: song.ini', () => {
 		expectHashesKept(result)
 	})
 
+	it('says when rewriting song.ini merges its [song] sections and a tag written twice', async () => {
+		const result = await fix(folder(['[song]', 'charter = Me', 'name = Old', '[Other]', 'x = 1', '[Song]', 'name = Song']), { codes: ['iniTagOrder'] })
+		expect(result.ini).toBe('[song]\r\nname = Song\r\ncharter = Me\r\n[Other]\r\nx = 1\r\n')
+		expect(result.report.fixed).toEqual([{ code: 'iniTagOrder', file: 'song.ini',
+			description: 'Put the tags in the standard order. It also merged its 2 "[song]" sections and kept only the last line of "name", the one Clone Hero reads.' }])
+		expectHashesKept(result)
+	})
+
 	it('removes blank, -1, unneeded and redundant lines, and quotes, keeping the hashes', async () => {
 		const result = await fix(folder(['[song]', 'name = Song', 'icon =', 'diff_bass =', 'diff_keys = -1', 'loading_phrase = "Hi"', 'delay = 0', 'modchart = False', 'pro_drums = True']))
 		expect(result.ini).toBe('[song]\r\nname = Song\r\nloading_phrase = Hi\r\n')
@@ -131,7 +140,7 @@ describe('fixIssues: song.ini', () => {
 		const named = folder(['[song]', 'name = Song', 'icon = my_icon.png'])
 		const kept = await fix(named, { codes: ['iconName'] })
 		expect(kept.ini).toContain('icon = my_icon.png')
-		expect(kept.report.skipped).toEqual([{ code: 'iconName', file: 'song.ini', reason: 'Fixing "icon" changes the SongHash: fix it with changeHashes.' }])
+		expect(kept.report.skipped).toEqual([{ code: 'iconName', file: 'song.ini', reason: 'Fixing "icon" would change the SongHash: fix it with changeHashes.' }])
 		expectHashesKept(kept)
 		const changed = await fix(named, { codes: ['iconName'], changeHashes: true })
 		expect(changed.ini).toContain('icon = my_icon\r\n')
@@ -406,6 +415,10 @@ describe('fixIssues: sustains', () => {
 		expect(chartText(await fix(tight, { codes: ['badSustainGap'], changeHashes: true }))).toContain('768 = N 0 72\r\n')
 		const both = await fix(tight, { codes: ['badSustainGap', 'babySustain'], changeHashes: true })
 		expect(chartText(both)).toContain('768 = N 0 0\r\n')
+		expect(both.report.fixed).toEqual([
+			{ code: 'badSustainGap', file: 'notes.chart', description: 'Shortened 1 expert guitar sustain to end 60 ms before the next note.' },
+			{ code: 'babySustain', file: 'notes.chart', description: 'Removed 1 expert guitar sustain that shortening left shorter than 200 ms.' },
+		])
 		expect(both.codes.filter(code => code === 'badSustainGap' || code === 'babySustain')).toEqual([])
 	})
 
@@ -506,38 +519,55 @@ describe('issueFixes', () => {
 		...files,
 	]
 	const length = 'song_length = 10000'
-	const fixtures: { readonly [code: string]: SongFile[] } = {
-		fileNameCase: songOf([length], undefined, [{ fileName: 'Album.png', data: png(512, 512) }]),
-		extensionMismatch: songOf([length], undefined, [{ fileName: 'album.png', data: jpeg(512, 512) }]),
-		albumArtSize: songOf([length], undefined, [{ fileName: 'album.jpg', data: jpeg(600, 600) }]),
-		iniLayout: songOf([length, '# A comment']),
-		iniTagOrder: songOf([length, 'artist = Band']),
-		blankIniValue: songOf([length, 'icon =']),
-		blankIniNumber: songOf([length, 'diff_bass =']),
-		quotedIniValue: songOf([length, 'loading_phrase = "Hi"']),
-		defaultIniValue: songOf([length, 'delay = 0']),
-		iconName: songOf([length, 'icon = Geo']),
-		deprecatedIniTag: songOf([length, 'frets = Someone']),
-		redundantDrumType: songOf([length, 'pro_drums = True']),
-		missingSongLength: songOf([]),
-		songLengthMismatch: songOf(['song_length = 200000']),
-		emptyTrack: songOf([length], undefined, [], ['[HardSingle]', '{', '}']),
-		emptyStarPower: songOf([length], ['768 = N 0 0', '960 = N 1 0', '1536 = S 2 192']),
-		emptySoloSection: songOf([length], ['768 = N 0 0', '960 = N 1 0', '1536 = E solo', '1700 = E soloend']),
-		emptyFlexLane: songOf([length], ['768 = N 0 0', '960 = N 1 0', '1800 = S 65 100']),
-		badSustainGap: songOf([length], ['768 = N 0 170', '960 = N 1 0']),
-		babySustain: songOf([length], ['768 = N 0 30', '960 = N 1 0']),
+	/** For each code, a song whose fix keeps the hashes, and one whose fix changes them. */
+	const fixtures: { readonly [code: string]: { readonly keeps?: SongFile[]; readonly changes?: SongFile[] } } = {
+		fileNameCase: { keeps: songOf([length], undefined, [{ fileName: 'Album.png', data: png(512, 512) }]) },
+		extensionMismatch: { keeps: songOf([length], undefined, [{ fileName: 'album.png', data: jpeg(512, 512) }]) },
+		albumArtSize: { keeps: songOf([length], undefined, [{ fileName: 'album.jpg', data: jpeg(600, 600) }]) },
+		iniLayout: { keeps: songOf([length, '# A comment']) },
+		iniTagOrder: { keeps: songOf([length, 'artist = Band']) },
+		blankIniValue: { keeps: songOf([length, 'icon =']) },
+		blankIniNumber: { keeps: songOf([length, 'diff_bass =']) },
+		quotedIniValue: { keeps: songOf([length, 'loading_phrase = "Hi"']), changes: songOf([length, 'artist = "Band"']) },
+		defaultIniValue: { keeps: songOf([length, 'delay = 0']) },
+		iconName: { keeps: songOf([length, 'icon = Geo']), changes: songOf([length, 'icon = geo.png']) },
+		deprecatedIniTag: { keeps: songOf([length, 'frets = Someone']) },
+		redundantDrumType: { keeps: songOf([length, 'pro_drums = True']) },
+		missingSongLength: { keeps: songOf([]) },
+		songLengthMismatch: { keeps: songOf(['song_length = 200000']) },
+		emptyTrack: { keeps: songOf([length], undefined, [], ['[HardSingle]', '{', '}']) },
+		emptyStarPower: { keeps: songOf([length], ['768 = N 0 0', '960 = N 1 0', '1536 = S 2 192']) },
+		emptySoloSection: { keeps: songOf([length], ['768 = N 0 0', '960 = N 1 0', '1536 = E solo', '1700 = E soloend']) },
+		emptyFlexLane: { keeps: songOf([length], ['768 = N 0 0', '960 = N 1 0', '1800 = S 65 100']) },
+		badSustainGap: { changes: songOf([length], ['768 = N 0 170', '960 = N 1 0']) },
+		babySustain: { changes: songOf([length], ['768 = N 0 30', '960 = N 1 0']) },
 	}
+	const run = (files: readonly SongFile[], code: IssueCode, changeHashes: boolean) =>
+		fix(files, { codes: [code], changeHashes, resizeImage: async (_image, size) => jpeg(size, size) })
 
 	it('keeps or changes the canonical hashes as each entry says, which hashing a song before and after its fix shows', async () => {
-		expect(Object.keys(fixtures).sort()).toEqual(Object.keys(issueFixes).sort())
-		for (const [code, files] of Object.entries(fixtures)) {
-			const result = await fix(files, { codes: [code as IssueCode], changeHashes: true, resizeImage: async (_image, size) => jpeg(size, size) })
-			expect(result.report.fixed.map(entry => entry.code), code).toContain(code)
-			expect(result.codes, code).not.toContain(code)
-			expect(result.before, code).not.toBeNull()
-			expect(result.report.hashes.length > 0, code).toBe(issueFixes[code as IssueCode] === 'changesHashes')
-			expect(result.after!.get('canonical:song') !== result.before!.get('canonical:song'), code).toBe(issueFixes[code as IssueCode] === 'changesHashes')
+		for (const [code, hashes] of Object.entries(issueFixes) as [IssueCode, FixHashes][]) {
+			const { keeps, changes } = fixtures[code] ?? {}
+			// A fix that keeps the hashes is made by default, and keeps them with changeHashes too.
+			expect(keeps === undefined, code).toBe(hashes === 'changesHashes')
+			for (const changeHashes of keeps === undefined ? [] : [false, true]) {
+				const result = await run(keeps!, code, changeHashes)
+				expect(result.report.fixed.map(entry => entry.code), code).toContain(code)
+				expect(result.codes, code).not.toContain(code)
+				expectHashesKept(result)
+			}
+			// A fix that changes them is made only with changeHashes.
+			expect(changes === undefined, code).toBe(hashes === 'keepsHashes')
+			if (changes === undefined) continue
+			const withheld = await run(changes, code, false)
+			expect(withheld.report.fixed.map(entry => entry.code), code).not.toContain(code)
+			expect(withheld.codes, code).toContain(code)
+			expectHashesKept(withheld)
+			const made = await run(changes, code, true)
+			expect(made.report.fixed.map(entry => entry.code), code).toContain(code)
+			expect(made.codes, code).not.toContain(code)
+			expect(made.after!.get('canonical:song'), code).not.toBe(made.before!.get('canonical:song'))
+			expect(made.report.hashes.map(change => change.key), code).toContain('canonical:song')
 		}
 	})
 })
