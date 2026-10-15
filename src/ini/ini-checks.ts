@@ -2,7 +2,7 @@ import { isNameListed, toLowerInvariant, trimDotnet } from '../shared/text'
 import { undelayedSyncAdvice } from '../shared/time'
 import { type IssueCode, issueSeverities, type MetadataFinding } from '../issues'
 import { type DrumType, drumTypes, type MetadataIssueType } from '../types'
-import { defaultMetadata, isNumberTag, tagOrder, tagRank } from './metadata'
+import { defaultMetadata, isNumberTag, olderTags, tagOrder, tagRank } from './metadata'
 import { marksSingle } from './metadata-style'
 import type { IniTokens } from './parse-ini'
 import { knownIniKeys, parseBoolean, parseDotnetInt } from './scan-ini'
@@ -135,9 +135,6 @@ export function standardTagOrder(keys: readonly string[]): string[] {
 const isBlank = (key: string, value: string | undefined) => value === '' || (value === '-1' && isNumberTag(key))
 /** Whether a tag is written: present, and not blank or a number's -1. */
 const hasValue = (songSection: SongSection, key: string) => songSection[key] !== undefined && !isBlank(key, songSection[key])
-// Games read charter and album_track over their older tags, frets and track, whenever they're in the file.
-const hasCharter = (songSection: SongSection) => songSection.charter !== undefined
-const hasAlbumTrack = (songSection: SongSection) => songSection.album_track !== undefined
 
 /**
  * The charting recommendations about song.ini's values, and the keys reported missing: song_length and album_track
@@ -214,8 +211,8 @@ function unneededKeys(songSection: SongSection, metadata: typeof defaultMetadata
 	check('eighthnote_hopo', value => isFalse(value) || metadata.hopo_frequency > 0)
 	// Without 116, Clone Hero reads a .mid guitar or keys track's two or more solos, and no star power, as star power.
 	check('multiplier_note', value => chart !== null && (chart.format === 'chart' || parseDotnetInt(value) === 0 || (parseDotnetInt(value) === 116 && !chart.solosReadAsStarPower())))
-	check('frets', () => hasCharter(songSection))
-	check('track', () => hasAlbumTrack(songSection))
+	// Games read a tag over its older name, such as charter over frets, whenever it's in the file.
+	for (const [tag, older] of olderTags) check(older, () => songSection[tag] !== undefined)
 	// No reader acts on end_events.
 	check('end_events', () => true)
 	// .chart has no sustain cutoff unless it's set.
@@ -251,11 +248,10 @@ function deprecatedTagIssues(songSection: SongSection, metadata: typeof defaultM
 	if (chart?.format === 'mid' && metadata.multiplier_note === 103) {
 		add('multiplier_note', '"song.ini" sets "multiplier_note" to 103, which makes MIDI note 103 the star power note. Move the star power phrases to note 116 first. Then remove the tag.')
 	}
-	if (hasValue(songSection, 'frets') && !hasCharter(songSection)) {
-		add('frets', '"song.ini" names the charter with "frets", a tag for older charts. Write "charter" instead.')
-	}
-	if (hasValue(songSection, 'track') && !hasAlbumTrack(songSection)) {
-		add('track', '"song.ini" gives the album track with "track", a tag for older charts. Write "album_track" instead.')
+	for (const [tag, older] of olderTags) {
+		if (hasValue(songSection, older) && songSection[tag] === undefined) {
+			add(older, `"song.ini" sets "${tag}" with "${older}", its name in older charts. Write "${tag}" instead.`)
+		}
 	}
 	return issues
 }

@@ -5,7 +5,7 @@ import { contentNames, hasContentExtension } from './assets/scan-media'
 import { fixEmptyPhrases, fixEmptyTracks, fixHopoTags, fixMultiplierNote, fixSustains } from './fix-chart'
 import { ignoredIssueCodes, keyList } from './ini/ini-checks'
 import { asUtf8Ini, rewriteSongIni, songIniRepeats } from './ini/ini-edit'
-import { isBooleanTag, isNumberTag } from './ini/metadata'
+import { isBooleanTag, isNumberTag, newerTag, olderTags } from './ini/metadata'
 import { IniTokens, parseIniTokens } from './ini/parse-ini'
 import { chooseEdits, FixRecord, hashChanges, hashNames, IniFixSubject, issueFixTable } from './issue-fixes'
 import type { Issue, IssueCode, MetadataFinding } from './issues'
@@ -153,8 +153,8 @@ function fixSongIni(
 	for (const code of ['blankIniValue', 'blankIniNumber', 'defaultIniValue', 'redundantDrumType'] as const) {
 		for (const key of keysOf(code)) fixes.push({ code, subject: code === 'defaultIniValue' ? `${key} = ${songSection[key]}` : key, remove: [key] })
 	}
-	// Games read frets and track only without a charter or album_track line, so a blank one goes only with them.
-	for (const [key, older] of [['charter', 'frets'], ['album_track', 'track']] as const) {
+	// Games read an older name, such as frets, only without a line of its tag, so a blank one goes only with it.
+	for (const [key, older] of olderTags) {
 		const blank = fixes.find(fix => fix.remove?.includes(key))
 		if (blank === undefined || songSection[older] === undefined || fixes.some(fix => fix.remove?.includes(older))) continue
 		fixes.splice(fixes.indexOf(blank), 1)
@@ -176,8 +176,8 @@ function fixSongIni(
 		else record.skip('iconName', ini.fileName, `Without its extension and in lowercase, "${icon}" has other characters than a-z, 0-9, "-" and "_": choose an icon name.`)
 	}
 	for (const key of keysOf('deprecatedIniTag')) {
-		const newer = key === 'frets' ? 'charter' : key === 'track' ? 'album_track' : null
-		if (newer !== null) fixes.push({ code: 'deprecatedIniTag', subject: key, value: newer, set: [[newer, songSection[key]]], remove: [key] })
+		const newer = newerTag(key)
+		if (newer !== undefined) fixes.push({ code: 'deprecatedIniTag', subject: key, value: newer, set: [[newer, songSection[key]]], remove: [key] })
 		else if (key === 'delay') record.skip('deprecatedIniTag', ini.fileName, 'Removing "delay" moves every note against the audio: the audio or the notes have to change first.')
 	}
 	for (const code of ['missingSongLength', 'songLengthMismatch'] as const) {

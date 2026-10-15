@@ -3,7 +3,7 @@ import { fileBytes, SongFile } from '../song-files'
 import { MetadataIssueType } from '../types'
 import { hasIniExtension, hasIniName } from '../shared/file-names'
 import { removeStyleTags } from '../shared/text'
-import { defaultMetadata } from './metadata'
+import { defaultMetadata, olderTags } from './metadata'
 import { parseIni } from './parse-ini'
 
 type TypedSubset<O, K extends keyof O, T> = O[K] extends T ? K : never
@@ -12,9 +12,7 @@ type NumberProperties<O> = { [key in keyof O as TypedSubset<O, key, number>]: nu
 type BooleanProperties<O> = { [key in keyof O as TypedSubset<O, key, boolean>]: boolean }
 
 type Metadata = typeof defaultMetadata
-type InputMetaStringKey = keyof StringProperties<InputMetadata>
 type MetaStringKey = keyof StringProperties<Metadata>
-type InputMetaNumberKey = keyof NumberProperties<InputMetadata>
 type MetaNumberKey = keyof NumberProperties<Metadata>
 type InputMetaBooleanKey = keyof BooleanProperties<InputMetadata>
 type MetaBooleanKey = keyof BooleanProperties<Metadata>
@@ -149,7 +147,7 @@ export function findIniData(files: readonly SongFile[]): {
 /** All keys that extractSongMetadata reads (primary + legacy aliases). */
 export const knownIniKeys = new Set([
 	...Object.keys(defaultMetadata),
-	'frets', 'track', // legacy aliases
+	...olderTags.values(),
 ])
 
 /**
@@ -163,8 +161,7 @@ export function extractSongMetadata(songSection: { readonly [key: string]: strin
 	unknownIniValues: { [key: string]: string }
 } {
 	const metadataIssues: { metadataIssue: MetadataIssueType; description: string }[] = []
-	const text = (key: MetaStringKey, legacyKey?: Exclude<InputMetaStringKey, MetaStringKey>) =>
-		getIniString(songSection, key, legacyKey, options.removeStyleTags ?? true)
+	const text = (key: MetaStringKey) => getIniString(songSection, key, options.removeStyleTags ?? true)
 
 	const metadata: typeof defaultMetadata = {
 		name: text('name'),
@@ -172,7 +169,7 @@ export function extractSongMetadata(songSection: { readonly [key: string]: strin
 		album: text('album'),
 		genre: text('genre'),
 		year: text('year'),
-		charter: text('charter', 'frets'),
+		charter: text('charter'),
 		song_length: getIniInteger(songSection, 'song_length'),
 		diff_band: getIniInteger(songSection, 'diff_band'),
 		diff_guitar: getIniInteger(songSection, 'diff_guitar'),
@@ -192,7 +189,7 @@ export function extractSongMetadata(songSection: { readonly [key: string]: strin
 		preview_end_time: getIniInteger(songSection, 'preview_end_time'),
 		icon: text('icon'),
 		loading_phrase: text('loading_phrase'),
-		album_track: getIniInteger(songSection, 'album_track', 'track'),
+		album_track: getIniInteger(songSection, 'album_track'),
 		playlist_track: getIniInteger(songSection, 'playlist_track'),
 		playlist: text('playlist'),
 		sub_playlist: text('sub_playlist'),
@@ -266,34 +263,30 @@ export function extractSongMetadata(songSection: { readonly [key: string]: strin
 
 /**
  * The line games read of `key`: its own whenever it's in the file, whatever its value, as Clone Hero and YARG read
- * `charter` over `frets`, and Clone Hero `album_track` over `track`. `legacyKey` is read only when `key` isn't.
+ * `charter` over `frets`, and Clone Hero `album_track` over `track`. Its older name is read only when it isn't.
  */
-function writtenValue(songSection: { readonly [key: string]: string }, key: string, legacyKey: string | undefined): string | undefined {
-	return songSection[key] ?? (legacyKey === undefined ? undefined : songSection[legacyKey])
+function writtenValue(songSection: { readonly [key: string]: string }, key: string): string | undefined {
+	const older = olderTags.get(key)
+	return songSection[key] ?? (older === undefined ? undefined : songSection[older])
 }
 
 /**
- * @returns the value in `songSection` at `key`, or at `legacyKey` when `key` isn't in the file, as a string, or the
- * default value when it's blank or not there. Text `0` and `-1` are text. Style tags are removed from the string when
- * `removeTags` is set.
+ * @returns the value in `songSection` at `key`, or at its older name when `key` isn't in the file, as a string, or
+ * the default value when it's blank or not there. Text `0` and `-1` are text. Style tags are removed from the string
+ * when `removeTags` is set.
  */
-function getIniString(
-	songSection: { readonly [key: string]: string },
-	key: MetaStringKey,
-	legacyKey: Exclude<InputMetaStringKey, MetaStringKey> | undefined,
-	removeTags: boolean,
-) {
-	const value = writtenValue(songSection, key, legacyKey)
+function getIniString(songSection: { readonly [key: string]: string }, key: MetaStringKey, removeTags: boolean) {
+	const value = writtenValue(songSection, key)
 	if (!value) return defaultMetadata[key]
 	return removeTags ? removeStyleTags(value) : value
 }
 
 /**
- * @returns the value in `songSection` at `key`, or at `legacyKey` when `key` isn't in the file, parsed as an integer,
- * or the default value when it's blank, -1, not a number, or not there.
+ * @returns the value in `songSection` at `key`, or at its older name when `key` isn't in the file, parsed as an
+ * integer, or the default value when it's blank, -1, not a number, or not there.
  */
-function getIniInteger(songSection: { readonly [key: string]: string }, key: MetaNumberKey, legacyKey?: Exclude<InputMetaNumberKey, MetaNumberKey>) {
-	const value = parseFloat(writtenValue(songSection, key, legacyKey) ?? '')
+function getIniInteger(songSection: { readonly [key: string]: string }, key: MetaNumberKey) {
+	const value = parseFloat(writtenValue(songSection, key) ?? '')
 	return !isNaN(value) && value !== -1 ? value : defaultMetadata[key]
 }
 
