@@ -8,6 +8,8 @@ import { documentFiles, parseSongFiles, SongDocument } from 'src/song-document'
 import { fileBytes } from 'src/song-files'
 import { chartSpellingIssues } from 'src/spelling-issues'
 
+import { trackTexts } from './helpers/midi-files'
+
 const encode = (text: string) => new TextEncoder().encode(text)
 const decode = (bytes: Uint8Array) => new TextDecoder().decode(bytes)
 const chartSong = (sections: string[], ini: string | null = '[song]\r\nname = Song\r\nartist = Band\r\n', songLines: string[] = []) => parseSongFiles([
@@ -79,10 +81,7 @@ describe('convertChart', () => {
 		const { song: asMidi, report } = convertChart(chartSong(drums), 'mid')
 		expect(report.tracks.every(track => track.kept)).toBe(true)
 		const midiFile = fileBytes(documentFiles(asMidi).find(file => file.fileName === 'notes.mid')!)
-		const midiMixes = parseMidi(midiFile).tracks.flatMap(track => {
-			let tick = 0
-			return track.flatMap(event => (tick += event.deltaTime, event.type === 'text' && event.text.startsWith('[mix') ? [[tick, event.text]] : []))
-		})
+		const midiMixes = parseMidi(midiFile).tracks.flatMap(track => trackTexts(track).filter(([, text]) => text.startsWith('[mix')))
 		expect(midiMixes).toEqual([[0, '[mix 3 drums2]'], [480, '[mix 3 drums2d]'], [960, '[mix 3 drums2]']])
 		const { song: asChart } = convertChart(asMidi, 'chart')
 		const chartText = decode(fileBytes(documentFiles(asChart).find(file => file.fileName === 'notes.chart')!))
@@ -94,10 +93,7 @@ describe('convertChart', () => {
 		const { song: asMidi, report } = convertChart(chartSong(drums), 'mid')
 		expect(report.tracks.every(track => track.kept)).toBe(true)
 		const midiFile = fileBytes(documentFiles(asMidi).find(file => file.fileName === 'notes.mid')!)
-		const midiMixes = parseMidi(midiFile).tracks.flatMap(track => {
-			let tick = 0
-			return track.flatMap(event => (tick += event.deltaTime, event.type === 'text' && event.text.startsWith('[mix') ? [[tick, event.text]] : []))
-		})
+		const midiMixes = parseMidi(midiFile).tracks.flatMap(track => trackTexts(track).filter(([, text]) => text.startsWith('[mix')))
 		expect(midiMixes).toEqual([[480, '[mix 3 drums1d]'], [959, '[mix 3 drums1]'], [960, '[mix 3 drums0dnoflip]']])
 		const { song: asChart, report: back } = convertChart(asMidi, 'chart')
 		expect(back.tracks.every(track => track.kept)).toBe(true)
