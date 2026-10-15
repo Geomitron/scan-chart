@@ -7,6 +7,7 @@ import { scanMedia } from './assets/scan-media'
 import { scanVideo } from './assets/scan-video'
 import type { ChartStats } from './chart/chart-analysis'
 import { getChartHash } from './chart/chart-hash'
+import { repeatedMidiInstrumentTracks } from './chart/midi-file-parser'
 import { parseChartSource } from './chart/parse-chart-file'
 import { parseRules } from './chart/parse-rules'
 import { calculateCompetitiveHashes, CompetitiveHashes } from './competitive'
@@ -99,6 +100,15 @@ export async function scanSongFolder(files: readonly SongFile[], options: ScanOp
 	const chartFile = song.chart?.fileName
 
 	if (context.chart.kind === 'failed') folderIssues.push({ folderIssue: 'badChart', description: context.chart.error, file: chartFile })
+	if (song.chart?.format === 'mid' && song.chart.tokens !== null) {
+		for (const tracks of repeatedMidiInstrumentTracks(song.chart.tokens)) {
+			folderIssues.push({
+				folderIssue: 'repeatedMidiTrack',
+				description: `The chart has more than one track for ${tracks.instrument}: ${tracks.trackNames.map(name => `"${name}"`).join(', ')}. Clone Hero reads only the first; YARG may read another.`,
+				file: chartFile,
+			})
+		}
+	}
 	if (context.chart.kind === 'parsed') {
 		const analysis = analyzeChart(resolveChart(song), { styleNotes: options.styleNotes })
 		stats = analysis.stats

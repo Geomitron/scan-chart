@@ -1,7 +1,7 @@
 import { chartIssueMessages, chartRecommendationMessages, ChartStats, chartStats, findChartIssues, sameAsExpert } from './chart/chart-analysis'
 import { chartSectionTrack } from './chart/chart-file-parser'
 import { canonicalChartFromParse } from './chart/identity/canonical-source'
-import { midiSourceTrackInstrument } from './chart/midi-file-parser'
+import { midiInstrumentTracks } from './chart/midi-file-parser'
 import { GameplayChart, gameplayChartSource, GameplayChartSource } from './gameplay-chart'
 import { Issue, issueSeverities } from './issues'
 import { undelayedSyncAdvice } from './shared/time'
@@ -61,13 +61,8 @@ function chartFileIssues({ parsed, source, delay }: GameplayChartSource): Issue[
 		}
 	} else if (source.tokens !== null) {
 		const reported = new Set<Instrument>()
-		// The first track is the conductor track. A track is named by its last name at tick 0.
-		for (const chunk of source.tokens.chunks.filter(chunk => chunk.kind === 'track').slice(1)) {
-			if (chunk.kind !== 'track') continue
-			const names = chunk.events.filter(({ tick, event }) => tick === 0 && event.type === 'trackName').map(({ event }) => (event as { text: string }).text)
-			const name = names[names.length - 1]
-			const instrument = name === undefined ? null : midiSourceTrackInstrument(name)
-			if (instrument !== null && !hasTrack(instrument) && !reported.has(instrument)) {
+		for (const { name, instrument } of midiInstrumentTracks(source.tokens)) {
+			if (!hasTrack(instrument) && !reported.has(instrument)) {
 				reported.add(instrument)
 				add('emptyTrack', instrument, null, `The "${name}" track has no notes, so games don't list it. Chart its notes, or remove it.`)
 			}

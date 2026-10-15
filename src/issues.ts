@@ -33,6 +33,7 @@ export const issueSeverities: { readonly [code in IssueCode]: IssueSeverity } = 
 	badChart: 'error',
 	badChartIdentity: 'error',
 	multipleChart: 'warning',
+	repeatedMidiTrack: 'warning',
 	badVideo: 'warning',
 	multipleVideo: 'warning',
 	unrecognizedFile: 'recommendation',
