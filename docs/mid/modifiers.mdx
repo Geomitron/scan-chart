@@ -34,8 +34,8 @@ A modifier covers the notes of its difficulty, or of every difficulty, that star
 
 - A note on the modifier's end tick isn't covered, except by a tap. See [Taps](#taps).
 - At one tick, a modifier and its notes may come in any order.
-- An exporter should write a modifier only where it covers a note.
-- Two modifiers of one number must not overlap. See [Note pairing](/mid/note-pairing).
+- **Required:** at least one note under each modifier.
+- A modifier written as a note pairs as [Note pairing](/mid/note-pairing) says.
 
 **Edge case: a modifier of length 0.** A note-on and its note-off at one tick: the modifier covers the notes on its tick.
 
@@ -56,7 +56,7 @@ A forced HOPO modifier makes the notes it covers HOPOs, and a forced strum modif
 
 Unlike a `.chart` file's [forced modifier](/chart/modifiers#forced), which flips a note between strum and HOPO, `.mid` forcing sets it. The two agree on chords and first notes, and differ on a note that is already a natural HOPO: `N 5` makes it a strum, and a forced HOPO modifier keeps it a HOPO.
 
-A note must not be under both a forced HOPO and a forced strum modifier. See [Invalid forms](#invalid-forms).
+**Required:** a note is forced HOPO or forced strum, not both.
 
 ## Taps
 
@@ -67,10 +67,10 @@ A tap makes every note it covers a tap, which the player can play without strumm
 
 **Recommended:** tap SysEx events for each difficulty, which can differ between difficulties. scan-chart's export writes this form.
 
-- A tap overrides forcing: a note with both is a tap.
+- **Required:** a note is tapped or forced, not both.
 - Unlike other modifiers, a tap covers the notes on its end tick too.
 
-**Edge case: a note on a tap's end tick.** Released Clone Hero and YARG don't tap a note on the end tick. An exporter should keep notes off a tap's end tick: end the tap after its last tapped note, and before the next note.
+**Edge case: a note on a tap's end tick.** Released Clone Hero and YARG don't tap a note on the end tick. **Recommended:** end a tap after its last tapped note, and before the next note.
 
 ## Open notes
 
@@ -78,17 +78,24 @@ An open note is strummed with no fret held. On 6-fret it's a note. On 5-fret it 
 
 ### 5-fret
 
-- **Notes 59, 71, 83 and 95** are open notes on Easy, Medium, Hard and Expert, in a track that has `[ENHANCED_OPENS]`. Without it, they aren't notes: Rock Band charts use 59 for animations.
+- **Notes 59, 71, 83 and 95** are open notes on Easy, Medium, Hard and Expert, in a track that has `ENHANCED_OPENS`. Without it, they aren't notes: Rock Band charts use 59 for animations.
 - **Open SysEx events** turn every note they cover into an open note, whatever its fret. The open note keeps the covered note's length, and forcing and taps still apply to it.
 
-**Recommended:** open SysEx events over a green note, for each difficulty. A scanner that doesn't read the SysEx events then plays a green note. Use `[ENHANCED_OPENS]` instead when an open note is in a chord, or when its sustain overlaps a green note. scan-chart's export writes open notes this way.
+**Recommended:** open SysEx events over a green note, for each difficulty. A scanner that doesn't read the SysEx events then plays a green note. Use `ENHANCED_OPENS` instead when an open note is in a chord, or when its sustain overlaps a green note. scan-chart's export writes open notes this way.
 
-`[ENHANCED_OPENS]` is a text event, `FF 01`, in the 5-fret track:
+`ENHANCED_OPENS` is a text event, `FF 01`, in the 5-fret track:
 
-- It's written `[ENHANCED_OPENS]`, **Recommended**, or `ENHANCED_OPENS`.
-- It must come at tick 0, before the track's first note. A scanner applies it only to the notes after it.
+- It's written `ENHANCED_OPENS`, **Recommended**, or `[ENHANCED_OPENS]`.
+- **Required:** at tick 0, before the track's first note.
 
-An open note may be in a chord with fret notes only after `[ENHANCED_OPENS]`. Open SysEx events turn a chord into one open note, so they must cover only single notes.
+{/* review: Q1
+Should the text events of instrument tracks also be written without square brackets? You chose no brackets in the EVENTS track, as in a .chart file. Three text events go in instrument tracks: `ENHANCED_OPENS`, `ENABLE_CHART_DYNAMICS` and the drums `mix` event. Clone Hero, YARG and scan-chart read each of them with or without brackets. The .chart Drums page writes `mix` without them. GuitarGame_ChartFormats "highly recommends" brackets on every text event, Rock Band charts write them, and scan-chart's export writes them.
+- A. No brackets | `ENHANCED_OPENS`, `ENABLE_CHART_DYNAMICS` and `mix 3 drums0d` are recommended, and the bracketed forms stay valid. These pages then recommend no brackets on every text event | scan-chart's export changes for the three events. Differs from GuitarGame_ChartFormats' advice
+- B. Brackets | As these pages said before | The `mix` event is written one way in a .chart file and another way in a .mid file
+Recommendation: A. It applies your answer for EVENTS to every text event that doesn't need brackets, and every scanner reads both forms.
+*/}
+
+An open note may be in a chord with fret notes only after `ENHANCED_OPENS`. Open SysEx events turn a chord into one open note. **Required:** open SysEx events over single notes only.
 
 ### 6-fret
 
@@ -145,15 +152,22 @@ The deprecated `hopo_frequency` and `eighthnote_hopo` keys change the threshold 
 
 ## Ignored
 
-- **A modifier that covers no note.**
 - **Note 104 and SysEx events in a drums track.** On drums, 65, 77, 89 and 101 are 5-lane green notes, not modifiers. See [Drums](/mid/drums).
-- **Notes 59, 71, 83 and 95 without `[ENHANCED_OPENS]`,** on 5-fret.
+- **Notes 59, 71, 83 and 95 without `ENHANCED_OPENS`,** on 5-fret.
 - **Other SysEx events,** such as Phase Shift events of other types. scan-chart writes them back as they are.
 
 ## Invalid forms
 
+<Accordion title="A modifier that covers no note">
+It has no effect in any scanner. scan-chart keeps it when saving, and its export leaves it out.
+</Accordion>
+
 <Accordion title="A forced HOPO and a forced strum on one note">
 Every scanner reads a HOPO. scan-chart's export writes only the forcing the note needs.
+</Accordion>
+
+<Accordion title="A tap and a forcing modifier on one note">
+Every scanner reads the note as a tap. scan-chart keeps both modifiers when saving, and its export writes only the tap.
 </Accordion>
 
 <Accordion title="Overlapping modifiers of one number">
@@ -164,11 +178,11 @@ Clone Hero and scan-chart read every note under either of them as covered. YARG 
 Clone Hero and scan-chart read one open note with the longest sustain, and decide whether it's a HOPO as for a single note. YARG reads it as a chord, so as a strum unless it's forced.
 </Accordion>
 
-<Accordion title="[ENHANCED_OPENS] after open notes">
-Every scanner applies it only to the notes after it, so it doesn't read the open notes before it. scan-chart's export writes it at tick 0, which keeps the open notes scan-chart read.
+<Accordion title="ENHANCED_OPENS after the track's first note">
+Every scanner applies it only to the notes after it, so notes 59, 71, 83 and 95 before it aren't open notes. scan-chart's export writes it at tick 0, which keeps the open notes scan-chart read.
 </Accordion>
 
-<Accordion title="[ENHANCED_OPENS] spelled another way">
+<Accordion title="ENHANCED_OPENS spelled another way">
 Clone Hero reads it in any letter case, but not with spaces around it. YARG reads it with spaces around it, and in other types of text event, but only in capitals. scan-chart reads only the two standard spellings, in a text event.
 </Accordion>
 

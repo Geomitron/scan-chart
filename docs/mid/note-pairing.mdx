@@ -22,32 +22,17 @@ A `.chart` file writes each note's length in the note itself. See [Notes](/chart
 
 ## Pairing
 
-These rules apply to every note of an instrument track: notes, modifiers and phrases. Vocal tracks pair the same way, except as [Vocals and harmonies](/mid/vocals#invalid-forms) says.
+These rules apply to every note of an instrument track: notes, modifiers and phrases. Vocal tracks pair the same way.
 
 - A note-off ends a note of its own number and channel.
 - A note-on with velocity 0 is a note-off. A note-off's velocity has no effect.
-- Every note-on must have a note-off later in its track.
-- Notes of one number and channel must not overlap: a note-on must not come while a note of its number and channel is on.
+- **Required:** a note-off later in its track for every note-on.
+- **Required:** each note ends at or before the tick where the next note of its number and channel starts.
 - **Recommended:** every note of a track on one channel.
-
-{/* review: Q12
-Overlapping notes of one number. Clone Hero ends the latest open note of the number and channel first, then trims overlapping sustains as How notes resolve says, which gives the results a .chart file would. YARG ignores a note-on while its number is on, so it loses the later note. scan-chart reads as Clone Hero does, and reports `overlappingMidiNotes`. Every game pairs by number and channel.
-- A. Invalid, read as Clone Hero does | Notes of one number and channel must not overlap. A scanner pairs them as Clone Hero does | scan-chart already reads them this way
-- B. Invalid, reading left open | The page doesn't say what a scanner does | Scanners that follow the page can still read such a file differently
-- C. Valid, read as Clone Hero does | Overlap is allowed | YARG loses notes of valid files
-Recommendation: A. YARG reads overlapping notes differently, and Clone Hero's reading gives a .chart file's results.
-*/}
 
 ### Events at one tick
 
-**A note that ends where the next starts.** When a note-off and the next note-on of its number share a tick, the note-off must come first. Then every scanner reads two notes, as in the example above.
-
-{/* review: Q13
-A note that ends on the tick where the next note of its number starts. Written note-off first, every scanner reads two notes. Written note-on first, Clone Hero and scan-chart still read both notes, and YARG loses the second. scan-chart's export writes touching sustains note-on first, so that a sustain shorter than the cutoff keeps its length when the file is read again. Its own check then reports `overlappingMidiNotes` on the file it wrote.
-- A. Note-off first, required | The other order is invalid | scan-chart's export has to change: it can write each note's own note-off, and a lower `sustain_cutoff_threshold` where a short sustain needs one, as converting already does
-- B. Either order | A scanner reads both orders as Clone Hero does | YARG loses notes of valid files
-Recommendation: A. It is the only order every scanner reads the same way.
-*/}
+**A note that ends where the next starts.** **Required:** the note-off before the next note-on of its number, when the two share a tick. Then every scanner reads two notes, as in the example above.
 
 **Edge case: a note of length 0.** A note-on, then its note-off, at one tick. A note of length 0 has no sustain, and a modifier of length 0 covers the notes on its tick. For a phrase, see [Phrases](/mid/phrases#rules-for-every-phrase).
 
@@ -93,7 +78,7 @@ Clone Hero and scan-chart keep the longer note, as in a `.chart` file. YARG keep
 </Accordion>
 
 <Accordion title="A note-on before the note-off at a shared tick">
-For notes that should end and start at one tick, the file has the next note-on before the note-off. Clone Hero and scan-chart pair that note-on with the note-off at its tick, and trimming overlapping sustains then gives the two notes the charter meant. YARG loses the second note. scan-chart's export writes two touching sustains of one lane this way.
+For notes that should end and start at one tick, the file has the next note-on before the note-off. Clone Hero and scan-chart pair that note-on with the note-off at its tick, and trimming overlapping sustains then gives the two notes the charter meant. YARG loses the second note. scan-chart reports `overlappingMidiNotes`, and its export writes the note-off first.
 </Accordion>
 
 <Accordion title="A note-on with no note-off">
