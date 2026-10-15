@@ -20,6 +20,13 @@ It's the `.mid` form of a `.chart` file's [[Events]](/chart/events) section. One
 - A file has at most one `EVENTS` track, after the tempo track. See [Tracks](/mid/structure#tracks).
 - A scanner matches every event below in the letter case shown.
 - Square brackets around the text are optional, as in a `.chart` file: `[section Intro]` means the same as `section Intro`. **Recommended:** no brackets.
+
+{/* review: Q1
+When should scan-chart's export stop writing brackets around practice sections, `coda` and `end`? This page recommends no brackets, from your answer to the last revision's Q4. Released Clone Hero reads a `.mid` practice section and `end` only with brackets. The change that reads them without brackets is planned for Clone Hero's second merge request. scan-chart's export writes `[section …]`, `[coda]` and `[end]` today.
+- A. Once Clone Hero releases its change | The export keeps writing brackets until then, which is valid | Files scan-chart writes don't follow the recommendation for a while
+- B. In 9.0.0 | The export writes no brackets from the start | Released Clone Hero loses the practice sections and the end of every `.mid` file scan-chart writes, until its change is released
+Recommendation: A. Brackets stay valid, and B costs players their practice sections in the game most of them use.
+*/}
 - **Required:** the event is the whole text, with no spaces around it or just inside its brackets.
 
 ## Practice sections
