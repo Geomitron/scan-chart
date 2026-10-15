@@ -29,18 +29,18 @@ Each line names one value, as [Named entries](/chart/syntax#named-entries) descr
 | Key | Value | song.ini key |
 |---|---|---|
 | `Name` | The song's title | `name` |
-| `Artist` | The artist | `artist` |
-| `Album` | The album | `album` |
-| `Genre` | The genre | `genre` |
-| `Year` | The year the song was released. **Recommended:** written after `, `, as in `Year = ", 2002"`, the standard form for older games | `year` |
-| `Charter` | The name of the person who charted the song | `charter` |
+| `Artist` | The song's artist(s) | `artist` |
+| `Album` | The album the song is on | `album` |
+| `Genre` | The song's genre | `genre` |
+| `Year` | The year the song's album was released, or for a live recording the year it was performed. **Recommended:** written after `, `, as in `Year = ", 2002"`, the standard form for older games | `year` |
+| `Charter` | The names of the people who charted the song | `charter` |
 | `Offset` | How far the chart is moved against the audio, in seconds. A higher value makes every note come later. **Recommended:** 0, or no line. See [Deprecated](#deprecated) | `delay`, in milliseconds |
 | `PreviewStart` | Where the song list's preview starts, in seconds | `preview_start_time`, in milliseconds |
 | `PreviewEnd` | Where the preview ends, in seconds | `preview_end_time`, in milliseconds |
-| `Difficulty` | The difficulty of the whole song, from 0 to 6 | `diff_band` |
+| `Difficulty` | The difficulty of the whole song: a whole number from 0 to 6, or up to 10 for a very hard chart. `diff_band` is recommended only for a chart with more than one instrument part: see [Difficulties](/ini/metadata#difficulties) | `diff_band` |
 
 - **Text** is written in quotation marks: `Name = "Song Name"`.
-- **Times** are written in seconds, as digits with an optional `-` before them and an optional decimal part, without quotation marks: `PreviewStart = 45.5`. A time should have at most three decimals.
+- **Times** are written in seconds, as digits with an optional `-` before them and an optional decimal part, without quotation marks: `PreviewStart = 45.5`. **Recommended:** at most three decimals.
 
 **Edge case: `Year`.** A scanner removes a leading `, `, so `Year = "2002"` means the same as `Year = ", 2002"`.
 
@@ -48,14 +48,12 @@ Each line names one value, as [Named entries](/chart/syntax#named-entries) descr
 
 ## [Song] and song.ini
 
-A song folder must hold a `song.ini` file. See [Files in a song folder](/song-folders). When both `[Song]` and `song.ini` set a key from the table, they must give the same value. Times are compared in milliseconds, and `Year` without its leading `, `.
+A song folder holds a `song.ini` file. See [Files in a song folder](/song-folders). **Required:** when both `[Song]` and `song.ini` set a key from the table, the same value in both. Times are compared in milliseconds, and `Year` without its leading `, `.
 
 A scanner reads the metadata from `song.ini`:
 
 - It takes the name, artist, album, genre, year and charter from `song.ini` alone, even when `song.ini` leaves one of them out.
-- It takes `Offset`, `PreviewStart` and `PreviewEnd` from `[Song]` only when `song.ini` doesn't set `delay`, `preview_start_time` or `preview_end_time`. A `delay` of 0, a `preview_start_time` of -1, and a `preview_end_time` of -1 or 0 count as not set.
-
-**Edge case: no song.ini.** A scanner that reads a folder without `song.ini` takes all of the metadata from `[Song]`.
+- It takes `Offset`, `PreviewStart` and `PreviewEnd` from `[Song]` only when `song.ini` doesn't set `delay`, `preview_start_time` or `preview_end_time`. A `delay` of 0 and a `preview_end_time` of 0 count as not set.
 
 ## Deprecated
 
@@ -65,7 +63,7 @@ A scanner reads the metadata from `song.ini`:
 
 A scanner ignores every other key. An exporter may keep them as written. Older chart editors wrote some of them:
 
-- **Audio file names,** such as `MusicStream` and `GuitarStream`. Games find the audio by file name instead. See [Audio](/song-folders#audio). An exporter should not write them: a chart editor keeps a charter's choice of audio file in its own settings. Moonscraper still finds a `.chart`'s audio only through these keys.
+- **Audio file names,** such as `MusicStream` and `GuitarStream`. Games find the audio by file name instead. See [Audio](/song-folders#audio). A new chart leaves them out: a chart editor keeps a charter's choice of audio file in its own settings. Moonscraper still finds a `.chart`'s audio only through these keys.
 - **`Player2`, `MediaType`, `Length` and others,** which games no longer use.
 
 ## Invalid forms
@@ -76,6 +74,10 @@ A scanner that reads a file without a `Resolution` uses 192, and scan-chart's sa
 
 <Accordion title="A key written more than once">
 A scanner uses the first line of the key that has a value.
+</Accordion>
+
+<Accordion title="No song.ini">
+Clone Hero and scan-chart take all of the metadata from `[Song]`, and YARG doesn't list the song. See [Files in a song folder](/song-folders#invalid-forms).
 </Accordion>
 
 <Accordion title="[Song] and song.ini giving different values">
