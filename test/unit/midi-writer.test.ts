@@ -864,6 +864,17 @@ describe('writeMidiFile round-trip: vocal tracks', () => {
 		])
 	})
 
+	it('reads [range_shift] events as vocal text events, and writes them back', () => {
+		const source = trackMidi('PART VOCALS', [
+			{ tick: 0, text: 'a', type: 'lyrics' }, { tick: 240, text: '[range_shift]' }, { tick: 480, text: '[range_shift 2.5]' },
+		], [[0, 105, 960], [0, 60, 100]])
+		const textEvents = (chart: ParsedChart) => chart.vocalTracks.parts.vocals.textEvents.map(event => [event.tick, event.text])
+		const parsed = parseChartAndIni([{ fileName: 'notes.mid', data: source }]).parsedChart!
+		expect(textEvents(parsed)).toEqual([[240, '[range_shift]'], [480, '[range_shift 2.5]']])
+		const written = readMidiFile(writeMidiFile(parsed)).tracks.find(track => track.some(event => event.type === 'trackName' && event.text === 'PART VOCALS'))!
+		expect(written.flatMap(event => event.type === 'text' ? [[event.deltaTime, event.text]] : [])).toEqual([[240, '[range_shift]'], [480, '[range_shift 2.5]']])
+	})
+
 	it('preserves vocal text events', () => {
 		const chart = createEmptyChart({ format: 'mid' })
 		chart.vocalTracks.parts.vocals = {
