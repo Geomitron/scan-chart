@@ -225,6 +225,7 @@ export interface ClassifiedMidi {
 
 /** Classifies a read `.mid` file's tracks and events. No rule profile is involved. */
 export function classifyMidiFile(midiFile: MidiData): ClassifiedMidi {
+	checkPhaseShiftSysExStacks(midiFile)
 	const { tracks, unrecognizedMidiTracks } = getTracks(midiFile)
 
 	// Build vocalTracks from PART VOCALS and HARM1/HARM2/HARM3.
@@ -304,6 +305,27 @@ export function classifyMidiFile(midiFile: MidiData): ClassifiedMidi {
 		eventsScan,
 		instrumentTracks,
 		unrecognizedMidiTracks,
+	}
+}
+
+/**
+ * Throws for a Phase Shift SysEx event Clone Hero's MIDI reader can't read. It pairs each one in a stack for its phrase
+ * and difficulty, numbered phrase × 5 + difficulty (4 for all difficulties), and has 100 (TrackChunk), so a higher
+ * number throws, on any track, with or without an end: HashScanTool fails to load a chart with phrase 19 and difficulty
+ * 5, phrase 20 and difficulty 0 or 0xFF, or a tap with difficulty 200, and loads phrase 19 with difficulty 4. It reads
+ * an event as Phase Shift SysEx when it is 8 bytes, `50 53 00 00 <difficulty> <phrase> <status> F7`.
+ */
+function checkPhaseShiftSysExStacks(midiFile: MidiData): void {
+	for (const track of midiFile.tracks) {
+		for (const event of track) {
+			if (event.type !== 'sysEx' && event.type !== 'endSysEx') continue
+			const { data } = event
+			if (data.length !== 8 || data[0] !== 0x50 || data[1] !== 0x53 || data[2] !== 0x00 || data[3] !== 0x00 || data[7] !== 0xf7) continue
+			const [difficulty, phrase] = [data[4], data[5]]
+			if (phrase * 5 + (difficulty === 0xff ? 4 : difficulty) >= 100) {
+				throw `Invalid .mid file: The Phase Shift SysEx event at tick ${event.deltaTime} has phrase ${phrase} and difficulty ${difficulty}, which Clone Hero can't read.`
+			}
+		}
 	}
 }
 
@@ -616,9 +638,10 @@ interface TrackScanResult {
 	/** Each difficulty's disco flip mix events, on a drum track. */
 	drumMixes: { [difficulty in Difficulty]: DrumMixEvent[] }
 	/**
-	 * The start of the first tap or open SysEx phrase with a difficulty byte other than 0-3 or 0xFF. Clone Hero can't load
-	 * a 5- or 6-fret track with one (Song.GetOrCreateTrack throws for its difficulty), and YARG throws on one too; such
-	 * a SysEx event without an end, or on another track, does nothing.
+	 * The start of the first tap or open SysEx phrase with a difficulty byte other than 0-3 or 0xFF that has an end.
+	 * Clone Hero can't load a 5- or 6-fret track with one (Song.GetOrCreateTrack throws for its difficulty; HashScanTool
+	 * fails to load such a tap or open with difficulty 4, 5 or 200), and YARG throws on one too. It loads such a phrase
+	 * on a drum track, and a start with no end.
 	 */
 	unloadableSysEx: TrackEventEnd | null
 }

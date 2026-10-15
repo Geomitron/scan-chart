@@ -63,6 +63,16 @@ describe('the .mid reader refuses what Clone Hero refuses', () => {
 		}
 	})
 
+	it('refuses a Phase Shift SysEx event numbered past Clone Hero\'s 100 SysEx stacks (phrase × 5 + difficulty), on any track', () => {
+		const drums = (phrase: number, difficulty: number) => guitarMidi([...note(0, 97), sysEx(0, difficulty, phrase, true)], undefined, 'PART DRUMS')
+		for (const parse of Object.values(parsers)) {
+			expect(() => parse(drums(19, 5), 'mid')).toThrow('has phrase 19 and difficulty 5')
+			expect(() => parse(drums(20, 0xff), 'mid')).toThrow('has phrase 20 and difficulty 255')
+			expect(() => parse(guitarMidi([...greens, sysEx(100, 200, 4, true)]), 'mid')).toThrow('has phrase 4 and difficulty 200')
+			expect(parse(drums(19, 4), 'mid').trackData).toHaveLength(1)
+		}
+	})
+
 	it('still reads a file where such a SysEx event has no end, or is on a drum track, which Clone Hero loads', () => {
 		const unpaired = guitarMidi([...greens, sysEx(100, 5, 4, true)])
 		for (const parse of Object.values(parsers)) expect(tapTicks(unpaired, parse)).toEqual([])
