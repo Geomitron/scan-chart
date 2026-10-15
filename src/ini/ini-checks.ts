@@ -34,21 +34,36 @@ const standardTags = [
 	'hopo_frequency', 'eighthnote_hopo', 'multiplier_note', 'star_power_note', 'icon', 'background', 'video', 'video_loop', 'video_start_time',
 	'video_end_time', 'cover',
 ]
-/** The tags a reader documents: the standard's, scan-chart's, and `explicit_lyrics`, which Clone Hero reads and the charting guidelines describe. */
-export const knownIniTags = new Set([...standardTags, ...knownIniKeys, 'explicit_lyrics'])
+/** The tags Clone Hero (SongEntry) or YARG (SongIniHandler) reads that the standard and scan-chart don't. */
+const gameTags = [
+	'diff_coop', 'diff_coopghl', 'diff_rhythmghl', 'explicit_lyrics', 'md5_hash',
+	'banner_link_a', 'banner_link_b', 'bass_type', 'boss_battle', 'cassettecolor', 'charter_audio', 'charter_bass', 'charter_bass_6f', 'charter_drums',
+	'charter_elite_drums', 'charter_guitar', 'charter_guitar_6f', 'charter_keys', 'charter_lower_diff', 'charter_pro_bass', 'charter_pro_guitar',
+	'charter_pro_keys', 'charter_rhythm', 'charter_rhythm_6f', 'charter_venue', 'charter_vocals', 'clean_vocals', 'count', 'covered_by',
+	'credit_album_art_by', 'credit_album_art_designed_by', 'credit_album_cover', 'credit_arranged_by', 'credit_background', 'credit_composed_by',
+	'credit_courtesy_of', 'credit_engineered_by', 'credit_license', 'credit_mastered_by', 'credit_mixed_by', 'credit_other', 'credit_performed_by',
+	'credit_produced_by', 'credit_published_by', 'credit_written_by', 'dance_type', 'date_released', 'diff_elite_drums', 'drum_fallback_blue',
+	'early_hit_window_size', 'eof_midi_import_drum_accent_velocity', 'eof_midi_import_drum_ghost_velocity', 'guitar_type', 'hopofreq', 'keys_type',
+	'kit_type', 'link_bandcamp', 'link_bluesky', 'link_facebook', 'link_instagram', 'link_name_a', 'link_name_b', 'link_other', 'link_spotify',
+	'link_twitter', 'link_youtube', 'location', 'preview', 'pro_drum', 'real_keys_lane_count_left', 'real_keys_lane_count_right', 'scores',
+	'scores_ext', 'sub_genre', 'sysex_high_hat_ctrl', 'sysex_open_bass', 'sysex_pro_slide', 'sysex_rimshot', 'sysex_slider', 'tags', 'tutorial',
+	'unlock_completed', 'unlock_id', 'unlock_require', 'unlock_text', 'venue_hint', 'vocal_character_hint',
+]
+/** The tags some game reads, or the standard or scan-chart documents. */
+const knownTags = new Set([...standardTags, ...knownIniKeys, ...gameTags])
 /** The order the charting guidelines list tags in, which scan-chart writes them in. */
 const tagOrder = Object.keys(defaultMetadata)
 
 /**
  * The charting recommendations about song.ini: how it's written (its layout, its tags' order, blank and quoted values,
- * and tags no reader documents), then its values.
+ * and tags no game reads), then its values.
  */
 export function songIniIssues(input: SongIniInput): MetadataFinding[] {
 	const { tokens, songSection, extraIniKeys } = input
 	const isExtra = (key: string) => extraIniKeys.some(extra => typeof extra === 'string' ? toLowerInvariant(extra) === key : extra.test(key))
 	// A line starting with "//" is reported as a comment, though readers read one with "=" in it as a key.
 	const keys = Object.keys(songSection).filter(key => !key.startsWith('//'))
-	const known = keys.filter(key => knownIniTags.has(key) || isExtra(key))
+	const known = keys.filter(key => knownTags.has(key) || isExtra(key))
 	const unknown = keys.filter(key => !known.includes(key))
 	const issues = layoutIssues(tokens)
 
@@ -74,10 +89,10 @@ export function songIniIssues(input: SongIniInput): MetadataFinding[] {
 		})
 	}
 	if (unknown.length > 0) {
-		const [tags, them] = unknown.length === 1 ? ['a tag that isn\'t', 'it'] : ['tags that aren\'t', 'them']
+		const [tags, them] = unknown.length === 1 ? ['a tag', 'it'] : ['tags', 'them']
 		issues.push({
 			metadataIssue: 'unknownIniTag',
-			description: `"song.ini" has ${tags} in the song.ini standard: ${keyList(unknown)}. Remove ${them}, unless a game you chart for reads ${them}.`,
+			description: `"song.ini" has ${tags} no game reads: ${keyList(unknown)}. Remove ${them}, unless your game reads ${them}.`,
 		})
 	}
 	return [...issues, ...values.issues]
