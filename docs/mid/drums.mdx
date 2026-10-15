@@ -1,13 +1,177 @@
 ---
 title: "Drums"
-description: "Tom markers, dynamics, flam and disco flip in a .mid file."
+description: "Drum types, and the pads, toms, accents, ghosts, double kicks, flams and disco flip of a .mid drums track."
 ---
 
-<Warning>Placeholder for the local preview. This page isn't written yet.</Warning>
+The `PART DRUMS` track holds the notes of every difficulty for each pad and the kick, and modifiers that change how those notes are hit:
 
-It will cover:
+```text
+PART DRUMS
+  0      Track name  PART DRUMS
+  0      Text        [ENABLE_CHART_DYNAMICS]
+  1920   Note on     96   Expert kick
+  1920   Note on     98   Expert yellow
+  1920   Note off    96
+  1920   Note off    98
+  2400   Note on     97   Expert red, velocity 127
+  2400   Note off    97
+  2880   Note on     99   Expert blue
+  2880   Note on     111  Blue tom marker
+  2880   Note off    99
+  2880   Note off    111
+```
 
-- Tom markers
-- Accents and ghosts with `ENABLE_CHART_DYNAMICS`
-- Flam
-- Disco flip
+Here the kick and a yellow cymbal come at tick 1920, then an accented red at tick 2400, then a blue tom at tick 2880.
+
+## Drum types
+
+A drums chart is 4-lane, pro or 5-lane, as [Drum types](/chart/drums#drum-types) describes for a `.chart` file. A scanner decides the type in the same order, from `song.ini` and the drums track, with two differences:
+
+- A tom marker, 110, 111 or 112, makes the chart pro, where a `.chart` file has a cymbal marker.
+- A 5-lane green note, 65, 77, 89 or 101, makes it 5-lane, where a `.chart` file has `N 5`.
+
+**Edge case: a tom marker that covers no note.** It changes no note, but it still makes the chart pro, in Clone Hero and in YARG. scan-chart doesn't count such a marker, and its export leaves it out.
+
+**Edge case: YARG's default type.** YARG reads a `.mid` drums chart that has no tom marker and no 5-lane green note as pro, unless `song.ini` has `pro_drums = False`. Every yellow, blue and green note is then a cymbal in YARG. Clone Hero and scan-chart read such a chart as 4-lane.
+
+Playing one type on another kit works as in a `.chart` file, with 100 and 101 in place of `N 4` and `N 5`. See [Playing one type on another kit](/chart/drums#playing-one-type-on-another-kit).
+
+**Edge case: 100 and 101 at one tick in a pro chart.** Clone Hero and scan-chart move 101 to a blue tom, and YARG plays both in the green lane, as a green cymbal and a green tom. An exporter should not write them together in a pro chart.
+
+## Notes
+
+| Note | Easy | Medium | Hard | Expert | `.chart` |
+|---|---|---|---|---|---|
+| Double kick | 59 | 71 | 83 | 95 | `N 32` |
+| Kick | 60 | 72 | 84 | 96 | `N 0` |
+| Red | 61 | 73 | 85 | 97 | `N 1` |
+| Yellow | 62 | 74 | 86 | 98 | `N 2` |
+| Blue | 63 | 75 | 87 | 99 | `N 3` |
+| Green, or orange in 5-lane | 64 | 76 | 88 | 100 | `N 4` |
+| Green tom in a pro chart, or green in 5-lane | 65 | 77 | 89 | 101 | `N 5` |
+
+A drum note's length has no effect.
+
+### Double kicks
+
+Note 95 is a kick that a scanner plays only when the player has the double kick modifier enabled, as `N 32` is in a `.chart` file. See [Double kicks](/chart/drums#double-kicks).
+
+- An exporter should write double kicks only on Expert, as note 95.
+- A tick must not hold both 95 and 96.
+
+**Edge case:** Clone Hero plays 59, 71 and 83 as double kicks on Easy, Medium and Hard, when the double kick modifier is on. YARG's song list doesn't count them, and scan-chart reports them as `difficultyForbiddenNote`.
+
+## Modifiers
+
+A drum modifier is a note that changes how the pad notes it covers are hit. It covers the notes of every difficulty that start at or after its note-on and before its note-off, and one of length 0 covers the notes on its tick. Its velocity and channel have no effect.
+
+A `.chart` modifier applies only to the notes at its own tick. See [Modifiers](/chart/drums#modifiers).
+
+### Toms
+
+In a pro chart, a yellow, blue or green note is a cymbal, unless a tom marker covers it. This is the reverse of a `.chart` file, where a cymbal marker makes a cymbal of a tom.
+
+| Note | Makes a tom of |
+|---|---|
+| `110` | Yellow, 98 on Expert |
+| `111` | Blue, 99 on Expert |
+| `112` | Green, 100 on Expert |
+
+- Red is always the snare, and 101 is always a tom.
+- In a 5-lane chart, tom markers have no effect: each pad is a tom or a cymbal by its lane.
+- Tom markers of one color must not overlap.
+
+### Accents and ghosts
+
+An accent is a note hit harder than the ones around it, and a ghost is one hit softer. In a `.mid` file, a pad note's velocity makes it one, after the text event `[ENABLE_CHART_DYNAMICS]`:
+
+| Velocity | Note |
+|---|---|
+| 127 | Accent |
+| 1 | Ghost |
+| Any other | A normal note |
+
+- `[ENABLE_CHART_DYNAMICS]` is a text event, `FF 01`, in the drums track. It's written `[ENABLE_CHART_DYNAMICS]`, **Recommended**, or `ENABLE_CHART_DYNAMICS`.
+- It covers the notes that come after it in the track, on every difficulty. **Recommended:** at tick 0, before every note.
+- Without it, velocity has no effect.
+- Every pad note may be an accent or a ghost, 101 included. Kicks have no accents or ghosts. An exporter should not write a kick at velocity 127 or 1 after the event.
+
+**Edge case: kick velocities.** Released Clone Hero reads a kick or double kick at velocity 127 or 1, after the event, as an accent or a ghost. YARG and scan-chart don't.
+
+In a `.chart` file, accents and ghosts are markers, `N 34` to `N 44`, and need no event. See [Accents and ghosts](/chart/drums#accents-and-ghosts).
+
+### Flams
+
+Note 109 makes every drum note it covers a flam: two hits of the pad in quick succession. It's the `.mid` form of `N 109`, and covers a range instead of one tick. See [Flams](/chart/drums#flams).
+
+**Edge case:** YARG doesn't read note 109 in a drums track.
+
+### Disco flip
+
+A `mix` event sets up the drum audio for one difficulty, and its `d` flag turns on disco flip, as in a `.chart` file. See [Disco flip](/chart/drums#disco-flip). In a `.mid` file it's a text event in the drums track:
+
+```text
+<tick>  Text  [mix <difficulty> drums<configuration><flag>]
+```
+
+- The difficulty in the text, `0` to `3`, picks the difficulty it applies to. In a `.chart` file, the event must also be in that difficulty's section.
+- **Recommended:** square brackets, and single spaces between the parts: `[mix 3 drums0d]`.
+- An exporter should not write disco flip events in a 5-lane chart.
+
+**Edge case:** a scanner also accepts `_` between the parts, and the text without square brackets.
+
+A flip lasts from its tick, notes on it included, until the event that turns it off, or the end of the track. A `dnoflip` event must not come while a `d` flip of its difficulty is on: turn the flip off first.
+
+{/* review: Q8
+A `d` event followed by a `dnoflip` event, with no event turning the flip off between them. Released Clone Hero keeps the flip on until an event turns it off. YARG and scan-chart start no-flip at the `dnoflip`, and GuitarGame_ChartFormats says each mix event resets the state. Players report Clone Hero's reading as a 1.1 regression. The btrack disco-flip brief asks which reading the canonical TrackHash takes; this question is only what the standard allows.
+- A. Invalid | An exporter turns the flip off before a `dnoflip`. The invalid form says what each scanner does, and the btrack brief decides scan-chart's reading | The .chart Drums page gains the same rule. scan-chart's export writes such pairs today and has to add the off event
+- B. Valid, the later event replaces the state | A flip lasts until the next mix event of its difficulty | Released Clone Hero reads a valid file differently. The .chart Drums page's "until the event that turns it off" changes the same way
+- C. Valid, Clone Hero's reading | `d` lasts until an event turns it off | YARG and scan-chart read a valid file differently
+Recommendation: A. The games disagree, so the strict standard makes the form invalid, and a file written with the off event reads the same everywhere.
+*/}
+
+## Deprecated
+
+- **`PART DRUM`,** an older name for the drums track. Write `PART DRUMS`. See [Instrument tracks](/mid/instrument-tracks#deprecated).
+
+## Ignored
+
+- **The `mix` flags `easy` and `easynokick`.** Clone Hero and scan-chart ignore them. YARG reads one as the end of a flip, so an exporter should not write one while a flip is on.
+- **`[ENABLE_CHART_DYNAMICS]` in another track.**
+- **Notes 24 to 51,** which Rock Band charts use for animations, and YARG reads.
+- **Phase Shift SysEx events,** which have no meaning in a drums track.
+- **Other drum tracks,** such as `PART DRUMS_2X` and `PART ELITE_DRUMS`. See [Instrument tracks](/mid/instrument-tracks#ignored).
+
+## Invalid forms
+
+<Accordion title="Both five_lane_drums and pro_drums set to true">
+A scanner reads the chart as 5-lane.
+</Accordion>
+
+<Accordion title="Overlapping tom markers of one color">
+Clone Hero and scan-chart read a tom. YARG switches a note between cymbal and tom once for each marker over it, so a note under two markers is a cymbal there. scan-chart's export writes one marker for each tom.
+</Accordion>
+
+<Accordion title="95 and 96 at one tick">
+Clone Hero merges them into one double kick, and scan-chart keeps the longer, or the double kick when they're the same length. YARG keeps the one whose note-off comes first. scan-chart's export writes one of them.
+</Accordion>
+
+<Accordion title="[ENABLE_CHART_DYNAMICS] after some notes">
+Clone Hero and scan-chart give accents and ghosts only to the notes after it. YARG gives them to every note whose note-off comes after it, so a note that starts before the event and ends after it can be an accent there. scan-chart's export writes the event at tick 0, with velocity 127 or 1 only on the notes that had an accent or ghost.
+</Accordion>
+
+<Accordion title="[ENABLE_CHART_DYNAMICS] spelled another way">
+Clone Hero and scan-chart read only the two standard spellings, in a text event. YARG also reads the event with spaces around it, and in other types of text event.
+</Accordion>
+
+<Accordion title="A mix event spelled another way">
+Scanners read other spellings differently. Clone Hero reads `[mix  3 drums0d]`, with two spaces, and `[mix 03 drums0d]` as a flip, and `[mix 3 drumsd]` as turning it off. YARG reads `[mix 3 drums 0d]` and `mix3drums0d` as a flip. scan-chart reads only one space or `_` between the parts, and its export writes every mix event it reads as `[mix <difficulty> drums0<flag>]`.
+</Accordion>
+
+<Accordion title="Two mix events of one difficulty at one tick">
+Clone Hero and scan-chart use an event that turns the flip off, then `d`, then `dnoflip`, as in a `.chart` file. YARG sorts the events at one tick by their text, so it uses `dnoflip`, then `d`, then an event that turns the flip off. scan-chart's export writes one event.
+</Accordion>
+
+<Accordion title="A dnoflip while a d flip is on">
+Released Clone Hero keeps the flip on until an event turns it off. YARG and scan-chart start no-flip at the `dnoflip`. scan-chart's export writes such a pair as it read it, with no event between them.
+</Accordion>
