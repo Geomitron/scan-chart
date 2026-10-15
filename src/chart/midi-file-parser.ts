@@ -87,6 +87,27 @@ export function midiSourceTrackInstrument(sourceName: string): Instrument | null
 	return trackName === undefined ? null : midiTrackInstrument(trackName)
 }
 
+/** The tracks of a `.mid` file that Clone Hero's names make an instrument's, in file order, each with its name as written. */
+export function midiInstrumentTracks(tokens: MidiTokens): { name: string; instrument: Instrument }[] {
+	const tracks: { name: string; instrument: Instrument }[] = []
+	// The first track is the conductor track. A track is named by its last name at tick 0.
+	for (const chunk of tokens.chunks.filter(chunk => chunk.kind === 'track').slice(1)) {
+		if (chunk.kind !== 'track') continue
+		const names = chunk.events.filter(({ tick, event }) => tick === 0 && event.type === 'trackName').map(({ event }) => (event as { text: string }).text)
+		const name = names[names.length - 1]
+		const instrument = name === undefined ? null : midiSourceTrackInstrument(name)
+		if (instrument !== null) tracks.push({ name, instrument })
+	}
+	return tracks
+}
+
+/** The instruments a `.mid` file has more than one track for, each with its tracks' names; Clone Hero reads only the first. */
+export function repeatedMidiInstrumentTracks(tokens: MidiTokens): { instrument: Instrument; trackNames: string[] }[] {
+	const trackNames = new Map<Instrument, string[]>()
+	for (const { name, instrument } of midiInstrumentTracks(tokens)) trackNames.set(instrument, [...trackNames.get(instrument) ?? [], name])
+	return [...trackNames].filter(([, names]) => names.length > 1).map(([instrument, names]) => ({ instrument, trackNames: names }))
+}
+
 const sysExDifficultyMap = ['easy', 'medium', 'hard', 'expert'] as const
 const discoFlipDifficultyMap = ['easy', 'medium', 'hard', 'expert'] as const
 const fiveFretDiffStarts = { easy: 59, medium: 71, hard: 83, expert: 95 }
