@@ -8,7 +8,7 @@
  * etc.) — the parser is the source of truth for observable behavior.
  */
 
-import { type MidiEvent, parseMidi } from '@geomitron/midi-file'
+import { type MidiEvent, parseMidi, writeMidi } from '@geomitron/midi-file'
 import { describe, expect, it } from 'vitest'
 
 import { createEmptyChart } from 'src/chart/create-chart'
@@ -32,6 +32,28 @@ function roundTrip(chart: ParsedChart, iniText?: string): ParsedChart {
 		throw new Error(`round-trip produced no parsedChart: ${JSON.stringify(result.chartFolderIssues)}`)
 	}
 	return result.parsedChart
+}
+
+/** A `.mid` file at 480 ticks per beat with a PART DRUMS track of text events and zero-length notes (`[tick, note]`). */
+function drumsMidi(texts: { tick: number; text: string }[], notes: [number, number][]): Uint8Array {
+	const events = [
+		...texts.map(({ tick, text }) => ({ tick, event: { type: 'text', text } })),
+		...notes.flatMap(([tick, noteNumber]) => [
+			{ tick, event: { type: 'noteOn', channel: 0, noteNumber, velocity: 100 } },
+			{ tick, event: { type: 'noteOff', channel: 0, noteNumber, velocity: 0 } },
+		]),
+	].sort((a, b) => a.tick - b.tick)
+	let lastTick = 0
+	const drums = events.map(({ tick, event }) => {
+		const deltaTime = tick - lastTick
+		lastTick = tick
+		return { deltaTime, ...event }
+	})
+	const tracks = [
+		[{ deltaTime: 0, type: 'setTempo', microsecondsPerBeat: 500000 }, { deltaTime: 0, type: 'endOfTrack' }],
+		[{ deltaTime: 0, type: 'trackName', text: 'PART DRUMS' }, ...drums, { deltaTime: 0, type: 'endOfTrack' }],
+	] as MidiEvent[][]
+	return new Uint8Array(writeMidi({ header: { format: 1, numTracks: tracks.length, ticksPerBeat: 480 }, tracks }))
 }
 
 function emptyDrumTrack(
@@ -304,6 +326,30 @@ describe('writeMidiFile round-trip: drum tracks', () => {
 			{ t: 1440, l: 480, d: true },
 		])
 		expect(reTrack.drumFreestyleSections.map(s => ({ t: s.tick, l: s.length }))).toEqual([{ t: 1920, l: 480 }])
+	})
+
+	it('writes back the mix events it read, with their stem configuration, and adds one where an edit changed a flip', () => {
+		const mix = (tick: number, text: string) => ({ tick, text })
+		const source = drumsMidi([
+			mix(0, '[mix 3 drums2]'), mix(0, '[mix 0 drums4]'), mix(480, '[mix 3 drums2d]'), mix(1440, '[mix 3 drums2]'), mix(1920, '[mix 3 drums2easy]'),
+		], [[0, 97], [0, 98], [480, 97], [480, 98], [720, 96], [960, 97], [1440, 97], [1920, 98], [0, 61]])
+		const parsed = parseChartAndIni([{ fileName: 'notes.mid', data: source }]).parsedChart!
+		const mixEvents = (data: Uint8Array) => parseMidi(data).tracks.flatMap(track => {
+			let tick = 0
+			return track.flatMap(event => (tick += event.deltaTime, event.type === 'text' && event.text.startsWith('[mix') ? [[tick, event.text]] : []))
+		})
+		const discoTicks = (chart: ParsedChart) => flatNotes(findTrack(chart, 'drums')).filter(n => n.flags & noteFlags.disco).map(n => n.tick)
+		const written = writeMidiFile(parsed)
+		expect(mixEvents(written)).toEqual(mixEvents(source))
+		const reparsed = parseChartAndIni([{ fileName: 'notes.mid', data: written }]).parsedChart!
+		expect(discoTicks(reparsed)).toEqual([480, 480, 960])
+		expect(findTrack(reparsed, 'drums').drumMixes).toEqual(findTrack(parsed, 'drums').drumMixes)
+
+		// An edit takes the flip off the red note at 960.
+		for (const n of findTrack(parsed, 'drums').noteEventGroups.flat()) if (n.tick === 960) n.flags &= ~noteFlags.disco
+		const edited = writeMidiFile(parsed)
+		expect(mixEvents(edited)).toEqual([[0, '[mix 3 drums2]'], [0, '[mix 0 drums4]'], [480, '[mix 3 drums2d]'], [960, '[mix 3 drums2]'], [1440, '[mix 3 drums2]'], [1920, '[mix 3 drums2easy]']])
+		expect(discoTicks(parseChartAndIni([{ fileName: 'notes.mid', data: edited }]).parsedChart!)).toEqual([480, 480])
 	})
 
 	it('preserves versus phrases', () => {

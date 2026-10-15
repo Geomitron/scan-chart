@@ -7,6 +7,7 @@ import type { Difficulty } from '../../types'
 import { drumTypes } from '../../types'
 import type { NoteType } from '../types'
 import { noteFlags, noteTypes } from '../types'
+import type { DrumMixEvent } from '../raw-types'
 import { drumsDiffStarts } from '../midi-note-numbers'
 import type { ParsedChart } from '../parse-chart-and-ini'
 import { wrapEventBrackets } from '../writer-shared'
@@ -256,6 +257,40 @@ export function buildDrumTrack(
 	return finalizeMidiTrack(events)
 }
 
+/**
+ * The disco flip mix events to write for a drum track: each one it was read with, as written, and one at each tick
+ * whose red and yellow notes need another flip than the last event gives, which replaces an event read at that tick. An
+ * added event has the stem configuration of the last event read before it, or else of the first one, or 0.
+ */
+function drumMixEvents(td: ParsedTrack): DrumMixEvent[] {
+	const read = td.drumMixes ?? []
+	const written: DrumMixEvent[] = []
+	let readIndex = 0
+	let configuration = read[0]?.configuration ?? 0
+	let flag: DrumMixEvent['flag'] = ''
+	const write = (event: DrumMixEvent) => {
+		configuration = event.configuration
+		flag = event.flag
+		if (written[written.length - 1]?.tick === event.tick) written[written.length - 1] = event
+		else written.push(event)
+	}
+	for (const group of td.noteEventGroups) {
+		// The flip of the group's red and yellow notes. A group without them reads no flip, and keeps the last one.
+		let groupFlag: DrumMixEvent['flag'] | null = null
+		for (const note of group) {
+			if (note.type !== noteTypes.redDrum && note.type !== noteTypes.yellowDrum) continue
+			groupFlag = note.flags & noteFlags.discoNoflip ? 'dnoflip' : note.flags & noteFlags.disco ? 'd' : ''
+			if (groupFlag !== '') break
+		}
+		if (groupFlag === null) continue
+		const tick = group[0].tick
+		while (readIndex < read.length && read[readIndex].tick <= tick) write(read[readIndex++])
+		if (groupFlag !== flag) write({ tick, configuration, flag: groupFlag })
+	}
+	while (readIndex < read.length) write(read[readIndex++])
+	return written
+}
+
 function emitDrumNotes(
 	events: AbsoluteEvent[],
 	td: ParsedTrack,
@@ -269,7 +304,9 @@ function emitDrumNotes(
 	const base = drumsDiffStarts[td.difficulty]
 	const diffIdx: Record<Difficulty, number> = { easy: 0, medium: 1, hard: 2, expert: 3 }
 	const di = diffIdx[td.difficulty] ?? 3
-	let currentDiscoState: 'off' | 'disco' | 'discoNoflip' = 'off'
+	for (const { tick, configuration, flag } of drumMixEvents(td)) {
+		events.push({ tick, event: metaTextEvent(`[mix ${di} drums${configuration}${flag}]`) })
+	}
 
 	const drumType = chart.drumType
 	const isFiveLaneTrack = drumType === drumTypes.fiveLane
@@ -279,25 +316,6 @@ function emitDrumNotes(
 
 	for (const group of td.noteEventGroups) {
 		let hasFlamInGroup = false
-
-		// Disco flip state transitions → `[mix <diff> drums0[d|dnoflip]]` text events.
-		if (group.length > 0) {
-			let newState: 'off' | 'disco' | 'discoNoflip' = 'off'
-			for (const note of group) {
-				if (note.type === noteTypes.redDrum || note.type === noteTypes.yellowDrum) {
-					if (note.flags & noteFlags.discoNoflip) { newState = 'discoNoflip'; break }
-					if (note.flags & noteFlags.disco) { newState = 'disco'; break }
-				}
-			}
-			if (newState !== currentDiscoState) {
-				const suffix = newState === 'off' ? 'drums0' : newState === 'disco' ? 'drums0d' : 'drums0dnoflip'
-				events.push({
-					tick: group[0].tick,
-					event: metaTextEvent(`[mix ${di} ${suffix}]`),
-				})
-				currentDiscoState = newState
-			}
-		}
 
 		// Ensure regular kicks emit BEFORE double kicks at the same tick — YARG's
 		// MoonNote insertion dedupes by (tick, rawNote), so if both a regular kick
