@@ -165,8 +165,8 @@ describe('song.ini values', () => {
 			+ 'Change the chart first so it plays the same without it, by forcing the notes that change. Then remove the tag.']
 		expect(await values(['hopo_frequency = 170', 'eighthnote_hopo = 1'], codes)).toEqual([hopos('hopo_frequency')])
 		expect(await values(['eighthnote_hopo = True'], codes)).toEqual([hopos('eighthnote_hopo')])
-		expect(await values(['frets = Someone'], codes)).toEqual([['deprecatedIniTag', '"song.ini" names the charter with "frets", a tag for older charts. Write "charter" instead.']])
-		expect(await values(['track = 3'], codes)).toEqual([['deprecatedIniTag', '"song.ini" gives the album track with "track", a tag for older charts. Write "album_track" instead.']])
+		expect(await values(['frets = Someone'], codes)).toEqual([['deprecatedIniTag', '"song.ini" sets "charter" with "frets", its name in older charts. Write "charter" instead.']])
+		expect(await values(['track = 3'], codes)).toEqual([['deprecatedIniTag', '"song.ini" sets "album_track" with "track", its name in older charts. Write "album_track" instead.']])
 		const unchanged = ['delay = 0', 'hopo_frequency = 0', 'eighthnote_hopo = 0', 'charter = Me', 'frets = Someone', 'album_track = 2', 'track = 3', 'multiplier_note = 103']
 		expect(await values(unchanged, codes)).toEqual([])
 		expect(await values(['charter =', 'frets = Someone', 'album_track = -1', 'track = 3'], codes)).toEqual([])

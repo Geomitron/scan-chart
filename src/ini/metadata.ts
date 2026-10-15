@@ -45,6 +45,17 @@ export const defaultMetadata = {
 
 type MetadataKey = keyof typeof defaultMetadata
 
+/**
+ * The older name of each tag that has one, which games read only when the file doesn't have the tag: `frets` for
+ * `charter`, and `track` for `album_track`.
+ */
+export const olderTags: ReadonlyMap<string, string> = new Map([['charter', 'frets'], ['album_track', 'track']])
+
+/** The tag `older` is an older name of, or `undefined`. */
+export function newerTag(older: string): string | undefined {
+	return [...olderTags].find(([, name]) => name === older)?.[0]
+}
+
 /** The order the charting guidelines list tags in, which scan-chart writes them in. */
 export const tagOrder = Object.keys(defaultMetadata)
 
