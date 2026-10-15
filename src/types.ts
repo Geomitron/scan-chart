@@ -123,9 +123,9 @@ export interface ScannedChartMetadata {
 	album_track?: number
 	/** The ordinal position of the chart in its setlist. This is `undefined` if it's not on a setlist. */
 	playlist_track?: number
-	/** The playlist Clone Hero lists the chart under, in lowercase. Without it, Clone Hero makes one from the chart's folder path. */
+	/** The playlist Clone Hero lists the chart under. Without it, Clone Hero makes one from the chart's folder path. */
 	playlist?: string
-	/** A playlist within `playlist`, in lowercase. */
+	/** A playlist within `playlist`. */
 	sub_playlist?: string
 	/** `true` if the chart is a modchart. This only affects how the chart is filtered and displayed, and doesn't impact gameplay. */
 	modchart?: boolean
