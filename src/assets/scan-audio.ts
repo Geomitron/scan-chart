@@ -1,7 +1,7 @@
 
 import type { FolderFinding } from '../issues'
 import type { SongFile } from '../song-files'
-import { getBasename, getExtension, hasAudioExtension, hasAudioName, hasCrowdOrPreviewName } from '../shared/file-names'
+import { getBasename, getExtension, hasAudioExtension, hasAudioName, hasCrowdOrPreviewName, hasExtraAudioName } from '../shared/file-names'
 
 export function scanAudio(files: readonly SongFile[]) {
 	const folderIssues: FolderFinding[] = []
@@ -33,7 +33,8 @@ function findAudioData(files: readonly SongFile[]) {
 				if (!hasCrowdOrPreviewName(file.fileName)) {
 					audioData.push(file.data)
 				}
-			} else {
+			} else if (!hasExtraAudioName(file.fileName)) {
+				// YARG reads its clean and explicit stems, which aren't the song's main audio.
 				folderIssues.push({ folderIssue: 'invalidAudio', description: `"${file.fileName}" is not a valid audio stem name.`, file: file.fileName })
 			}
 		}

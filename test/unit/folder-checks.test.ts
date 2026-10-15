@@ -87,6 +87,12 @@ describe('files games don\'t read', () => {
 		expect(await unrecognized(named('original.mid', 'song (1).ini', 'band.ogg', 'sub/song.opus'))).toEqual([])
 	})
 
+	it('reports YARG\'s clean and explicit stems as neither misnamed nor the song\'s audio', async () => {
+		const scanned = await scanSongFolder([{ fileName: 'notes.chart', data: chart }, ...named('song_clean.ogg', 'vocals_explicit.opus', 'band.ogg')])
+		expect(scanned.issues.filter(issue => ['invalidAudio', 'unrecognizedFile', 'noAudio'].includes(issue.code)).map(issue => [issue.code, issue.file]))
+			.toEqual([['invalidAudio', 'band.ogg'], ['noAudio', null]])
+	})
+
 	it('accepts the files extraFiles lists', async () => {
 		expect(await unrecognized(named('CH.DAT', 'notes.eof', 'notes.backup.eof', 'readme.txt'), { extraFiles: ['ch.dat', /\.eof$/] })).toEqual(['readme.txt'])
 	})

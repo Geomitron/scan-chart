@@ -59,29 +59,34 @@ export function hasAudioExtension(fileName: string) {
 	return ['ogg', 'mp3', 'wav', 'opus'].includes(getExtension(fileName).toLowerCase())
 }
 
+const audioStemNames = ['song', 'guitar', 'bass', 'rhythm', 'keys', 'vocals', 'vocals_1', 'vocals_2', 'drums', 'drums_1', 'drums_2', 'drums_3', 'drums_4', 'crowd', 'preview']
+/** The clean and explicit versions of stems that YARG reads, which the standard doesn't name. */
+const extraAudioStemNames = [
+	'song_clean', 'vocals_clean', 'vocals_1_clean', 'vocals_2_clean', 'crowd_clean', 'preview_clean',
+	'vocals_explicit', 'vocals_1_explicit', 'vocals_2_explicit', 'crowd_explicit',
+]
+
 /**
  * @returns `true` if `fileName` has a valid chart audio fileName.
  */
 export function hasAudioName(fileName: string) {
-	return (
-		[
-			'song',
-			'guitar',
-			'bass',
-			'rhythm',
-			'keys',
-			'vocals',
-			'vocals_1',
-			'vocals_2',
-			'drums',
-			'drums_1',
-			'drums_2',
-			'drums_3',
-			'drums_4',
-			'crowd',
-			'preview',
-		].includes(getBasename(fileName)) && ['ogg', 'mp3', 'wav', 'opus'].includes(getExtension(fileName))
-	)
+	return audioStemNames.includes(getBasename(fileName)) && ['ogg', 'mp3', 'wav', 'opus'].includes(getExtension(fileName))
+}
+
+/**
+ * @returns `true` if `fileName` is a clean or explicit stem that YARG reads, which the standard doesn't name.
+ */
+export function hasExtraAudioName(fileName: string) {
+	return extraAudioStemNames.includes(getBasename(fileName)) && ['ogg', 'mp3', 'wav', 'opus'].includes(getExtension(fileName))
+}
+
+/**
+ * @returns `true` if `fileName`, in any letter case, is audio some game reads: a stem the standard or YARG names, with
+ * one of the standard's extensions or YARG's `.aiff`.
+ */
+export function hasGameAudioName(fileName: string) {
+	const lowercase = fileName.toLowerCase()
+	return [...audioStemNames, ...extraAudioStemNames].includes(getBasename(lowercase)) && ['ogg', 'mp3', 'wav', 'opus', 'aiff'].includes(getExtension(lowercase))
 }
 
 /**
