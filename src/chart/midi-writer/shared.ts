@@ -198,6 +198,19 @@ export function stretchUnsustainedNotes(events: AbsoluteEvent[], cutoff: number)
 	}
 }
 
+/**
+ * Adds an instrument track's versus phrases: player 1's on note 105 and player 2's on 106. Each note-on stays before
+ * its note-off at one tick, so a zero-length phrase is kept.
+ */
+export function addVersusPhrases(events: AbsoluteEvent[], versusPhrases: ParsedTrack['versusPhrases']): void {
+	let seq = 0
+	for (const phrase of versusPhrases) {
+		const noteNumber = phrase.isPlayer2 ? 106 : 105
+		events.push({ tick: phrase.tick, seq: seq++, event: noteOnEvent(noteNumber, 100) })
+		events.push({ tick: phrase.tick + phrase.length, seq: seq++, event: noteOffEvent(noteNumber) })
+	}
+}
+
 /** The phrases a MIDI track holds for an instrument, from its difficulty tracks, as `options` asks (r4 Q4). */
 export function instrumentSections<T extends { tick: number; length: number }>(
 	tracks: readonly { difficulty: string }[],

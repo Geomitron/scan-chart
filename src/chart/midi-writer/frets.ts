@@ -13,6 +13,7 @@ import { wrapEventBrackets } from '../writer-shared'
 import {
 	addNoteOnOff,
 	addNoteOnOffWithChannel,
+	addVersusPhrases,
 	computeLengthOverrides,
 	finalizeMidiTrack,
 	instrumentSections,
@@ -183,20 +184,7 @@ export function buildFretTrack(
 				})
 			}
 
-			let vpSeq = 0
-			for (const vp of td.versusPhrases) {
-				const note = vp.isPlayer2 ? 106 : 105
-				events.push({
-					tick: vp.tick,
-					seq: vpSeq++,
-					event: noteOnEvent(note, 100),
-				})
-				events.push({
-					tick: vp.tick + vp.length,
-					seq: vpSeq++,
-					event: noteOffEvent(note),
-				})
-			}
+			addVersusPhrases(events, td.versusPhrases)
 
 			// Animations: emit note-pair per animation unless the same
 			// (tick, noteNumber) was already emitted by a fret note above (in

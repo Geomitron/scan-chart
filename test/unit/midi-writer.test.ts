@@ -305,6 +305,18 @@ describe('writeMidiFile round-trip: drum tracks', () => {
 		])
 		expect(reTrack.drumFreestyleSections.map(s => ({ t: s.tick, l: s.length }))).toEqual([{ t: 1920, l: 480 }])
 	})
+
+	it('preserves versus phrases', () => {
+		const chart = createEmptyChart({ format: 'mid', resolution: 480 })
+		const td = emptyDrumTrack('expert')
+		td.noteEventGroups.push([note(0, noteTypes.kick)], [note(960, noteTypes.redDrum)])
+		td.versusPhrases.push({ tick: 0, length: 480, isPlayer2: false, msTime: 0, msLength: 0 }, { tick: 960, length: 480, isPlayer2: true, msTime: 0, msLength: 0 })
+		chart.trackData.push(td)
+		expect(findTrack(roundTrip(chart), 'drums').versusPhrases.map(phrase => [phrase.tick, phrase.length, phrase.isPlayer2])).toEqual([
+			[0, 480, false],
+			[960, 480, true],
+		])
+	})
 })
 
 
