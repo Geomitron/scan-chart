@@ -16,6 +16,8 @@ My Song/
   video.webm
 ```
 
+A whole song folder can also be packed into one file. See [.sng files](/sng).
+
 ## Files
 
 | File | Holds | |
@@ -31,11 +33,7 @@ A song folder should hold only files a game reads. Backups, editor projects and 
 
 ### File names
 
-- Each file name must be in lowercase, as written on this page.
-- A folder must not hold two names that differ only in letter case, such as `song.ini` and `Song.ini`.
-- A song folder must not hold another song folder. A scanner doesn't look for a song inside a song folder.
-
-**Edge case:** a scanner matches names in any letter case, so it reads `Song.ini` as `song.ini`. A name in another case still loads, but should be renamed.
+**Required:** each file name in lowercase, as written on this page.
 
 ## The chart
 
@@ -47,10 +45,10 @@ A song folder should hold only one chart.
 
 ## song.ini
 
-A song folder must hold a `song.ini` file. It gives the song's metadata, such as its name and artist, and settings that change how the chart plays.
+**Required:** a `song.ini` file. It gives the song's metadata, such as its name and artist, and settings that change how the chart plays.
 
 - A scanner reads only `song.ini`, and ignores any other `.ini` file.
-- A scanner decodes `song.ini` the way it decodes a `.chart` file. See [Encoding](/chart/syntax#encoding). An exporter should write `song.ini` as UTF-8.
+- [song.ini syntax](/ini/reading-rules) gives the file's syntax and encoding. **Recommended:** UTF-8.
 
 ## Audio
 
@@ -72,10 +70,10 @@ A song's audio is one file, or several files called stems that are combined whil
 | `vocals_1` | The lead vocals |
 | `vocals_2` | The second vocals |
 
-- A song folder must hold at least one of these files.
+- **Required:** at least one of these files.
 - Each file is one of these names with the extension `.opus`, `.ogg`, `.mp3` or `.wav`. **Recommended:** `.opus`, at about 80 kbps: it's the smallest at the same quality. An `.ogg` file should be between 192 and 320 kbps.
-- A folder must hold only one file for each name. See [Invalid forms](#invalid-forms).
-- A scanner plays every file it finds together. So a folder should not hold `drums` with the numbered `drums_` files, or `vocals` with the numbered `vocals_` files.
+- **Required:** at most one file for each name.
+- A scanner plays every audio file it finds together at the same time. So a folder should not hold `drums` with the numbered `drums_` files, or `vocals` with the numbered `vocals_` files.
 
 **Edge case: the whole song in `guitar`.** A common convention is to name a song's only audio file `guitar`. Alone, it plays as `song` does. Once any other stem is added, a full mix in `guitar` drops to 50% volume each time the player misses a guitar note, so the full mix belongs in `song`.
 
@@ -85,7 +83,7 @@ A song's audio is one file, or several files called stems that are combined whil
 - **Background images:** `.png`, `.jpg` or `.jpeg` images whose names start with `background`, such as `background.jpg` and `background2.png`, at least 1280x720 pixels. A folder may hold several. A scanner shows one of them, picked at random, each time the chart is played.
 - **Background video:** `video.webm` is strongly **recommended**, with the VP8 codec: Clone Hero plays video through Unity, which decodes only VP8 in a `.webm` file on desktop platforms. A scanner also plays a video with another extension, such as `video.mp4`, where it can, but `.webm` is the only format every game plays on every platform. A scanner shows the video instead of the background image when a folder holds both.
 
-**Edge case: album art size.** Clone Hero shows album art at 512x512, and resizes art of any other size when it loads it. 500x500, the size recommended before, is still common.
+**Edge case: album art size.** Clone Hero shows album art at 512x512, and resizes art of any other size when it loads it. 500x500, the size previously recommended, is still common.
 
 **Edge case: several album art files.** A folder should hold only one. A scanner that finds several uses the first of `album.png`, `album.jpg` and `album.jpeg`.
 
@@ -105,9 +103,17 @@ YARG doesn't load the song. Clone Hero loads it without sound. A folder whose on
 </Accordion>
 
 <Accordion title="No song.ini">
-A scanner that loads a `.chart` folder without `song.ini` takes the song's metadata from the chart's [[Song] section](/chart/song). scan-chart reports it as `noMetadata`.
+Clone Hero loads a `.chart` folder without `song.ini`, takes the song's metadata from the chart's [[Song] section](/chart/song), and writes a `song.ini` into the folder. It doesn't load a `.mid` folder without one. YARG loads neither. scan-chart reads the metadata from a `.chart` file's `[Song]`, and reports `noMetadata`.
+</Accordion>
+
+<Accordion title="A file name in another letter case, such as Song.ini">
+YARG finds a file in any letter case, and Clone Hero finds most of them on Windows, whose file system ignores letter case. scan-chart reads the chart and `song.ini` in any letter case, and reports them as `invalidChart` and `invalidIni`. It doesn't read audio, album art or video in another letter case: it reports audio as `invalidAudio`, and album art, background images and video as `fileNameCase`. `fixIssues` renames a file it reports as `fileNameCase` in lowercase.
 </Accordion>
 
 <Accordion title="Two names that differ only in letter case">
 Which file a scanner reads depends on the operating system. On Windows, the two can't exist in one folder at all.
+</Accordion>
+
+<Accordion title="A song folder inside a song folder">
+Clone Hero loads both songs. YARG doesn't look inside a song folder, so it doesn't list the inner song.
 </Accordion>
