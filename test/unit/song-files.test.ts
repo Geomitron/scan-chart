@@ -49,6 +49,18 @@ describe('song files', () => {
 		expect(issues).toEqual([{ scope: 'folder', code: 'noMetadata', severity: 'error', instrument: null, difficulty: null, tick: null, msTime: null, message: 'This chart doesn\'t have "song.ini".' }])
 	})
 
+	it('give [Song]\'s preview times when song.ini leaves them unset, as Clone Hero reads PreviewStart', async () => {
+		const previews = encode('[Song]\r\n{\r\n  PreviewStart = 45.28\r\n  PreviewEnd = 75.5\r\n  Resolution = 192\r\n}\r\n[SyncTrack]\r\n{\r\n  0 = B 120000\r\n}\r\n')
+		const read = async (iniText: string) => (await parseSongMetadata([{ fileName: 'notes.chart', data: previews }, { fileName: 'song.ini', data: encode(iniText) }])).metadata
+		expect(await read('[song]\r\nname = Song\r\n')).toMatchObject({ preview_start_time: 45280, preview_end_time: 75500 })
+		expect(await read('[song]\r\npreview_start_time = -1\r\npreview_end_time = 90000\r\n')).toMatchObject({ preview_start_time: 45280, preview_end_time: 90000 })
+		expect(await read('[song]\r\npreview_start_time = 0\r\n')).toMatchObject({ preview_start_time: 0, preview_end_time: 75500 })
+		// Moonscraper writes PreviewEnd = 0 when there's no preview end.
+		const moonscraper = encode('[Song]\r\n{\r\n  PreviewStart = 0\r\n  PreviewEnd = 0\r\n  Resolution = 192\r\n}\r\n')
+		const { metadata } = await parseSongMetadata([{ fileName: 'notes.chart', data: moonscraper }])
+		expect(metadata).toMatchObject({ preview_start_time: 0, preview_end_time: -1 })
+	})
+
 	it('give a song document\'s metadata the same way, with style tags or without', async () => {
 		const files = [{ fileName: 'notes.chart', data: chart }, { fileName: 'song.ini', data: ini }]
 		const song = await parseSong(files)

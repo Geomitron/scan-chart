@@ -7,7 +7,7 @@ import { writeMidiFile } from './chart/midi-writer'
 import { ParsedChart, parseSongChartAndIni } from './chart/parse-chart-and-ini'
 import { calculateCompetitiveHashes } from './competitive'
 import { ChartFormat, ChartReadError } from './gameplay-chart'
-import { secondsToMs } from './ini/chart-song-entries'
+import { previewEndMs, secondsToMs } from './ini/chart-song-entries'
 import { asUtf8Ini, setSongIniValue } from './ini/ini-edit'
 import { IniTokens, parseIniTokens } from './ini/parse-ini'
 import { songContext } from './song-context'
@@ -43,7 +43,7 @@ export interface ConversionReport {
 	/** Content the target format can't hold, left out. */
 	readonly dropped: readonly { readonly content: string; readonly count: number }[]
 	/** song.ini settings written because the target format needs them. */
-	readonly settings: readonly { readonly key: 'multiplier_note' | 'sustain_cutoff_threshold' | 'delay' | 'preview_start_time'; readonly value: string }[]
+	readonly settings: readonly { readonly key: 'multiplier_note' | 'sustain_cutoff_threshold' | 'delay' | 'preview_start_time' | 'preview_end_time'; readonly value: string }[]
 	/** Values the target can't store, written as the nearest it can because the conversion was forced. */
 	readonly forced: readonly ConversionLimit[]
 }
@@ -66,8 +66,8 @@ const slowestMidiBpm = 60_000_000 / 0xffffff
  * - **To `.mid`:** each instrument's phrases are its Expert track's (r4 Q4), and zero-length phrases stay zero-length.
  *   song.ini gets the settings `.mid` needs: `multiplier_note` when a solo would otherwise read as star power, and
  *   `sustain_cutoff_threshold` only when a sustain would otherwise be trimmed, as the largest value that keeps every
- *   sustain (r4 Q5). The `.chart` `[Song]` Offset and PreviewStart, which Clone Hero reads only from a `.chart`, are
- *   copied into song.ini when it doesn't set them.
+ *   sustain (r4 Q5). The `.chart` `[Song]` Offset, PreviewStart and PreviewEnd, which games read only from a `.chart`,
+ *   are copied into song.ini when it doesn't set them.
  * - **To `.chart`:** vocal pitches, harmonies, and MIDI-only tracks and events such as the venue are left out; lyrics
  *   and vocal phrases are kept. `[Song]` agrees with song.ini.
  *
@@ -102,11 +102,13 @@ export function convertChart(
 		const iniSong = parseIniTokens(ini).iniObject.song ?? {}
 		const isSet = (key: string, unset: number) => Number.isFinite(parseFloat(iniSong[key] ?? '')) && parseFloat(iniSong[key]) !== unset
 		const chartSong = chart.format === 'chart' ? readChartSongEntries(chart.tokens.bytes) : new Map<string, string>()
-		// Clone Hero reads these [Song] values when song.ini doesn't set them, from a .chart only.
+		// Games read these [Song] values when song.ini doesn't set them, from a .chart only.
 		const offset = secondsToMs(chartSong.get('Offset'))
 		if (offset !== null && offset !== 0 && !isSet('delay', 0)) settings.push({ key: 'delay', value: String(offset) })
 		const previewStart = secondsToMs(chartSong.get('PreviewStart'))
 		if (previewStart !== null && previewStart !== -1 && !isSet('preview_start_time', -1)) settings.push({ key: 'preview_start_time', value: String(previewStart) })
+		const previewEnd = previewEndMs(chartSong.get('PreviewEnd'))
+		if (previewEnd !== null && !isSet('preview_end_time', -1)) settings.push({ key: 'preview_end_time', value: String(previewEnd) })
 		const cutoff = midiSustainCutoff(source, context.settings.sustain_cutoff_threshold)
 		if (cutoff.write) settings.push({ key: 'sustain_cutoff_threshold', value: String(cutoff.value) })
 		if (soloReadsAsStarPower(source, context.settings.multiplier_note)) settings.push({ key: 'multiplier_note', value: '116' })

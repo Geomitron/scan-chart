@@ -96,13 +96,13 @@ const discoFlipDifficultyMap = ['easy', 'medium', 'hard', 'expert'] as const
  * `[Song]` keys that a typed metadata field claims. Anything outside this set
  * is preserved on `metadata.extraChartSongFields` so it round-trips verbatim
  * (deprecated Moonscraper / GHTCP fields, audio stream filenames, `Player2`,
- * `HoPo`, `PreviewEnd`, etc.). `Resolution` is not a metadata field but is
+ * `HoPo`, etc.). `Resolution` is not a metadata field but is
  * claimed here because it's emitted separately from the chart's tick-rate.
  */
 const CLAIMED_SONG_KEYS = new Set<string>([
 	'Resolution',
 	'Name', 'Artist', 'Album', 'Genre', 'Year', 'Charter',
-	'Difficulty', 'Offset', 'PreviewStart',
+	'Difficulty', 'Offset', 'PreviewStart', 'PreviewEnd',
 ])
 
 /**
@@ -268,11 +268,12 @@ export function classifyChartFile(
 			year: (metadata['Year']?.startsWith(', ') ? metadata['Year'].slice(2) : metadata['Year']) || undefined,
 			charter: metadata['Charter'] || undefined,
 			diff_band: Number(metadata['Difficulty']) || undefined,
-			// "Offset" and "PreviewStart" are in units of seconds.
+			// "Offset", "PreviewStart" and "PreviewEnd" are in units of seconds.
 			// NOTE: [Song].Offset pairs with song.ini's `delay`, and games read it only when `delay` is 0 or missing.
 			// It's exposed under the `chart_offset` key so it never overwrites the ini-origin `delay` on merge.
 			chart_offset: Number(metadata['Offset']) ? Number(metadata['Offset']) * 1000 : undefined,
 			preview_start_time: Number(metadata['PreviewStart']) ? Number(metadata['PreviewStart']) * 1000 : undefined,
+			preview_end_time: Number(metadata['PreviewEnd']) ? Number(metadata['PreviewEnd']) * 1000 : undefined,
 			...(Object.keys(extraChartSongFields).length > 0 ? { extraChartSongFields } : {}),
 		},
 		vocalTracks: {

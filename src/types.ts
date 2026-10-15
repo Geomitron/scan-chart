@@ -113,6 +113,8 @@ export interface ScannedChartMetadata {
 	diff_vocals?: number
 	/** The number of milliseconds into the song where the chart's audio preview should start playing. */
 	preview_start_time?: number
+	/** The number of milliseconds into the song where the chart's audio preview should stop playing. */
+	preview_end_time?: number
 	/** The name of the icon to be displayed on the chart. Usually represents a charter or setlist. */
 	icon?: string
 	/** A text phrase that will be displayed before the chart begins. */

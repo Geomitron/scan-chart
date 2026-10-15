@@ -35,6 +35,15 @@ describe('the [Song] normalization', () => {
 		expect(normalized?.ini?.tokens.text).toBe('[song]\nname = Song\ndelay = 561\npreview_start_time = 45280\n')
 	})
 
+	it('copies PreviewEnd into song.ini when it doesn\'t set preview_end_time, and leaves Moonscraper\'s PreviewEnd = 0 alone', () => {
+		const normalized = songSectionAgreement(song(['PreviewEnd = 75.5', 'Resolution = 192'], '[song]\nname = Song\n'))
+		expect(songLines(normalized)).toEqual(['PreviewEnd = 75.5', 'Resolution = 192', 'Name = "Song"'])
+		expect(normalized?.ini?.tokens.text).toBe('[song]\nname = Song\npreview_end_time = 75500\n')
+		// A preview can't end at the song's start, so 0 isn't set on either side.
+		expect(songSectionAgreement(song(['Name = "Song"', 'PreviewEnd = 0'], '[song]\nname = Song\n'))).toBeNull()
+		expect(songSectionAgreement(song(['Name = "Song"'], '[song]\nname = Song\npreview_end_time = 0\n'))).toBeNull()
+	})
+
 	it('compares times as the milliseconds Clone Hero rounds them to, and writes one that reads back exactly', () => {
 		expect(songSectionAgreement(song(['Offset = 0.5604', 'Name = "Song"'], '[song]\nname = Song\ndelay = 561\n'))).toBeNull()
 		expect(songLines(songSectionAgreement(song(['Offset = 0.25'], '[song]\ndelay = 500\n')))).toEqual(['Offset = 0.5'])

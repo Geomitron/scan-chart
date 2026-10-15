@@ -1,6 +1,7 @@
 /**
  * `[Song]` keys scan-chart reads as metadata when there's no song.ini, with their song.ini keys. `Difficulty` is the
- * whole song's difficulty, `diff_band`, as YARG reads it; Clone Hero ignores it and reads the other keys.
+ * whole song's difficulty, `diff_band`, and `PreviewEnd` is `preview_end_time`, as YARG reads them; Clone Hero ignores
+ * both and reads the other keys.
  */
 const chartSongKeys: readonly (readonly [chartKey: string, iniKey: string, secondsToMs?: true])[] = [
 	['Name', 'name'],
@@ -12,6 +13,7 @@ const chartSongKeys: readonly (readonly [chartKey: string, iniKey: string, secon
 	['Difficulty', 'diff_band'],
 	['Offset', 'delay', true],
 	['PreviewStart', 'preview_start_time', true],
+	['PreviewEnd', 'preview_end_time', true],
 ]
 
 /**
@@ -25,7 +27,10 @@ export function chartSongIniEntries(chartSong: ReadonlyMap<string, string>): [ke
 		const value = chartSong.get(chartKey)
 		if (value === undefined) continue
 		if (!inSeconds) entries.push([iniKey, chartKey === 'Year' && value.startsWith(', ') ? value.slice(2) : value])
-		else if (secondsToMs(value) !== null) entries.push([iniKey, String(secondsToMs(value))])
+		else {
+			const ms = chartKey === 'PreviewEnd' ? previewEndMs(value) : secondsToMs(value)
+			if (ms !== null) entries.push([iniKey, String(ms)])
+		}
 	}
 	return entries
 }
@@ -38,4 +43,13 @@ export function chartSongIniEntries(chartSong: ReadonlyMap<string, string>): [ke
 export function secondsToMs(seconds: string | undefined): number | null {
 	const value = seconds === undefined ? NaN : Number(seconds)
 	return Number.isFinite(value) ? Math.ceil(Math.fround(Math.fround(value) * 1000)) : null
+}
+
+/**
+ * A `[Song]` PreviewEnd in milliseconds, or `null` if it isn't set. Moonscraper writes `PreviewEnd = 0` when there's no
+ * preview end, and a preview can't end at or before the song's start, so an end that isn't after 0 isn't set.
+ */
+export function previewEndMs(seconds: string | undefined): number | null {
+	const ms = secondsToMs(seconds)
+	return ms !== null && ms > 0 ? ms : null
 }
