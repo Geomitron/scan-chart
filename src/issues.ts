@@ -45,6 +45,11 @@ export const issueSeverities: { readonly [code in IssueCode]: IssueSeverity } = 
 	missingValue: 'warning',
 	invalidValue: 'warning',
 	extraValue: 'warning',
+	iniLayout: 'recommendation',
+	iniTagOrder: 'recommendation',
+	blankIniValue: 'recommendation',
+	quotedIniValue: 'warning',
+	unknownIniTag: 'recommendation',
 	// Chart issues
 	misalignedTimeSignature: 'warning',
 	noNotes: 'error',

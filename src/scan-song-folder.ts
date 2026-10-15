@@ -8,6 +8,7 @@ import type { ChartStats } from './chart/chart-analysis'
 import { getChartHash } from './chart/chart-hash'
 import { calculateCompetitiveHashes, CompetitiveHashes } from './competitive'
 import { resolveChart } from './gameplay-chart'
+import { songIniIssues } from './ini/ini-checks'
 import { defaultMetadata } from './ini/metadata'
 import { FolderFinding, folderIssue, Issue, metadataIssue } from './issues'
 import { songIniSpellingIssues } from './spelling-issues'
@@ -33,6 +34,8 @@ export interface ScanOptions {
 	 * any letter case, or a pattern. Files an operating system made, such as `desktop.ini`, are always reported.
 	 */
 	readonly extraFiles?: readonly (string | RegExp)[]
+	/** song.ini tags your game reads that no reader documents, so they aren't reported as unknown: a tag, or a pattern of its lowercase name. */
+	readonly extraIniKeys?: readonly (string | RegExp)[]
 	/** Nonstandard spellings every reader reads alike, such as a repeated `.chart` line. Default: `false`. */
 	readonly styleNotes?: boolean
 	/** Remove style tags, such as `<b>`, from the metadata's text values, for plain-text display. Default: `false`. */
@@ -83,6 +86,10 @@ export async function scanSongFolder(files: readonly SongFile[], options: ScanOp
 	let competitive: CompetitiveHashes | null = null
 	let chartIssues: readonly Issue[] = []
 	const chartFile = song.chart?.fileName
+
+	if (song.ini !== null && context.ini.songSection !== null) {
+		metadataIssues.push(...songIniIssues(song.ini.tokens, context.ini.songSection, options.extraIniKeys ?? []))
+	}
 
 	if (context.chart.kind === 'failed') folderIssues.push({ folderIssue: 'badChart', description: context.chart.error, file: chartFile })
 	if (context.chart.kind === 'parsed') {

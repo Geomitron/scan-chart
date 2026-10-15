@@ -336,3 +336,8 @@ export type MetadataIssueType =
 	| 'missingValue' // Metadata is missing a required value
 	| 'invalidValue' // Metadata property was set to an unsupported value
 	| 'extraValue' // Metadata contains a property that should not be included
+	| 'iniLayout' // "song.ini" has a line before "[song]", another section, or a comment that doesn't start with ";"
+	| 'iniTagOrder' // The tags of "song.ini" aren't in the standard order
+	| 'blankIniValue' // A "song.ini" value is blank or -1
+	| 'quotedIniValue' // A "song.ini" value is in quotes
+	| 'unknownIniTag' // "song.ini" has a tag no reader documents
