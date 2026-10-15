@@ -1,7 +1,7 @@
 
 import { analyzeChart } from './analyze-chart'
 import { scanAudio } from './assets/scan-audio'
-import { scanImage } from './assets/scan-image'
+import { decodeAlbumArt, findAlbumArt } from './assets/scan-image'
 import { scanVideo } from './assets/scan-video'
 import type { ChartStats } from './chart/chart-analysis'
 import { getChartHash } from './chart/chart-hash'
@@ -12,7 +12,7 @@ import { FolderFinding, folderIssue, Issue, metadataIssue } from './issues'
 import { songIniSpellingIssues } from './spelling-issues'
 import { songContext } from './song-context'
 import { findChartData, parseSong } from './song-document'
-import { forEachChunk, readFileBytes, SongFile } from './song-files'
+import { fileBytes, forEachChunk, readFileBytes, SongFile } from './song-files'
 import { SongMetadata, songMetadata } from './song-metadata'
 import { hasAlbumName } from './shared/file-names'
 import type { Instrument } from './types'
@@ -25,6 +25,8 @@ export interface ScanOptions {
 	readonly fileHashes?: boolean
 	/** The album art, and the issues found decoding it. Default: `false`. */
 	readonly albumArt?: boolean
+	/** The album art sizes accepted, in pixels: art that isn't a square of one of them is reported. Default: `[512]`. */
+	readonly albumArtSizes?: readonly number[]
 	/** Nonstandard spellings every reader reads alike, such as a repeated `.chart` line. Default: `false`. */
 	readonly styleNotes?: boolean
 	/** Remove style tags, such as `<b>`, from the metadata's text values, for plain-text display. Default: `false`. */
@@ -94,16 +96,19 @@ export async function scanSongFolder(files: readonly SongFile[], options: ScanOp
 		if (context.ini.metadata !== null) metadataIssues.push(...difficultyIssues(metadata, stats))
 	}
 
-	// Album art is read only when it's asked for, or hashed.
+	// The album art's names are always checked. The art is read only when it's asked for, or hashed.
+	const album = findAlbumArt(song.files)
+	folderIssues.push(...album.folderIssues)
 	const readAlbumArt = options.albumArt || options.fileHashes
 	const assetFiles = readAlbumArt
 		? await Promise.all(song.files.map(async file => hasAlbumName(file.fileName) ? { fileName: file.fileName, data: await readFileBytes(file) } : file))
 		: song.files
 	let albumArt: AlbumArt | null = null
-	if (options.albumArt) {
-		const image = scanImage(assetFiles)
-		folderIssues.push(...image.folderIssues)
-		if (image.albumBuffer) albumArt = { data: image.albumBuffer }
+	if (options.albumArt && album.file !== null) {
+		const data = fileBytes(assetFiles[song.files.indexOf(album.file)])
+		const decoded = decodeAlbumArt(album.file.fileName, data, options.albumArtSizes ?? [512])
+		folderIssues.push(...decoded.folderIssues)
+		if (decoded.decoded) albumArt = { data }
 	}
 	const audio = scanAudio(song.files)
 	folderIssues.push(...audio.folderIssues)
