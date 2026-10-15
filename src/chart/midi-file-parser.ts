@@ -633,7 +633,10 @@ interface TrackScanResult {
 	textEvents: { tick: number; text: string }[]
 	versusPhrases: { tick: number; length: number; isPlayer2: boolean }[]
 	animations: { tick: number; length: number; noteNumber: number }[]
-	/** MIDI events the typed parser didn't consume (verbatim). */
+	/**
+	 * MIDI events kept verbatim for writers: those the typed parser didn't consume, and on a drum track the events of each
+	 * tom marker that covers no note (`withUncoveredTomMarkers`), which change no note but which Clone Hero 1.1 reads.
+	 */
 	unrecognizedEvents: MidiEvent[]
 	/** Each difficulty's disco flip mix events, on a drum track. */
 	drumMixes: { [difficulty in Difficulty]: DrumMixEvent[] }
