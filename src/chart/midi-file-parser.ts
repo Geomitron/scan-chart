@@ -113,6 +113,11 @@ export interface TrackEventEnd {
 	chartDynamics?: boolean
 	/** The index in its MIDI track of the event this came from. */
 	eventIndex: number
+	/**
+	 * On a Phase Shift SysEx event, its difficulty byte. A SysEx start and end pair only when the byte is the same, and
+	 * never with a note, as Clone Hero keeps a stack for each SysEx phrase and difficulty (TrackChunk).
+	 */
+	sysExDifficulty?: number
 }
 
 // Necessary because .mid stores some additional modifiers and information using velocity
@@ -757,6 +762,7 @@ function scanInstrumentTrack(
 					velocity: 127,
 					isStart: event.data[6] === 0x01,
 					eventIndex,
+					sysExDifficulty: d,
 				})
 			} else {
 				unrecognizedEvents.push(event)
@@ -968,6 +974,7 @@ function distributeInstrumentEvents(eventEnds: { [difficulty in Difficulty | 'al
 				channel: instrumentEvent.channel,
 				isStart: instrumentEvent.isStart,
 				eventIndex: instrumentEvent.eventIndex,
+				...(instrumentEvent.sysExDifficulty === undefined ? {} : { sysExDifficulty: instrumentEvent.sysExDifficulty }),
 			})
 		}
 	}
@@ -994,8 +1001,8 @@ export interface PairedEventEnds {
 }
 
 /**
- * Pairs each start event with an end event of its type, the most recent unpaired start on the same channel, in start
- * order. A start with no end is left out.
+ * Pairs each start event with an end event of its type, the most recent unpaired start on the same channel (and, for a
+ * SysEx event, of the same SysEx difficulty), in start order. A start with no end is left out.
  */
 export function pairEventEnds(ends: readonly TrackEventEnd[]): PairedEventEnds[] {
 	const pairs: { start: TrackEventEnd; end: TrackEventEnd | null }[] = []
@@ -1013,7 +1020,7 @@ export function pairEventEnds(ends: readonly TrackEventEnd[]): PairedEventEnds[]
 			pairs.push(pair)
 		} else if (unpaired !== undefined && unpaired.length) {
 			let index = unpaired.length - 1
-			while (index >= 0 && unpaired[index].start.channel !== end.channel) {
+			while (index >= 0 && (unpaired[index].start.channel !== end.channel || unpaired[index].start.sysExDifficulty !== end.sysExDifficulty)) {
 				index-- // Find the most recent unpaired start on the same channel
 			}
 			if (index >= 0) {
