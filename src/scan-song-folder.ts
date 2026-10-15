@@ -16,7 +16,7 @@ import { metadataStyleIssues } from './ini/metadata-style'
 import { defaultMetadata } from './ini/metadata'
 import { FolderFinding, folderIssue, Issue, MetadataFinding, metadataIssue } from './issues'
 import { songIniSpellingIssues } from './spelling-issues'
-import { songContext } from './song-context'
+import { SongContext, songContext } from './song-context'
 import { documentFiles, findChartData, parseSong, SongDocument, songOrigin } from './song-document'
 import { fileBytes, forEachChunk, readFileBytes, SongFile } from './song-files'
 import { SongMetadata, songMetadata } from './song-metadata'
@@ -93,18 +93,17 @@ export interface AlbumArt {
 
 /** Scans a song folder in one call: its metadata, issues and statistics, and whatever else `options` asks for. */
 export async function scanSongFolder(files: readonly SongFile[], options: ScanOptions = {}): Promise<ScannedSong> {
-	return (await scanSong(await parseSong(files), options)).scanned
+	return scanSong(await parseSong(files), options)
 }
 
-/** `scanSongFolder` for a parsed song, with the song.ini checks' findings, which name the tags each is about. */
-export async function scanSong(song: SongDocument, options: ScanOptions = {}): Promise<{ scanned: ScannedSong; iniFindings: readonly MetadataFinding[] }> {
+/** `scanSongFolder` for a parsed song. */
+export async function scanSong(song: SongDocument, options: ScanOptions = {}): Promise<ScannedSong> {
 	// An edited song's chart and song.ini files are its edited ones.
 	const files = songOrigin(song) === undefined ? song.files : documentFiles(song)
 	const context = songContext(song)
 	const metadata = songMetadata(song, { removeStyleTags: options.removeStyleTags })
 	const folderIssues: FolderFinding[] = [...context.ini.folderIssues, ...findChartData(files).folderIssues]
 	const metadataIssues = [...context.ini.metadataIssues]
-	let iniFindings: MetadataFinding[] = []
 	let stats: ChartStats | null = null
 	let competitive: CompetitiveHashes | null = null
 	let chartIssues: readonly Issue[] = []
@@ -128,8 +127,7 @@ export async function scanSong(song: SongDocument, options: ScanOptions = {}): P
 		if (context.ini.metadata !== null) metadataIssues.push(...difficultyIssues(metadata, stats))
 	}
 	if (song.ini !== null && context.ini.metadata !== null && context.ini.songSection !== null) {
-		iniFindings = songIniFindings(song, stats, options)
-		metadataIssues.push(...iniFindings)
+		metadataIssues.push(...songIniFindings(song, context, stats, options))
 		if (options.metadataStyle) metadataIssues.push(...metadataStyleIssues(context.ini.metadata))
 	}
 	const ignored = context.ini.songSection === null ? null : ignoredIssueCodes(context.ini.songSection)
@@ -173,7 +171,7 @@ export async function scanSong(song: SongDocument, options: ScanOptions = {}): P
 		...chartIssues,
 	]
 	const isIgnored = (issue: Issue) => ignored !== null && ignored.codes.has(issue.code) && !aboutTag.has(issue)
-	const scanned: ScannedSong = {
+	return {
 		metadata,
 		issues: issues.filter(issue => !isIgnored(issue)),
 		ignoredIssues: issues.filter(isIgnored),
@@ -184,12 +182,11 @@ export async function scanSong(song: SongDocument, options: ScanOptions = {}): P
 		fileHashes: options.fileHashes ? await fileHashes(assetFiles, context) : null,
 		albumArt,
 	}
-	return { scanned, iniFindings }
 }
 
 /** The song.ini checks' findings, given the chart's statistics; none when Clone Hero reads no song.ini `[song]` section. */
-export function songIniFindings(song: SongDocument, stats: ChartStats | null, options: ScanOptions): MetadataFinding[] {
-	const { chart, ini, settings } = songContext(song)
+export function songIniFindings(song: SongDocument, context: SongContext, stats: ChartStats | null, options: ScanOptions): MetadataFinding[] {
+	const { chart, ini, settings } = context
 	if (song.ini === null || ini.metadata === null || ini.songSection === null) return []
 	return songIniIssues({
 		tokens: song.ini.tokens,

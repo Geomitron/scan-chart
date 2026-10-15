@@ -68,8 +68,10 @@ export type { SaveReport } from './song-save'
 export { createSong } from './create-song'
 
 /** Fixing a song's issues. */
-export { fixIssues, issueFixes } from './fix-issues'
+export { fixIssues } from './fix-issues'
+export { issueFixes } from './issue-fixes'
 export type { FixOptions, FixReport } from './fix-issues'
+export type { FixHashes } from './issue-fixes'
 
 /** Converting a song's chart to the other format. */
 export { ConversionError, convertChart } from './convert-chart'

@@ -538,6 +538,20 @@ export function getTimedTempos(
 	return newTempos
 }
 
+type TimedTempo = { readonly tick: number; readonly beatsPerMinute: number; readonly msTime: number }
+
+/** The time of a tick in milliseconds, from the timed tempo map, as `resolveTrack` times notes. */
+export function msAtTick(tempos: readonly TimedTempo[], chartTicksPerBeat: number, tick: number): number {
+	const tempo = [...tempos].reverse().find(candidate => candidate.tick <= tick) ?? tempos[0]
+	return tempo.msTime + ((tick - tempo.tick) * 60000) / (tempo.beatsPerMinute * chartTicksPerBeat)
+}
+
+/** The tick at a time in milliseconds, from the timed tempo map, as a fraction. */
+export function tickAtMs(tempos: readonly TimedTempo[], chartTicksPerBeat: number, ms: number): number {
+	const tempo = [...tempos].reverse().find(candidate => candidate.msTime <= ms) ?? tempos[0]
+	return tempo.tick + ((ms - tempo.msTime) * tempo.beatsPerMinute * chartTicksPerBeat) / 60000
+}
+
 function isCymbalOrTomMarker(type: EventType) {
 	switch (type) {
 		case eventTypes.yellowCymbalMarker:

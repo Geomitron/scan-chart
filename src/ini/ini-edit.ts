@@ -173,6 +173,25 @@ export function rewriteSongIni(tokens: IniTokens, rewrite: SongIniRewrite): IniT
 	return encodeLike(tokens, lines.join(lineEnding(text)) + lineEnding(text))
 }
 
+/** How many `[song]` sections a song.ini has, and the tags written more than once in them, which a rewrite merges. */
+export function songIniRepeats(tokens: IniTokens): { sections: number; keys: string[] } {
+	const counts = new Map<string, number>()
+	let [sections, inSong] = [0, false]
+	// As parseIniTokens reads lines: comments, then sections, then keys.
+	for (const raw of (tokens.text ?? '').split(/\r?\n/)) {
+		const line = trimDotnet(raw)
+		if (line.length === 0 || line.startsWith(';') || line.startsWith('#')) continue
+		if (line.startsWith('[') && line.endsWith(']')) {
+			inSong = toLowerInvariant(line.slice(1, -1)) === 'song'
+			if (inSong) sections++
+		} else if (inSong && line.includes('=') && !line.startsWith('//')) {
+			const key = toLowerInvariant(trimDotnet(line.slice(0, line.indexOf('='))))
+			counts.set(key, (counts.get(key) ?? 0) + 1)
+		}
+	}
+	return { sections, keys: [...counts].filter(([, count]) => count > 1).map(([key]) => key) }
+}
+
 function withoutBlankEnd(lines: readonly string[]): string[] {
 	let end = lines.length
 	while (end > 0 && trimDotnet(lines[end - 1]) === '') end--
