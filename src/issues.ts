@@ -41,6 +41,10 @@ export const issueSeverities: { readonly [code in IssueCode]: IssueSeverity } = 
 	audioFormat: 'recommendation',
 	singleAudioName: 'recommendation',
 	discouragedAudio: 'recommendation',
+	extensionMismatch: 'recommendation',
+	audioBitrate: 'recommendation',
+	backgroundSize: 'recommendation',
+	videoCodec: 'warning',
 	// Metadata issues
 	missingValue: 'warning',
 	invalidValue: 'warning',
@@ -57,6 +61,7 @@ export const issueSeverities: { readonly [code in IssueCode]: IssueSeverity } = 
 	deprecatedIniTag: 'recommendation',
 	redundantDrumType: 'recommendation',
 	defaultIniValue: 'recommendation',
+	songLengthMismatch: 'recommendation',
 	creditSeparator: 'recommendation',
 	textSpacing: 'recommendation',
 	featuringFormat: 'recommendation',

@@ -3,6 +3,7 @@ import { analyzeChart } from './analyze-chart'
 import { audioNameRecommendations, scanAudio } from './assets/scan-audio'
 import { scanFolderFiles } from './assets/scan-folder'
 import { decodeAlbumArt, findAlbumArt } from './assets/scan-image'
+import { scanMedia } from './assets/scan-media'
 import { scanVideo } from './assets/scan-video'
 import type { ChartStats } from './chart/chart-analysis'
 import { getChartHash } from './chart/chart-hash'
@@ -32,6 +33,11 @@ export interface ScanOptions {
 	readonly albumArt?: boolean
 	/** The album art sizes accepted, in pixels: art that isn't a square of one of them is reported. Default: `[512]`. */
 	readonly albumArtSizes?: readonly number[]
+	/**
+	 * The issues found reading the audio, image and video files, such as an audio bitrate or a background image's size. It
+	 * reads each audio and video file's headers, and the album art and background images whole. Default: `false`.
+	 */
+	readonly mediaIssues?: boolean
 	/**
 	 * Files your game reads that Clone Hero and YARG don't, so they aren't reported as unrecognized: a name, matched in
 	 * any letter case, or a pattern. Files an operating system made, such as `desktop.ini`, are always reported.
@@ -126,22 +132,27 @@ export async function scanSongFolder(files: readonly SongFile[], options: ScanOp
 		if (options.metadataStyle) metadataIssues.push(...metadataStyleIssues(context.ini.metadata))
 	}
 
-	// The album art's names are always checked. The art is read only when it's asked for, or hashed.
+	// The album art's names are always checked. The art is read only when it's asked for, hashed, or checked.
 	const album = findAlbumArt(song.files)
 	folderIssues.push(...album.folderIssues)
-	const readAlbumArt = options.albumArt || options.fileHashes
+	const readAlbumArt = options.albumArt || options.fileHashes || options.mediaIssues
 	const assetFiles = readAlbumArt
 		? await Promise.all(song.files.map(async file => hasAlbumName(file.fileName) ? { fileName: file.fileName, data: await readFileBytes(file) } : file))
 		: song.files
 	let albumArt: AlbumArt | null = null
-	if (options.albumArt && album.file !== null) {
+	if ((options.albumArt || options.mediaIssues) && album.file !== null) {
 		const data = fileBytes(assetFiles[song.files.indexOf(album.file)])
 		const decoded = decodeAlbumArt(album.file.fileName, data, options.albumArtSizes ?? [512])
 		folderIssues.push(...decoded.folderIssues)
-		if (decoded.decoded) albumArt = { data }
+		if (decoded.decoded && options.albumArt) albumArt = { data }
 	}
 	const audio = scanAudio(song.files)
-	folderIssues.push(...audio.folderIssues, ...audioNameRecommendations(audio.stemFiles))
+	const songLength = context.ini.songSection !== null && context.ini.metadata !== null && context.ini.metadata.song_length > 0 ? context.ini.metadata.song_length : null
+	const media = options.mediaIssues ? await scanMedia(song.files, audio.stemFiles, songLength) : null
+	// An audio file that holds Opus is reported for its extension instead.
+	const audioNames = audioNameRecommendations(audio.stemFiles).filter(issue => issue.folderIssue !== 'audioFormat' || !media?.opusFiles.includes(issue.file!))
+	folderIssues.push(...audio.folderIssues, ...audioNames, ...media?.folderIssues ?? [])
+	metadataIssues.push(...media?.metadataIssues ?? [])
 	const video = scanVideo(song.files)
 	folderIssues.push(...video.folderIssues)
 	folderIssues.push(...scanFolderFiles(song.files, { chartFile: chartFile ?? null, songSection: context.ini.songSection, extraFiles: options.extraFiles ?? [] }))

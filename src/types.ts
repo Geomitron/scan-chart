@@ -333,6 +333,11 @@ export type FolderIssueType =
 	| 'audioFormat' // This audio file isn't Opus, the recommended format
 	| 'singleAudioName' // This chart's only audio file is named neither "song" nor "guitar"
 	| 'discouragedAudio' // This chart has crowd or preview audio
+	// Found reading the media files' headers, only with ScanOptions.mediaIssues
+	| 'extensionMismatch' // This audio or image file's extension doesn't match its content
+	| 'audioBitrate' // This audio file's bitrate isn't the recommended one
+	| 'backgroundSize' // This background image is smaller than 1280x720
+	| 'videoCodec' // This .webm video isn't VP8, which Clone Hero needs
 
 export type MetadataIssueType =
 	| 'missingValue' // Metadata is missing a required value
@@ -350,6 +355,7 @@ export type MetadataIssueType =
 	| 'deprecatedIniTag' // A tag only older charts need changes how the chart reads
 	| 'redundantDrumType' // pro_drums or five_lane_drums sets the drum type games already read
 	| 'defaultIniValue' // A "song.ini" value changes nothing: games read the song the same without it
+	| 'songLengthMismatch' // song_length is far from the longest audio file's length; only with ScanOptions.mediaIssues
 	// Guesses about the metadata's style, reported only with ScanOptions.metadataStyle
 	| 'creditSeparator' // The charter value lists several names joined with something other than " & "
 	| 'textSpacing' // A value has two spaces in a row, an "&" without spaces, or no space before a title tag
