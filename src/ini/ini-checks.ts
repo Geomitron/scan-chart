@@ -2,7 +2,7 @@ import { isNameListed, toLowerInvariant, trimDotnet } from '../shared/text'
 import { undelayedSyncAdvice } from '../shared/time'
 import { type IssueCode, issueSeverities, type MetadataFinding } from '../issues'
 import { type DrumType, drumTypes, type MetadataIssueType } from '../types'
-import { defaultMetadata, isBooleanTag, isNumberTag, tagOrder, tagRank } from './metadata'
+import { defaultMetadata, isNumberTag, tagOrder, tagRank } from './metadata'
 import { marksSingle } from './metadata-style'
 import type { IniTokens } from './parse-ini'
 import { knownIniKeys, parseBoolean, parseDotnetInt } from './scan-ini'
@@ -30,7 +30,7 @@ export interface SongIniInput {
 	} | null
 	/** Tags a caller's game reads. */
 	readonly extraIniKeys: readonly (string | RegExp)[]
-	/** Whether to report what every reader reads alike: tags out of order, -1 and blank text values, and lines that change nothing. */
+	/** Whether to report what every reader reads alike: tags out of order, -1 numbers and blank text values, and lines that change nothing. */
 	readonly styleNotes: boolean
 }
 
@@ -88,7 +88,7 @@ export function songIniIssues(input: SongIniInput): MetadataFinding[] {
 
 	const values = valueIssues(input)
 	const blank: string[] = keys.filter(key => key !== ignoredIssuesTag && isBlank(key, songSection[key]) && !input.requiredKeys.includes(key) && !values.missing.includes(key))
-	// Clone Hero reads a blank number as not set, and YARG as 0; every reader reads a -1 or a blank text value as not set.
+	// Clone Hero reads a blank number as not set, and YARG as 0; a scanner reads a number's -1 or blank text as not set.
 	const blankNumbers = blank.filter(key => songSection[key] === '' && isNumberTag(key))
 	const blankStyle = blank.filter(key => !blankNumbers.includes(key))
 	if (blankNumbers.length > 0) {
@@ -131,13 +131,13 @@ export function standardTagOrder(keys: readonly string[]): string[] {
 	return [...ranked, ...unranked.filter(key => knownTags.has(key)), ...unranked.filter(key => !knownTags.has(key))]
 }
 
-/** Whether a tag's value reads as not set: blank, or -1 for a tag that isn't a boolean. */
-const isBlank = (key: string, value: string | undefined) => value === '' || (value === '-1' && !isBooleanTag(key))
-/** Whether a tag is written: present, and not blank or -1. */
+/** Whether a tag's value reads as not set: blank, or -1 for a number tag. Text -1 is text, and a boolean -1 is true. */
+const isBlank = (key: string, value: string | undefined) => value === '' || (value === '-1' && isNumberTag(key))
+/** Whether a tag is written: present, and not blank or a number's -1. */
 const hasValue = (songSection: SongSection, key: string) => songSection[key] !== undefined && !isBlank(key, songSection[key])
-// Whether every reader reads charter and album_track over their older tags, frets and track.
-const hasCharter = (songSection: SongSection) => hasValue(songSection, 'charter') && songSection.charter !== '0'
-const hasAlbumTrack = (songSection: SongSection) => hasValue(songSection, 'album_track') && !isNaN(parseFloat(songSection.album_track))
+// Games read charter and album_track over their older tags, frets and track, whenever they're in the file.
+const hasCharter = (songSection: SongSection) => songSection.charter !== undefined
+const hasAlbumTrack = (songSection: SongSection) => songSection.album_track !== undefined
 
 /**
  * The charting recommendations about song.ini's values, and the keys reported missing: song_length and album_track
@@ -166,7 +166,7 @@ function valueIssues({ songSection, metadata, chart, styleNotes }: SongIniInput)
 	}
 
 	const icon = songSection.icon
-	if (hasValue(songSection, 'icon') && icon !== '0' && !/^[a-z0-9_-]+$/.test(icon)) {
+	if (hasValue(songSection, 'icon') && !/^[a-z0-9_-]+$/.test(icon)) {
 		add('iconName', `In "song.ini", "icon" is "${icon}". Write the icon's file name without its extension, in lowercase letters, numbers, "-" and "_".`, ['icon'])
 	}
 

@@ -147,16 +147,26 @@ describe('fixIssues: song.ini', () => {
 		expect(changed.report.hashes.map(change => change.key)).toEqual(['canonical:song'])
 	})
 
-	it('leaves out a fix that reads alike but would change a hash, even with changeHashes', async () => {
-		// The SongHash reads a blank charter as no charter, and frets only when there's no charter line.
-		const credited = await fix(folder(['[song]', 'name = Song', 'charter =', 'frets = Someone']), { codes: ['blankIniValue', 'deprecatedIniTag'], changeHashes: true })
-		expect(credited.ini).toBe('[song]\r\nname = Song\r\ncharter =\r\nfrets = Someone\r\n')
-		expect(credited.report.skipped).toEqual([
-			{ code: 'blankIniValue', file: 'song.ini', reason: 'Fixing "charter" would change the SongHash, so games would read the song differently.' },
-			{ code: 'deprecatedIniTag', file: 'song.ini', reason: 'Fixing "frets" would change the SongHash, so games would read the song differently.' },
+	it('removes a blank charter or album_track only with the frets or track line games would read without it', async () => {
+		const lines = ['[song]', 'name = Song', 'charter =', 'frets = Someone', 'album_track =', 'track = 3']
+		const kept = await fix(folder(lines), { codes: ['blankIniValue', 'blankIniNumber'] })
+		expect(kept.ini).toBe(`${lines.join('\r\n')}\r\n`)
+		expect(kept.report.skipped).toEqual([
+			{ code: 'blankIniValue', file: 'song.ini', reason: 'Removing "charter" would make games read "frets" instead: remove "frets" too.' },
+			{ code: 'blankIniNumber', file: 'song.ini', reason: 'Removing "album_track" would make games read "track" instead: remove "track" too.' },
 		])
-		expectHashesKept(credited)
 
+		const removed = await fix(folder(lines))
+		expect(removed.ini).toBe('[song]\r\nname = Song\r\n')
+		expect(removed.report.fixed.map(entry => entry.description)).toEqual([
+			'Removed "charter", which was blank or -1.',
+			'Removed "album_track", which was blank.',
+			'Removed "frets = Someone" and "track = 3", which changed nothing.',
+		])
+		expectHashesKept(removed)
+	})
+
+	it('leaves multiplier_note = 116 where a .mid chart\'s solos would otherwise read as star power, even with changeHashes', async () => {
 		// Without multiplier_note = 116, Clone Hero reads two solos and no star power as star power.
 		const solos = midi({ 'PART GUITAR': [
 			...[96, 960, 1920, 2880].map(tick => ({ tick, noteNumber: 96 })), { tick: 900, noteNumber: 103, length: 200 }, { tick: 2800, noteNumber: 103, length: 200 },

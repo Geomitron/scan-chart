@@ -75,6 +75,12 @@ describe('song.ini tags', () => {
 		])
 	})
 
+	it('reads text -1 as text, not blank', async () => {
+		const lines = ['[song]', 'name = Song', 'artist = Band', 'album = Album', 'genre = Rock', 'year = 2001', 'charter = -1', 'diff_guitar = 4', 'loading_phrase = -1', 'diff_keys = -1']
+		expect(await iniIssues(lines, ['blankIniValue', 'missingValue']))
+			.toEqual([['blankIniValue', 'In "song.ini", "diff_keys" is blank or -1. Remove that line instead.']])
+	})
+
 	it('reads a -1 boolean as true, not blank', async () => {
 		const lines = ['[song]', 'name = Song', 'pro_drums = -1', 'eighthnote_hopo = -1', 'end_events = -1', 'diff_keys = -1']
 		expect((await iniIssues(lines, ['blankIniValue', 'deprecatedIniTag', 'defaultIniValue'])).map(([code, message]) => [code, message.slice(0, 40)])).toEqual([
@@ -161,6 +167,7 @@ describe('song.ini values', () => {
 		expect(await values(['track = 3'], codes)).toEqual([['deprecatedIniTag', '"song.ini" gives the album track with "track", a tag for older charts. Write "album_track" instead.']])
 		const unchanged = ['delay = 0', 'hopo_frequency = 0', 'eighthnote_hopo = 0', 'charter = Me', 'frets = Someone', 'album_track = 2', 'track = 3', 'multiplier_note = 103']
 		expect(await values(unchanged, codes)).toEqual([])
+		expect(await values(['charter =', 'frets = Someone', 'album_track = -1', 'track = 3'], codes)).toEqual([])
 	})
 
 	it('reports multiplier_note = 103 in a .mid chart', async () => {
@@ -206,6 +213,8 @@ describe('song.ini default values', () => {
 	it('reports the tags for older charts that change nothing', async () => {
 		const keys = async (lines: string[], chart?: Uint8Array, fileName?: string) => (await unneeded(lines, chart, fileName)).map(message => message.match(/"\w+ = /g))
 		expect(await keys(['charter = Me', 'frets = Someone', 'album_track = 2', 'track = 3', 'end_events = 0'])).toEqual([['"frets = ', '"track = ', '"end_events = ']])
+		// Games read charter and album_track whenever they're in the file, whatever their value.
+		for (const value of ['', '0', '-1']) expect(await keys([`charter = ${value}`.trim(), 'frets = Someone', `album_track = ${value}`.trim(), 'track = 3'])).toEqual([['"frets = ', '"track = ']])
 		expect(await keys(['hopo_frequency = 0', 'eighthnote_hopo = 0'])).toEqual([['"hopo_frequency = ', '"eighthnote_hopo = ']])
 		expect(await unneeded(['frets = Someone', 'track = 3', 'hopo_frequency = 170', 'delay = 50'])).toEqual([])
 		// hopo_frequency comes before eighthnote_hopo.

@@ -147,7 +147,7 @@ The severity says how much an issue matters:
 Some issues are about how a file is written rather than what it plays. They come in two kinds:
 
 - **Compatibility issues** are on by default. They describe spellings that Clone Hero or another program reads differently, or can't read at all. For example, Clone Hero refuses a `.chart` file whose tick numbers go backwards (`unsortedChartLines`).
-- **Style notes** are off by default. They describe spellings that every program reads the same way, such as a `.chart` line written twice (`duplicateChartLine`). In song.ini, they're tags out of the standard order (`iniTagOrder`), `-1` and blank text values (`blankIniValue`), and lines that change nothing, such as `delay = 0` (`defaultIniValue`). A blank number is reported without them, as `blankIniNumber`, since Clone Hero reads it as not set and YARG as 0.
+- **Style notes** are off by default. They describe spellings that every program reads the same way, such as a `.chart` line written twice (`duplicateChartLine`). In song.ini, they're tags out of the standard order (`iniTagOrder`), `-1` numbers and blank text values (`blankIniValue`), and lines that change nothing, such as `delay = 0` (`defaultIniValue`). A blank number is reported without them, as `blankIniNumber`, since Clone Hero reads it as not set and YARG as 0.
 
 A chart can list the issues it means to have in song.ini, as codes separated by commas:
 
