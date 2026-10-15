@@ -6,6 +6,7 @@
 import type { MidiEvent } from '@geomitron/midi-file'
 
 import type { Difficulty } from '../../types'
+import { midiPitchKey } from '../midi-note-numbers'
 import type { NoteType } from '../types'
 import type { ParsedChart } from '../parse-chart-and-ini'
 
@@ -176,7 +177,7 @@ export function stretchUnsustainedNotes(events: AbsoluteEvent[], cutoff: number)
 	const notesByPitch = new Map<number, AbsoluteEvent[]>()
 	for (const event of events) {
 		if (event.event.type !== 'noteOn' || event.pairOff === undefined) continue
-		const pitch = event.event.channel * 128 + event.event.noteNumber
+		const pitch = midiPitchKey(event.event)
 		const notes = notesByPitch.get(pitch)
 		if (notes === undefined) notesByPitch.set(pitch, [event])
 		else notes.push(event)
@@ -213,7 +214,7 @@ export function addVerbatimEvents(events: AbsoluteEvent[], verbatim: readonly Mi
 		const tick = source.deltaTime
 		const event = { ...source, deltaTime: 0 } as MidiEvent
 		if (event.type === 'noteOn' || event.type === 'noteOff') {
-			const pitch = event.channel * 128 + event.noteNumber
+			const pitch = midiPitchKey(event)
 			const openTicks = openNoteTicks.get(pitch) ?? []
 			openNoteTicks.set(pitch, openTicks)
 			if (event.type === 'noteOn' && event.velocity > 0) {

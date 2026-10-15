@@ -1,6 +1,7 @@
 import { chartEventSection, ChartFileTokens, chartSectionLines, chartSectionTrack, ChartSectionToken } from './chart/chart-file-parser'
 import { ChartEventSection, ChartLineSpelling, chartSectionSpellings, chartSongSpellings } from './chart/chart-line-spelling'
 import { midiTrackInstrument, repeatedMidiInstruments } from './chart/midi-file-parser'
+import { midiPitchKey } from './chart/midi-note-numbers'
 import { midiNormalizations } from './chart/midi-normalize'
 import type { MidiTokens } from './chart/midi-tokens'
 import type { ChartSource } from './chart/parse-chart-file'
@@ -252,7 +253,7 @@ function tracksWithOverlappingNotes(tokens: MidiTokens): string[] {
 		for (const { tick, event } of chunk.events) {
 			if (tick === 0 && event.type === 'trackName') name = event.text
 			if (event.type !== 'noteOn' && event.type !== 'noteOff') continue
-			const key = event.channel * 128 + event.noteNumber
+			const key = midiPitchKey(event)
 			const count = sounding.get(key) ?? 0
 			if (event.type === 'noteOn' && event.velocity > 0) {
 				if (count > 0) overlaps = true
