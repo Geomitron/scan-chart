@@ -12,7 +12,7 @@
  */
 
 import { writeChartFile } from './chart-writer'
-import { writeMidiFile } from './midi-writer'
+import { midiSustainCutoff, writeMidiFile } from './midi-writer'
 import type { ParsedChart } from './parse-chart-and-ini'
 import { writeIniFile } from '../ini/ini-writer'
 import type { File } from '../types'
@@ -30,7 +30,8 @@ export interface ChartDocument {
  *
  * Output:
  *   - `notes.chart` or `notes.mid`, depending on `parsedChart.format`
- *   - `song.ini` (from `parsedChart.metadata`)
+ *   - `song.ini` (from `parsedChart.metadata`, with a lower `sustain_cutoff_threshold` when a `.mid`
+ *     file would otherwise cut a sustain: see `midiSustainCutoff`)
  *   - every entry in `doc.assets` that isn't already a chart or ini file, in order
  *
  * If `doc.assets` contains its own `notes.chart` / `notes.mid` / `song.ini`
@@ -61,9 +62,11 @@ export function writeChartFolder(doc: ChartDocument): File[] {
 		})
 	}
 
+	// A .mid file reads back a sustain the overlap step left at or under the cutoff only with a lower one.
+	const cutoff = doc.parsedChart.format === 'mid' ? midiSustainCutoff(doc.parsedChart, doc.parsedChart.iniChartModifiers.sustain_cutoff_threshold) : null
 	out.push({
 		fileName: 'song.ini',
-		data: encoder.encode(writeIniFile(doc.parsedChart.metadata)),
+		data: encoder.encode(writeIniFile(cutoff?.write ? { ...doc.parsedChart.metadata, sustain_cutoff_threshold: cutoff.value } : doc.parsedChart.metadata)),
 	})
 
 	for (const asset of doc.assets) {

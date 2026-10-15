@@ -114,6 +114,23 @@ export function writeMidiFile(chart: ParsedChart, options: MidiWriteOptions = {}
 	return new Uint8Array(writeMidi(midiData))
 }
 
+/**
+ * The sustain cutoff a `.mid` file of `chart` is read with, and whether song.ini must say so (r4 Q5). The writer ends
+ * each note before the next note-on of its pitch, so a sustain reads back only if it's longer than the cutoff:
+ * song.ini's, or else a third of a beat and a tick. When a sustain of the chart isn't, such as one the overlap step left
+ * shorter than song.ini's cutoff, the cutoff becomes the shortest such sustain less a tick, which keeps every sustain.
+ */
+export function midiSustainCutoff(chart: ParsedChart, setCutoff: number): { value: number; write: boolean } {
+	const readCutoff = setCutoff >= 0 ? setCutoff : Math.floor(chart.resolution / 3) + 1
+	let shortest = Infinity
+	for (const track of chart.trackData) {
+		for (const group of track.noteEventGroups) {
+			for (const note of group) if (note.length > 0 && note.length <= readCutoff && note.length < shortest) shortest = note.length
+		}
+	}
+	return shortest === Infinity ? { value: readCutoff, write: false } : { value: shortest - 1, write: true }
+}
+
 // ---------------------------------------------------------------------------
 // Instrument → track name mapping
 // ---------------------------------------------------------------------------

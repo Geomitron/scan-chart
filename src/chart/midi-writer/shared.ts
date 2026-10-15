@@ -170,8 +170,7 @@ export function addNoteOnOffWithChannel(
 
 /**
  * Lengthens each gameplay note written at zero length to the longest length still read as unsustained (r4 Q5): the
- * sustain cutoff, or a tick before the next note of its pitch. A note inside a sustain of its pitch is a zero-length
- * link of back-to-back sustains (`computeLengthOverrides`), and stays at zero length.
+ * sustain cutoff, or a tick before the next note of its pitch. A note inside a sustain of its pitch stays at zero length.
  */
 export function stretchUnsustainedNotes(events: AbsoluteEvent[], cutoff: number): void {
 	const notesByPitch = new Map<number, AbsoluteEvent[]>()
@@ -286,56 +285,4 @@ export function mergeDifficultySections<T extends { tick: number; length: number
 		}
 	}
 	return [...merged.values()].flatMap(({ section, count }) => Array<T>(count).fill(section)).sort((a, b) => a.tick - b.tick)
-}
-
-/**
- * The sustain cutoff the written file will be read with: `options.sustainCutoff`, or else the chart's song.ini setting,
- * or `.mid`'s default when it sets none.
- */
-export function computeSustainCutoff(chart: ParsedChart, options: MidiWriteOptions): number {
-	if (options.sustainCutoff !== undefined) return options.sustainCutoff
-	const setCutoff = chart.iniChartModifiers.sustain_cutoff_threshold
-	return setCutoff >= 0 ? setCutoff : Math.floor(chart.resolution / 3) + 1
-}
-
-/**
- * Length overrides for runs of back-to-back notes of one type (`tick[i] + length[i] === tick[i + 1]`) that the sustain
- * cutoff would otherwise cut. Each note is written with its own note-off, before the next note-on, except in a run
- * where a sustain is at or below `cutoff`, which the overlap step left and which would read back as no sustain: that
- * run is written as its first note sustained over the whole run, with each later note a zero-length link, so the
- * overlap step gives every note its length back.
- */
-export function computeLengthOverrides(td: ParsedTrack, cutoff: number): Map<string, number> {
-	const overrides = new Map<string, number>()
-	const byType = new Map<NoteType, { tick: number; length: number }[]>()
-	for (const g of td.noteEventGroups) {
-		for (const n of g) {
-			let arr = byType.get(n.type)
-			if (!arr) { arr = []; byType.set(n.type, arr) }
-			arr.push({ tick: n.tick, length: n.length })
-		}
-	}
-	for (const [type, notes] of byType) {
-		notes.sort((a, b) => a.tick - b.tick)
-		const isCut = (length: number) => length > 0 && length <= cutoff
-		let i = 0
-		while (i < notes.length) {
-			let j = i
-			let chainSum = notes[i].length
-			let anyCut = isCut(notes[i].length)
-			while (j + 1 < notes.length
-				&& notes[j].tick + notes[j].length === notes[j + 1].tick
-				&& notes[j + 1].length > 0) {
-				chainSum += notes[j + 1].length
-				j++
-				anyCut ||= isCut(notes[j].length)
-			}
-			if (j > i && anyCut && chainSum > cutoff) {
-				overrides.set(`${notes[i].tick}:${type}`, chainSum)
-				for (let k = i + 1; k <= j; k++) overrides.set(`${notes[k].tick}:${type}`, 0)
-			}
-			i = j + 1
-		}
-	}
-	return overrides
 }
