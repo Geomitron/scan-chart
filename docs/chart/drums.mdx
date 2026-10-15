@@ -1,45 +1,87 @@
 ---
 title: "Drums"
-description: "Pads, cymbals, accents, ghosts, double kicks, flams and disco flip in a .chart file."
+description: "Drum types, and the pads, cymbals, accents, ghosts, double kicks, flams and disco flip of a .chart drums section."
 ---
 
-A drums section, such as `ExpertDrums`, holds one chart for three kinds of drum kit:
+A drums section, such as `ExpertDrums`, holds notes for each pad and the kick, and modifiers that change how those notes are hit:
+
+```text
+[ExpertDrums]
+{
+  0 = N 0 0
+  0 = N 2 0
+  0 = N 66 0
+  192 = N 1 0
+  192 = N 34 0
+}
+```
+
+Here the kick and a yellow cymbal come at tick 0, then an accented red at tick 192.
+
+## Drum types
+
+One drums chart is written for one of three kinds of kit:
 
 - **4-lane:** a kick and four pads, with no difference between toms and cymbals.
 - **Pro:** the same lanes as 4-lane, with cymbals on yellow, blue and green.
 - **5-lane:** a kick and five pads, in the layout of a kit with three toms and two cymbals.
 
+A scanner decides a chart's type from `song.ini` and from the notes of every drums section, in this order:
+
+1. `five_lane_drums = true` in `song.ini`: 5-lane.
+2. `pro_drums = true`, or a cymbal marker in any drums section: pro.
+3. An `N 5` in any drums section: 5-lane.
+4. Otherwise: 4-lane.
+
+**Recommended:** leave both keys out of `song.ini` when the notes already give the type, and set one only when they don't. A `false` value means the same as leaving the key out.
+
+### Playing one type on another kit
+
+A game plays any type of chart on any kit:
+
+- **Pro on a 4-lane kit:** cymbals are played as plain pads.
+- **5-lane on a 4-lane or pro kit:** the five pads become red, a yellow cymbal, a blue tom, a green cymbal from `N 4`, and a green tom from `N 5`.
+
+**Edge case: `N 4` and `N 5` at one tick.** In a 5-lane chart played on a pro kit, Clone Hero and scan-chart give a green cymbal and a blue tom, and YARG a blue cymbal and a green tom. In a pro chart, a scanner moves the `N 5` to a blue tom. An exporter should not write them together in a pro chart.
+
 ## Notes
 
-| Value | 4-lane and pro | 5-lane |
+| N value | 4-lane and pro | 5-lane |
 |---|---|---|
 | `0` | Kick | Kick |
 | `1` | Red | Red |
 | `2` | Yellow | Yellow |
 | `3` | Blue | Blue |
 | `4` | Green | Orange |
-| `5` | Green, moved to blue when `4` is at the same tick. See [Drum type](#drum-type) | Green |
+| `5` | Green tom, in a pro chart | Green |
 | `32` | Double kick | Double kick |
 
-A drum note's length has no effect. A writer should write 0.
+A drum note's length has no effect. An exporter should write 0.
 
 ### Double kicks
 
-`N 32` is a kick that a reader plays only when the player has the double kick modifier enabled, because these kicks realistically need a double kick pedal to play properly. Writers alternate `N 0` and `N 32` in fast kick passages. A writer should write `N 32` only in `ExpertDrums`, and must not write `N 0` and `N 32` at one tick.
+`N 32` is a kick that a scanner plays only when the player has the double kick modifier enabled, because these kicks realistically need a double kick pedal to play properly. Charters alternate `N 0` and `N 32` in fast kick passages.
 
-## Cymbals
+- An exporter should write `N 32` only in `ExpertDrums`.
+- A tick must not hold both `N 0` and `N 32`.
+
+## Modifiers
+
+A modifier is an `N` event that changes how the pad notes at its tick are hit, instead of adding a note. It applies only to notes at its own tick, and a modifier on a tick without its note has no effect.
+
+### Cymbals
 
 In a pro chart, a pad note is a tom unless a cymbal marker at its tick makes it a cymbal:
 
-| Value | Makes a cymbal of |
+| N value | Makes a cymbal of |
 |---|---|
 | `66` | Yellow, `N 2` |
 | `67` | Blue, `N 3` |
 | `68` | Green, `N 4` |
 
-Red is always the snare, and `N 5` is always a tom. A marker on a tick without its pad note has no effect. A 4-lane reader plays cymbals as plain pads.
+Red is always the snare, and `N 5` is always a tom.
 
-## Accents and ghosts
+### Accents and ghosts
 
 An accent is a note hit harder than the ones around it, and a ghost is one hit softer:
 
@@ -51,27 +93,15 @@ An accent is a note hit harder than the ones around it, and a ghost is one hit s
 | Green or orange, `N 4` | `37` | `43` |
 | Green in 5-lane, `N 5` | `38` | `44` |
 
-- A marker applies to its pad's note at the same tick. A note with both an accent and a ghost marker is an accent.
-- Kicks have no accents or ghosts.
+Kicks have no accents or ghosts.
 
-## Flams
+**Edge case:** a note with both an accent and a ghost marker is an accent.
+
+### Flams
 
 `N 109` makes every drum note at its tick a flam: two hits of the pad in quick succession. It's the `.chart` form of MIDI note 109.
 
-## Drum type
-
-A reader decides a chart's type from `song.ini` and from the notes of every drums section, in this order:
-
-1. `five_lane_drums = true` in `song.ini`: 5-lane.
-2. `pro_drums = true`, or a cymbal marker in any drums section: pro.
-3. An `N 5` in any drums section: 5-lane.
-4. Otherwise: 4-lane.
-
-A `false` value means the same as leaving the key out. A writer must not set both keys to `true`.
-
-In a pro chart, an `N 5` is a green tom. A writer should not put `N 4` and `N 5` at one tick: a reader moves the `N 5` to a blue tom.
-
-## Disco flip
+### Disco flip
 
 A `mix` event sets up the drum audio for one difficulty, and its `d` flag turns on disco flip: a stretch, such as a disco beat, charted with red and yellow swapped. It's an `E` event in the drums section of the difficulty it names:
 
@@ -91,8 +121,27 @@ A `mix` event sets up the drum audio for one difficulty, and its `d` flag turns 
 ```
 
 - A flip lasts from its tick, notes on it included, until the event that turns it off, or the end of the track.
-- On pro drums, a reader swaps red and yellow back: red becomes a yellow cymbal, and yellow becomes red. On 4-lane drums the notes don't change. The snare and the other drum audio swap instead, so yellow plays the snare.
-- A reader ignores a mix event that names another difficulty. The flags `easy` and `easynokick` have no effect on the notes.
-- A writer must not put two mix events of one difficulty at one tick. A reader that finds several uses an event that turns the flip off, then `d`, then `dnoflip`.
-- A writer should not write disco flip events in a 5-lane chart.
-- A writer should write single spaces between the parts. A reader also accepts `_`, and square brackets around the text.
+- On pro drums, a scanner swaps red and yellow back: red becomes a yellow cymbal, and yellow becomes red. On 4-lane drums the notes don't change. The snare and the other drum audio swap instead, so yellow plays the snare.
+- Parts are separated by single spaces. An exporter should not write disco flip events in a 5-lane chart.
+
+**Edge case:** a scanner also accepts `_` between the parts, and square brackets around the text.
+
+## Ignored
+
+- **A `mix` event that names another difficulty** than its section's.
+- **The `mix` flags `easy` and `easynokick`,** which have no effect on the notes.
+- **`N 33` and `N 39`,** which some charts write for kick accents and ghosts. No scanner gives them a meaning.
+
+## Invalid forms
+
+<Accordion title="Both five_lane_drums and pro_drums set to true">
+A scanner reads the chart as 5-lane.
+</Accordion>
+
+<Accordion title="N 0 and N 32 at one tick">
+Clone Hero merges them into one double kick, and scan-chart keeps the longer, or the double kick when they're the same length. YARG keeps both: one kick on Expert, and two on Expert+.
+</Accordion>
+
+<Accordion title="Two mix events of one difficulty at one tick">
+A scanner uses an event that turns the flip off, then `d`, then `dnoflip`.
+</Accordion>

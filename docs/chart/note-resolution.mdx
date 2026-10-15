@@ -3,80 +3,90 @@ title: "How notes resolve"
 description: "How a .chart file's notes become the notes a player plays."
 ---
 
-A reader turns the notes written in a guitar section into the notes a player plays in five steps, in this order:
+A scanner turns the notes written in a guitar section into the notes a player plays in five steps, in this order:
 
-1. [Sustain cutoff](#sustain-cutoff): sustains that are too short are removed.
-2. [Natural HOPOs](#natural-hopos): each note becomes a strum or a HOPO, and modifiers apply.
-3. [Chord snapping](#chord-snapping): notes very close together merge into chords, if `song.ini` asks for it.
-4. [Duplicate notes](#duplicate-notes): two notes of one fret at one tick become one.
-5. [Overlapping sustains](#overlapping-sustains): a sustain ends where the next note of its fret starts.
+1. [Cut off short sustains](#cut-off-short-sustains).
+2. [Decide strums and HOPOs](#decide-strums-and-hopos), then apply the modifiers.
+3. [Snap close notes into chords](#snap-close-notes-into-chords), if `song.ini` asks for it.
+4. [Remove duplicate notes](#remove-duplicate-notes).
+5. [Trim overlapping sustains](#trim-overlapping-sustains).
 
 Steps 1, 3, 4 and 5 apply to drums too, pad by pad. Drum notes are never HOPOs.
 
-## Sustain cutoff
+## Cut off short sustains
 
 A note whose sustain is no longer than the cutoff is read with no sustain. The cutoff is `sustain_cutoff_threshold` in `song.ini`, in ticks. Without it, or with a negative value, a `.chart` file has no cutoff.
 
 With `sustain_cutoff_threshold = 65`, a note of length 65 has no sustain, and a note of length 66 keeps it.
 
-## Natural HOPOs
+## Decide strums and HOPOs
 
-A note is a strum or a HOPO, a hammer-on or pull-off that the player can play without strumming. Where the notes are decides which, unless a [modifier](/chart/modifiers) says otherwise.
+The player plays each guitar note one of two ways. A **strum** must be strummed. A **HOPO**, a hammer-on or pull-off, can be played by pressing the fret alone, without strumming. The chart doesn't say which a note is: a scanner decides from where the note is, as below, and then the note's [modifiers](/chart/modifiers) can change the result.
 
-### The HOPO threshold
+### Natural HOPOs
 
-A note can be a natural HOPO only if it comes at most a set number of ticks after the note before it. The first of these that applies gives the threshold:
-
-1. `hopo_frequency` in `song.ini`, when it's more than 0: that many ticks.
-2. `eighthnote_hopo = true` in `song.ini`: half the resolution, rounded down, plus 1.
-3. Otherwise: `65 × resolution ÷ 192`, rounded down.
-
-| Resolution | Threshold | With `eighthnote_hopo` |
-|---|---|---|
-| 192 | 65 | 97 |
-| 480 | 162 | 241 |
-| 960 | 325 | 481 |
-
-`hopo_frequency` isn't scaled by the resolution: `hopo_frequency = 30` is 30 ticks at any resolution.
-
-### Which notes are HOPOs
-
-A note is a natural HOPO when all of these are true:
+A note is a HOPO, called a natural HOPO, when all of these are true:
 
 - It isn't the track's first note.
-- Its tick is at most the threshold after the tick of the note or chord before it.
+- It comes no more than the [HOPO threshold](#the-hopo-threshold) after the note or chord before it.
 - It's a single note, not a chord. Notes of one fret at one tick count as one note.
 - If the note before it is a single note, the two are on different frets. An open note is a fret of its own for this rule.
 
-So a chord is never a natural HOPO, and a single note after a chord can be one, even on a fret of that chord. In this example the resolution is 192, so the threshold is 65:
+Every other note is a strum. So a chord is always a strum, and a single note after a chord can be a HOPO, even on a fret of that chord. In this example the resolution is 192, so the threshold is 65 ticks:
 
 | Notes | Result | Why |
 |---|---|---|
 | Green at 0 | Strum | The first note |
 | Red at 65 | HOPO | 65 ticks after green, on another fret |
-| Yellow at 131 | Strum | 66 ticks after red |
+| Yellow at 131 | Strum | 66 ticks after red: more than the threshold |
 | Green and red at 192 | Strum | A chord |
 | Green at 250 | HOPO | 58 ticks after the chord |
 
-The forced modifier then flips a note between strum and HOPO, and the tap modifier makes it a tap. See [Note modifiers](/chart/modifiers).
+Then the forced modifier flips a note between strum and HOPO, and the tap modifier makes it a tap. See [Note modifiers](/chart/modifiers).
 
-## Chord snapping
+### The HOPO threshold
+
+The threshold is `65 × resolution ÷ 192` ticks, rounded down: about a third of a beat.
+
+| Resolution | Threshold |
+|---|---|
+| 192 | 65 |
+| 480 | 162 |
+| 960 | 325 |
+
+Two deprecated `song.ini` keys change the threshold in older charts. See [Deprecated](#deprecated).
+
+## Snap close notes into chords
 
 `chord_snap_threshold` in `song.ini` merges notes that are very close together into chords. It's in ticks, and it's off when it's 0 or missing.
 
 - A note less than the threshold after an earlier note moves to that note's tick and joins its chord. It takes the chord's strum, HOPO or tap, and keeps its own length.
 - The earlier note is the first one not yet moved. Moving a note doesn't move the next one along: with a threshold of 10, notes at 100, 105 and 109 all move to 100, and a note at 112 stays.
-- A reader decides HOPOs before snapping, from the ticks as written.
 
-## Duplicate notes
+**Edge case:** strums and HOPOs are decided before snapping, from the ticks as written, and snapping doesn't change them, even when it makes two notes of one fret meet.
 
-After snapping, a track holds at most one note of each fret at a tick. When there are more, a reader keeps the longest. A writer must not write two notes of one fret at one tick: see [Notes at one tick](/chart/instrument-sections#notes-at-one-tick).
+## Remove duplicate notes
 
-## Overlapping sustains
+After snapping, a track holds at most one note of each fret at a tick. When there are more, a scanner keeps the longest. An exporter must not write two notes of one fret at one tick: see [Notes at one tick](/chart/instrument-sections#notes-at-one-tick).
+
+## Trim overlapping sustains
 
 When a note starts before the sustain of an earlier note on the same fret has ended:
 
 - the earlier note's sustain ends where the later note starts;
 - the later note's sustain ends where the later of the two sustains ended.
 
-For example, blue at 400 with length 300, then blue at 500 with length 0, becomes blue at 400 with length 100 and blue at 500 with length 200. The sustain cutoff isn't applied again afterward. A writer should not overlap sustains of one fret.
+For example, blue at 400 with length 300, then blue at 500 with length 0, becomes blue at 400 with length 100 and blue at 500 with length 200. The sustain cutoff isn't applied again afterward. An exporter should not overlap sustains of one fret.
+
+## Deprecated
+
+Two `song.ini` keys change the HOPO threshold. Older charts used them before the forced modifier was common. To make a note a strum or a HOPO, force it instead.
+
+- **`hopo_frequency`**, when it's more than 0: the threshold is that many ticks. It isn't scaled by the resolution: `hopo_frequency = 30` is 30 ticks at any resolution.
+- **`eighthnote_hopo = true`**: the threshold is half the resolution, rounded down, plus 1. It applies only when `hopo_frequency` doesn't.
+
+| Resolution | With `eighthnote_hopo` |
+|---|---|
+| 192 | 97 |
+| 480 | 241 |
+| 960 | 481 |

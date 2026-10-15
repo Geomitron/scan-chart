@@ -1,49 +1,65 @@
 ---
 title: "Files in a song folder"
-description: "The files a song folder holds, their names, and which one a reader uses when there are several."
+description: "The files a song folder holds, their names and formats, and which one a scanner uses when there are several."
 ---
 
-A song folder holds one song. A reader finds each of its files by name:
+A song folder holds one song. A scanner finds each of its files by name. A song folder in the recommended form:
 
-| File | Holds | Required |
+```
+My Song/
+  notes.chart
+  song.ini
+  song.opus
+  guitar.opus
+  album.png
+  background.jpg
+  video.webm
+```
+
+## Files
+
+| File | Holds | |
 |---|---|---|
-| `notes.chart` or `notes.mid` | The chart: the gameplay data, such as notes and lyrics | Yes |
-| `song.ini` | The song's metadata and parsing settings | Yes |
-| Audio files, such as `song.opus` or `guitar.ogg` | The song's audio, whole or in stems | At least one |
-| `album.png`, `album.jpg` or `album.jpeg` | The song's album art | No |
-| `background.png`, `background.jpg` or `background.jpeg` | An image shown behind the highway | No |
-| `video.webm` | A video shown behind the highway | No |
+| `notes.chart` or `notes.mid` | The chart: the gameplay data, such as notes and lyrics | **Required**: one of the two |
+| `song.ini` | The song's metadata and parsing settings | **Required** |
+| Audio files, such as `song.opus` | The song's audio, whole or in stems | **Required**: at least one. See [Audio](#audio) |
+| `album.png` | The song's album art | **Recommended**. See [Art and video](#art-and-video) |
+| `background.jpg` | An image shown behind the highway | See [Art and video](#art-and-video) |
+| `video.webm` | A video shown behind the highway | See [Art and video](#art-and-video) |
 
-Other types of files in the song folder are usually ignored.
+A song folder should hold only files a game reads. Backups, editor projects and files the operating system adds, such as `desktop.ini`, `Thumbs.db` and `__MACOSX`, make the folder larger and do nothing. Some games read files this page doesn't name, such as YARG's `_clean` and `_explicit` audio files; those are allowed.
 
-## File names
+### File names
 
-- Each file name must be in lowercase, as written on this page. A reader matches names in any letter case, so it reads `Song.ini` as `song.ini`.
+- Each file name must be in lowercase, as written on this page.
 - A folder must not hold two names that differ only in letter case, such as `song.ini` and `Song.ini`.
-- A song folder must not hold another song folder. A reader doesn't look for a song inside a song folder.
+- A song folder must not hold another song folder. A scanner doesn't look for a song inside a song folder.
+
+**Edge case:** a scanner matches names in any letter case, so it reads `Song.ini` as `song.ini`. A name in another case still loads, but should be renamed.
 
 ## The chart
 
-The chart is `notes.chart` or `notes.mid`. A reader doesn't read a chart file with any other name. [Syntax](/chart/syntax) gives the structure of a `.chart` file.
+The chart is `notes.chart` or `notes.mid`. A scanner doesn't read a chart file with any other name. [Syntax](/chart/syntax) gives the structure of a `.chart` file.
 
-A song folder should hold only one chart. A reader that finds both uses `notes.mid`.
+A song folder should hold only one chart.
+
+**Edge case:** a scanner that finds both uses `notes.mid`.
 
 ## song.ini
 
 A song folder must hold a `song.ini` file. It gives the song's metadata, such as its name and artist, and settings that change how the chart plays.
 
-- A reader reads only `song.ini`, and ignores any other `.ini` file.
-- A reader that loads a `.chart` folder without `song.ini` takes the song's metadata from the chart's [[Song] section](/chart/song).
-- A reader decodes `song.ini` the way it decodes a `.chart` file. See [Encoding](/chart/syntax#encoding). A writer should write `song.ini` as UTF-8.
+- A scanner reads only `song.ini`, and ignores any other `.ini` file.
+- A scanner decodes `song.ini` the way it decodes a `.chart` file. See [Encoding](/chart/syntax#encoding). An exporter should write `song.ini` as UTF-8.
 
 ## Audio
 
-A song's audio is one file, or several files called stems that are combined together while playing. Each file's name says what it holds:
+A song's audio is one file, or several files called stems that are combined while playing. Each file's name says what it holds:
 
 | Name | Holds |
 |---|---|
-| `song` | The audio that no other file holds, or the whole song when it's the only file |
-| `guitar` | Lead guitar. It's a common practice to use this file for the whole song's audio instead of `song` |
+| `song` | The audio that no other file holds, or the whole song when it's the only file. **Recommended** for a song without stems |
+| `guitar` | Lead guitar |
 | `rhythm` | Rhythm guitar, or the bass when there's no `bass` file |
 | `bass` | Bass guitar |
 | `keys` | Keys |
@@ -55,19 +71,43 @@ A song's audio is one file, or several files called stems that are combined toge
 | `vocals` | All of the vocals |
 | `vocals_1` | The lead vocals |
 | `vocals_2` | The second vocals |
-| `crowd` | Crowd noise and singing. This is deprecated, as games typically supply this for you |
-| `preview` | The excerpt the song list plays. This is deprecated: use `preview_start_time` in `song.ini` instead |
 
-- Each file is one of these names with the extension `.opus`, `.ogg`, `.mp3` or `.wav`.
-- A song folder must hold at least one audio file other than `preview` and `crowd`.
-- A reader plays every file it finds together. So a folder should not hold `drums` with the numbered `drums_` files, or `vocals` with the numbered `vocals_` files.
-- Without a `preview` file, the song list plays the song from the preview start that `song.ini` gives.
-- A folder must hold only one file for each name. Games choose differently between several, such as `guitar.ogg` and `guitar.opus`: YARG plays the `.opus` file, and Clone Hero the last one in the folder listing.
+- A song folder must hold at least one of these files.
+- Each file is one of these names with the extension `.opus`, `.ogg`, `.mp3` or `.wav`. **Recommended:** `.opus`, at about 80 kbps: it's the smallest at the same quality. An `.ogg` file should be between 192 and 320 kbps.
+- A folder must hold only one file for each name. See [Invalid forms](#invalid-forms).
+- A scanner plays every file it finds together. So a folder should not hold `drums` with the numbered `drums_` files, or `vocals` with the numbered `vocals_` files.
+
+**Edge case: the whole song in `guitar`.** A common convention is to name a song's only audio file `guitar`. Alone, it plays as `song` does. Once any other stem is added, a full mix in `guitar` drops to 50% volume each time the player misses a guitar note, so the full mix belongs in `song`.
 
 ## Art and video
 
-- **Album art:** `album.png`, `album.jpg` or `album.jpeg`. A folder should hold only one. A reader that finds several uses the first of `.png`, `.jpg` and `.jpeg`.
-- **Background image:** `background.png`, `background.jpg` or `background.jpeg`. A folder should hold only one.
-- **Background video:** `video.webm` is strongly recommended. A reader also plays a video with another extension, such as `video.mp4`, where it can, but `.webm` is the only format every game plays on every platform. A reader shows the video instead of the background image when a folder holds both.
+- **Album art:** `album.png`, `album.jpg` or `album.jpeg`, 512x512 pixels. **Recommended:** `.png`. Art that started as a JPEG, such as one downloaded from a store, stays `album.jpg`: converting it to PNG makes it larger without making it better. A file's extension should match its content.
+- **Background images:** `.png`, `.jpg` or `.jpeg` images whose names start with `background`, such as `background.jpg` and `background2.png`, at least 1280x720 pixels. A folder may hold several. A scanner shows one of them, picked at random, each time the chart is played.
+- **Background video:** `video.webm` is strongly **recommended**, with the VP8 codec: Clone Hero doesn't play VP9 video. A scanner also plays a video with another extension, such as `video.mp4`, where it can, but `.webm` is the only format every game plays on every platform. A scanner shows the video instead of the background image when a folder holds both.
 
-A `.sng` file packs a song folder's files into one file. This specification doesn't cover it.
+**Edge case: album art size.** Clone Hero shows album art at 512x512, and resizes art of any other size when it loads it. 500x500, the size recommended before, is still common.
+
+**Edge case: several album art files.** A folder should hold only one. A scanner that finds several uses the first of `album.png`, `album.jpg` and `album.jpeg`.
+
+## Deprecated
+
+- **`crowd` audio:** crowd noise and singing. Games supply their own crowd.
+- **`preview` audio:** the excerpt the song list plays, which a scanner plays whole. Set `preview_start_time` and `preview_end_time` in `song.ini` instead.
+
+## Invalid forms
+
+<Accordion title="Two audio files with one name, such as guitar.ogg and guitar.opus">
+Games choose differently between them: YARG plays the first of `.opus`, `.ogg`, `.mp3` and `.wav`, and Clone Hero the last one in the folder listing. Every scanner then plays a different file. scan-chart reports it as `multipleAudio`, and the folder should keep one.
+</Accordion>
+
+<Accordion title="No audio file">
+YARG doesn't load the song. Clone Hero loads it without sound. A folder whose only audio is `preview` or `crowd` has no audio. scan-chart reports it as `noAudio`.
+</Accordion>
+
+<Accordion title="No song.ini">
+A scanner that loads a `.chart` folder without `song.ini` takes the song's metadata from the chart's [[Song] section](/chart/song). scan-chart reports it as `noMetadata`.
+</Accordion>
+
+<Accordion title="Two names that differ only in letter case">
+Which file a scanner reads depends on the operating system. On Windows, the two can't exist in one folder at all.
+</Accordion>

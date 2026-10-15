@@ -24,7 +24,7 @@ A tempo marker sets the tempo from its tick to the next tempo marker:
 ```
 
 - The tempo is in thousandths of a beat per minute: `B 120000` is 120 BPM, and `B 150325` is 150.325 BPM.
-- The tempo must be a whole number from 1 to 4294967295. A reader refuses a file with a tempo of 0.
+- The tempo must be a whole number from 1 to 4294967295.
 
 ## Time signatures
 
@@ -34,7 +34,7 @@ A time signature sets the meter from its tick to the next time signature:
 <tick> = TS <numerator> <exponent>
 ```
 
-- The numerator is the number of beats in a measure. It must be a whole number from 1 to 4294967295. A reader refuses a file with a numerator of 0.
+- The numerator is the number of beats in a measure. It must be a whole number from 1 to 4294967295.
 - The exponent gives the note value of a beat: the denominator is 2 to the power of the exponent. It must be a whole number from 0 to 31. Without an exponent, the denominator is 4.
 - Time signatures only change the beat lines that appear throughout the chart during gameplay. They have no influence on the notes themselves.
 
@@ -45,19 +45,32 @@ A time signature sets the meter from its tick to the next time signature:
 | `TS 6 3` | 6/8 |
 | `TS 7 4` | 7/16 |
 
+## The start of the chart
 
-## Tempo anchors
+**Recommended:** a tempo marker and a time signature at tick 0.
 
-A tempo anchor locks the tempo marker at its tick to a time in the audio, so a chart editor can keep that marker in place while the tempos before it change:
+**Edge case:** until its first tempo marker, a chart plays at 120 BPM, and until its first time signature, it's in 4/4.
+
+## Ignored
+
+**Tempo anchors.** A tempo anchor locks the tempo marker at its tick to a time in the audio, so a chart editor can keep that marker in place while the tempos before it change:
 
 ```text
 <tick> = A <microseconds>
 ```
 
-An anchor should share its tick with a tempo marker. Readers other than chart editors ignore anchors.
+An anchor should share its tick with a tempo marker. Games ignore anchors, and an exporter may keep them.
 
-## The start of the chart
+## Invalid forms
 
-A chart should have a tempo marker and a time signature at tick 0. Until its first tempo marker, a chart plays at 120 BPM, and until its first time signature, it's in 4/4.
+<Accordion title="A tempo of 0, or a numerator of 0">
+Clone Hero and scan-chart refuse the file. YARG reads a tempo of 0, which makes its times infinite, and drops the time signatures after a numerator of 0.
+</Accordion>
 
-[Syntax](/chart/syntax#tick-order) says how events are ordered, and which of two tempo markers or two time signatures at one tick counts.
+<Accordion title="A tempo, numerator or exponent too large">
+Scanners read a value past the limits above differently: YARG reads a tempo of 2³² or more modulo 2³², and Clone Hero reads an exponent of 32 or more modulo 32.
+</Accordion>
+
+<Accordion title="Two tempo markers, or two time signatures, at one tick">
+See [Syntax](/chart/syntax#invalid-forms): scanners use the later one, and scan-chart's saving removes the earlier one.
+</Accordion>

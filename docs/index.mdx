@@ -1,6 +1,6 @@
 ---
 title: "About this specification"
-description: "What this specification covers, the words it uses for requirements, and where it comes from."
+description: "What this specification covers, the words it uses, and how its pages are laid out."
 ---
 
 This specification defines the song folders that rhythm games such as Clone Hero and YARG play, and the files inside them. A song folder holds the song's chart, written as a `.chart` file or a `.mid` file, a `song.ini` file with its metadata and settings, and its audio and art.
@@ -9,17 +9,34 @@ For each file, the specification says how it's structured and what each part mea
 
 It's written for two groups of people:
 
-- charters, who want to know exactly what each part of a file does;
-- developers of programs that read or write charts, such as games, chart editors, converters, and chart sites.
+- charters, who want to know exactly what each part of a file does, and how to write it;
+- developers of programs that scan or export song folders, such as games, chart editors, converters and chart sites.
 
 ## Requirements
 
 Two words carry the requirements:
 
-- **Must** marks a requirement. A file that breaks one is **invalid**, and a reader may reject it.
+- **Must** marks a requirement. A file that breaks one is **invalid**, and a scanner may reject it.
 - **Should** marks a recommendation. A file that doesn't follow one is still valid.
 
-A few rules say what a reader does with a file that breaks a requirement, such as one that repeats a section. Every reader handles it that way, so even those files read the same everywhere.
+For each requirement a file can break, the page says what a scanner does with the file, so that even invalid files read the same everywhere. An exporter never writes an invalid file.
+
+## How the pages are laid out
+
+Each page starts with an example of a file in its recommended form. Then it gives the standard: everything a file may hold. Labels in the standard mark the choices:
+
+| Label | Meaning |
+|---|---|
+| **Required** | A file must have it. |
+| **Recommended** | Of several allowed forms, the one to write. |
+| No label | Allowed: valid, and read the same everywhere. |
+| **Edge case** | Allowed, but easy to get wrong. It comes right after the rule it qualifies. |
+
+After the standard, up to three sections cover what the standard doesn't recommend. You can skip them if you only write new charts:
+
+- **Deprecated**: still read, so that older charts keep working. An exporter should not write it, and the page says what to write instead.
+- **Ignored**: a scanner skips it, so it has no effect.
+- **Invalid forms**: what breaks a requirement, what a scanner does with it, and how scan-chart saves it.
 
 ## Terms
 
@@ -27,15 +44,17 @@ These words have one meaning throughout the specification:
 
 | Term | Meaning |
 |---|---|
+| Scanner | Code that scans for song folders and reads their files, such as a game, a chart site, or a library like scan-chart. |
+| Exporter | Code that exports song folders, such as a chart editor or a converter. |
 | Tick | The unit of position in a chart. A chart's events are placed at whole ticks. |
 | Resolution | The number of ticks in a beat, which is a quarter note. |
 | Track | One instrument at one difficulty, such as Expert guitar. A `.chart` file writes each track as a section. A `.mid` file writes all of an instrument's difficulties in one MIDI track. |
 | Event | One line of a `.chart` section, or one MIDI event: a note, a modifier, a phrase, a tempo marker, or a text event. |
-| Reader | A program that reads charts, such as a game. |
-| Writer | A program that writes charts, such as a chart editor. |
 
 ## Where it comes from
 
 [GuitarGame_ChartFormats](https://github.com/TheNathannator/GuitarGame_ChartFormats) documents the chart formats of many rhythm games, and this specification grew from it. Much of its text is adapted from GuitarGame_ChartFormats, which its authors dedicated to the public domain under CC0. Thank you to everyone who contributed to it. Where the two differ, this specification is the reference. [Differences from GuitarGame_ChartFormats](/differences) lists each place they do.
 
-[scan-chart](/scan-chart/index) is a TypeScript library that reads and writes song folders to this specification.
+The recommendations for charters come from the [Chorus Encore Application Guidelines](https://docs.google.com/document/d/1XrLKnpL0xawaC90M4lLnhqhExwXM_3JpJnzNqlB_agM), which describe how to make and share charts.
+
+[scan-chart](/scan-chart/index) is a TypeScript library that scans and exports song folders to this specification.

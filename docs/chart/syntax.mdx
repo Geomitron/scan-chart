@@ -29,9 +29,9 @@ A `.chart` file is text, divided into named sections. Each section holds one ent
 
 ## Encoding
 
-Write `.chart` files as UTF-8, with or without a byte order mark. A file may also be UTF-16 or UTF-32, with a byte order mark.
+**Recommended:** UTF-8, with or without a byte order mark. A file may also be UTF-16 or UTF-32, with a byte order mark.
 
-A reader decodes a file by its byte order mark. It checks the marks in this order, so a file that starts with `FF FE 00 00` is UTF-32, not UTF-16:
+A scanner decodes a file by its byte order mark. It checks the marks in this order, so a file that starts with `FF FE 00 00` is UTF-32, not UTF-16:
 
 | The file starts with | Encoding |
 |---|---|
@@ -43,8 +43,9 @@ A reader decodes a file by its byte order mark. It checks the marks in this orde
 | Anything else | UTF-8 if the whole file is valid UTF-8, and ISO-8859-1 otherwise |
 
 - After a byte order mark, the rest of the file must be valid in that encoding.
-- ISO-8859-1 reads each byte as the character with the same number. Bytes `80` to `9F` are control characters, not the characters Windows-1252 gives them, such as `€`.
-- UTF-7 isn't allowed: a file must not start with `2B 2F 76`.
+- A file must not start with `2B 2F 76`, the mark of UTF-7.
+
+**Edge case:** ISO-8859-1 reads each byte as the character with the same number. Bytes `80` to `9F` are control characters, not the characters Windows-1252 gives them, such as `€`.
 
 ## Sections
 
@@ -64,26 +65,23 @@ A section is a name in square brackets on its own line, then a body between curl
 
 ### Section names
 
-| Name | Holds |
-|---|---|
-| `Song` | The resolution and the song's metadata. See [[Song]](/chart/song). |
-| `SyncTrack` | Tempo markers and time signatures. See [[SyncTrack]](/chart/sync-track). |
-| `Events` | Practice sections, lyrics, and other events for the whole song. See [[Events]](/chart/events). |
-| An instrument and difficulty, such as `ExpertSingle` | One track's notes and phrases. See [Instrument sections](/chart/instrument-sections). |
+| Name | Holds | |
+|---|---|---|
+| `Song` | The resolution and the song's metadata. See [[Song]](/chart/song) | **Required**, first |
+| `SyncTrack` | Tempo markers and time signatures. See [[SyncTrack]](/chart/sync-track) | **Required**, second |
+| `Events` | Practice sections, lyrics, and other events for the whole song. See [[Events]](/chart/events) | |
+| An instrument and difficulty, such as `ExpertSingle` | One track's notes and phrases. See [Instrument sections](/chart/instrument-sections) | |
 
-A reader ignores a section with any other name.
-
-### Order and repetition
-
-- `Song` must be the first section, and `SyncTrack` the second.
-- `Events` and the instrument sections follow, in any order. Each is optional.
-- A section name must not appear twice. A reader that reads a file with a repeated name uses the first section with that name and ignores the rest.
+- `Events` and the instrument sections follow `SyncTrack`, in any order.
+- A section name must appear only once.
 
 ## Lines
 
-- A line ends at a line feed, or at a carriage return followed by a line feed. A carriage return alone doesn't end a line.
-- An entry may be indented with spaces or tabs, and a section may hold blank lines. A reader ignores spaces and tabs at the start and the end of every line, so `0 = TS 4 ` with a space at the end is `0 = TS 4`.
+- A line ends at a line feed, or at a carriage return followed by a line feed. A carriage return alone doesn't end a line. **Recommended:** a carriage return and a line feed.
+- **Recommended:** each entry indented with two spaces, and no blank lines inside a section.
 - A `.chart` file has no comments.
+
+**Edge case: spaces and tabs.** A scanner ignores spaces and tabs at the start and the end of every line, in every section, so `0 = TS 4 ` with a space at the end is `0 = TS 4`. An exporter should not end a line with a space.
 
 ## Events
 
@@ -102,12 +100,11 @@ Each section holds only some types of event:
 
 | Section | Types |
 |---|---|
-| `SyncTrack` | `B` tempo, `TS` time signature, and `A` tempo anchor, which readers ignore |
-| `Events` | `E` text event, and `H`, from older charts, which readers ignore |
+| `SyncTrack` | `B` tempo and `TS` time signature |
+| `Events` | `E` text event |
 | Instrument | `N` note, `S` phrase, and `E` text event |
 
-- An event of any other type is invalid in `SyncTrack` and `Events`. A reader ignores it in an instrument section.
-- A reader ignores a note or phrase value that has no meaning on its instrument.
+A scanner ignores a note or phrase value that has no meaning on its instrument, and an event of another type in an instrument section.
 
 ### Tick order
 
@@ -122,8 +119,7 @@ Within a section, each event's tick must be the same as the previous event's or 
 }
 ```
 
-- Events at the same tick may be written in any order.
-- When two tempo markers, or two time signatures, share a tick in `SyncTrack`, the later one counts.
+Events at the same tick may be written in any order. **Recommended:** at one tick, notes, then phrases, then text events in an instrument section, and the time signature before the tempo marker in `SyncTrack`.
 
 ## Named entries
 
@@ -134,7 +130,7 @@ Each entry of the `Song` section names a value:
 ```
 
 - The key is followed by exactly one space, `=`, and one space.
-- A key must not appear twice in the section.
+- A key must appear only once in the section.
 - Text values are written in quotation marks: `Name = "Song Name"`. Numbers are written without them: `Resolution = 192`.
 
 [[Song]](/chart/song) lists the keys.
@@ -143,7 +139,45 @@ Each entry of the `Song` section names a value:
 
 Text events are written differently in the two kinds of section:
 
-- **In `Events`**, the text is in quotation marks: `0 = E "section Intro"`. A reader also removes one pair of square brackets around the text, so `0 = E "[section Intro]"` means the same.
-- **In an instrument section**, the text has no quotation marks: `768 = E solo`. A quoted text event in an instrument section is invalid.
+- **In `Events`**, the text is in quotation marks: `0 = E "section Intro"`.
+- **In an instrument section**, the text has no quotation marks: `768 = E solo`.
 
 A `.chart` file has no escape characters. Text can't hold a line break, and a quotation mark inside the text is part of it.
+
+**Edge case: brackets in `Events`.** A scanner removes spaces around the text, then one `[` at its start and one `]` at its end, so `0 = E "[section Intro]"` means the same as `0 = E "section Intro"`. Older charts write the brackets. An exporter should write neither. A bracket anywhere else is part of the text, as in `E "section Verse [2]"`.
+
+## Ignored
+
+- **`A` tempo anchors** in `SyncTrack`, such as `0 = A 0`. Chart editors such as Moonscraper write them to hold a tempo marker at a time in the audio. Games ignore them. An exporter may keep them.
+- **`H` events** in `Events`, from older charts.
+- **A section with any other name.**
+
+## Invalid forms
+
+<Accordion title="Events out of tick order">
+Clone Hero refuses a file whose `SyncTrack` events go back in time, and YARG drops each event that does. scan-chart reports `unsortedChartLines`, and saving puts the lines in tick order.
+</Accordion>
+
+<Accordion title="Two tempo markers, or two time signatures, at one tick in SyncTrack">
+Both games use the later one, and so does scan-chart. Saving removes the earlier one, which changes no hash.
+</Accordion>
+
+<Accordion title="A section name that appears twice">
+A scanner uses the first section with that name and ignores the rest. Saving removes the others.
+</Accordion>
+
+<Accordion title="Song not first, or SyncTrack not second">
+Clone Hero reads the file's first section as `[Song]`, whatever its name. scan-chart reads `[Song]` and `[SyncTrack]` wherever they are, and saving puts them first. A file with no `[Song]` section, or no `Resolution` in it, is read with a resolution of 192, and saving adds it.
+</Accordion>
+
+<Accordion title="An event of another type in SyncTrack or Events">
+Clone Hero refuses a file with one in `SyncTrack`, and YARG skips it. scan-chart keeps it, and writes it back as it is.
+</Accordion>
+
+<Accordion title="A quoted text event in an instrument section">
+Clone Hero doesn't read `768 = E "solo"` as a solo, and YARG does. scan-chart reports `quotedChartTrackEvent`, and saving removes the quotation marks.
+</Accordion>
+
+<Accordion title="Other spellings, such as a missing = or extra spaces">
+Games read these differently, or not at all. scan-chart reads each line by its probable meaning, and saving writes the standard spelling. [Nonstandard files](/scan-chart/nonstandard-files) lists them.
+</Accordion>

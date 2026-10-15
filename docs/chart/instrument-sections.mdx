@@ -5,6 +5,17 @@ description: "The section names for each instrument and difficulty, and their no
 
 Each instrument section holds one track: the notes, modifiers and phrases of one instrument at one difficulty.
 
+```text
+[ExpertSingle]
+{
+  768 = N 0 0
+  768 = N 1 0
+  960 = N 2 192
+  960 = S 2 768
+  1152 = N 3 0
+}
+```
+
 ## Section names
 
 A section's name is a difficulty followed by an instrument, such as `ExpertSingle` for Expert guitar. The difficulties are `Easy`, `Medium`, `Hard` and `Expert`.
@@ -23,7 +34,7 @@ A section's name is a difficulty followed by an instrument, such as `ExpertSingl
 | `GHLCoop` | 6-fret co-op guitar | 6-fret |
 | `GHLKeys` | 6-fret keys | 6-fret |
 
-A reader matches names exactly, in the letter case shown, and ignores a section with any other name. Older games used names such as `ExpertSingleBass` and `ExpertDoubleDrums`, which readers don't read.
+A scanner matches names exactly, in the letter case shown.
 
 ## Notes
 
@@ -45,8 +56,8 @@ The value says which note it is, and depends on the kind of instrument. The leng
 | `3` | Blue |
 | `4` | Orange |
 | `7` | Open: strummed with no fret held |
-| `5` | Forced modifier. See [Note modifiers](/chart/modifiers) |
-| `6` | Tap modifier. See [Note modifiers](/chart/modifiers) |
+
+`N 5` and `N 6` are modifiers, not notes. See [Note modifiers](/chart/modifiers).
 
 ### 6-fret
 
@@ -54,32 +65,49 @@ The 6-fret frets are in two rows: three black frets on top and three white frets
 
 | Value | Note |
 |---|---|
-| `3` | Black 1 |
-| `4` | Black 2 |
-| `8` | Black 3 |
 | `0` | White 1 |
 | `1` | White 2 |
 | `2` | White 3 |
+| `3` | Black 1 |
+| `4` | Black 2 |
 | `7` | Open |
-| `5` | Forced modifier |
-| `6` | Tap modifier |
+| `8` | Black 3 |
+
+`N 5` and `N 6` are modifiers, as on 5-fret. See [Note modifiers](/chart/modifiers).
 
 ### Drums
 
-[Drums](/chart/drums) gives the values for drums.
+| Value | 4-lane and pro | 5-lane |
+|---|---|---|
+| `0` | Kick | Kick |
+| `1` | Red | Red |
+| `2` | Yellow | Yellow |
+| `3` | Blue | Blue |
+| `4` | Green | Orange |
+| `5` | Green tom. See [Drum types](/chart/drums#drum-types) | Green |
+| `32` | Double kick | Double kick |
 
-### Values readers ignore
-
-A reader ignores an `N` value that the tables don't list for the section's instrument, such as `N 8` in a 5-fret section.
+[Drums](/chart/drums) gives the kinds of drum chart, and the modifiers for cymbals, accents, ghosts and flams.
 
 ## Notes at one tick
 
 - Notes of different values at one tick form a chord. Each note of a chord keeps its own length, so a chord's sustains can end at different ticks.
-- A track must not hold two notes of one value at one tick. A reader that finds two uses the one with the longer sustain.
-- An open note may be in a chord with fret notes.
+- An open note may be in a chord with fret notes. The player holds the fret notes and strums.
+- A track must not hold two notes of one value at one tick.
 
 ## Tracks
 
-A section is a track only if it holds at least one note. A section with only modifiers, phrases or text events isn't a track, and a writer should not write one.
+A section is a track only if it holds at least one note. [How notes resolve](/chart/note-resolution) says how a scanner turns a section's notes into the notes a player plays.
 
-[How notes resolve](/chart/note-resolution) says how a reader turns a section's notes into the notes a player plays.
+**Edge case: a section without notes.** A section with only modifiers, phrases or text events is allowed, for example while a charter copies phrases to every difficulty before charting its notes. It isn't a track: a scanner doesn't list it, and it gets no hash. scan-chart reports it as a warning.
+
+## Ignored
+
+- **An `N` value that the tables don't list** for the section's instrument, such as `N 8` in a 5-fret section.
+- **A section with any other name.** Older games used names such as `ExpertSingleBass` and `ExpertDoubleDrums`.
+
+## Invalid forms
+
+<Accordion title="Two notes of one value at one tick">
+A scanner uses the one with the longer sustain.
+</Accordion>

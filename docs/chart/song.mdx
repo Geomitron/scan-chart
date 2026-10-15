@@ -3,7 +3,7 @@ title: "[Song]"
 description: "The metadata and resolution in a .chart file's [Song] section."
 ---
 
-`[Song]` is a `.chart` file's first section. It gives the chart's resolution, and metadata such as the song's name and artist:
+`[Song]` is a `.chart` file's first section. It gives the chart's resolution, and may repeat metadata from `song.ini`, such as the song's name and artist:
 
 ```text
 [Song]
@@ -11,22 +11,20 @@ description: "The metadata and resolution in a .chart file's [Song] section."
   Name = "Song Name"
   Artist = "Artist"
   Charter = "Charter"
+  Year = ", 2002"
   Resolution = 192
-  Offset = 0
 }
 ```
 
-Each line names one value, as [Named entries](/chart/syntax#named-entries) describes. Keys are case-sensitive, and a key must not appear twice.
+Each line names one value, as [Named entries](/chart/syntax#named-entries) describes. Keys are case-sensitive.
 
 ## Resolution
 
-`Resolution` is the number of ticks in a beat. Every `.chart` file must give it, as a whole number from 1 up, written in digits without quotation marks.
-
-- A reader reads the value's leading digits, so `Resolution = 480.5` reads as 480. It refuses a file whose `Resolution` doesn't start with a digit, or is 0.
-- A reader that reads a file without a `Resolution` uses 192.
-- A reader that finds `Resolution` more than once uses the last one.
+`Resolution` is the number of ticks in a beat. **Required:** a whole number from 1 up, written in digits without quotation marks.
 
 ## Metadata
+
+`song.ini` holds the song's metadata. `[Song]` may repeat any of these keys:
 
 | Key | Value | song.ini key |
 |---|---|---|
@@ -34,42 +32,56 @@ Each line names one value, as [Named entries](/chart/syntax#named-entries) descr
 | `Artist` | The artist | `artist` |
 | `Album` | The album | `album` |
 | `Genre` | The genre | `genre` |
-| `Year` | The year the song was released | `year` |
+| `Year` | The year the song was released. **Recommended:** written after `, `, as in `Year = ", 2002"`, the standard form for older games | `year` |
 | `Charter` | The name of the person who charted the song | `charter` |
-| `Offset` | How far the chart is moved against the audio, in seconds. A higher value makes every note come later | `delay`, in milliseconds |
+| `Offset` | How far the chart is moved against the audio, in seconds. A higher value makes every note come later. **Recommended:** 0, or no line. See [Deprecated](#deprecated) | `delay`, in milliseconds |
 | `PreviewStart` | Where the song list's preview starts, in seconds | `preview_start_time`, in milliseconds |
 | `PreviewEnd` | Where the preview ends, in seconds | `preview_end_time`, in milliseconds |
 | `Difficulty` | The difficulty of the whole song, from 0 to 6 | `diff_band` |
 
 - **Text** is written in quotation marks: `Name = "Song Name"`.
-- **Times** are written in seconds, as digits with an optional `-` before them and an optional decimal part, without quotation marks: `Offset = -0.25`. A time should have at most three decimals.
-- **Year:** a writer should write the year after `, `, as in `Year = ", 2002"`, which is the standard form for compatibility with older games. A reader removes a leading `, `, so `Year = "2002"` means the same.
-- **A repeated key:** a reader that finds a key more than once uses the first one with a value.
+- **Times** are written in seconds, as digits with an optional `-` before them and an optional decimal part, without quotation marks: `PreviewStart = 45.5`. A time should have at most three decimals.
 
-### Keys readers ignore
+**Edge case: `Year`.** A scanner removes a leading `, `, so `Year = "2002"` means the same as `Year = ", 2002"`.
 
-A reader ignores every other key. Older chart editors wrote some of them:
-
-- audio file names, such as `MusicStream` and `GuitarStream`. A reader finds the audio by file name instead. See [Audio](/song-folders#audio).
-- `Player2`, `MediaType`, `Length` and others, which games no longer use.
-
-A writer may keep these keys as written.
-
-### Placeholder names
-
-Some converters wrote `Name = "TEMPO TRACK"` or `Name = "midi_export"` instead of the song's name. `Name` must not have either value. A reader ignores that line and every metadata line after it.
+**Edge case: `PreviewEnd = 0`.** It means there's no preview end: a preview can't end at the start of the song. Moonscraper writes it in every chart.
 
 ## [Song] and song.ini
 
-A song folder must hold a `song.ini` file, which gives the song's metadata. See [Files in a song folder](/song-folders). The two must agree:
+A song folder must hold a `song.ini` file. See [Files in a song folder](/song-folders). When both `[Song]` and `song.ini` set a key from the table, they must give the same value. Times are compared in milliseconds, and `Year` without its leading `, `.
 
-- When both `[Song]` and `song.ini` set a key from the table, they must give the same value. Times are compared in milliseconds, and `Year` without its leading `, `.
-- A writer may leave any of these keys out of `[Song]`.
-
-A reader that finds the two disagreeing uses `song.ini`:
+A scanner reads the metadata from `song.ini`:
 
 - It takes the name, artist, album, genre, year and charter from `song.ini` alone, even when `song.ini` leaves one of them out.
-- It takes `Offset`, `PreviewStart` and `PreviewEnd` from `[Song]` only when `song.ini` doesn't set `delay`, `preview_start_time` or `preview_end_time`. A `delay` of 0, a `preview_start_time` of -1 and a `preview_end_time` of -1 or 0 count as not set.
-- A `PreviewEnd` of 0 counts as not set: a preview can't end at the start of the song, and Moonscraper writes `PreviewEnd = 0` when there's no preview end.
+- It takes `Offset`, `PreviewStart` and `PreviewEnd` from `[Song]` only when `song.ini` doesn't set `delay`, `preview_start_time` or `preview_end_time`. A `delay` of 0, a `preview_start_time` of -1, and a `preview_end_time` of -1 or 0 count as not set.
 
-A reader that reads a folder without `song.ini` takes all of the metadata from `[Song]`.
+**Edge case: no song.ini.** A scanner that reads a folder without `song.ini` takes all of the metadata from `[Song]`.
+
+## Deprecated
+
+- **An `Offset` other than 0.** Line the notes up with the tempo map and the audio's leading silence instead. A scanner still applies `Offset`, but only when `song.ini` doesn't set `delay`.
+
+## Ignored
+
+A scanner ignores every other key. An exporter may keep them as written. Older chart editors wrote some of them:
+
+- **Audio file names,** such as `MusicStream` and `GuitarStream`. Games find the audio by file name instead. See [Audio](/song-folders#audio). An exporter should not write them: a chart editor keeps a charter's choice of audio file in its own settings. Moonscraper still finds a `.chart`'s audio only through these keys.
+- **`Player2`, `MediaType`, `Length` and others,** which games no longer use.
+
+## Invalid forms
+
+<Accordion title="No Resolution, or one that isn't a whole number from 1 up">
+A scanner that reads a file without a `Resolution` uses 192, and scan-chart's saving adds `Resolution = 192`. A scanner reads the value's leading digits, so `Resolution = 480.5` reads as 480. It refuses a file whose `Resolution` doesn't start with a digit, or is 0. A scanner that finds `Resolution` more than once uses the last one.
+</Accordion>
+
+<Accordion title="A key written more than once">
+A scanner uses the first line of the key that has a value.
+</Accordion>
+
+<Accordion title="[Song] and song.ini giving different values">
+A scanner uses `song.ini`, as described above. When scan-chart saves an edited song, `[Song]` takes `song.ini`'s values. A key that only `[Song]` sets is removed from it, except `Offset`, `PreviewStart` and `PreviewEnd`, which are copied into `song.ini`, since scanners read them when `song.ini` doesn't set them.
+</Accordion>
+
+<Accordion title='Name = "TEMPO TRACK" or Name = "midi_export"'>
+Some converters wrote these instead of the song's name. A scanner ignores that line and every metadata line after it. scan-chart saves the section as it is.
+</Accordion>
