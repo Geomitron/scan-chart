@@ -55,6 +55,8 @@ describe('song files', () => {
 		expect(await read('[song]\r\nname = Song\r\n')).toMatchObject({ preview_start_time: 45280, preview_end_time: 75500 })
 		expect(await read('[song]\r\npreview_start_time = -1\r\npreview_end_time = 90000\r\n')).toMatchObject({ preview_start_time: 45280, preview_end_time: 90000 })
 		expect(await read('[song]\r\npreview_start_time = 0\r\n')).toMatchObject({ preview_start_time: 0, preview_end_time: 75500 })
+		// A preview can't end at the song's start, so song.ini's 0 isn't set either.
+		expect(await read('[song]\r\npreview_end_time = 0\r\n')).toMatchObject({ preview_end_time: 75500 })
 		// Moonscraper writes PreviewEnd = 0 when there's no preview end.
 		const moonscraper = encode('[Song]\r\n{\r\n  PreviewStart = 0\r\n  PreviewEnd = 0\r\n  Resolution = 192\r\n}\r\n')
 		const { metadata } = await parseSongMetadata([{ fileName: 'notes.chart', data: moonscraper }])

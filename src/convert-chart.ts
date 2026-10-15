@@ -100,7 +100,7 @@ export function convertChart(
 		const songIni = song.ini !== null && song.ini.fileName.toLowerCase() === 'song.ini' ? song.ini : null
 		ini = songIniWithSection(songIni === null ? song : withSongIni(song, asUtf8Ini(songIni.tokens)))
 		const iniSong = parseIniTokens(ini).iniObject.song ?? {}
-		const isSet = (key: string, unset: number) => Number.isFinite(parseFloat(iniSong[key] ?? '')) && parseFloat(iniSong[key]) !== unset
+		const isSet = (key: string, ...unset: number[]) => Number.isFinite(parseFloat(iniSong[key] ?? '')) && !unset.includes(parseFloat(iniSong[key]))
 		const chartSong = chart.format === 'chart' ? readChartSongEntries(chart.tokens.bytes) : new Map<string, string>()
 		// Games read these [Song] values when song.ini doesn't set them, from a .chart only.
 		const offset = secondsToMs(chartSong.get('Offset'))
@@ -108,7 +108,7 @@ export function convertChart(
 		const previewStart = secondsToMs(chartSong.get('PreviewStart'))
 		if (previewStart !== null && previewStart !== -1 && !isSet('preview_start_time', -1)) settings.push({ key: 'preview_start_time', value: String(previewStart) })
 		const previewEnd = previewEndMs(chartSong.get('PreviewEnd'))
-		if (previewEnd !== null && !isSet('preview_end_time', -1)) settings.push({ key: 'preview_end_time', value: String(previewEnd) })
+		if (previewEnd !== null && !isSet('preview_end_time', -1, 0)) settings.push({ key: 'preview_end_time', value: String(previewEnd) })
 		const cutoff = midiSustainCutoff(source, context.settings.sustain_cutoff_threshold)
 		if (cutoff.write) settings.push({ key: 'sustain_cutoff_threshold', value: String(cutoff.value) })
 		if (soloReadsAsStarPower(source, context.settings.multiplier_note)) settings.push({ key: 'multiplier_note', value: '116' })

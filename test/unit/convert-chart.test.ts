@@ -68,6 +68,8 @@ describe('convertChart', () => {
 		const previews = (end: string) => convertChart(chartSong(expert(['0 = N 0 0']), '[song]\r\nname = Song\r\n', ['PreviewStart = 30', `PreviewEnd = ${end}`]), 'mid').report.settings
 		expect(previews('60')).toEqual([{ key: 'preview_start_time', value: '30000' }, { key: 'preview_end_time', value: '60000' }])
 		expect(previews('0')).toEqual([{ key: 'preview_start_time', value: '30000' }])
+		const iniEndZero = convertChart(chartSong(expert(['0 = N 0 0']), '[song]\r\nname = Song\r\npreview_end_time = 0\r\n', ['PreviewEnd = 60']), 'mid')
+		expect(iniEndZero.report.settings).toEqual([{ key: 'preview_end_time', value: '60000' }])
 	})
 
 	it('writes multiplier_note when .mid would read solos as star power', () => {
