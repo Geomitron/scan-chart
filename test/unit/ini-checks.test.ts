@@ -55,13 +55,14 @@ describe('song.ini tags', () => {
 		]])
 	})
 
-	it('reports tags no reader documents, unless extraIniKeys lists them', async () => {
-		const lines = ['[song]', 'name = Song', 'explicit_lyrics = True', 'video_loop = True', 'link_name_a = Site', 'banner_link_a = x', 'Custom = 1']
+	it('reports tags no game reads, unless extraIniKeys lists them', async () => {
+		// explicit_lyrics is Clone Hero's, video_loop the standard's, and link_name_a and sysex_slider YARG's.
+		const lines = ['[song]', 'name = Song', 'explicit_lyrics = True', 'video_loop = True', 'link_name_a = Site', 'sysex_slider = 1', 'Custom = 1', 'last_play = 2']
 		expect(await iniIssues(lines, ['unknownIniTag'])).toEqual([['unknownIniTag',
-			'"song.ini" has tags that aren\'t in the song.ini standard: "link_name_a", "banner_link_a" and "custom". Remove them, unless a game you chart for reads them.']])
-		expect(await iniIssues(lines, ['unknownIniTag'], { extraIniKeys: ['CUSTOM', /^(link|banner)_/] })).toEqual([])
-		expect(await iniIssues(lines, ['unknownIniTag'], { extraIniKeys: [/^(link|banner)_/] })).toEqual([['unknownIniTag',
-			'"song.ini" has a tag that isn\'t in the song.ini standard: "custom". Remove it, unless a game you chart for reads it.']])
+			'"song.ini" has tags no game reads: "custom" and "last_play". Remove them, unless your game reads them.']])
+		expect(await iniIssues(lines, ['unknownIniTag'], { extraIniKeys: ['CUSTOM', /^last_/] })).toEqual([])
+		expect(await iniIssues(lines, ['unknownIniTag'], { extraIniKeys: [/^last_/] })).toEqual([['unknownIniTag',
+			'"song.ini" has a tag no game reads: "custom". Remove it, unless your game reads it.']])
 	})
 
 	it('names up to four tags, then counts the rest', () => {

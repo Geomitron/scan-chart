@@ -43,7 +43,7 @@ export interface ScanOptions {
 	 * any letter case, or a pattern. Files an operating system made, such as `desktop.ini`, are always reported.
 	 */
 	readonly extraFiles?: readonly (string | RegExp)[]
-	/** song.ini tags your game reads that no reader documents, so they aren't reported as unknown: a tag, or a pattern of its lowercase name. */
+	/** song.ini tags your game reads that Clone Hero and YARG don't, so they aren't reported as unknown: a tag, or a pattern of its lowercase name. */
 	readonly extraIniKeys?: readonly (string | RegExp)[]
 	/** Nonstandard spellings every reader reads alike, such as a repeated `.chart` line. Default: `false`. */
 	readonly styleNotes?: boolean
