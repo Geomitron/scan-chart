@@ -66,7 +66,7 @@ A drum note's length has no effect. An exporter should write 0.
 
 ## Modifiers
 
-A modifier is an `N` event that changes how the pad notes at its tick are hit, instead of adding a note. It applies only to notes at its own tick, and a modifier on a tick without its note has no effect.
+A modifier is an `N` event that changes how the pad notes at its tick are hit, instead of adding a note. It applies only to notes at its own tick. **Required:** the note a modifier applies to, at the modifier's tick.
 
 ### Cymbals
 
@@ -148,5 +148,9 @@ Clone Hero and scan-chart use an event that turns the flip off, then `d`, then `
 </Accordion>
 
 <Accordion title="A dnoflip while a d flip is on">
-Released Clone Hero keeps the flip on until an event turns it off. YARG and scan-chart start no-flip at the `dnoflip`. scan-chart saves the pair with an event that turns the flip off before the `dnoflip`.
+Released Clone Hero keeps the flip on until an event turns it off. YARG and scan-chart start no-flip at the `dnoflip`. scan-chart reports the pair as `discoNoflipDuringFlip`. Saving writes an event that turns the flip off on the tick before the `dnoflip`, unless a red or yellow note, or the `d` event, is on that tick.
+</Accordion>
+
+<Accordion title="A modifier on a tick without its note">
+Clone Hero, YARG and scan-chart ignore it, except that a cymbal marker still makes the chart pro, as [Drum types](#drum-types) says. scan-chart reports it as `chartModifierWithoutNote` only with the `styleNotes` option. Saving removes it either way, unless it's a cymbal marker whose removal would change the drum type.
 </Accordion>

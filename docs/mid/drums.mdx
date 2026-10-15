@@ -163,5 +163,5 @@ Clone Hero and scan-chart use an event that turns the flip off, then `d`, then `
 </Accordion>
 
 <Accordion title="A dnoflip while a d flip is on">
-Released Clone Hero keeps the flip on until an event turns it off. YARG and scan-chart start no-flip at the `dnoflip`. scan-chart saves the pair with an event that turns the flip off before the `dnoflip`.
+Released Clone Hero keeps the flip on until an event turns it off. YARG and scan-chart start no-flip at the `dnoflip`. scan-chart reports the pair as `discoNoflipDuringFlip`. Saving writes an event that turns the flip off on the tick before the `dnoflip`, unless a red or yellow note, or the `d` event, is on that tick.
 </Accordion>
