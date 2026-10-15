@@ -383,6 +383,14 @@ describe('fixIssues: sustains', () => {
 		expect(gap.codes).not.toContain('badSustainGap')
 		expect(hashKeys(gap)).toEqual(['canonical:guitar:expert', 'canonical:song'])
 
+		// A sustain held over a note it would then end too close to is left.
+		const held = await fix(folder(ini, expert('768 = N 0 160', '850 = N 1 0', '940 = N 2 0')), { codes: ['badSustainGap'], changeHashes: true })
+		expect(chartText(held)).toContain('768 = N 0 148\r\n')
+		const over = await fix(folder(ini, expert('768 = N 0 160', '920 = N 1 0', '940 = N 2 0')), { codes: ['badSustainGap'], changeHashes: true })
+		expect(chartText(over)).toContain('768 = N 0 160\r\n')
+		expect(over.report.skipped).toEqual([{ code: 'badSustainGap', file: 'notes.chart',
+			reason: '1 expert guitar sustain is held over other notes: shortening it would end it too close to one.' }])
+
 		const tight = folder(ini, expert('768 = N 0 80', '864 = N 1 0'))
 		expect(chartText(await fix(tight, { codes: ['badSustainGap'], changeHashes: true }))).toContain('768 = N 0 72\r\n')
 		const both = await fix(tight, { codes: ['badSustainGap', 'babySustain'], changeHashes: true })

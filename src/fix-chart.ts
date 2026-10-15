@@ -318,6 +318,7 @@ export function fixSustains(
 		const ticksOf = (code: IssueCode) => new Set(found.filter(issue => issue.code === code && issue.instrument === track.instrument && issue.difficulty === track.difficulty).map(issue => issue.tick))
 		const [gapTicks, babyTicks] = [ticksOf('badSustainGap'), ticksOf('babySustain')]
 		const lengths: SustainEdits['lengths'] = new Map()
+		const held = new Set<NoteEvent>()
 		track.noteEventGroups.forEach((group, index) => {
 			if (babyTicks.has(group[0].tick)) {
 				const nextOpen = track.noteEventGroups[index + 1]?.find(note => note.type === noteTypes.open)
@@ -333,13 +334,23 @@ export function fixSustains(
 				for (const note of earlier) {
 					const end = note.msTime + note.msLength
 					if (note.msLength <= 0 || note.type === noteTypes.open || start < end || start - end >= gapMs) continue
-					const length = Math.max(0, Math.floor(tickAtMs(parsed, start - gapMs)) - note.tick)
-					const shortened = removeShort && msLength(note, length) < minMs ? 0 : length
+					const endTick = Math.max(note.tick, Math.floor(tickAtMs(parsed, start - gapMs)))
+					// A sustain held over other notes would end too close to one of them.
+					const endMs = msAtTick(parsed, endTick)
+					if (endTick > note.tick && track.noteEventGroups.some(other => other !== group && other[0].tick >= endTick && other[0].msTime < endMs + gapMs)) {
+						held.add(note)
+						continue
+					}
+					const shortened = removeShort && msLength(note, endTick - note.tick) < minMs ? 0 : endTick - note.tick
 					const previous = lengths.get(note)
 					if (previous === undefined || shortened < previous.length) lengths.set(note, { length: shortened, code: previous?.code ?? 'badSustainGap' })
 				}
 			}
 		})
+		if (held.size > 0) {
+			record.skip('badSustainGap', chart.fileName, `${held.size} ${trackName(track)} ${held.size === 1 ? 'sustain is' : 'sustains are'} held over other notes: `
+				+ `shortening ${held.size === 1 ? 'it' : 'them'} would end ${held.size === 1 ? 'it' : 'them'} too close to one.`)
+		}
 		if (lengths.size > 0) tracks.push({ track, lengths })
 	}
 
