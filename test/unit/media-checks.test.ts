@@ -1,58 +1,19 @@
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 
 import { scanSongFolder, type ScanOptions } from 'src/scan-song-folder'
 import type { SongFile } from 'src/song-files'
 
-const encode = (text: string) => new TextEncoder().encode(text)
-const ascii = (text: string) => [...text].map(character => character.charCodeAt(0))
-const concat = (...parts: (Uint8Array | number[])[]) => {
-	const bytes = new Uint8Array(parts.reduce((total, part) => total + part.length, 0))
-	let at = 0
-	for (const part of parts) {
-		bytes.set(part, at)
-		at += part.length
-	}
-	return bytes
-}
-const le32 = (value: number) => [value & 255, (value >> 8) & 255, (value >> 16) & 255, (value >>> 24) & 255]
-const le16 = (value: number) => [value & 255, (value >> 8) & 255]
-const be32 = (value: number) => [(value >>> 24) & 255, (value >> 16) & 255, (value >> 8) & 255, value & 255]
+import { byteSourceFile, jpeg, opus, png, vorbis, webm } from './helpers/media-files'
 
-function oggPage(granule: number, body: Uint8Array, flags = 0) {
-	const lacing = [...Array(Math.floor(body.length / 255)).fill(255), body.length % 255]
-	return concat(ascii('OggS'), [0, flags], le32(granule), le32(0), le32(7), le32(0), le32(0), [lacing.length], lacing, body)
-}
-/** Ten seconds of Ogg Opus audio averaging about `kbps`. */
-function opus(kbps: number) {
-	const head = oggPage(0, concat(ascii('OpusHead'), [1, 2], le16(0), le32(48000), [0, 0, 0]), 2)
-	const bytes = kbps * 1000 / 8 * 10
-	const pages = Math.ceil(bytes / 60000)
-	return concat(head, ...Array.from({ length: pages }, (_, page) => oggPage((page + 1) * 480000 / pages, new Uint8Array(bytes / pages))))
-}
-/** Ogg Vorbis audio of `seconds`, whose header names a nominal bitrate. */
-function vorbis(nominalKbps: number, seconds = 10) {
-	const id = concat([1], ascii('vorbis'), le32(0), [2], le32(44100), le32(0), le32(nominalKbps * 1000), le32(0), [0xb8, 1])
-	return concat(oggPage(0, id, 2), oggPage(44100 * seconds, new Uint8Array(1000)))
-}
-function png(width: number, height: number) {
-	return concat([0x89, ...ascii('PNG'), 13, 10, 26, 10], be32(13), ascii('IHDR'), be32(width), be32(height), [8, 6, 0, 0, 0], be32(0), be32(0), ascii('IEND'), be32(0))
-}
-const jpeg = (width: number, height: number) => new Uint8Array([0xff, 0xd8, 0xff, 0xc0, 0, 17, 8, height >> 8, height & 255, width >> 8, width & 255, 3, 1, 0x22, 0, 2, 0x11, 1, 3, 0x11, 1, 0xff, 0xd9])
-function webm(codec: string) {
-	const element = (id: number[], data: Uint8Array | number[]) => concat(id, [0x80 | data.length], data)
-	const header = element([0x1a, 0x45, 0xdf, 0xa3], element([0x42, 0x82], ascii('webm')))
-	const tracks = element([0x16, 0x54, 0xae, 0x6b], element([0xae], concat(element([0x83], [1]), element([0x86], ascii(codec)))))
-	return concat(header, [0x18, 0x53, 0x80, 0x67, 0x01, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff], tracks)
-}
+const encode = (text: string) => new TextEncoder().encode(text)
 
 const chart = encode(['[Song]', '{', '  Resolution = 192', '}', '[SyncTrack]', '{', '  0 = TS 4', '  0 = B 120000', '}', '[Events]', '{', '}',
 	'[ExpertSingle]', '{', '  768 = N 0 0', '}'].join('\r\n') + '\r\n')
-/** A file as a byte source that counts its reads. */
-let reads = 0
-const file = (fileName: string, bytes: Uint8Array): SongFile => {
-	const blob = new Blob([bytes as Uint8Array<ArrayBuffer>])
-	return { fileName, data: { size: blob.size, read: async (offset, length) => (reads++, new Uint8Array(await blob.slice(offset, offset + length).arrayBuffer())) } }
-}
+const reads = { count: 0 }
+beforeEach(() => {
+	reads.count = 0
+})
+const file = (fileName: string, bytes: Uint8Array) => byteSourceFile(fileName, bytes, reads)
 async function mediaIssues(files: SongFile[], codes: readonly string[], options: ScanOptions = { mediaIssues: true }, ini = '[song]\r\nname = Song\r\n') {
 	const scanned = await scanSongFolder([{ fileName: 'notes.chart', data: chart }, { fileName: 'song.ini', data: encode(ini) }, ...files], options)
 	return scanned.issues.filter(issue => codes.includes(issue.code)).map(issue => [issue.code, issue.file, issue.message])
@@ -60,10 +21,9 @@ async function mediaIssues(files: SongFile[], codes: readonly string[], options:
 
 describe('media checks', () => {
 	it('read nothing unless mediaIssues asks for them', async () => {
-		reads = 0
 		const files = [file('song.ogg', opus(120)), file('album.png', jpeg(500, 500)), file('background.jpg', jpeg(800, 450)), file('video.webm', webm('V_VP9'))]
 		expect(await mediaIssues(files, ['extensionMismatch', 'audioBitrate', 'albumArtSize', 'backgroundSize', 'videoCodec'], {})).toEqual([])
-		expect(reads).toBe(0)
+		expect(reads.count).toBe(0)
 	})
 
 	it('report an extension that doesn\'t match the content, and an .ogg file of Opus audio only for that', async () => {

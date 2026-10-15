@@ -4,24 +4,12 @@ import { audioNameRecommendations } from 'src/assets/scan-audio'
 import { scanSongFolder, type ScanOptions } from 'src/scan-song-folder'
 import type { SongFile } from 'src/song-files'
 
+import { png } from './helpers/media-files'
+
 const encode = (text: string) => new TextEncoder().encode(text)
 const chart = encode(['[Song]', '{', '  Resolution = 192', '}', '[SyncTrack]', '{', '  0 = TS 4', '  0 = B 120000', '}', '[Events]', '{', '}',
 	'[ExpertSingle]', '{', '  768 = N 0 0', '}'].join('\r\n') + '\r\n')
 const songIni = encode('[song]\r\nname = Song\r\nartist = Artist\r\n')
-
-/** A PNG file's signature and IHDR chunk: enough for its dimensions. */
-function png(width: number, height: number) {
-	const bytes = new Uint8Array(45)
-	const view = new DataView(bytes.buffer)
-	bytes.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
-	view.setUint32(8, 13)
-	bytes.set(encode('IHDR'), 12)
-	view.setUint32(16, width)
-	view.setUint32(20, height)
-	bytes.set([8, 6, 0, 0, 0], 24)
-	bytes.set(encode('IEND'), 37)
-	return bytes
-}
 
 const named = (...names: string[]) => names.map(fileName => ({ fileName, data: new Uint8Array(1) }))
 
@@ -73,7 +61,8 @@ describe('files games don\'t read', () => {
 	it('accepts every file Clone Hero or YARG reads, in any letter case', async () => {
 		expect(await unrecognized(named(
 			'song.ogg', 'DRUMS.aiff', 'album.tga', 'highway.png', 'background1.jpg', 'my background.png', 'BG.png', 'bg_clean.gif',
-			'video.webm', 'background_explicit.mov', 'bg.yarground', 'notes.midi', 'notes.txt', 'other song.sng', 'sub/video.mp4',
+			'video.webm', 'video.ogv', 'video.vp8', 'video.mpeg', 'video.avi', 'background_explicit.mov', 'bg.yarground', 'notes.midi', 'notes.txt',
+			'other song.sng', 'sub/video.mp4',
 		))).toEqual([])
 	})
 
