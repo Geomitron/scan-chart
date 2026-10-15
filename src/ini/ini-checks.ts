@@ -159,9 +159,9 @@ function valueIssues({ songSection, metadata, chart }: SongIniInput): { issues: 
 }
 
 /**
- * The keys set to what Clone Hero and YARG both read without them, for the chart's format, and the tags for older
- * charts that change nothing. A value only one of them reads as the default, such as `pro_drums = False` in a `.mid`
- * chart, which YARG reads as 4-lane drums, isn't one.
+ * The keys that change nothing: set to what Clone Hero and YARG both read without them, for the chart's format, or tags
+ * for older charts that another tag or setting overrides. A value only one game reads the same without, such as
+ * `pro_drums = False` in a `.mid` chart, which YARG reads as 4-lane drums, isn't one.
  */
 function unneededKeys(songSection: SongSection, metadata: typeof defaultMetadata, chart: SongIniInput['chart']): string[] {
 	const keys: string[] = []
