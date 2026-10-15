@@ -64,6 +64,17 @@ describe('scanning a song folder', () => {
 		expect(scanned.issues.filter(issue => issue.scope === 'chart').every(issue => issue.file === null)).toBe(true)
 	})
 
+	it('names song.ini for its line and section issues, and the chart file when it can\'t be read or hashed', async () => {
+		const fileOf = async (folder: { fileName: string; data: Uint8Array }[], code: string) =>
+			(await scanSongFolder(folder, { competitiveHashes: true })).issues.filter(issue => issue.code === code).map(issue => issue.file)
+		expect(await fileOf([files[0], { fileName: 'Song.ini', data: encode('[song]\r\nname = Song\r\nnot a line\r\n') }], 'badIniLine')).toEqual(['Song.ini'])
+		expect(await fileOf([files[0], { fileName: 'song.ini', data: encode('[other]\r\nname = Song\r\n') }], 'invalidMetadata')).toEqual(['song.ini'])
+		expect(await fileOf([{ fileName: 'notes.mid', data: new Uint8Array([1, 2, 3]) }], 'badChart')).toEqual(['notes.mid'])
+		const unhashable = encode(['[Song]', '{', '  Resolution = 192', '}', '[SyncTrack]', '{', '  0 = B 120000', '}',
+			'[ExpertSingle]', '{', '  0 = N 0 0', '  9007199254740993 = N 1 0', '}'].join('\r\n') + '\r\n')
+		expect(await fileOf([{ fileName: 'notes.chart', data: unhashable }], 'badChartIdentity')).toEqual(['notes.chart'])
+	})
+
 	it('computes nothing that isn\'t asked for, and reads large files only to hash them', async () => {
 		let reads = 0
 		const source = byteSourceFromBlob(new Blob([new Uint8Array(100)]))
