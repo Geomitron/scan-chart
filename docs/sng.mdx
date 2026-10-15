@@ -26,12 +26,12 @@ Song Name.sng
 
 Clone Hero and YARG read `.sng` files, and play the audio straight from them, without unpacking them. scan-chart doesn't read or write them.
 
-Matthew Sitton designed the format. Its [specification](https://github.com/mdsitton/SngFileFormat) comes with SngCli, a tool that packs song folders into `.sng` files and unpacks them.
+Matthew Sitton and Geo designed the format. Its [specification](https://github.com/mdsitton/SngFileFormat) comes with SngCli, a tool that packs song folders into `.sng` files and unpacks them.
 
 ## Where a .sng file goes
 
-- A `.sng` file goes where a song folder would, among the song folders. It must not be inside a song folder.
-- Its extension must be `.sng`, in lowercase. SngCli names it after the song folder.
+- A `.sng` file goes where a song folder would, among the song folders, not inside one.
+- **Required:** the extension `.sng`, in lowercase. SngCli names the file after the song folder.
 
 ## Layout
 
@@ -53,16 +53,9 @@ A `.sng` file is a header, then three parts: the metadata, the file index and th
 
 Lengths, counts and offsets of 8 bytes are unsigned 64-bit numbers. Keys, values and names are UTF-8, without NUL characters.
 
-- The metadata length, the file index length and the file data length must each equal the number of bytes their part holds.
-- The file data must start right after the file data length, hold the files in the order of the file index with nothing between them, and end the `.sng` file.
+- **Required:** the metadata length, the file index length and the file data length each equal the number of bytes their part holds.
+- **Required:** the file data starts right after the file data length, holds the files in the order of the file index with nothing between them, and ends the `.sng` file.
 
-{/* review: Q11
-How strict is the `.sng` format? Its specification leaves several points open, and the games read them differently. This page takes the strict reading of each.
-- A. Strict | Booleans must be `True` or `False`; file names and keys must be in lowercase, matched exactly; the data must be in index order with no gaps; the version must be 1, and a scanner refuses another; `frets`, `track` and `pro_drum` aren't valid; files in folders should not be stored | Follows Clone Hero, the stricter game. SngCli copies song.ini's `1` and `0` as written, so some existing `.sng` files are invalid
-- B. As song.ini and song folders | `1` and `0` allowed, names in any letter case, the older keys read | Clone Hero reads `pro_drums = 1` in a `.sng` file as false, so one file plays differently in each game
-- C. Strict bytes, song.ini's metadata | As A for the layout, as B for the metadata | The boolean difference between the games stays
-Recommendation: A. It's the only form that both games and parse-sng read the same way, and every known exporter already writes the layout this way.
-*/}
 
 ### Masking
 
@@ -74,33 +67,33 @@ byte[i] = masked[i] XOR key[i]
 ```
 
 - The same operation masks and unmasks a file. The key repeats every 256 bytes, so a scanner can build it as a 256-byte table.
-- Any 16 bytes are a valid mask. An exporter should write random bytes, and keep a `.sng` file's mask when it saves the file again.
+- Any 16 bytes are a valid mask. **Recommended:** random bytes for a new file, and the file's own mask when it's saved again.
 
 The mask keeps programs that don't know the format from reading the files inside as ordinary files.
 
 ## Metadata
 
-The metadata is the `[song]` section of a `song.ini` file, as key and value pairs. Its keys are those of [Metadata](/ini/metadata) and [Settings](/ini/settings), and each value must be one that `song.ini` can hold, so that the metadata can become a `song.ini` file again.
+The metadata is the `[song]` section of a `song.ini` file, as key and value pairs. Its keys are those of [Metadata](/ini/metadata) and [Settings](/ini/settings), and each value is one that `song.ini` can hold, so that the metadata can become a `song.ini` file again.
 
 - `name` is **Required**.
-- Keys must be in lowercase: both games match them exactly.
-- A key must appear only once.
-- A value must not be empty. Leave the key out instead.
-- A boolean must be `True` or `False`.
-- A number must be digits, with an optional `-` before them, and no spaces.
-- A key or value must not hold `;` or a line break, and a key must not hold `=`.
-- Write `charter`, `album_track` and `pro_drums`. Their older names, `frets`, `track` and `pro_drum`, aren't valid in a `.sng` file.
+- **Required:** keys in lowercase. Both games match keys exactly.
+- Each key appears once.
+- **Required:** a value of at least one character in every pair. To leave a value unset, leave its key out.
+- **Required:** a boolean written as `True` or `False`.
+- A number is digits, with an optional `-` before them, and no spaces.
+- Keys and values hold no `;` and no line break, and keys hold no `=`.
+- The older names of `song.ini` keys, `frets`, `track`, `pro_drum` and `star_power_note`, aren't part of a `.sng` file's metadata. Write `charter`, `album_track` and `pro_drums`.
 
-**Edge case: the chart's `[Song]` section.** Clone Hero takes nothing from a `.chart` file's `[Song]` section but `Offset` and `PreviewStart`, and those only when the metadata doesn't set `delay` or `preview_start_time`. So the metadata must hold every value the song needs.
+**Edge case: the chart's `[Song]` section.** Clone Hero takes nothing from a `.chart` file's `[Song]` section but `Offset` and `PreviewStart`, and those only when the metadata doesn't set `delay` or `preview_start_time`. So the metadata holds every value the song needs.
 
 ## Files
 
 Each file in the index is a file of the song folder. [Files in a song folder](/song-folders) gives their names and rules: one chart, at least one audio file, and one file for each audio name.
 
-- Names must be in lowercase. Clone Hero matches names exactly, so it doesn't find `Notes.chart`.
-- A name must appear only once, and two names must not differ only in letter case.
-- A name must be at most 255 bytes of UTF-8, folders included.
-- `song.ini` must not be stored: the metadata takes its place, and games ignore a stored one.
+- **Required:** names in lowercase. Clone Hero matches names exactly.
+- Each name appears once, and no two names differ only in letter case.
+- A name is at most 255 bytes of UTF-8, folders included.
+- No `song.ini` is stored: the metadata takes its place.
 - **Recommended:** no folders in the names. The format allows a name such as `extras/photo.png`, but games don't read files in folders.
 
 **Edge case: background images in folders.** Clone Hero shows any image whose name contains `background`, folders included, and YARG any whose name starts with `background`. So an image named `backgrounds/1.png` can still appear behind the highway.
@@ -176,7 +169,7 @@ Clone Hero doesn't list the song, even when the `.chart` file's `[Song]` section
 </Accordion>
 
 <Accordion title="An empty value">
-Clone Hero reads empty text, or a number's default. YARG reads past the end of an empty value, into the next pair. SngCli never writes one.
+Clone Hero reads empty text, or a number's default. YARG reads past the end of an empty value, into the next pair. A scanner reads the key as not set. SngCli never writes one.
 </Accordion>
 
 <Accordion title="A key written more than once">
@@ -191,12 +184,12 @@ No game checks for them. The specification forbids them so that the metadata can
 Games ignore it: the metadata is the only source of the song's values.
 </Accordion>
 
-<Accordion title="frets, track or pro_drum in the metadata">
-Clone Hero ignores them. YARG reads them as it does in `song.ini`.
+<Accordion title="frets, track, pro_drum or star_power_note in the metadata">
+Clone Hero ignores them. YARG reads them as it does in `song.ini`. A scanner ignores them.
 </Accordion>
 
 <Accordion title="Two audio files with one name, such as song.ogg and song.opus">
-Unlike in a song folder, both games play the first of `.opus`, `.ogg`, `.mp3` and `.wav`. A `.sng` file must still hold only one, as a song folder must.
+Unlike in a song folder, both games play the first of `.opus`, `.ogg`, `.mp3` and `.wav`. As in a song folder, a `.sng` file holds one file for each audio name.
 </Accordion>
 
 <Accordion title="No audio file">
