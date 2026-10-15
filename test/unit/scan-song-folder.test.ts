@@ -23,8 +23,15 @@ describe('scanning a song folder', () => {
 		const scanned = await scanSongFolder(files, { competitiveHashes: true, fileHashes: true, albumArt: true })
 		const old = scanChart(files, parseChartAndIni(files))
 		const description = (issue: { msTime: number | null; message: string }) => issue.msTime === null ? issue.message : `[${msToExactTime(issue.msTime)}]: ${issue.message}`
-		expect(scanned.issues.filter(issue => issue.scope === 'folder').map(issue => ({ folderIssue: issue.code, description: issue.message }))).toEqual(old.folderIssues)
-		expect(scanned.issues.filter(issue => issue.scope === 'metadata').map(issue => ({ metadataIssue: issue.code, description: issue.message }))).toEqual(old.metadataIssues)
+		// The codes 8.x had; 9.0 adds the charting recommendations.
+		const oldCodes = [
+			'noMetadata', 'invalidIni', 'invalidMetadata', 'badIniLine', 'multipleIniFiles', 'noAlbumArt', 'albumArtSize', 'badAlbumArt', 'multipleAlbumArt', 'noAudio',
+			'invalidAudio', 'multipleAudio', 'noChart', 'invalidChart', 'badChart', 'badChartIdentity', 'multipleChart', 'badVideo', 'multipleVideo',
+			'missingValue', 'invalidValue', 'extraValue',
+		]
+		const oldIssues = scanned.issues.filter(issue => oldCodes.includes(issue.code))
+		expect(oldIssues.filter(issue => issue.scope === 'folder').map(issue => ({ folderIssue: issue.code, description: issue.message }))).toEqual(old.folderIssues)
+		expect(oldIssues.filter(issue => issue.scope === 'metadata').map(issue => ({ metadataIssue: issue.code, description: issue.message }))).toEqual(old.metadataIssues)
 		expect(scanned.issues.filter(issue => issue.scope === 'chart').map(issue => ({ instrument: issue.instrument, difficulty: issue.difficulty, noteIssue: issue.code, description: description(issue) })))
 			.toEqual(old.notesData!.chartIssues)
 		expect(scanned.issues.map(issue => issue.code)).toEqual(expect.arrayContaining(['badAlbumArt', 'missingValue', 'extraValue', 'badVideo']))

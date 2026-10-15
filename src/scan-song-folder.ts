@@ -1,6 +1,6 @@
 
 import { analyzeChart } from './analyze-chart'
-import { scanAudio } from './assets/scan-audio'
+import { audioNameRecommendations, scanAudio } from './assets/scan-audio'
 import { scanFolderFiles } from './assets/scan-folder'
 import { decodeAlbumArt, findAlbumArt } from './assets/scan-image'
 import { scanVideo } from './assets/scan-video'
@@ -117,7 +117,7 @@ export async function scanSongFolder(files: readonly SongFile[], options: ScanOp
 		if (decoded.decoded) albumArt = { data }
 	}
 	const audio = scanAudio(song.files)
-	folderIssues.push(...audio.folderIssues)
+	folderIssues.push(...audio.folderIssues, ...audioNameRecommendations(audio.stemFiles))
 	const video = scanVideo(song.files)
 	folderIssues.push(...video.folderIssues)
 	folderIssues.push(...scanFolderFiles(song.files, { chartFile: chartFile ?? null, songSection: context.ini.songSection, extraFiles: options.extraFiles ?? [] }))

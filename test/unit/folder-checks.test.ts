@@ -120,3 +120,27 @@ describe('folder size', () => {
 		]])
 	})
 })
+
+describe('audio names', () => {
+	const codes = ['audioFormat', 'singleAudioName', 'discouragedAudio']
+
+	it('recommends Opus audio', async () => {
+		expect(await issuesOf(named('song.opus', 'guitar.ogg'), codes))
+			.toEqual([['audioFormat', 'guitar.ogg', '"guitar.ogg" isn\'t Opus. .opus is the recommended audio format: it\'s the smallest at the same quality.']])
+	})
+
+	it('recommends naming a lone audio file "song", and accepts "guitar"', async () => {
+		expect(await issuesOf(named('song.opus'), codes)).toEqual([])
+		expect(await issuesOf(named('guitar.opus', 'preview.opus'), ['singleAudioName'])).toEqual([])
+		expect(await issuesOf(named('drums.opus', 'crowd.opus'), ['singleAudioName']))
+			.toEqual([['singleAudioName', 'drums.opus', 'This chart\'s only audio file is "drums.opus". The audio of a chart without stems is named "song".']])
+		expect(await issuesOf(named('drums.opus', 'bass.opus'), ['singleAudioName'])).toEqual([])
+	})
+
+	it('discourages crowd and preview audio', async () => {
+		expect(await issuesOf(named('song.opus', 'crowd.opus', 'preview.opus'), codes)).toEqual([
+			['discouragedAudio', 'crowd.opus', '"crowd.opus" is discouraged by the charting guidelines.'],
+			['discouragedAudio', 'preview.opus', '"preview.opus" is discouraged. Set "preview_start_time" in song.ini instead, so games play the preview from the song\'s audio.'],
+		])
+	})
+})

@@ -38,6 +38,9 @@ export const issueSeverities: { readonly [code in IssueCode]: IssueSeverity } = 
 	unrecognizedFile: 'recommendation',
 	fileNameCase: 'warning',
 	folderSize: 'recommendation',
+	audioFormat: 'recommendation',
+	singleAudioName: 'recommendation',
+	discouragedAudio: 'recommendation',
 	// Metadata issues
 	missingValue: 'warning',
 	invalidValue: 'warning',
