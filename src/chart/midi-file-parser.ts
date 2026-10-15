@@ -809,7 +809,37 @@ function scanInstrumentTrack(
 
 	versusPhrases.sort((a, b) => a.tick - b.tick)
 	animations.sort((a, b) => a.tick - b.tick)
-	return { eventEnds, textEvents, versusPhrases, animations, unrecognizedEvents, drumMixes }
+	const unrecognized = instrumentType === instrumentTypes.drums ? withUncoveredTomMarkers(events, eventEnds, unrecognizedEvents) : unrecognizedEvents
+	return { eventEnds, textEvents, versusPhrases, animations, unrecognizedEvents: unrecognized, drumMixes }
+}
+
+const drumNoteEventTypes: EventType[] = [
+	eventTypes.kick, eventTypes.kick2x, eventTypes.redDrum, eventTypes.yellowDrum, eventTypes.blueDrum, eventTypes.fiveOrangeFourGreenDrum, eventTypes.fiveGreenDrum,
+]
+
+/**
+ * A drum track's unrecognized events, with the events of each tom marker that covers no drum note on any difficulty,
+ * in track order. Such a marker changes no note and doesn't make the chart pro drums here, as in the canonical rules,
+ * but Clone Hero 1.1 reads any tom marker as pro drums, so the `.mid` writer writes it back.
+ */
+function withUncoveredTomMarkers(events: MidiEvent[], eventEnds: TrackScanResult['eventEnds'], unrecognizedEvents: MidiEvent[]): MidiEvent[] {
+	const tomMarkers = eventEnds.all.filter(end => end.type === eventTypes.yellowTomMarker || end.type === eventTypes.blueTomMarker || end.type === eventTypes.greenTomMarker)
+	if (tomMarkers.length === 0) return unrecognizedEvents
+	const noteTicks = difficulties
+		.flatMap(difficulty => eventEnds[difficulty].filter(end => end.isStart && drumNoteEventTypes.includes(end.type)).map(end => end.tick))
+		.sort((a, b) => a - b)
+	const uncovered = new Set<number>()
+	let next = 0
+	// Pairs come in start order, so the first note at or after each start only moves forward.
+	for (const { start, end } of pairEventEnds(tomMarkers)) {
+		while (next < noteTicks.length && noteTicks[next] < start.tick) next++
+		// A marker covers the notes from its start up to its end, or its own tick when it has no length.
+		const covered = next < noteTicks.length && (noteTicks[next] < end.tick || noteTicks[next] === start.tick)
+		if (!covered) uncovered.add(start.eventIndex).add(end.eventIndex)
+	}
+	if (uncovered.size === 0) return unrecognizedEvents
+	const unrecognized = new Set(unrecognizedEvents)
+	return events.filter((event, index) => unrecognized.has(event) || uncovered.has(index))
 }
 
 /** These apply to the entire instrument, not specific difficulties. */

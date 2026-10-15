@@ -15,6 +15,7 @@ import { createEmptyChart } from 'src/chart/create-chart'
 import { writeChartFile } from 'src/chart/chart-writer'
 import { writeMidiFile } from 'src/chart/midi-writer'
 import { noteFlags, type NoteType, noteTypes } from 'src/chart/types'
+import { drumTypes } from 'src/types'
 import { parseChartAndIni, type ParsedChart } from 'src/chart/parse-chart-and-ini'
 import { parseChartFile, parseChartFileFrozenLegacyIdentity } from 'src/chart/parse-chart-file'
 import { readMidiTokens } from 'src/chart/midi-tokens'
@@ -34,13 +35,13 @@ function roundTrip(chart: ParsedChart, iniText?: string): ParsedChart {
 	return result.parsedChart
 }
 
-/** A `.mid` file at 480 ticks per beat with a PART DRUMS track of text events and zero-length notes (`[tick, note]`). */
-function drumsMidi(texts: { tick: number; text: string }[], notes: [number, number][]): Uint8Array {
+/** A `.mid` file at 480 ticks per beat with a PART DRUMS track of text events and notes (`[tick, note, length = 0]`). */
+function drumsMidi(texts: { tick: number; text: string }[], notes: [number, number, number?][]): Uint8Array {
 	const events = [
 		...texts.map(({ tick, text }) => ({ tick, event: { type: 'text', text } })),
-		...notes.flatMap(([tick, noteNumber]) => [
+		...notes.flatMap(([tick, noteNumber, length = 0]) => [
 			{ tick, event: { type: 'noteOn', channel: 0, noteNumber, velocity: 100 } },
-			{ tick, event: { type: 'noteOff', channel: 0, noteNumber, velocity: 0 } },
+			{ tick: tick + length, event: { type: 'noteOff', channel: 0, noteNumber, velocity: 0 } },
 		]),
 	].sort((a, b) => a.tick - b.tick)
 	let lastTick = 0
@@ -350,6 +351,27 @@ describe('writeMidiFile round-trip: drum tracks', () => {
 		const edited = writeMidiFile(parsed)
 		expect(mixEvents(edited)).toEqual([[0, '[mix 3 drums2]'], [0, '[mix 0 drums4]'], [480, '[mix 3 drums2d]'], [960, '[mix 3 drums2]'], [1440, '[mix 3 drums2]'], [1920, '[mix 3 drums2easy]']])
 		expect(discoTicks(parseChartAndIni([{ fileName: 'notes.mid', data: edited }]).parsedChart!)).toEqual([480, 480])
+	})
+
+	it('writes back a tom marker that covers no note, which makes Clone Hero 1.1 read the chart as pro drums', () => {
+		// Yellow at 0 under a tom marker, and a yellow tom marker over no note.
+		const source = drumsMidi([], [[0, 98], [0, 110, 1], [960, 97], [1440, 110, 240]])
+		const parsed = parseChartAndIni([{ fileName: 'notes.mid', data: source }]).parsedChart!
+		const tomMarkers = (data: Uint8Array) => parseMidi(data).tracks.flatMap(track => {
+			let tick = 0
+			return track.flatMap(event => (tick += event.deltaTime, event.type === 'noteOn' && event.noteNumber === 110 ? [tick] : []))
+		})
+		const written = writeMidiFile(parsed)
+		expect(tomMarkers(written)).toEqual([0, 1440])
+		const reparsed = parseChartAndIni([{ fileName: 'notes.mid', data: written }]).parsedChart!
+		expect(reparsed.drumType).toBe(parsed.drumType)
+		expect(flatNotes(findTrack(reparsed, 'drums'))).toEqual(flatNotes(findTrack(parsed, 'drums')))
+		expect(tomMarkers(writeMidiFile(reparsed))).toEqual([0, 1440])
+
+		// Over no note at all, the marker leaves the chart 4-lane in scan-chart, and is still written.
+		const uncoveredOnly = parseChartAndIni([{ fileName: 'notes.mid', data: drumsMidi([], [[0, 98], [480, 111, 60]]) }]).parsedChart!
+		expect(uncoveredOnly.drumType).toBe(drumTypes.fourLane)
+		expect(parseMidi(writeMidiFile(uncoveredOnly)).tracks.flat().some(event => event.type === 'noteOn' && event.noteNumber === 111)).toBe(true)
 	})
 
 	it('preserves versus phrases', () => {
