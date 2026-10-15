@@ -1,4 +1,4 @@
-import { midiTrackNoflips, mixDifficulties } from './disco-flip'
+import { drumMixText, MidiDrumsNoflips, midiTrackNoflips } from './disco-flip'
 import { editMidiTrack, MidiTrackEdit, midiTextEvent } from './midi-edit'
 import { MidiTokens } from './midi-tokens'
 
@@ -54,9 +54,9 @@ export function midiNormalizations(tokens: MidiTokens): MidiNormalization[] {
  * An event turning the flip off before each `dnoflip` mix event that comes while a `d` flip is on, where a tick is free,
  * as the writers write one (`noflipsDuringFlips`).
  */
-function flipOffs(drums: NonNullable<ReturnType<typeof midiTrackNoflips>>): MidiTrackEdit[] {
+function flipOffs(drums: MidiDrumsNoflips): MidiTrackEdit[] {
 	return [...drums.difficulties].flatMap(([difficulty, found]) => found.flatMap(({ offTick, configuration }) => offTick === null ? []
-		: [{ kind: 'insert' as const, tick: offTick, event: midiTextEvent(`[mix ${mixDifficulties.indexOf(difficulty)} drums${configuration}]`) }]))
+		: [{ kind: 'insert' as const, tick: offTick, event: midiTextEvent(`[${drumMixText(difficulty, { configuration, flag: '' })}]`) }]))
 }
 
 /** The track names at tick 0 before the last one, which names the track, or `null` when there's only one. */

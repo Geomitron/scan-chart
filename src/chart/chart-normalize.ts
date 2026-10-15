@@ -13,7 +13,7 @@ import {
 } from './chart-file-parser'
 import { ChartLineSpelling, chartSectionSpellings, chartSongSpellings } from './chart-line-spelling'
 import { chartModifiersWithoutNotes } from './chart-modifiers'
-import { chartSectionNoflips, mixDifficulties } from './disco-flip'
+import { chartSectionNoflips, drumMixText } from './disco-flip'
 
 /**
  * A kind of nonstandard `.chart` spelling. The standard is what the `.chart` encoder writes and nearly every library
@@ -96,7 +96,7 @@ export function chartNormalizations(tokens: ChartFileTokens): ChartNormalization
 			add('modifiersWithoutNotes', name, current => (chartModifiersWithoutNotes(current).get(name) ?? []).map(({ start, end }) => ({ start, end, text: '' })))
 		}
 		if (track?.instrument === 'drums') {
-			add('noflipDuringFlip', name, current => sectionSplices(current, name, lines => withFlipOffs(lines, track.difficulty)))
+			add('noflipDuringFlip', name, current => flipOffSplices(current, name, track.difficulty))
 		}
 	}
 	// Last, because removing and moving sections moves the others.
@@ -330,19 +330,19 @@ function withoutEarlierMarkers(lines: string[]): string[] {
 
 /**
  * An event turning the flip off before each `dnoflip` mix event that comes while a `d` flip is on, where a tick is free,
- * as the writers write one (`noflipsDuringFlips`). It goes before the first line of a later tick.
+ * as the writers write one (`noflipsDuringFlips`): a line before the first line of a later tick, or before the `}`.
  */
-function withFlipOffs(lines: string[], difficulty: Difficulty): string[] {
-	if (!lines.some(line => line.includes('dnoflip'))) return lines
-	const written = [...lines]
-	for (const { offTick, configuration } of chartSectionNoflips(lines, difficulty)) {
-		if (offTick === null) continue
-		const index = written.findIndex(line => Number(/^\s*(\d+)/.exec(line)?.[1] ?? -1) > offTick)
-		const at = index === -1 ? written.length : index
-		const ending = lineEnding(written[Math.max(at - 1, 0)])
-		written.splice(at, 0, `  ${offTick} = E mix ${mixDifficulties.indexOf(difficulty)} drums${configuration}${ending}`)
-	}
-	return written
+function flipOffSplices(tokens: ChartFileTokens, name: string, difficulty: Difficulty): Splice[] {
+	const section = tokens.sections.find(candidate => candidate.name === name)!
+	const noflip = tokens.text.indexOf('dnoflip', section.bodyStart)
+	if (noflip === -1 || noflip >= section.bodyEnd) return []
+	const lines = chartSectionLines(tokens, section)
+	return chartSectionNoflips(lines.map(line => line.text), difficulty).flatMap(({ offTick, configuration }) => {
+		if (offTick === null) return []
+		const before = lines.find(line => Number(/^\d+/.exec(line.text)?.[0] ?? -1) > offTick) ?? lines[lines.length - 1]
+		const ending = tokens.text.charCodeAt(before.start - 2) === 13 ? '\r\n' : '\n'
+		return [{ start: before.start, end: before.start, text: `  ${offTick} = E ${drumMixText(difficulty, { configuration, flag: '' })}${ending}` }]
+	})
 }
 
 /** A text event in an instrument section written bare, `E solo`, rather than quoted, `E "solo"`. */
