@@ -208,6 +208,17 @@ describe('writeMidiFile round-trip: drum tracks', () => {
 		])
 	})
 
+	it('writes notes of one pad that meet with the note-off first, even one at or under the cutoff', () => {
+		// 30 ticks is under the default cutoff of 65 at resolution 192, which only the overlap step leaves.
+		const chart = createEmptyChart({ format: 'mid', resolution: 192 })
+		const td = emptyDrumTrack('expert')
+		td.noteEventGroups.push([note(0, noteTypes.redDrum, 0, 30)], [note(30, noteTypes.redDrum, 0, 192)], [note(222, noteTypes.redDrum, 0, 192)])
+		chart.trackData.push(td)
+		const written = writeMidiFile(chart)
+		expect(chartSpellingIssues({ format: 'mid', bytes: written, tokens: readMidiTokens(written, 'reject') }, false)).toEqual([])
+		expect(flatNotes(findTrack(roundTrip(chart), 'drums')).map(n => n.tick)).toEqual([0, 30, 222])
+	})
+
 	it('preserves tracks across all difficulties on a single chart', () => {
 		const chart = createEmptyChart({ format: 'mid' })
 		for (const d of ['expert', 'hard', 'medium', 'easy'] as const) {
@@ -620,24 +631,35 @@ describe('writeMidiFile round-trip: 5-fret tracks', () => {
 		expect(flatNotes(findTrack(roundTrip(chart), 'guitar')).map(n => [n.tick, n.length])).toEqual([[0, 192], [192, 192], [384, 192]])
 	})
 
-	it('writes a sustain the cutoff would cut with its note-off first too, and keeps it with the lower cutoff midiSustainCutoff gives', () => {
+	describe('a sustain the overlap step left at or under the cutoff', () => {
 		// 30 ticks is under the default cutoff of 65 at resolution 192, which only the overlap step leaves.
-		const chart = createEmptyChart({ format: 'mid', resolution: 192 })
-		const td = emptyFretTrack('guitar', 'expert')
-		td.noteEventGroups.push([note(0, noteTypes.green, 0, 30)], [note(30, noteTypes.green, 0, 192)], [note(480, noteTypes.green, 0, 192)], [note(672, noteTypes.green, 0, 192)])
-		chart.trackData.push(td)
-		const written = writeMidiFile(chart)
-		expect(chartSpellingIssues({ format: 'mid', bytes: written, tokens: readMidiTokens(written, 'reject') }, false)).toEqual([])
-		expect(midiSustainCutoff(chart, -1)).toEqual({ value: 29, write: true })
 		const lengths = [[0, 30], [30, 192], [480, 192], [672, 192]]
-		expect(flatNotes(findTrack(roundTrip(chart, '[song]\r\nsustain_cutoff_threshold = 29\r\n'), 'guitar')).map(n => [n.tick, n.length])).toEqual(lengths)
-		// A cutoff song.ini sets is lowered too, where it would cut such a sustain.
-		chart.iniChartModifiers = { ...chart.iniChartModifiers, sustain_cutoff_threshold: 40 }
-		expect(midiSustainCutoff(chart, 40)).toEqual({ value: 29, write: true })
-		expect(midiSustainCutoff(chart, 20)).toEqual({ value: 20, write: false })
-		const folder = writeChartFolder({ parsedChart: chart, assets: [] })
-		const reread = parseChartAndIni(folder.map(({ fileName, data }) => ({ fileName, data })))
-		expect(flatNotes(findTrack(reread.parsedChart!, 'guitar')).map(n => [n.tick, n.length])).toEqual(lengths)
+		const shortSustain = (cutoff = -1) => {
+			const chart = createEmptyChart({ format: 'mid', resolution: 192 })
+			chart.iniChartModifiers = { ...chart.iniChartModifiers, sustain_cutoff_threshold: cutoff }
+			const td = emptyFretTrack('guitar', 'expert')
+			td.noteEventGroups.push(...lengths.map(([tick, length]) => [note(tick, noteTypes.green, 0, length)]))
+			chart.trackData.push(td)
+			return chart
+		}
+
+		it('is written with its note-off first, and read back with a lower cutoff', () => {
+			const written = writeMidiFile(shortSustain())
+			expect(chartSpellingIssues({ format: 'mid', bytes: written, tokens: readMidiTokens(written, 'reject') }, false)).toEqual([])
+			expect(flatNotes(findTrack(roundTrip(shortSustain(), '[song]\r\nsustain_cutoff_threshold = 29\r\n'), 'guitar')).map(n => [n.tick, n.length])).toEqual(lengths)
+		})
+
+		it('gets midiSustainCutoff\'s cutoff a tick under it, lowering one song.ini sets', () => {
+			expect(midiSustainCutoff(shortSustain(), -1)).toEqual({ value: 29, write: true })
+			expect(midiSustainCutoff(shortSustain(40), 40)).toEqual({ value: 29, write: true })
+			expect(midiSustainCutoff(shortSustain(20), 20)).toEqual({ value: 20, write: false })
+		})
+
+		it('keeps its length in writeChartFolder\'s files, which write that cutoff', () => {
+			const folder = writeChartFolder({ parsedChart: shortSustain(40), assets: [] })
+			const reread = parseChartAndIni(folder.map(({ fileName, data }) => ({ fileName, data })))
+			expect(flatNotes(findTrack(reread.parsedChart!, 'guitar')).map(n => [n.tick, n.length])).toEqual(lengths)
+		})
 	})
 })
 
