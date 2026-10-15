@@ -163,7 +163,7 @@ export interface ScannedChartMetadata {
 }
 
 export interface AlbumArt {
-	/** The binary buffer of the album art image, in the .jpg format (quality 75%), resized to 512x512. */
+	/** The album art file's bytes, as written. */
 	data: Uint8Array
 	/** The MD5 hash of `data`. */
 	md5: string
