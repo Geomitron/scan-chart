@@ -1,12 +1,189 @@
 ---
 title: "Note modifiers"
-description: "Forcing, taps, opens and ENHANCED_OPENS in a .mid file."
+description: "Forcing, taps and open notes in a .mid file, and how its natural HOPOs differ from a .chart file's."
 ---
 
-<Warning>Placeholder for the local preview. This page isn't written yet.</Warning>
+A modifier changes how the notes it covers are played, instead of adding a note. In a `.mid` file a modifier is a note, or a pair of SysEx events, and it covers the notes that start from its start up to its end:
 
-It will cover:
+```text
+PART GUITAR
+  0      Track name  PART GUITAR
+  1920   Note on     96   Expert green
+  1920   Note on     97   Expert red
+  1920   Note on     101  Expert forced HOPO
+  2160   Note off    96
+  2160   Note off    97
+  2160   Note off    101
+```
 
-- Forced HOPOs and strums
-- Taps
-- Open notes and `ENHANCED_OPENS`
+Here the forced HOPO modifier makes the green and red chord at tick 1920 a HOPO chord.
+
+Guitar tracks, 5-fret and 6-fret, have these modifiers:
+
+| Modifier | Written as | Applies to |
+|---|---|---|
+| [Forced HOPO and forced strum](#forced) | A note for each difficulty | Its difficulty |
+| [Tap](#taps) | Note 104, or SysEx events | Every difficulty, or one |
+| [Open](#open-notes) | SysEx events | One difficulty, or every difficulty |
+
+Drums tracks have modifiers of their own. See [Drums](/mid/drums#modifiers).
+
+## Which notes a modifier covers
+
+A modifier covers the notes of its difficulty, or of every difficulty, that start at or after its start and before its end. Only where a note starts counts, not its sustain.
+
+- A note on the modifier's end tick isn't covered, except by a tap. See [Taps](#taps).
+- At one tick, a modifier and its notes may come in any order.
+- An exporter should write a modifier only where it covers a note.
+- Two modifiers of one number must not overlap. See [Note pairing](/mid/note-pairing).
+
+**Edge case: a modifier of length 0.** A note-on and its note-off at one tick: the modifier covers the notes on its tick.
+
+A `.chart` modifier applies to the notes at its own tick, and its length has no effect. See [Note modifiers](/chart/modifiers).
+
+## Forced
+
+| Difficulty | Forced HOPO | Forced strum |
+|---|---|---|
+| Easy | 65 | 66 |
+| Medium | 77 | 78 |
+| Hard | 89 | 90 |
+| Expert | 101 | 102 |
+
+The numbers are the same on 5-fret and 6-fret, and each modifier covers only its own difficulty.
+
+A forced HOPO modifier makes the notes it covers HOPOs, and a forced strum modifier makes them strums, whatever they would naturally be. So a forced HOPO chord is a HOPO chord, and a track's first note under a forced HOPO modifier is a HOPO. Forcing a note doesn't change whether the notes after it are HOPOs.
+
+Unlike a `.chart` file's [forced modifier](/chart/modifiers#forced), which flips a note between strum and HOPO, `.mid` forcing sets it. The two agree on chords and first notes, and differ on a note that is already a natural HOPO: `N 5` makes it a strum, and a forced HOPO modifier keeps it a HOPO.
+
+A note must not be under both a forced HOPO and a forced strum modifier. See [Invalid forms](#invalid-forms).
+
+## Taps
+
+A tap makes every note it covers a tap, which the player can play without strumming. It has two forms:
+
+- **Note 104** covers every difficulty of the track.
+- **Tap SysEx events** cover one difficulty, or every difficulty. See [The Phase Shift SysEx event](#the-phase-shift-sysex-event).
+
+**Recommended:** tap SysEx events for each difficulty, which can differ between difficulties. scan-chart's export writes this form.
+
+- A tap overrides forcing: a note with both is a tap.
+- Unlike other modifiers, a tap covers the notes on its end tick too.
+
+**Edge case: a note on a tap's end tick.** Released Clone Hero and YARG don't tap a note on the end tick. An exporter should keep notes off a tap's end tick: end the tap after its last tapped note, and before the next note.
+
+## Open notes
+
+An open note is strummed with no fret held. On 6-fret it's a note. On 5-fret it has two forms.
+
+### 5-fret
+
+- **Notes 59, 71, 83 and 95** are open notes on Easy, Medium, Hard and Expert, in a track that has `[ENHANCED_OPENS]`. Without it, they aren't notes: Rock Band charts use 59 for animations.
+- **Open SysEx events** turn every note they cover into an open note, whatever its fret. The open note keeps the covered note's length, and forcing and taps still apply to it.
+
+**Recommended:** open SysEx events over a green note, for each difficulty. A scanner that doesn't read the SysEx events then plays a green note. Use `[ENHANCED_OPENS]` instead when an open note is in a chord, or when its sustain overlaps a green note. scan-chart's export writes open notes this way.
+
+`[ENHANCED_OPENS]` is a text event, `FF 01`, in the 5-fret track:
+
+- It's written `[ENHANCED_OPENS]`, **Recommended**, or `ENHANCED_OPENS`.
+- It must come at tick 0, before the track's first note. A scanner applies it only to the notes after it.
+
+An open note may be in a chord with fret notes only after `[ENHANCED_OPENS]`. Open SysEx events turn a chord into one open note, so they must cover only single notes.
+
+### 6-fret
+
+Notes 58, 70, 82 and 94 are open notes on Easy, Medium, Hard and Expert. They need no text event, and an open note may be in a chord. See [6-fret](/mid/instrument-tracks#6-fret).
+
+## The Phase Shift SysEx event
+
+Taps and opens can be written as SysEx events, a form from Phase Shift. A start event and an end event mark the modifier's range:
+
+```text
+F0 08 50 53 00 00 <difficulty> <type> <value> F7
+```
+
+| Bytes | Meaning |
+|---|---|
+| `F0` | A SysEx event |
+| `08` | The number of bytes that follow |
+| `50 53 00` | `PS` and a zero byte: a Phase Shift event |
+| `00` | A modifier |
+| Difficulty | `00` Easy, `01` Medium, `02` Hard, `03` Expert, or `FF` every difficulty |
+| Type | `01` open, `04` tap |
+| Value | `01` starts the modifier, `00` ends it |
+| `F7` | The end of the SysEx event |
+
+- An end event ends the modifier its start began: the same difficulty byte and type.
+- **Recommended:** a difficulty byte from `00` to `03`, for each difficulty, rather than `FF`.
+
+## Natural HOPOs
+
+A scanner decides strums and HOPOs as [How notes resolve](/chart/note-resolution#decide-strums-and-hopos) says, with two differences in a `.mid` file.
+
+**The HOPO threshold** is the resolution divided by 3, rounded down, plus 1:
+
+| Resolution | `.mid` threshold | `.chart` threshold |
+|---|---|---|
+| 192 | 65 | 65 |
+| 480 | 161 | 162 |
+| 960 | 321 | 325 |
+
+**A single note right after a chord is a strum when its fret is in the chord.** In a `.chart` file it can be a HOPO. An open note counts as a fret for this rule. In this example the resolution is 480, so the threshold is 161 ticks:
+
+| Notes | Result | Why |
+|---|---|---|
+| Green and red at 0 | Strum | A chord |
+| Green at 120 | Strum | Its fret is in the chord before it |
+| Green and red at 480 | Strum | A chord |
+| Blue at 600 | HOPO | 120 ticks after the chord, on a fret that isn't in it |
+
+The deprecated `hopo_frequency` and `eighthnote_hopo` keys change the threshold as in a `.chart` file. See [How notes resolve](/chart/note-resolution#deprecated).
+
+## Deprecated
+
+- **Open SysEx events on 6-fret.** Every scanner reads them, but 6-fret has open notes. Write the open note instead.
+
+## Ignored
+
+- **A modifier that covers no note.**
+- **Note 104 and SysEx events in a drums track.** On drums, 65, 77, 89 and 101 are 5-lane green notes, not modifiers. See [Drums](/mid/drums).
+- **Notes 59, 71, 83 and 95 without `[ENHANCED_OPENS]`,** on 5-fret.
+- **Other SysEx events,** such as Phase Shift events of other types. scan-chart writes them back as they are.
+
+## Invalid forms
+
+<Accordion title="A forced HOPO and a forced strum on one note">
+Every scanner reads a HOPO. scan-chart's export writes only the forcing the note needs.
+</Accordion>
+
+<Accordion title="Overlapping modifiers of one number">
+Clone Hero and scan-chart read every note under either of them as covered. YARG reads only the first, up to the first note-off. See [Note pairing](/mid/note-pairing#invalid-forms).
+</Accordion>
+
+<Accordion title="Open SysEx events over a chord">
+Clone Hero and scan-chart read one open note with the longest sustain, and decide whether it's a HOPO as for a single note. YARG reads it as a chord, so as a strum unless it's forced.
+</Accordion>
+
+<Accordion title="[ENHANCED_OPENS] after open notes">
+Every scanner applies it only to the notes after it, so it doesn't read the open notes before it. scan-chart's export writes it at tick 0, which keeps the open notes scan-chart read.
+</Accordion>
+
+<Accordion title="[ENHANCED_OPENS] spelled another way">
+Clone Hero reads it in any letter case, but not with spaces around it. YARG reads it with spaces around it, and in other types of text event, but only in capitals. scan-chart reads only the two standard spellings, in a text event.
+</Accordion>
+
+<Accordion title="A SysEx event of another length">
+Clone Hero and YARG read only the 8-byte form, and scan-chart reads 7 bytes or more. scan-chart's export writes the 8-byte form. Every scanner skips an event that has another value in place of the `00` that marks a modifier.
+</Accordion>
+
+<Accordion title="A SysEx difficulty byte other than 00 to 03 or FF">
+Clone Hero and YARG stop with an error while reading the file, so neither loads the chart. scan-chart reads the event as Expert, and its export writes `03`.
+</Accordion>
+
+<Accordion title="A SysEx value byte other than 00 or 01">
+YARG ignores the event, and scan-chart reads it as an end.
+</Accordion>
+
+<Accordion title="A start with no end">
+Every scanner ignores it, as a note-on with no note-off. Clone Hero and YARG end a SysEx start only with an end of the same difficulty byte and type. scan-chart can end a start for every difficulty with an end for one difficulty, and note 104 with a tap SysEx end.
+</Accordion>

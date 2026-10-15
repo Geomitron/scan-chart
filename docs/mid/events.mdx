@@ -1,11 +1,125 @@
 ---
 title: "EVENTS track"
-description: "Practice sections and other song-wide text events in a .mid file."
+description: "Practice sections, the coda, the song's end and other song-wide text events in a .mid file."
 ---
 
-<Warning>Placeholder for the local preview. This page isn't written yet.</Warning>
+The `EVENTS` track holds the text events that apply to the whole song: practice sections, the coda and the song's end. Each is a text event, `FF 01`, with its text in square brackets:
 
-It will cover:
+```text
+EVENTS
+  0       Track name  EVENTS
+  0       Text        [section Intro]
+  7680    Text        [section Verse 1]
+  61440   Text        [coda]
+  76800   Text        [end]
+  76800   End of track
+```
 
-- Practice sections
-- End events and other global events
+It's the `.mid` form of a `.chart` file's [[Events]](/chart/events) section. Two things differ: a `.mid` file holds its lyrics in its vocal tracks, and a scanner reads the square brackets as part of each event's text.
+
+- A file has at most one `EVENTS` track, after the tempo track. See [Tracks](/mid/structure#tracks).
+- A scanner matches every event below in the letter case shown.
+- **Required:** square brackets around a practice section and `[end]`. **Recommended:** square brackets around every event.
+- A space must not come before `[` or after `]`, or just inside them.
+
+{/* review: Q4
+Must a practice section and the end of the song have square brackets? In a .chart file they're optional, and an exporter should write none. In a .mid file, Clone Hero reads a practice section and the end only with them: `section Intro` and `end` are nothing there. YARG and scan-chart read them either way.
+- A. Required | `section Intro` and `end` are invalid. scan-chart's export adds the brackets | The .mid rule is the opposite of the .chart one
+- B. Recommended | The forms without brackets are an edge case | A valid file loses its practice sections and end in Clone Hero
+Recommendation: A. Under B, a valid file plays differently in Clone Hero.
+*/}
+
+## Practice sections
+
+A practice section marks where a part of the song starts, such as the intro or a verse. It runs until the next practice section:
+
+```text
+<tick>  Text  [section <name>]
+```
+
+- A space or `_` separates `section` from the name. **Recommended:** a space.
+- The name must not be empty, or start or end with a space.
+- A tick must not hold two practice sections.
+- **Recommended:** at least one practice section in a chart.
+
+**Edge case: the names Clone Hero shows.** Clone Hero has a table of Rock Band section names, and shows a name from it when it finds one there, such as `Verse 1` for `verse_1`. It shows any other name with each `_` replaced by a space. It does the same in a `.chart` file.
+
+## Lyrics
+
+A `.mid` file holds its lyrics, and the phrases that group them, in its vocal tracks. See [Vocals and harmonies](/mid/vocals). The `EVENTS` track must not hold lyrics or phrase events.
+
+## The coda
+
+```text
+<tick>  Text  [coda]
+```
+
+`[coda]` marks where the song's big ending starts. A drum fill at or after it is a Big Rock Ending. See [Drum fills](/mid/phrases#drum-fills). A chart should have at most one `[coda]`.
+
+**Edge case:** Clone Hero, YARG and scan-chart also read `coda` without brackets. It's the only event on this page that Clone Hero reads both ways.
+
+## The end of the song
+
+```text
+<tick>  Text  [end]
+```
+
+`[end]` ends the song before its audio does, as `end` does in a `.chart` file. See [The end of the song](/chart/events#the-end-of-the-song).
+
+- `[end]` must come at least one beat after the end of the last note of every track, sustain included.
+- A chart should have at most one `[end]`.
+
+Unlike `end` in a `.chart` file, Clone Hero reads it.
+
+## Deprecated
+
+- **`[prc_<name>]`,** an older word for `section`: `[prc_verse_1]` is a practice section named `verse_1`. Write `[section <name>]` instead.
+
+## Ignored
+
+- **Any other text.** YARG acts on a few more events, such as `[crowd_clap]`, and reads `[midcoda]` and `[midcoda_end]` as the start and end of a coda. Other scanners ignore them. An exporter should keep them when rewriting a file.
+- **Notes and other events that aren't text,** such as Rock Band's practice notes 24, 25 and 26. scan-chart keeps them, and writes them back.
+
+## Invalid forms
+
+<Accordion title="A practice section or end without brackets">
+Clone Hero ignores `section Intro` and `end`. YARG and scan-chart read them. scan-chart's export adds the brackets.
+</Accordion>
+
+<Accordion title="Spaces outside or just inside the brackets">
+Clone Hero and YARG read ` [section Intro] `, with spaces outside the brackets, as a practice section, and scan-chart doesn't. Only YARG reads `[ section Intro]`. scan-chart keeps such text as it is.
+</Accordion>
+
+<Accordion title="A practice section name with spaces at its ends">
+Clone Hero and scan-chart keep the spaces: `[section  Intro ]` is a section named ` Intro ` there. YARG removes them.
+</Accordion>
+
+<Accordion title="No separator after section">
+Clone Hero skips the character after `section`, so `[sectionIntro]` is a section named `ntro`. YARG reads a section named `Intro`. scan-chart doesn't read it as a section.
+</Accordion>
+
+<Accordion title="A practice section with no name">
+Clone Hero and scan-chart read `[section ]` and `[prc_]` as a section named "", and YARG ignores them.
+
+Clone Hero fails to load a chart that has `[section]` or `[prc]`, and doesn't list the song. YARG and scan-chart ignore them. scan-chart keeps the text, so a chart it saves still fails in Clone Hero.
+</Accordion>
+
+<Accordion title="Two practice sections at one tick">
+Clone Hero uses the later one. YARG keeps both, sorted by name. scan-chart keeps both, and writes both.
+</Accordion>
+
+<Accordion title="Lyrics or phrase events in EVENTS">
+Clone Hero ignores them. YARG reads `lyric` events, `phrase_start` and `phrase_end` as lyrics, mixed with the lyrics of `PART VOCALS`. scan-chart reports `invalidLyric`, `invalidPhraseStart` and `invalidPhraseEnd`, and keeps them.
+</Accordion>
+
+<Accordion title="More than one coda or end">
+Clone Hero uses the first of each, and YARG and scan-chart use the first `[coda]`. scan-chart reports `badEndEvent` for each `[end]` after the first. Its export writes `[coda]` at the start of each Big Rock Ending instead of where the file had it, so Clone Hero reads the same Big Rock Endings.
+</Accordion>
+
+<Accordion title="An end less than a beat after the last note ends">
+Clone Hero ignores it, and the song lasts as long as its audio. scan-chart reports `badEndEvent` when it's before the last note starts.
+</Accordion>
+
+<Accordion title="A second EVENTS track">
+Every scanner reads the first `EVENTS` track and ignores the others. scan-chart's export leaves them out.
+</Accordion>
