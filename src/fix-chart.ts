@@ -489,3 +489,52 @@ export function fixHopoTags(song: SongDocument, issues: readonly Issue[], findin
 	})
 	return fixed
 }
+
+/**
+ * Moves a `.mid` file's star power from note 103 to note 116 in each guitar and keys track, removing the notes 116 there,
+ * which `multiplier_note = 103` makes games ignore, then removes the tag (`deprecatedIniTag`). The drums tracks, where
+ * note 103 marks solos whatever the tag, keep theirs. The rewrite is checked: every note, phrase and canonical hash
+ * stays, or it isn't made.
+ */
+export function fixMultiplierNote(song: SongDocument, issues: readonly Issue[], findings: readonly MetadataFinding[], record: FixRecord): SongDocument {
+	const reported = issues.some(issue => issue.code === 'deprecatedIniTag')
+		&& findings.some(finding => finding.metadataIssue === 'deprecatedIniTag' && finding.keys?.includes('multiplier_note'))
+	const { chart, ini } = song
+	if (!reported || chart?.format !== 'mid' || chart.tokens === null || ini === null) return song
+	const skip = (problem: string) => record.skip('deprecatedIniTag', ini.fileName, `Moving the star power to note 116 ${problem}.`)
+	let [moved, dropped] = [0, 0]
+	let fixed: SongDocument
+	try {
+		const tokens = rewriteSongIni(asUtf8Ini(ini.tokens), { layout: false, order: null, remove: new Set(['multiplier_note']), set: new Map() })
+		const edited = editSong(song, batch => {
+			for (const track of midiAuthoredTracks(chart.tokens!).filter(track => track.isFirst && getInstrumentType(track.instrument) !== instrumentTypes.drums)) {
+				for (const event of track.events.filter(event => event.scope === 'instrument')) {
+					if (event.type === eventTypes.soloSection) {
+						batch.remove(event)
+						batch.addToMidiTrack(track.chunk, 'instrument', event.tick, eventTypes.starPower, event.length, { velocity: event.velocity, channel: event.channel })
+						moved++
+					} else if (event.type === eventTypes.starPower) {
+						batch.remove(event)
+						dropped++
+					}
+				}
+			}
+		})
+		fixed = continueEdits(edited, withSongIni(edited, tokens))
+	} catch (error) {
+		skip(`fails: ${error instanceof Error ? error.message : String(error)}`)
+		return song
+	}
+	const problem = keepsGameplay(song, fixed, true)
+	if (problem !== null) {
+		skip(problem)
+		return song
+	}
+	const ignored = dropped === 0 ? '' : `, removed ${dropped} ${dropped === 1 ? 'note' : 'notes'} 116 that "multiplier_note = 103" made games ignore,`
+	record.fixed.push({
+		code: 'deprecatedIniTag',
+		file: chart.fileName,
+		description: `Moved ${moved} star power ${moved === 1 ? 'phrase' : 'phrases'} from note 103 to note 116${ignored} and removed "multiplier_note".`,
+	})
+	return fixed
+}
