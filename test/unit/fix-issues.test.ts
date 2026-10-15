@@ -49,8 +49,16 @@ function expectHashesKept(result: Awaited<ReturnType<typeof fix>>) {
 describe('fixIssues: song.ini', () => {
 	it('writes [song] first, comments with ";", and the lines games don\'t read as comments, keeping the hashes', async () => {
 		const result = await fix(folder(['name = Early', '[Song]', '# A comment', 'name = Song', 'artist = Band', '// old', '[Other]', 'key = value']), { codes: ['iniLayout'] })
-		expect(result.ini).toBe('; name = Early\r\n[song]\r\n; A comment\r\nname = Song\r\nartist = Band\r\n; old\r\n; [Other]\r\n; key = value\r\n')
+		expect(result.ini).toBe('; name = Early\r\n[song]\r\n;# A comment\r\nname = Song\r\nartist = Band\r\n; old\r\n; [Other]\r\n; key = value\r\n')
 		expect(result.report.fixed).toEqual([{ code: 'iniLayout', file: 'song.ini', description: 'Wrote "[song]" first, comments with ";", and the lines games don\'t read as comments.' }])
+		expect(result.codes).not.toContain('iniLayout')
+		expectHashesKept(result)
+	})
+
+	it('writes a "#" comment as a ";" comment that keeps its hashes, by default', async () => {
+		const result = await fix(folder(['# Charted for the pack', '[song]', 'name = Song', '## Notes ##', 'artist = Band']))
+		expect(result.ini).toBe(';# Charted for the pack\r\n[song]\r\nname = Song\r\n;## Notes ##\r\nartist = Band\r\n')
+		expect(result.report.fixed.map(entry => entry.code)).toContain('iniLayout')
 		expect(result.codes).not.toContain('iniLayout')
 		expectHashesKept(result)
 	})
