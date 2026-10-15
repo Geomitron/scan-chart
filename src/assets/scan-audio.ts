@@ -1,7 +1,7 @@
 
 import type { FolderFinding } from '../issues'
 import type { SongFile } from '../song-files'
-import { getBasename, getExtension, hasAudioExtension, hasAudioName } from '../shared/file-names'
+import { getBasename, getExtension, hasAudioExtension, hasAudioName, hasCrowdOrPreviewName } from '../shared/file-names'
 
 export function scanAudio(files: readonly SongFile[]) {
 	const folderIssues: FolderFinding[] = []
@@ -30,7 +30,7 @@ function findAudioData(files: readonly SongFile[]) {
 			if (hasAudioName(file.fileName)) {
 				stemNames.push(getBasename(file.fileName))
 				stemFiles.push(file)
-				if (!['preview', 'crowd'].includes(getBasename(file.fileName).toLowerCase())) {
+				if (!hasCrowdOrPreviewName(file.fileName)) {
 					audioData.push(file.data)
 				}
 			} else {
@@ -57,7 +57,7 @@ function findAudioData(files: readonly SongFile[]) {
 export function audioNameRecommendations(stemFiles: readonly SongFile[]): FolderFinding[] {
 	const folderIssues: FolderFinding[] = []
 	for (const { fileName } of stemFiles) {
-		if (getExtension(fileName) !== 'opus') {
+		if (getExtension(fileName).toLowerCase() !== 'opus') {
 			folderIssues.push({
 				folderIssue: 'audioFormat',
 				description: `"${fileName}" isn't Opus. .opus is the recommended audio format: it's the smallest at the same quality.`,
@@ -66,9 +66,10 @@ export function audioNameRecommendations(stemFiles: readonly SongFile[]): Folder
 		}
 	}
 	// A lone guitar file is accepted too, though "song" is recommended.
-	const mainStems = stemFiles.filter(file => !['crowd', 'preview'].includes(getBasename(file.fileName)))
+	const stem = (fileName: string) => getBasename(fileName).toLowerCase()
+	const mainStems = stemFiles.filter(file => !hasCrowdOrPreviewName(file.fileName))
 	const only = mainStems[0]
-	if (only !== undefined && mainStems.every(file => getBasename(file.fileName) === getBasename(only.fileName)) && !['song', 'guitar'].includes(getBasename(only.fileName))) {
+	if (only !== undefined && mainStems.every(file => stem(file.fileName) === stem(only.fileName)) && !['song', 'guitar'].includes(stem(only.fileName))) {
 		folderIssues.push({
 			folderIssue: 'singleAudioName',
 			description: `This chart's only audio file is "${only.fileName}". The audio of a chart without stems is named "song".`,
@@ -76,13 +77,13 @@ export function audioNameRecommendations(stemFiles: readonly SongFile[]): Folder
 		})
 	}
 	for (const { fileName } of stemFiles) {
-		if (getBasename(fileName) === 'preview') {
+		if (stem(fileName) === 'preview') {
 			folderIssues.push({
 				folderIssue: 'discouragedAudio',
 				description: `"${fileName}" is discouraged. Set "preview_start_time" in song.ini instead, so games play the preview from the song's audio.`,
 				file: fileName,
 			})
-		} else if (getBasename(fileName) === 'crowd') {
+		} else if (stem(fileName) === 'crowd') {
 			folderIssues.push({ folderIssue: 'discouragedAudio', description: `"${fileName}" is discouraged by the charting guidelines.`, file: fileName })
 		}
 	}

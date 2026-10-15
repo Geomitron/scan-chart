@@ -1,5 +1,5 @@
 import type { FolderFinding } from '../issues'
-import { getBasename, getExtension } from '../shared/file-names'
+import { getBasename, getExtension, hasCrowdOrPreviewName } from '../shared/file-names'
 import { readFileBytes, type SongFile } from '../song-files'
 import { type AudioInfo, contentType, type ContentType, readAudioInfo, readRange, readWebmVideoCodec } from './media-headers'
 import { imageSize } from './scan-image'
@@ -69,15 +69,15 @@ export async function scanMedia(files: readonly SongFile[], stemFiles: readonly 
 	}
 
 	const durations: (number | null)[] = []
-	const isLone = stemFiles.filter(file => !['crowd', 'preview'].includes(getBasename(file.fileName))).length === 1
+	const isLone = stemFiles.filter(file => !hasCrowdOrPreviewName(file.fileName)).length === 1
 	for (const file of stemFiles) {
 		const head = await readRange(file, 0, 64)
 		const content = contentType(head)
 		mismatch(file.fileName, content)
 		if (content === 'opus') opusFiles.push(file.fileName)
 		const info = await readAudioInfo(file)
-		if (!['crowd', 'preview'].includes(getBasename(file.fileName))) durations.push(info?.durationMs ?? null)
-		const bitrate = info === null ? null : bitrateIssue(file.fileName, info, isLone && !['crowd', 'preview'].includes(getBasename(file.fileName)))
+		if (!hasCrowdOrPreviewName(file.fileName)) durations.push(info?.durationMs ?? null)
+		const bitrate = info === null ? null : bitrateIssue(file.fileName, info, isLone && !hasCrowdOrPreviewName(file.fileName))
 		if (bitrate !== null) folderIssues.push({ folderIssue: 'audioBitrate', description: bitrate, file: file.fileName })
 	}
 

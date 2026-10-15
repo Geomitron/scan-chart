@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
+import { audioNameRecommendations } from 'src/assets/scan-audio'
 import { scanSongFolder, type ScanOptions } from 'src/scan-song-folder'
 import type { SongFile } from 'src/song-files'
 
@@ -142,5 +143,10 @@ describe('audio names', () => {
 			['discouragedAudio', 'crowd.opus', '"crowd.opus" is discouraged by the charting guidelines.'],
 			['discouragedAudio', 'preview.opus', '"preview.opus" is discouraged. Set "preview_start_time" in song.ini instead, so games play the preview from the song\'s audio.'],
 		])
+	})
+
+	it('reads the names in any letter case', () => {
+		const issues = audioNameRecommendations(named('Song.OPUS', 'CROWD.opus')).map(issue => [issue.folderIssue, issue.file])
+		expect(issues).toEqual([['discouragedAudio', 'CROWD.opus']])
 	})
 })
