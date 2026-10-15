@@ -549,6 +549,23 @@ describe('writeMidiFile round-trip: GHL (6-fret) tracks', () => {
 		const group = findTrack(roundTrip(chart), 'guitarghl').noteEventGroups[0]
 		expect(group.map(n => n.type).sort()).toEqual([noteTypes.open, noteTypes.white1].sort())
 	})
+
+	it('writes opens on the open key, so an open sustain over a White 1 sustain keeps both lengths', () => {
+		const chart = createEmptyChart({ format: 'mid', resolution: 480 })
+		for (const difficulty of ['expert', 'easy'] as const) {
+			const td = emptyFretTrack('guitarghl', difficulty)
+			td.noteEventGroups.push([note(0, noteTypes.open, 0, 960)], [note(480, noteTypes.white1, 0, 960)], [note(1920, noteTypes.open)])
+			chart.trackData.push(td)
+		}
+		const re = roundTrip(chart)
+		for (const difficulty of ['expert', 'easy']) {
+			expect(flatNotes(findTrack(re, 'guitarghl', difficulty)).map(n => [n.tick, n.type, n.length])).toEqual([
+				[0, noteTypes.open, 960],
+				[480, noteTypes.white1, 960],
+				[1920, noteTypes.open, 0],
+			])
+		}
+	})
 })
 
 // ---------------------------------------------------------------------------
