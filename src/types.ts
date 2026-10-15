@@ -328,6 +328,9 @@ export type FolderIssueType =
 	| 'unrecognizedFile' // No game reads this file
 	| 'fileNameCase' // This album art, background or video file name matches only when lowercased
 	| 'folderSize' // This chart's files total more than Chorus Encore scans
+	| 'audioFormat' // This audio file isn't Opus, the recommended format
+	| 'singleAudioName' // This chart's only audio file is named neither "song" nor "guitar"
+	| 'discouragedAudio' // This chart has crowd or preview audio
 
 export type MetadataIssueType =
 	| 'missingValue' // Metadata is missing a required value
