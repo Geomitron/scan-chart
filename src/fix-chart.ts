@@ -456,7 +456,7 @@ export function fixHopoTags(song: SongDocument, issues: readonly Issue[], findin
 	let forced = 0
 	let tokens: IniTokens
 	try {
-		tokens = rewriteSongIni(asUtf8Ini(ini.tokens), { layout: false, order: null, remove: new Set(keys), set: new Map() })
+		tokens = rewriteSongIni(asUtf8Ini(ini.tokens), { layout: false, order: false, remove: new Set(keys), set: new Map() })
 	} catch {
 		record.skip('deprecatedIniTag', ini.fileName, 'song.ini can\'t be decoded, so it can\'t be rewritten.')
 		return song
@@ -522,7 +522,7 @@ export function fixMultiplierNote(song: SongDocument, issues: readonly Issue[], 
 	let [moved, dropped] = [0, 0]
 	let fixed: SongDocument
 	try {
-		const tokens = rewriteSongIni(asUtf8Ini(ini.tokens), { layout: false, order: null, remove: new Set(['multiplier_note']), set: new Map() })
+		const tokens = rewriteSongIni(asUtf8Ini(ini.tokens), { layout: false, order: false, remove: new Set(['multiplier_note']), set: new Map() })
 		const edited = editSong(song, batch => {
 			for (const track of midiAuthoredTracks(chart.tokens!).filter(track => track.isFirst && getInstrumentType(track.instrument) !== instrumentTypes.drums)) {
 				for (const event of track.events.filter(event => event.scope === 'instrument')) {
