@@ -101,11 +101,11 @@ export function midiInstrumentTracks(tokens: MidiTokens): { name: string; instru
 	return tracks
 }
 
-/** The instruments a `.mid` file has more than one track for, each with its tracks' names; Clone Hero reads only the first. */
-export function repeatedMidiInstrumentTracks(tokens: MidiTokens): { instrument: Instrument; trackNames: string[] }[] {
-	const trackNames = new Map<Instrument, string[]>()
-	for (const { name, instrument } of midiInstrumentTracks(tokens)) trackNames.set(instrument, [...trackNames.get(instrument) ?? [], name])
-	return [...trackNames].filter(([, names]) => names.length > 1).map(([instrument, names]) => ({ instrument, trackNames: names }))
+/** The instruments a `.mid` file has more than one track for, of which Clone Hero reads only the first. */
+export function repeatedMidiInstruments(tokens: MidiTokens): Instrument[] {
+	const trackCounts = new Map<Instrument, number>()
+	for (const { instrument } of midiInstrumentTracks(tokens)) trackCounts.set(instrument, (trackCounts.get(instrument) ?? 0) + 1)
+	return [...trackCounts].filter(([, count]) => count > 1).map(([instrument]) => instrument)
 }
 
 const sysExDifficultyMap = ['easy', 'medium', 'hard', 'expert'] as const
