@@ -19,6 +19,11 @@
 
 import type { Difficulty } from '../types'
 
+/** A note's pitch and channel as one number: note-ons and note-offs pair by it. */
+export function midiPitchKey(note: { readonly channel: number; readonly noteNumber: number }): number {
+	return note.channel * 128 + note.noteNumber
+}
+
 export const drumsDiffStarts: Record<Difficulty, number> = {
 	easy: 60,
 	medium: 72,
