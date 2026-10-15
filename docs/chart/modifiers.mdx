@@ -1,6 +1,6 @@
 ---
 title: "Note modifiers"
-description: "Forcing, taps and opens in a .chart file."
+description: "Forcing and taps in a .chart file."
 ---
 
 A modifier is an `N` event that changes how the notes at its tick are played, instead of adding a note. Guitar sections, 5-fret and 6-fret, have two modifiers:
@@ -20,7 +20,8 @@ A modifier applies to every note at its tick, so to a whole chord, never to one 
 
 Here the forced modifier makes the green and red chord a HOPO chord.
 
-- An exporter should write a modifier's length as 0, and only on a tick with a note.
+- **Required:** a note on each modifier's tick.
+- **Recommended:** a length of 0 for each modifier.
 - In a drums section, `N 5` and `N 6` aren't modifiers. See [Drums](/chart/drums).
 
 **Edge case:** a tick needs only one of each modifier. Two forced modifiers at one tick flip the notes once.
@@ -33,13 +34,18 @@ So a forced chord is a HOPO chord, and a forced first note is a HOPO, because ch
 
 ## Tap
 
-The tap modifier makes every note at its tick a tap, which the player can play without strumming. It overrides the forced modifier: a note with both is a tap.
-
-## Open notes
-
-An open note, `N 7`, is a note, not a modifier: the player strums it without holding a fret. It has its own sustain length, and it can be forced or tapped like any other note. See [Instrument sections](/chart/instrument-sections#notes).
+The tap modifier makes every note at its tick a tap, which the player can play without strumming.
 
 ## Ignored
 
 - **A modifier's length.**
-- **A modifier on a tick with no note.**
+
+## Invalid forms
+
+<Accordion title="A forced and a tap modifier at one tick">
+Every scanner reads the notes as taps. scan-chart keeps both modifiers when saving.
+</Accordion>
+
+<Accordion title="A modifier on a tick with no note">
+It has no effect in any scanner. scan-chart removes it when saving.
+</Accordion>
