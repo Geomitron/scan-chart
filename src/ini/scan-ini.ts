@@ -319,7 +319,7 @@ function getChartModifierInteger(songSection: { readonly [key: string]: string }
  * sign, ASCII digits, optional whitespace, then optional NUL characters, within the signed 32-bit range.
  * @returns the integer, or `null` if .NET would not parse it.
  */
-function parseDotnetInt(value: string): number | null {
+export function parseDotnetInt(value: string): number | null {
 	const match = /^[\x09-\x0d ]*([+-]?[0-9]+)[\x09-\x0d ]*\x00*$/.exec(value)
 	if (match === null) return null
 	const parsed = Number(match[1])
