@@ -28,11 +28,9 @@ A practice section marks where a part of the song starts, such as the intro or a
 <tick> = E "section <name>"
 ```
 
-- A space or `_` separates `section` from the name. The name must not be empty.
+- A space or `_` separates `section` from the name. The name must not be empty, or start or end with a space.
 - A tick must not hold two practice sections.
 - **Recommended:** at least one practice section in a chart.
-
-**Edge case:** a scanner removes spaces at the ends of the name, so `E "section  Intro "` is a section named `Intro`.
 
 ## Lyrics
 
@@ -90,6 +88,10 @@ A `.chart` file holds one set of lyrics, without pitches.
 A scanner uses the later one.
 </Accordion>
 
+<Accordion title="A practice section name with spaces at its ends">
+YARG and scan-chart remove them. Clone Hero removes the spaces at the end of the text, but keeps those after the separator, so `E "section  Intro "` is a section named ` Intro` there.
+</Accordion>
+
 <Accordion title="A practice section with no name">
 YARG and scan-chart ignore `E "section"` and `E "section "`. Clone Hero reads them as a section named "", and fails to load a chart that has `E "prc"` alone.
 </Accordion>
@@ -99,7 +101,7 @@ A scanner ignores it.
 </Accordion>
 
 <Accordion title="A phrase that never ends">
-Clone Hero and scan-chart ignore a last `phrase_start` that no `phrase_end` closes, and the lyrics after it. YARG closes it after the last instrument-section event.
+A scanner ignores a last `phrase_start` that no `phrase_end` closes, and the lyrics after it. YARG keeps it only when nothing in `[Events]` comes after it.
 </Accordion>
 
 <Accordion title="phrase_start before phrase_end on one tick">
