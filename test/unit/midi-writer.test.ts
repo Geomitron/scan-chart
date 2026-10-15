@@ -379,6 +379,17 @@ describe('writeMidiFile round-trip: drum tracks', () => {
 		expect(parseMidi(writeMidiFile(uncoveredOnly)).tracks.flat().some(event => event.type === 'noteOn' && event.noteNumber === 111)).toBe(true)
 	})
 
+	it('ends a kept tom marker before a written one starts at its end, and keeps a zero-length verbatim note', () => {
+		// A yellow tom marker over no note up to 480, a tom at 480 under the next one, and an unread zero-length note 13.
+		const source = trackMidi('PART DRUMS', [], [[480, 98], [0, 110, 480], [480, 110, 1], [960, 97], [960, 13]])
+		const parsed = parseChartAndIni([{ fileName: 'notes.mid', data: source }]).parsedChart!
+		const written = writeMidiFile(parsed)
+		expect(chartSpellingIssues({ format: 'mid', bytes: written, tokens: readMidiTokens(written, 'reject') }, false)).toEqual([])
+		const reparsed = parseChartAndIni([{ fileName: 'notes.mid', data: written }]).parsedChart!
+		expect(flatNotes(findTrack(reparsed, 'drums'))).toEqual(flatNotes(findTrack(parsed, 'drums')))
+		expect(findTrack(reparsed, 'drums').unrecognizedMidiEvents).toEqual(findTrack(parsed, 'drums').unrecognizedMidiEvents)
+	})
+
 	it('ends a lane before a lane of its number that starts where it ends, from another difficulty', () => {
 		const chart = createEmptyChart({ format: 'mid', resolution: 480 })
 		for (const [difficulty, tick] of [['expert', 480], ['hard', 0]] as const) {

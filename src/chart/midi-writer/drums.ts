@@ -14,6 +14,7 @@ import { wrapEventBrackets } from '../writer-shared'
 import {
 	addNoteOnOff,
 	addNoteOnOffWithChannel,
+	addVerbatimEvents,
 	addVersusPhrases,
 	computeLengthOverrides,
 	finalizeMidiTrack,
@@ -150,17 +151,7 @@ export function buildDrumTrack(
 				})
 			}
 			addVersusPhrases(events, td.versusPhrases)
-			// Per-track unrecognized MIDI events: absolute-tick deltaTime, seq-numbered
-			// so they sort stably alongside other events at the same tick.
-			let unrecSeq = 0
-			const unrecSeqBase = 4_000_000_000
-			for (const ev of td.unrecognizedMidiEvents) {
-				events.push({
-					tick: ev.deltaTime,
-					seq: unrecSeqBase + unrecSeq++,
-					event: { ...ev, deltaTime: 0 } as MidiEvent,
-				})
-			}
+			addVerbatimEvents(events, td.unrecognizedMidiEvents)
 		}
 	}
 

@@ -198,6 +198,34 @@ export function stretchUnsustainedNotes(events: AbsoluteEvent[], cutoff: number)
 	}
 }
 
+/**
+ * Adds events kept verbatim, each at its tick (its `deltaTime`), in their order, after the events written from the
+ * chart at that tick. A note-off that ends a note begun at an earlier tick, paired as Clone Hero pairs them (the latest
+ * open note of its pitch and channel), instead sorts with the other note-offs, before any note-on of its tick.
+ */
+export function addVerbatimEvents(events: AbsoluteEvent[], verbatim: readonly MidiEvent[]): void {
+	const openNoteTicks = new Map<number, number[]>()
+	verbatim.forEach((source, index) => {
+		const tick = source.deltaTime
+		const event = { ...source, deltaTime: 0 } as MidiEvent
+		if (event.type === 'noteOn' || event.type === 'noteOff') {
+			const pitch = event.channel * 128 + event.noteNumber
+			const openTicks = openNoteTicks.get(pitch) ?? []
+			openNoteTicks.set(pitch, openTicks)
+			if (event.type === 'noteOn' && event.velocity > 0) {
+				openTicks.push(tick)
+			} else if (openTicks.length > 0 && openTicks.pop()! < tick) {
+				events.push({ tick, event })
+				return
+			}
+		}
+		events.push({ tick, seq: verbatimSeq + index, event })
+	})
+}
+
+/** The first sequence number of verbatim events, after every other one. */
+const verbatimSeq = 4_000_000_000
+
 /** Adds an instrument track's versus phrases: player 1's on note 105 and player 2's on 106. A zero-length one is kept. */
 export function addVersusPhrases(events: AbsoluteEvent[], versusPhrases: ParsedTrack['versusPhrases']): void {
 	for (const phrase of versusPhrases) addNoteOnOff(events, phrase.tick, phrase.length, phrase.isPlayer2 ? 106 : 105, 100, true)
