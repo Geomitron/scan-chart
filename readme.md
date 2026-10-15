@@ -108,6 +108,8 @@ The work that costs more is off by default. Turn it on with the second argument:
 
 A result field you didn't ask for is `null`.
 
+`albumArtSizes` lists the album art sizes `albumArt` accepts, as the side of a square in pixels. It's `[512]` by default, so art that isn't 512x512 is reported.
+
 ### Read the issues
 
 Every issue has the same shape, whatever it's about:
