@@ -60,6 +60,20 @@ describe('convertChart', () => {
 		expect(chartSpellingIssues({ format: 'mid', bytes: chart.bytes, tokens: chart.tokens }, false)).toEqual([])
 	})
 
+	it('lowers a cutoff song.ini sets, where the overlap step left a sustain no longer than it', () => {
+		// The cutoff keeps the 300-tick sustains, and the overlap step then ends the first at the second, after 50 ticks.
+		const song = chartSong(expert(['0 = N 0 300', '50 = N 0 300', '768 = N 1 0']), '[song]\r\nname = Song\r\nsustain_cutoff_threshold = 100\r\n')
+		const lengths = (from: SongDocument) => resolveChart(from).tracks[0].noteGroups.map(group => [group[0].tick, group[0].length])
+		expect(lengths(song)).toEqual([[0, 50], [50, 300], [768, 0]])
+		const { song: converted, report } = convertChart(song, 'mid')
+		expect(report.settings).toEqual([{ key: 'sustain_cutoff_threshold', value: '49' }])
+		expect(report.tracks.every(track => track.kept)).toBe(true)
+		expect(lengths(converted)).toEqual(lengths(song))
+		const chart = converted.chart!
+		if (chart.format !== 'mid') throw new Error('not converted to .mid')
+		expect(chartSpellingIssues({ format: 'mid', bytes: chart.bytes, tokens: chart.tokens }, false)).toEqual([])
+	})
+
 	it('keeps the drum stem configuration of disco flip mix events both ways', () => {
 		const drums = ['[ExpertDrums]', '{', '  0 = E mix 3 drums2', '  0 = N 1 0', '  480 = E mix 3 drums2d', '  480 = N 1 0', '  480 = N 2 0', '  960 = E mix 3 drums2', '  960 = N 1 0', '}']
 		const { song: asMidi, report } = convertChart(chartSong(drums), 'mid')

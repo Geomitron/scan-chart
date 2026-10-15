@@ -3,7 +3,7 @@ import { readChartSongEntries } from './chart/chart-file-parser'
 import { writeChartFile } from './chart/chart-writer'
 import { roundBpm } from './chart/identity/btrack-20260801'
 import { canonicalChartFromParse } from './chart/identity/canonical-source'
-import { writeMidiFile } from './chart/midi-writer'
+import { midiSustainCutoff, writeMidiFile } from './chart/midi-writer'
 import { ParsedChart, parseSongChartAndIni } from './chart/parse-chart-and-ini'
 import { calculateCompetitiveHashes } from './competitive'
 import { ChartFormat, ChartReadError } from './gameplay-chart'
@@ -158,23 +158,6 @@ function withNearestMidiValues(chart: ParsedChart): ParsedChart {
 		tempos: chart.tempos.map(tempo => tempo.beatsPerMinute < slowestMidiBpm ? { ...tempo, beatsPerMinute: slowestMidiBpm } : tempo),
 		timeSignatures: chart.timeSignatures.map(signature => signature.numerator > 255 ? { ...signature, numerator: 255 } : signature),
 	}
-}
-
-/**
- * The sustain cutoff a `.mid` is read with, and whether song.ini must say so (r4 Q5). Without the setting, `.mid`
- * trims sustains up to a third of a beat and a tick; when that would trim one, the cutoff becomes the shortest such
- * sustain less a tick, which keeps every sustain. A cutoff song.ini already sets applies to both formats alike.
- */
-function midiSustainCutoff(chart: ParsedChart, setCutoff: number): { value: number; write: boolean } {
-	if (setCutoff >= 0) return { value: setCutoff, write: false }
-	const defaultCutoff = Math.floor(chart.resolution / 3) + 1
-	let shortest = Infinity
-	for (const track of chart.trackData) {
-		for (const group of track.noteEventGroups) {
-			for (const note of group) if (note.length > 0 && note.length <= defaultCutoff && note.length < shortest) shortest = note.length
-		}
-	}
-	return shortest === Infinity ? { value: defaultCutoff, write: false } : { value: shortest - 1, write: true }
 }
 
 /**

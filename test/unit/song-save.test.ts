@@ -1,13 +1,17 @@
 import { writeMidi } from '@geomitron/midi-file'
 import { describe, expect, it } from 'vitest'
 
+import { authoredTracks } from 'src/authored'
 import { chartAuthoredTracks, midiAuthoredTracks } from 'src/chart/authored-view'
 import { chartEventEdits, editChartLines } from 'src/chart/chart-edit'
 import { chartSectionLines } from 'src/chart/chart-file-parser'
 import { editSong, parseSongFiles, SongDocument } from 'src/song-document'
 import { resolveChart } from 'src/gameplay-chart'
 import { fileBytes } from 'src/song-files'
+import { chartSpellingIssues } from 'src/spelling-issues'
 import { saveSong, songHashes, SongNormalization } from 'src/song-save'
+
+import { midi } from './helpers/chart-files'
 
 const encode = (text: string) => new TextEncoder().encode(text)
 const decode = (bytes: Uint8Array) => new TextDecoder().decode(bytes)
@@ -162,6 +166,17 @@ describe('saving (E7)', () => {
 		const guitar = saved.chart?.format === 'mid' && saved.chart.tokens?.chunks[1]
 		expect(guitar && guitar.kind === 'track' ? guitar.events.filter(({ event }) => event.type === 'trackName').map(({ event }) => event.type === 'trackName' && event.text) : []).toEqual(['PART GUITAR'])
 		expect(saved.chart?.format === 'mid' && saved.chart.tokens ? midiAuthoredTracks(saved.chart.tokens)[0].events.map(event => event.length) : []).toEqual([240])
+	})
+
+	it('writes a .mid note that starts where a sustain of its pitch ends after that note-off, so it reads back as edited', () => {
+		const original = parseSongFiles([{ fileName: 'notes.mid', data: midi({ 'PART GUITAR': [{ tick: 0, noteNumber: 96, length: 480 }, { tick: 1920, noteNumber: 97 }] }) }, songIni])
+		const [guitar] = authoredTracks(original.chart!)
+		const edited = editSong(original, batch => batch.addEvent(guitar, 480, 'green', 480, { scope: 'expert' }))
+		const saved = parseSongFiles(saveSong(original, edited).files)
+		expect(resolveChart(saved).tracks[0].noteGroups.map(group => [group[0].tick, group[0].length])).toEqual([[0, 480], [480, 480], [1920, 0]])
+		const chart = saved.chart!
+		if (chart.format !== 'mid') throw new Error('not a .mid chart')
+		expect(chartSpellingIssues({ format: 'mid', bytes: chart.bytes, tokens: chart.tokens }, false)).toEqual([])
 	})
 
 	it('removes a song.ini key a later line of the same key replaces, in any letter case', () => {

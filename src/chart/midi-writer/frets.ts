@@ -16,8 +16,6 @@ import {
 	addNoteOnOffWithChannel,
 	addVerbatimEvents,
 	addVersusPhrases,
-	computeLengthOverrides,
-	computeSustainCutoff,
 	finalizeMidiTrack,
 	instrumentSections,
 	metaTextEvent,
@@ -165,10 +163,8 @@ export function buildFretTrack(
 		}
 	}
 
-	const cutoff = computeSustainCutoff(chart, options)
-
 	for (const td of trackDataEntries) {
-		emitFretNotes(events, td, layout, animMap, useEnhancedOpens, animSeqMap, cutoff)
+		emitFretNotes(events, td, layout, animMap, useEnhancedOpens, animSeqMap)
 
 		allStarPower.push(td.starPowerSections)
 		allSolo.push(td.soloSections)
@@ -268,7 +264,7 @@ export function buildFretTrack(
 		})
 	}
 
-	if (options.sustainCutoff !== undefined) stretchUnsustainedNotes(events, cutoff)
+	if (options.sustainCutoff !== undefined) stretchUnsustainedNotes(events, options.sustainCutoff)
 	return finalizeMidiTrack(events)
 }
 
@@ -279,16 +275,9 @@ function emitFretNotes(
 	animMap: Map<string, number>,
 	useEnhancedOpens: boolean,
 	animSeqMap: Map<string, { onSeq: number; offSeq: number }>,
-	cutoff: number,
 ): void {
 	const diffStart = layout.diffStarts[td.difficulty]
 	const { noteTypeToOffset } = layout
-	// Fret notes whose MIDI number would fall in the animation range (40-59)
-	// skip the length-chain override — inflating their length would absorb the
-	// corresponding animation pairing on re-parse.
-	const lengthOverrides = computeLengthOverrides(td, cutoff)
-	const ANIMATION_NOTE_MIN = 40
-	const ANIMATION_NOTE_MAX = 59
 
 	const emitWithAnimSeq = (tick: number, length: number, noteNum: number): void => {
 		const animSeqs = animSeqMap.get(`${tick}:${noteNum}`)
@@ -312,14 +301,7 @@ function emitFretNotes(
 	for (const group of td.noteEventGroups) {
 		for (const note of group) {
 			const isFiveFretOpen = note.type === noteTypes.open && noteTypeToOffset[noteTypes.open] === undefined
-			const offsetForOverride = isFiveFretOpen
-				? (useEnhancedOpens ? 0 : 1)
-				: (noteTypeToOffset[note.type] ?? 0)
-			const noteNumForOverride = diffStart + offsetForOverride
-			const inAnimationRange = noteNumForOverride >= ANIMATION_NOTE_MIN && noteNumForOverride <= ANIMATION_NOTE_MAX
-			const baseLen = inAnimationRange
-				? note.length
-				: (lengthOverrides.get(`${note.tick}:${note.type}`) ?? note.length)
+			const baseLen = note.length
 
 			if (isFiveFretOpen) {
 				if (useEnhancedOpens) {
