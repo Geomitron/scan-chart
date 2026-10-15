@@ -4,6 +4,7 @@ import { imageSize } from './assets/scan-image'
 import { contentNames, hasContentExtension } from './assets/scan-media'
 import { ignoredIssueCodes, keyList } from './ini/ini-checks'
 import { asUtf8Ini, rewriteSongIni } from './ini/ini-edit'
+import { isBooleanTag, isNumberTag } from './ini/metadata'
 import { IniTokens, parseIniTokens } from './ini/parse-ini'
 import { fixEmptyPhrases, fixEmptyTracks, fixHopoTags, fixMultiplierNote, fixSustains } from './fix-chart'
 import { FixRecord, FixReport, hashChanges, hashNames } from './fix-report'
@@ -196,6 +197,11 @@ function fixSongIni(
 	}
 	for (const key of keysOf('quotedIniValue')) {
 		const unquoted = trimDotnet(songSection[key].slice(1, -1))
+		// Games read a quoted number or boolean as not set, so unquoting it would change what they read.
+		if (unquoted !== '' && (isNumberTag(key) || isBooleanTag(key))) {
+			record.skip('quotedIniValue', ini.fileName, `Games read the default for a quoted number or true/false value: write the value you mean for "${key}" without quotes.`)
+			continue
+		}
 		fixes.push({ code: 'quotedIniValue', subject: key, ...unquoted === '' ? { remove: [key] } : { set: [[key, unquoted]] }, readsAlike: false })
 	}
 	if (codes.has('iconName')) {

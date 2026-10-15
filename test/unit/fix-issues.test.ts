@@ -143,6 +143,17 @@ describe('fixIssues: song.ini', () => {
 			reason: 'Without its extension and in lowercase, "Half Moon" has other characters than a-z, 0-9, "-" and "_": choose an icon name.' }])
 	})
 
+	it('leaves a quoted number or boolean, which games read as not set, and unquotes text', async () => {
+		const lines = ['[song]', 'name = Song', 'delay = "90"', 'video_start_time = "1000"', 'diff_guitar = "4"', 'pro_drums = "True"', 'loading_phrase = "Hi"']
+		for (const changeHashes of [false, true]) {
+			const result = await fix(folder(lines), { codes: ['quotedIniValue'], changeHashes })
+			expect(result.ini).toBe('[song]\r\nname = Song\r\ndelay = "90"\r\nvideo_start_time = "1000"\r\ndiff_guitar = "4"\r\npro_drums = "True"\r\nloading_phrase = Hi\r\n')
+			expect(result.report.skipped.map(entry => entry.reason)).toEqual(['delay', 'video_start_time', 'diff_guitar', 'pro_drums'].map(key =>
+				`Games read the default for a quoted number or true/false value: write the value you mean for "${key}" without quotes.`))
+			expectHashesKept(result)
+		}
+	})
+
 	it('unquotes a song name, which the SongHash reads, only with changeHashes', async () => {
 		const quoted = folder(['[song]', 'name = "Song"', 'artist = Band'])
 		const kept = await fix(quoted)
