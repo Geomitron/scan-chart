@@ -22,7 +22,7 @@
 					},
 					{
 						"group": "Song folders",
-						"pages": ["song-folders"]
+						"pages": ["song-folders", "sng"]
 					},
 					{
 						"group": ".chart",
@@ -53,7 +53,11 @@
 					},
 					{
 						"group": "song.ini",
-						"pages": ["ini/settings", "ini/metadata", "ini/reading-rules"]
+						"pages": ["ini/reading-rules", "ini/metadata", "ini/settings"]
+					},
+					{
+						"group": "Guidelines",
+						"pages": ["charting-guidelines", "metadata-conventions"]
 					},
 					{
 						"group": "Converting",

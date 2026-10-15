@@ -1,13 +1,101 @@
 ---
 title: "Settings"
-description: "The song.ini keys that change how a chart is read."
+description: "The song.ini keys that change how a song plays: the drum type, sustains, chords and the background video, and the older keys that still do."
 ---
 
-<Warning>Placeholder for the local preview. This page isn't written yet.</Warning>
+Most songs need none of these keys. A chart written the way it should play reads the same in every game without them:
 
-It will cover:
+```ini
+[song]
+name = Song Name
+artist = Artist
+charter = Charter
+video_start_time = 1500
+five_lane_drums = True
+```
 
-- `hopo_frequency`, `eighthnote_hopo` and `sustain_cutoff_threshold`
-- `multiplier_note`
-- `five_lane_drums` and `pro_drums`
-- `delay` and the other timing keys
+Here the drums are 5-lane, though their notes don't show it, and the background video skips its first 1.5 seconds.
+
+## Drum type
+
+| Key | Value |
+|---|---|
+| `five_lane_drums` | `True` when the drums are 5-lane |
+| `pro_drums` | `True` when the drums are pro, with cymbals |
+
+[Drums](/chart/drums#drum-types) gives how a scanner decides the drum type. **Recommended:** leave both keys out when the notes already give the type, and set one only when they don't. `False` means the same as leaving the key out.
+
+## Sustains and chords
+
+| Key | Value |
+|---|---|
+| `sustain_cutoff_threshold` | In ticks. A note whose sustain is no longer than this is read with no sustain |
+| `chord_snap_threshold` | In ticks. Notes closer together than this are merged into chords |
+
+- [How notes resolve](/chart/note-resolution) gives what each one does. Without `sustain_cutoff_threshold`, a `.chart` file has no cutoff, and a `.mid` file has a default cutoff of about a third of a beat.
+- YARG doesn't read `chord_snap_threshold`.
+- **Recommended:** leave both out of a new chart, and write each sustain and each chord as it should play.
+- scan-chart's converter writes `sustain_cutoff_threshold` when it converts a `.chart` file to `.mid`, so that sustains the `.mid` default would cut keep their length.
+
+{/* review: Q9
+Should a new chart use `sustain_cutoff_threshold` and `chord_snap_threshold`? Both are standard on How notes resolve. GuitarGame_ChartFormats lists the cutoff as not recommended, YARG doesn't read the snap, and the two games compare the cutoff differently.
+- A. Standard, with no advice | As How notes resolve says now | New charts keep using keys that read differently in YARG
+- B. Standard, but left out of new charts | An exporter writes sustains and chords as they should play. Existing charts stay valid | How notes resolve gains the same recommendation. The converter still writes the cutoff, which a conversion needs
+- C. Deprecated | As `hopo_frequency` | A chart converted to `.mid` needs another way to keep its short sustains
+Recommendation: B. It follows GuitarGame_ChartFormats' reasoning and keeps existing charts valid.
+*/}
+
+## Background video
+
+| Key | Value |
+|---|---|
+| `video_start_time` | In milliseconds: how much of the background video to skip when it starts. A negative value delays the video's start instead |
+
+Without it, the video starts at its beginning. Clone Hero's song settings menu writes this key when a player changes it.
+
+## Deprecated
+
+Older charts use these keys, and a scanner still reads them, so that those charts play as they always have. An exporter should not write them. Removing one changes how the chart plays, unless the chart changes with it. scan-chart includes `hopo_frequency`, `eighthnote_hopo` and `multiplier_note` in a track's TrackHash, so removing one also changes the TrackHash unless the chart is rewritten to match.
+
+- **`delay`**, in milliseconds: Clone Hero moves every note this much later against the audio, or earlier when it's negative. YARG reads it too. A `delay` of 0 means not set, and a `.chart` file's `Offset` applies instead: see [[Song]](/chart/song). Line the notes up with the tempo map and the audio's leading silence instead. Removing `delay` moves every note in time, so the chart or the audio has to change with it. Clone Hero's song settings menu writes `delay` when a player changes the song's offset.
+- **`hopo_frequency`** and **`eighthnote_hopo`** change the HOPO threshold: see [How notes resolve](/chart/note-resolution#deprecated). A `hopo_frequency` of 0 or less means not set. Force the notes that should be strums or HOPOs instead. Removing them changes which notes are HOPOs, unless every note that changes is forced.
+- **`multiplier_note`**, `103` or `116`: the MIDI note that marks star power in a `.mid` file's guitar and keys tracks. A `.chart` file ignores it.
+  - Clone Hero uses that note in every track. Without the key, or with any other value, it decides for each track: in a track with two or more notes 103 and no note 116, it reads the notes 103 as star power.
+  - YARG uses note 103 for `103`, and note 116 for anything else. It never decides for each track.
+  - Instead of `multiplier_note = 103`, move the star power phrases to note 116.
+  - scan-chart reports star power that `multiplier_note` makes a scanner ignore as `badStarPower`.
+- **`frets`** and **`track`**, older names for `charter` and `album_track`: see [Metadata](/ini/metadata#deprecated).
+
+**Edge case: `multiplier_note = 116`.** Note 103 also marks solos. In a `.mid` track with two or more solo notes and no star power, Clone Hero reads the solos as star power unless `multiplier_note = 116`. An exporter writes it only for such a song. scan-chart's converter writes it in that case.
+
+{/* review: Q10
+`multiplier_note = 116` has no replacement. In a `.mid` track with two or more solo notes and no star power, Clone Hero reads the solos as star power unless song.ini says `multiplier_note = 116`. scan-chart's converter writes it for that reason. Every one of the 16,198 surveyed folders that sets the key sets 116.
+- A. Deprecated, with 116 kept for that case | An exporter writes `multiplier_note = 116` only for such a song | The key stays in use, though the guidelines forbid it
+- B. Deprecated fully | Clone Hero's detection becomes the rule | A track with solos then needs star power, or Clone Hero reads the solos as star power. The converter has to stop writing the key
+- C. Ask the Clone Hero developers | Limit the detection to songs without `multiplier_note`, or drop it, then deprecate the key fully | Depends on a Clone Hero change
+Recommendation: A now, and C as the lasting fix.
+*/}
+
+## Ignored
+
+- **`end_events`.** No game reads it. A chart's end events work the same either way: see [The end of the song](/chart/events#the-end-of-the-song). Leave it out.
+- **`hopofreq`**, a Frets on Fire X key. Clone Hero and scan-chart ignore it. YARG reads `0` to `5` as a HOPO threshold when there's no `hopo_frequency` or `eighthnote_hopo` line, and lists a song with any other value as broken.
+- **`pro_drum`** and **`star_power_note`.** YARG reads them as `pro_drums` and `multiplier_note`, and Clone Hero and scan-chart ignore them. Write `pro_drums` instead of `pro_drum`.
+
+## Invalid forms
+
+<Accordion title="A delay with a decimal point, such as delay = 1.5">
+Clone Hero reads a `delay` that holds a `.` in seconds, so `1.5` is 1,500 milliseconds. YARG reads it as 1 millisecond. scan-chart reads it as 1.5 milliseconds, rounds it to 2, and reports it as `invalidValue`.
+</Accordion>
+
+<Accordion title="A multiplier_note other than 103 or 116">
+Clone Hero decides for each track, as without the key. YARG uses note 116. scan-chart reports it as `invalidValue`, and decides for each track as Clone Hero does.
+</Accordion>
+
+<Accordion title="Both five_lane_drums and pro_drums set to True">
+A scanner reads the drums as 5-lane: see [Drums](/chart/drums#invalid-forms). scan-chart reports it as `invalidValue`.
+</Accordion>
+
+<Accordion title="A negative sustain_cutoff_threshold in a .mid song">
+Clone Hero and scan-chart use the `.mid` default cutoff. YARG uses the value as written, so it cuts no sustains.
+</Accordion>
