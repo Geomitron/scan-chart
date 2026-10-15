@@ -1,5 +1,6 @@
 import { chartEventSection, ChartFileTokens, chartSectionLines, chartSectionTrack, ChartSectionToken } from './chart/chart-file-parser'
 import { ChartEventSection, ChartLineSpelling, chartSectionSpellings, chartSongSpellings } from './chart/chart-line-spelling'
+import { chartModifiersWithoutNotes } from './chart/chart-modifiers'
 import { chartSectionNoflips, midiTrackNoflips } from './chart/disco-flip'
 import { midiTrackInstrument, repeatedMidiInstruments } from './chart/midi-file-parser'
 import { midiPitchKey } from './chart/midi-note-numbers'
@@ -27,6 +28,7 @@ export type SpellingIssueType =
 	| 'unreadableChartLine'
 	| 'nonstandardChartSections'
 	| 'discoNoflipDuringFlip'
+	| 'chartModifierWithoutNote'
 
 /**
  * Each message says what Clone Hero does (StrikeCore's readers, which HashScanTool shares). The issues about
@@ -44,6 +46,7 @@ export const spellingIssueMessages: { readonly [code in SpellingIssueType]: stri
 	unreadableChartLine: 'A line in this section can\'t be read, so scan-chart ignores it. Saving an edit removes it.',
 	nonstandardChartSections: 'The chart\'s [Song] and [SyncTrack] sections aren\'t written the standard way. Saving an edit fixes them.',
 	discoNoflipDuringFlip: 'A "dnoflip" mix event comes while a "d" disco flip is on. Clone Hero 1.1 keeps the flip on, and other programs start no-flip there. Saving an edit turns the flip off first.',
+	chartModifierWithoutNote: 'A modifier in this section, such as a forced, tap, cymbal, accent or ghost marker, has no note at its tick to apply to. Games ignore it, and saving an edit removes it.',
 }
 
 /** The nonstandard spellings of a chart file, one issue per section or track; style notes only when `styleNotes`. */
@@ -59,6 +62,9 @@ export function chartSpellingIssues(source: ChartSource, styleNotes: boolean): I
 		// The normalizations read the first section of each name, which a reader uses.
 		const firstOfName = new Map<string, (typeof tokens.sections)[number]>()
 		for (const section of tokens.sections) if (!firstOfName.has(section.name)) firstOfName.set(section.name, section)
+		for (const [name, lines] of chartModifiersWithoutNotes(tokens)) {
+			respelled.push(['chartModifierWithoutNote', name, modifierMessage(lines.map(({ start, end }) => tokens.text.slice(start, end).trim()))])
+		}
 		for (const section of tokens.sections) {
 			const track = chartSectionTrack(section.name)
 			const eventSection = chartEventSection(section.name)
@@ -103,6 +109,16 @@ export function chartSpellingIssues(source: ChartSource, styleNotes: boolean): I
 		if (found.length > 0) add('discoNoflipDuringFlip', { instrument: 'drums', difficulty }, noflipMessage(found))
 	}
 	return issues
+}
+
+/** The message about a section's modifier lines with no note to apply to, naming the first. */
+function modifierMessage(lines: readonly string[]): string {
+	const quote = (line: string) => `"${line.length > 80 ? `${line.slice(0, 77)}...` : line}"`
+	return lines.length === 1
+		? `The line ${quote(lines[0])} is a modifier with no note at its tick to apply to, which games ignore. Saving an edit removes it: `
+			+ 'move it to its note\'s tick first to keep what it meant.'
+		: `${lines.length.toLocaleString('en-US')} lines, such as ${quote(lines[0])}, are modifiers with no note at their tick to apply to, which games ignore. `
+			+ 'Saving an edit removes them: move them to their notes\' ticks first to keep what they meant.'
 }
 
 /** Whether an offset found with `indexOf` is before `end`. */

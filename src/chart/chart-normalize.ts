@@ -12,6 +12,7 @@ import {
 	tokenizeChartFile,
 } from './chart-file-parser'
 import { ChartLineSpelling, chartSectionSpellings, chartSongSpellings } from './chart-line-spelling'
+import { chartModifiersWithoutNotes } from './chart-modifiers'
 import { chartSectionNoflips, mixDifficulties } from './disco-flip'
 
 /**
@@ -19,7 +20,8 @@ import { chartSectionNoflips, mixDifficulties } from './disco-flip'
  * file already uses: CRLF line endings, two-space indentation, no blank lines in a section, lines in tick order, no
  * repeated lines or sections, one tempo marker and one time signature at a tick, bare text events in instrument
  * sections, every line in its standard spelling, and `[Song]` and `[SyncTrack]` as the first two sections, with a
- * `Resolution`. A drums section also turns a disco flip off before a `dnoflip` mix event (`noflipDuringFlip`).
+ * `Resolution`. An instrument section also has no modifier without a note (`modifiersWithoutNotes`), and a drums
+ * section turns a disco flip off before a `dnoflip` mix event (`noflipDuringFlip`).
  */
 export type ChartNormalizationKind =
 	| 'lineEndings'
@@ -30,6 +32,7 @@ export type ChartNormalizationKind =
 	| 'duplicateLines'
 	| 'repeatedMarkers'
 	| 'quotedTrackEvents'
+	| 'modifiersWithoutNotes'
 	| 'noflipDuringFlip'
 	| 'repeatedSections'
 	| 'sectionOrder'
@@ -48,9 +51,10 @@ type Splice = { start: number; end: number; text: string }
 /**
  * Every normalization a `.chart` file needs. A normalization keeps the meaning, but some change what an older reader
  * saw, and so a hash: saving decides where each applies (E7). Content is otherwise never normalized: values, redundant
- * markers and unrecognized lines stay as written, and the byte-order mark and encoding are kept. The exception is a
- * second tempo marker or time signature at a tick, which readers use instead of the first, so the first is removed. A
- * malformed file gets none.
+ * markers and unrecognized lines stay as written, and the byte-order mark and encoding are kept. The exceptions are a
+ * second tempo marker or time signature at a tick, which readers use instead of the first, so the first is removed; a
+ * modifier with no note to apply to, which readers ignore, so it's removed; and a `dnoflip` mix event while a `d` flip
+ * is on, which Clone Hero 1.1 reads as the flip staying on, so the flip is turned off first. A malformed file gets none.
  *
  * A line in a nonstandard spelling is written the way scan-chart reads it (chart-line-spelling.ts): `lineSpelling`
  * writes the standard spelling, and `unreadableLines` removes a line scan-chart can't read. They come first, so the
@@ -87,7 +91,10 @@ export function chartNormalizations(tokens: ChartFileTokens): ChartNormalization
 		add('duplicateLines', name, current => sectionSplices(current, name, withoutDuplicates))
 		if (name === 'SyncTrack') add('repeatedMarkers', name, current => sectionSplices(current, name, withoutEarlierMarkers))
 		const track = chartSectionTrack(name)
-		if (track !== null) add('quotedTrackEvents', name, current => sectionSplices(current, name, unquoted))
+		if (track !== null) {
+			add('quotedTrackEvents', name, current => sectionSplices(current, name, unquoted))
+			add('modifiersWithoutNotes', name, current => (chartModifiersWithoutNotes(current).get(name) ?? []).map(({ start, end }) => ({ start, end, text: '' })))
+		}
 		if (track?.instrument === 'drums') {
 			add('noflipDuringFlip', name, current => sectionSplices(current, name, lines => withFlipOffs(lines, track.difficulty)))
 		}
