@@ -82,7 +82,7 @@ A reader ignores a section with any other name.
 ## Lines
 
 - A line ends at a line feed, or at a carriage return followed by a line feed. A carriage return alone doesn't end a line.
-- An entry may be indented with spaces or tabs, and a section may hold blank lines.
+- An entry may be indented with spaces or tabs, and a section may hold blank lines. A reader ignores spaces and tabs at the start and the end of every line, so `0 = TS 4 ` with a space at the end is `0 = TS 4`.
 - A `.chart` file has no comments.
 
 ## Events

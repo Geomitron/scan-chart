@@ -68,13 +68,6 @@ The forced modifier then flips a note between strum and HOPO, and the tap modifi
 - The earlier note is the first one not yet moved. Moving a note doesn't move the next one along: with a threshold of 10, notes at 100, 105 and 109 all move to 100, and a note at 112 stays.
 - A reader decides HOPOs before snapping, from the ticks as written.
 
-{/* review: Q6
-This is about the hashes. When chord snapping moves a note onto another note of the same fret, Clone Hero and scan-chart's canonical rules disagree in two ways. Clone Hero decides the next note's HOPO from the moved tick, and still counts the removed note at its written tick when it works out the song's duration. scan-chart decides the HOPO from the written ticks, and leaves the removed note out of the duration. Crafted test charts confirm the canonical hashes differ (C:/dev/freeze-check/mini-snap). No library chart has the case: it needs a chord_snap_threshold that moves a note onto the same fret.
-- A. Follow Clone Hero | scan-chart's canonical rules change to match. The page describes Clone Hero's two exceptions | A definition change with no effect on the library, and two odd rules in the standard
-- B. Keep scan-chart's rules | Clone Hero changes to decide HOPOs from the written ticks and leave removed notes out of the duration, in a Clone Hero merge request | One more change for the Clone Hero developers to review. Until it ships, the two disagree on such charts
-Recommendation: B, as written. The rule stays simple, and no chart that exists today changes.
-*/}
-
 ## Duplicate notes
 
 After snapping, a track holds at most one note of each fret at a tick. When there are more, a reader keeps the longest. A writer must not write two notes of one fret at one tick: see [Notes at one tick](/chart/instrument-sections#notes-at-one-tick).
@@ -84,6 +77,6 @@ After snapping, a track holds at most one note of each fret at a tick. When ther
 When a note starts before the sustain of an earlier note on the same fret has ended:
 
 - the earlier note's sustain ends where the later note starts;
-- the later note is held until whichever of the two sustains ends later.
+- the later note's sustain ends where the later of the two sustains ended.
 
 For example, blue at 400 with length 300, then blue at 500 with length 0, becomes blue at 400 with length 100 and blue at 500 with length 200. The sustain cutoff isn't applied again afterward. A writer should not overlap sustains of one fret.
