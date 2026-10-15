@@ -1,6 +1,7 @@
 
 import { analyzeChart } from './analyze-chart'
 import { scanAudio } from './assets/scan-audio'
+import { scanFolderFiles } from './assets/scan-folder'
 import { decodeAlbumArt, findAlbumArt } from './assets/scan-image'
 import { scanVideo } from './assets/scan-video'
 import type { ChartStats } from './chart/chart-analysis'
@@ -27,6 +28,11 @@ export interface ScanOptions {
 	readonly albumArt?: boolean
 	/** The album art sizes accepted, in pixels: art that isn't a square of one of them is reported. Default: `[512]`. */
 	readonly albumArtSizes?: readonly number[]
+	/**
+	 * Files your game reads that Clone Hero and YARG don't, so they aren't reported as unrecognized: a name, matched in
+	 * any letter case, or a pattern. Files an operating system made, such as `desktop.ini`, are always reported.
+	 */
+	readonly extraFiles?: readonly (string | RegExp)[]
 	/** Nonstandard spellings every reader reads alike, such as a repeated `.chart` line. Default: `false`. */
 	readonly styleNotes?: boolean
 	/** Remove style tags, such as `<b>`, from the metadata's text values, for plain-text display. Default: `false`. */
@@ -114,6 +120,7 @@ export async function scanSongFolder(files: readonly SongFile[], options: ScanOp
 	folderIssues.push(...audio.folderIssues)
 	const video = scanVideo(song.files)
 	folderIssues.push(...video.folderIssues)
+	folderIssues.push(...scanFolderFiles(song.files, { chartFile: chartFile ?? null, songSection: context.ini.songSection, extraFiles: options.extraFiles ?? [] }))
 
 	return {
 		metadata,

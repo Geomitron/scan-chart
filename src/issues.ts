@@ -35,6 +35,9 @@ export const issueSeverities: { readonly [code in IssueCode]: IssueSeverity } = 
 	multipleChart: 'warning',
 	badVideo: 'warning',
 	multipleVideo: 'warning',
+	unrecognizedFile: 'recommendation',
+	fileNameCase: 'warning',
+	folderSize: 'recommendation',
 	// Metadata issues
 	missingValue: 'warning',
 	invalidValue: 'warning',

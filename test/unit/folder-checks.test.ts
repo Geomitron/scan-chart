@@ -22,6 +22,8 @@ function png(width: number, height: number) {
 	return bytes
 }
 
+const named = (...names: string[]) => names.map(fileName => ({ fileName, data: new Uint8Array(1) }))
+
 /** The issues of a song folder with a chart, song.ini and `files`, as `[code, file, message]`, for the codes asked for. */
 async function issuesOf(files: SongFile[], codes: readonly string[], options: ScanOptions = {}) {
 	const scanned = await scanSongFolder([{ fileName: 'notes.chart', data: chart }, { fileName: 'song.ini', data: songIni }, ...files], options)
@@ -54,5 +56,67 @@ describe('album art', () => {
 		expect(await issuesOf([{ fileName: 'album.png', data: png(256, 256) }], sizeCodes, { albumArt: true, albumArtSizes: [] })).toEqual([])
 		expect(await issuesOf([{ fileName: 'album.png', data: png(256, 200) }], sizeCodes, { albumArt: true, albumArtSizes: [] }))
 			.toEqual([['albumArtSize', 'album.png', 'This chart\'s album art is 256x200, and should be square.']])
+	})
+})
+
+describe('files games don\'t read', () => {
+	const unrecognized = async (files: SongFile[], options: ScanOptions = {}) =>
+		(await issuesOf(files, ['unrecognizedFile'], options)).map(([, file]) => file)
+
+	it('reports a file no game reads', async () => {
+		expect(await issuesOf(named('notes.eof'), ['unrecognizedFile']))
+			.toEqual([['unrecognizedFile', 'notes.eof', '"notes.eof" isn\'t read by the games. Remove it from the chart folder.']])
+		expect(await unrecognized(named('ch.dat', 'banner.png', 'foo.aiff', 'readme.txt', 'song.ogg.sfk'))).toEqual(['ch.dat', 'banner.png', 'foo.aiff', 'readme.txt', 'song.ogg.sfk'])
+	})
+
+	it('accepts every file Clone Hero or YARG reads, in any letter case', async () => {
+		expect(await unrecognized(named(
+			'song.ogg', 'DRUMS.aiff', 'album.tga', 'highway.png', 'background1.jpg', 'my background.png', 'BG.png', 'bg_clean.gif',
+			'video.webm', 'background_explicit.mov', 'bg.yarground', 'notes.midi', 'notes.txt', 'other song.sng', 'sub/video.mp4',
+		))).toEqual([])
+	})
+
+	it('accepts the files song.ini\'s background, video and cover keys name, which YARG reads', async () => {
+		const ini = encode('[song]\r\nname = Song\r\nvideo = My Clip.mov\r\ncover = front.webp\r\n')
+		const scanned = await scanSongFolder([{ fileName: 'notes.chart', data: chart }, { fileName: 'song.ini', data: ini }, ...named('my clip.mov', 'front.webp', 'back.webp')])
+		expect(scanned.issues.filter(issue => issue.code === 'unrecognizedFile').map(issue => issue.file)).toEqual(['back.webp'])
+	})
+
+	it('leaves a misnamed chart, .ini or audio file to the issue that reports it', async () => {
+		expect(await unrecognized(named('original.mid', 'song (1).ini', 'band.ogg', 'sub/song.opus'))).toEqual([])
+	})
+
+	it('accepts the files extraFiles lists', async () => {
+		expect(await unrecognized(named('CH.DAT', 'notes.eof', 'notes.backup.eof', 'readme.txt'), { extraFiles: ['ch.dat', /\.eof$/] })).toEqual(['readme.txt'])
+	})
+
+	it('always reports a file an operating system made, saying no program needs it', async () => {
+		const files = named('desktop.ini', 'Thumbs.db', '.DS_Store', '__MACOSX/song.ini', '._album.png')
+		expect(await unrecognized(files, { extraFiles: [/./] })).toEqual(['desktop.ini', 'Thumbs.db', '.DS_Store', '__MACOSX/song.ini', '._album.png'])
+		expect((await issuesOf(named('Thumbs.db'), ['unrecognizedFile']))[0][2])
+			.toBe('"Thumbs.db" is a file the operating system made, and no program needs it. Remove it from the chart folder.')
+	})
+
+	it('reports a file in a subfolder, except a video Clone Hero finds there', async () => {
+		expect(await unrecognized(named('extras/readme.txt', 'extras/video.webm'))).toEqual(['extras/readme.txt'])
+	})
+})
+
+describe('file name letter case', () => {
+	it('reports an album art, background or video name that matches only in lowercase', async () => {
+		expect(await issuesOf(named('Album.png', 'BACKGROUND.jpg', 'Video.webm', 'Highway.png', 'Song.ogg'), ['fileNameCase'])).toEqual([
+			['fileNameCase', 'Album.png', '"Album.png" should be named "album.png". Song folder file names are lowercase, and some games and tools find only lowercase names.'],
+			['fileNameCase', 'BACKGROUND.jpg', '"BACKGROUND.jpg" should be named "background.jpg". Song folder file names are lowercase, and some games and tools find only lowercase names.'],
+			['fileNameCase', 'Video.webm', '"Video.webm" should be named "video.webm". Song folder file names are lowercase, and some games and tools find only lowercase names.'],
+		])
+	})
+})
+
+describe('folder size', () => {
+	it('reports a folder over the 3 GB Chorus Encore scans', async () => {
+		expect(await issuesOf([{ fileName: 'video.webm', data: { size: 2.9e9, read: () => Promise.reject(new Error('read')) } }], ['folderSize'])).toEqual([])
+		expect(await issuesOf([{ fileName: 'video.webm', data: { size: 3.2e9, read: () => Promise.reject(new Error('read')) } }], ['folderSize'])).toEqual([[
+			'folderSize', null, 'This chart\'s files total 3.2 GB. Chorus Encore scans charts only up to 3 GB, so also share a smaller version, such as one without the video background.',
+		]])
 	})
 })
