@@ -1,38 +1,13 @@
-import { MidiData, writeMidi } from '@geomitron/midi-file'
 import { describe, expect, it } from 'vitest'
 
 import { parseChartFile, parseChartFileCanonicalIdentity, parseChartFileFrozenLegacyIdentity } from 'src/chart/parse-chart-file'
 import { noteFlags } from 'src/chart/types'
 
-type MidiEvent = MidiData['tracks'][number][number]
+import { midiFile, midiNote, phaseShiftSysEx as sysEx, type TimedMidiEvent } from './helpers/midi-files'
 
-/** A `.mid` file at 480 ticks per beat: a tempo track with `tempos` (microseconds per beat), and a `trackName` track. */
-function guitarMidi(
-	events: readonly { tick: number; event: MidiEvent }[],
-	tempos: readonly { tick: number; microsecondsPerBeat: number }[] = [{ tick: 0, microsecondsPerBeat: 500000 }],
-	trackName = 'PART GUITAR',
-): Uint8Array {
-	const track = (name: string, entries: readonly { tick: number; event: MidiEvent }[]) => {
-		const ordered = entries.map((entry, order) => ({ ...entry, order })).sort((a, b) => a.tick - b.tick || a.order - b.order)
-		let previousTick = 0
-		const result: MidiEvent[] = [{ deltaTime: 0, type: 'trackName', text: name }]
-		for (const { tick, event } of ordered) {
-			result.push({ ...event, deltaTime: tick - previousTick } as MidiEvent)
-			previousTick = tick
-		}
-		result.push({ deltaTime: 0, type: 'endOfTrack' })
-		return result
-	}
-	const conductor = track('TEMPO TRACK', tempos.map(({ tick, microsecondsPerBeat }) => ({ tick, event: { deltaTime: 0, type: 'setTempo', microsecondsPerBeat } })))
-	return new Uint8Array(writeMidi({ header: { format: 1, numTracks: 2, ticksPerBeat: 480 }, tracks: [conductor, track(trackName, events)] }))
-}
-
-const note = (tick: number, noteNumber: number, channel = 0) => [
-	{ tick, event: { deltaTime: 0, type: 'noteOn', channel, noteNumber, velocity: 100 } as MidiEvent },
-	{ tick: tick + 1, event: { deltaTime: 0, type: 'noteOff', channel, noteNumber, velocity: 0 } as MidiEvent },
-]
-const sysEx = (tick: number, difficulty: number, phrase: number, isStart: boolean) =>
-	({ tick, event: { deltaTime: 0, type: 'sysEx', data: [0x50, 0x53, 0, 0, difficulty, phrase, isStart ? 1 : 0, 0xf7] } as MidiEvent })
+/** A `.mid` file with one instrument track, PART GUITAR unless named otherwise. */
+const guitarMidi = (events: readonly TimedMidiEvent[], trackName = 'PART GUITAR') => midiFile([{ name: trackName, events }])
+const note = (tick: number, noteNumber: number, channel = 0) => midiNote(tick, noteNumber, 1, channel)
 const greens = [0, 100, 200, 300].flatMap(tick => note(tick, 96))
 const parsers = { scanner: parseChartFile, canonical: parseChartFileCanonicalIdentity, legacy: parseChartFileFrozenLegacyIdentity }
 const tapTicks = (data: Uint8Array, parse: (data: Uint8Array, format: 'mid') => ReturnType<typeof parseChartFile>) =>
@@ -52,19 +27,19 @@ describe('the .mid reader pairs a SysEx phrase as Clone Hero does', () => {
 
 describe('the .mid reader refuses what Clone Hero refuses', () => {
 	it('refuses a tempo of 0, which is an infinite BPM, in every profile', () => {
-		const data = guitarMidi(greens, [{ tick: 0, microsecondsPerBeat: 500000 }, { tick: 480, microsecondsPerBeat: 0 }])
+		const data = midiFile([{ name: 'PART GUITAR', events: greens }], { tempos: [{ tick: 0, microsecondsPerBeat: 500000 }, { tick: 480, microsecondsPerBeat: 0 }] })
 		for (const parse of Object.values(parsers)) expect(() => parse(data, 'mid')).toThrow('Tempo at tick 480 was zero')
 	})
 
 	it('refuses a 5- or 6-fret tap or open SysEx phrase whose difficulty byte is not 0 to 3 or 255', () => {
 		for (const trackName of ['PART GUITAR', 'PART GUITAR GHL']) {
-			const data = guitarMidi([...greens, sysEx(100, 5, 4, true), sysEx(300, 5, 4, false)], undefined, trackName)
+			const data = guitarMidi([...greens, sysEx(100, 5, 4, true), sysEx(300, 5, 4, false)], trackName)
 			for (const parse of Object.values(parsers)) expect(() => parse(data, 'mid')).toThrow('has difficulty 5')
 		}
 	})
 
 	it('refuses a Phase Shift SysEx event numbered past Clone Hero\'s 100 SysEx stacks (phrase × 5 + difficulty), on any track', () => {
-		const drums = (phrase: number, difficulty: number) => guitarMidi([...note(0, 97), sysEx(0, difficulty, phrase, true)], undefined, 'PART DRUMS')
+		const drums = (phrase: number, difficulty: number) => guitarMidi([...note(0, 97), sysEx(0, difficulty, phrase, true)], 'PART DRUMS')
 		for (const parse of Object.values(parsers)) {
 			expect(() => parse(drums(19, 5), 'mid')).toThrow('has phrase 19 and difficulty 5')
 			expect(() => parse(drums(20, 0xff), 'mid')).toThrow('has phrase 20 and difficulty 255')
@@ -76,7 +51,7 @@ describe('the .mid reader refuses what Clone Hero refuses', () => {
 	it('still reads a file where such a SysEx event has no end, or is on a drum track, which Clone Hero loads', () => {
 		const unpaired = guitarMidi([...greens, sysEx(100, 5, 4, true)])
 		for (const parse of Object.values(parsers)) expect(tapTicks(unpaired, parse)).toEqual([])
-		const drums = guitarMidi([...[0, 100].flatMap(tick => note(tick, 97)), sysEx(0, 5, 4, true), sysEx(200, 5, 4, false)], undefined, 'PART DRUMS')
+		const drums = guitarMidi([...[0, 100].flatMap(tick => note(tick, 97)), sysEx(0, 5, 4, true), sysEx(200, 5, 4, false)], 'PART DRUMS')
 		for (const parse of Object.values(parsers)) expect(parse(drums, 'mid').trackData.map(track => track.difficulty)).toContain('expert')
 	})
 })

@@ -8,7 +8,7 @@
  * 1.1 reads), a test checks the written events themselves.
  */
 
-import { type MidiEvent, parseMidi, writeMidi } from '@geomitron/midi-file'
+import { type MidiEvent, parseMidi } from '@geomitron/midi-file'
 import { describe, expect, it } from 'vitest'
 
 import { createEmptyChart } from 'src/chart/create-chart'
@@ -22,6 +22,8 @@ import { readMidiTokens } from 'src/chart/midi-tokens'
 import { readMidiFile } from 'src/chart/midi-file-parser'
 import { scanVocalTrack } from 'src/chart/lyric-parser'
 import { chartSpellingIssues } from 'src/spelling-issues'
+
+import { midiFile, midiNote, midiText } from './helpers/midi-files'
 
 function roundTrip(chart: ParsedChart, iniText?: string): ParsedChart {
 	const files: { fileName: string; data: Uint8Array }[] = [
@@ -37,29 +39,12 @@ function roundTrip(chart: ParsedChart, iniText?: string): ParsedChart {
 	return result.parsedChart
 }
 
-/**
- * A `.mid` file at 480 ticks per beat with one track besides the tempo track: `trackName`, with text or lyric events and
- * notes (`[tick, note, length = 0]`).
- */
+/** A `.mid` file with one track besides the tempo track: `trackName`, with text or lyric events and notes (`[tick, note, length = 0]`). */
 function trackMidi(trackName: string, texts: { tick: number; text: string; type?: 'text' | 'lyrics' }[], notes: [number, number, number?][]): Uint8Array {
-	const events = [
-		...texts.map(({ tick, text, type = 'text' }) => ({ tick, event: { type, text } })),
-		...notes.flatMap(([tick, noteNumber, length = 0]) => [
-			{ tick, event: { type: 'noteOn', channel: 0, noteNumber, velocity: 100 } },
-			{ tick: tick + length, event: { type: 'noteOff', channel: 0, noteNumber, velocity: 0 } },
-		]),
-	].sort((a, b) => a.tick - b.tick)
-	let lastTick = 0
-	const trackEvents = events.map(({ tick, event }) => {
-		const deltaTime = tick - lastTick
-		lastTick = tick
-		return { deltaTime, ...event }
-	})
-	const tracks = [
-		[{ deltaTime: 0, type: 'setTempo', microsecondsPerBeat: 500000 }, { deltaTime: 0, type: 'endOfTrack' }],
-		[{ deltaTime: 0, type: 'trackName', text: trackName }, ...trackEvents, { deltaTime: 0, type: 'endOfTrack' }],
-	] as MidiEvent[][]
-	return new Uint8Array(writeMidi({ header: { format: 1, numTracks: tracks.length, ticksPerBeat: 480 }, tracks }))
+	return midiFile([{
+		name: trackName,
+		events: [...texts.map(({ tick, text, type }) => midiText(tick, text, type)), ...notes.flatMap(([tick, noteNumber, length]) => midiNote(tick, noteNumber, length))],
+	}])
 }
 
 function emptyDrumTrack(
