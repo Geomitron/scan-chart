@@ -372,6 +372,10 @@ describe('fixIssues: sustains', () => {
 		expect(gap.report.fixed).toEqual([{ code: 'badSustainGap', file: 'notes.chart', description: 'Shortened 1 expert guitar sustain to end 60 ms before the next note.' }])
 		expect(gap.codes).not.toContain('badSustainGap')
 		expect(hashKeys(gap)).toEqual(['canonical:guitar:expert', 'canonical:song'])
+		// An 80 ms gap: 2,420 ms is tick 929.
+		const wider = await fix(folder(ini, expertChart('768 = N 0 170', '960 = N 1 0')), { codes: ['badSustainGap'], changeHashes: true, sustainGapMs: 80 })
+		expect(chartText(wider.song)).toContain('768 = N 0 161\r\n')
+		expect(wider.report.fixed[0].description).toBe('Shortened 1 expert guitar sustain to end 80 ms before the next note.')
 
 		// A sustain held over a note it would then end too close to is left.
 		const held = await fix(folder(ini, expertChart('768 = N 0 160', '850 = N 1 0', '940 = N 2 0')), { codes: ['badSustainGap'], changeHashes: true })
@@ -385,6 +389,8 @@ describe('fixIssues: sustains', () => {
 		expect(chartText((await fix(tight, { codes: ['badSustainGap'], changeHashes: true })).song)).toContain('768 = N 0 72\r\n')
 		const both = await fix(tight, { codes: ['badSustainGap', 'babySustain'], changeHashes: true })
 		expect(chartText(both.song)).toContain('768 = N 0 0\r\n')
+		// 72 ticks is 188 ms, which a 150 ms shortest sustain keeps.
+		expect(chartText((await fix(tight, { codes: ['badSustainGap', 'babySustain'], changeHashes: true, minSustainMs: 150 })).song)).toContain('768 = N 0 72\r\n')
 		expect(both.report.fixed).toEqual([
 			{ code: 'badSustainGap', file: 'notes.chart', description: 'Shortened 1 expert guitar sustain to end 60 ms before the next note.' },
 			{ code: 'babySustain', file: 'notes.chart', description: 'Removed 1 expert guitar sustain that shortening left shorter than 200 ms.' },
@@ -436,6 +442,14 @@ describe('fixIssues: the HOPO threshold tags', () => {
 		expect(both.ini).toBe('[song]\r\nname = Song\r\n')
 		expect(both.report.fixed[0].description).toBe('Forced 1 note to play the same without "hopo_frequency" and "eighthnote_hopo", and removed them.')
 		expectHashesKept(both)
+	})
+
+	it('leaves the tags when the chart can\'t be read', async () => {
+		const unreadable = new TextEncoder().encode('[Song]\r\n{\r\n  Resolution = 0\r\n}\r\n[ExpertSingle]\r\n{\r\n  0 = N 0 0\r\n}\r\n')
+		const result = await fix(folder(['[song]', 'name = Song', 'hopo_frequency = 170'], unreadable), { codes: ['deprecatedIniTag'] })
+		expect(result.ini).toBe('[song]\r\nname = Song\r\nhopo_frequency = 170\r\n')
+		expect(result.report).toMatchObject({ fixed: [], skipped: [{ code: 'deprecatedIniTag', file: 'song.ini',
+			reason: 'The chart can\'t be read, so it can\'t be rewritten to play the same without the HOPO tags.' }] })
 	})
 
 	it('forces .mid notes with a one-tick force note on their difficulty', async () => {
