@@ -119,7 +119,8 @@ export function rewriteSongIni(tokens: IniTokens, rewrite: SongIniRewrite): IniT
 	}
 
 	const { layout } = rewrite
-	const asComment = (line: string) => line.startsWith(';') ? line : line.startsWith('#') ? `;${line.slice(1)}` : line.startsWith('//') ? `;${line.slice(2)}` : `; ${line}`
+	// A "#" comment keeps its hashes after the ";".
+	const asComment = (line: string) => line.startsWith(';') ? line : line.startsWith('#') ? `;${line}` : line.startsWith('//') ? `;${line.slice(2)}` : `; ${line}`
 	const before: string[] = []
 	const others: string[] = []
 	const tags = new Map<string, { value: string; comments: string[] }>()
