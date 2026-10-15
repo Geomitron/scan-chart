@@ -42,8 +42,7 @@ A scanner decodes a file by its byte order mark. It checks the marks in this ord
 | `EF BB BF` | UTF-8 |
 | Anything else | UTF-8 if the whole file is valid UTF-8, and ISO-8859-1 otherwise |
 
-- After a byte order mark, the rest of the file must be valid in that encoding.
-- A file must not start with `2B 2F 76`, the mark of UTF-7.
+**Required:** after a byte order mark, text that is valid in that encoding.
 
 **Edge case:** ISO-8859-1 reads each byte as the character with the same number. Bytes `80` to `9F` are control characters, not the characters Windows-1252 gives them, such as `€`.
 
@@ -60,8 +59,8 @@ A section is a name in square brackets on its own line, then a body between curl
 
 - **The name** is every character between `[` and `]`, as written. Names are case-sensitive.
 - **The `{`** is alone on the line after the name.
-- **The `}`** is alone on the section's last line. No other line of the section may contain `}`.
-- **Between sections**, a file may hold only blank lines.
+- **The `}`** is alone on the section's last line, and is the section's only `}`.
+- **Between sections**, a file holds only blank lines.
 
 ### Section names
 
@@ -73,7 +72,7 @@ A section is a name in square brackets on its own line, then a body between curl
 | An instrument and difficulty, such as `ExpertSingle` | One track's notes and phrases. See [Instrument sections](/chart/instrument-sections) | |
 
 - `Events` and the instrument sections follow `SyncTrack`, in any order.
-- A section name must appear only once.
+- Each section name appears once.
 
 ## Lines
 
@@ -81,7 +80,7 @@ A section is a name in square brackets on its own line, then a body between curl
 - **Recommended:** each entry indented with two spaces, and no blank lines inside a section.
 - A `.chart` file has no comments.
 
-**Edge case: spaces and tabs.** A scanner ignores spaces and tabs at the start and the end of every line, in every section, so `0 = TS 4 ` with a space at the end is `0 = TS 4`. An exporter should not end a line with a space.
+**Edge case: spaces and tabs.** A scanner ignores spaces and tabs at the start and the end of every line, in every section, so `0 = TS 4 ` with a space at the end is `0 = TS 4`. An exporter ends each line with its last value.
 
 ## Events
 
@@ -93,7 +92,7 @@ Every entry of the `SyncTrack`, `Events`, and instrument sections is an event:
 
 - **Tick:** the position, written in the digits `0` to `9`, without a sign.
 - **Type:** a code of one or two capital letters, such as `N` or `TS`.
-- **Values:** whole numbers in the digits `0` to `9`, or one text value in an `E` event. Each type takes a set number of values. An event must have exactly that number.
+- **Values:** whole numbers in the digits `0` to `9`, or one text value in an `E` event. Each type takes a set number of values, and an event has exactly that number.
 - **Spaces:** exactly one space comes before and after the `=`, after the type, and between values.
 
 Each section holds only some types of event:
@@ -108,7 +107,7 @@ A scanner ignores a note or phrase value that has no meaning on its instrument, 
 
 ### Tick order
 
-Within a section, each event's tick must be the same as the previous event's or later:
+Within a section, each event's tick is the same as the previous event's or later:
 
 ```text
 [ExpertSingle]
@@ -130,7 +129,7 @@ Each entry of the `Song` section names a value:
 ```
 
 - The key is followed by exactly one space, `=`, and one space.
-- A key must appear only once in the section.
+- Each key appears once in the section.
 - Text values are written in quotation marks: `Name = "Song Name"`. Numbers are written without them: `Resolution = 192`.
 
 [[Song]](/chart/song) lists the keys.
@@ -144,7 +143,7 @@ Text events are written differently in the two kinds of section:
 
 A `.chart` file has no escape characters. Text can't hold a line break, and a quotation mark inside the text is part of it.
 
-**Edge case: brackets in `Events`.** A scanner removes spaces around the text, then one `[` at its start and one `]` at its end, so `0 = E "[section Intro]"` means the same as `0 = E "section Intro"`. Older charts write the brackets. An exporter should write neither. A bracket anywhere else is part of the text, as in `E "section Verse [2]"`.
+**Edge case: brackets in `Events`.** A scanner removes spaces around the text, then one `[` at its start and one `]` at its end, so `0 = E "[section Intro]"` means the same as `0 = E "section Intro"`. Older charts write the brackets. An exporter writes the text without them. A bracket anywhere else is part of the text, as in `E "section Verse [2]"`.
 
 ## Ignored
 
@@ -153,6 +152,14 @@ A `.chart` file has no escape characters. Text can't hold a line break, and a qu
 - **A section with any other name.**
 
 ## Invalid forms
+
+<Accordion title="Bytes that aren't valid in the encoding of the byte order mark">
+Clone Hero refuses the file. scan-chart reads each byte sequence that isn't valid as the replacement character, U+FFFD, and keeps the bytes as they are when saving.
+</Accordion>
+
+<Accordion title="2B 2F 76, the mark of UTF-7, at the start of the file">
+Clone Hero refuses the file. scan-chart doesn't check for the mark, and reads the file as one without a byte order mark.
+</Accordion>
 
 <Accordion title="Events out of tick order">
 Clone Hero refuses a file whose `SyncTrack` events go back in time, and YARG drops each event that does. scan-chart reports `unsortedChartLines`, and saving puts the lines in tick order.

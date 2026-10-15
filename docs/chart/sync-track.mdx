@@ -24,7 +24,7 @@ A tempo marker sets the tempo from its tick to the next tempo marker:
 ```
 
 - The tempo is in thousandths of a beat per minute: `B 120000` is 120 BPM, and `B 150325` is 150.325 BPM.
-- The tempo must be a whole number from 1 to 4294967295.
+- The tempo is a whole number from 1 to 4294967295.
 
 ## Time signatures
 
@@ -34,8 +34,8 @@ A time signature sets the meter from its tick to the next time signature:
 <tick> = TS <numerator> <exponent>
 ```
 
-- The numerator is the number of beats in a measure. It must be a whole number from 1 to 4294967295.
-- The exponent gives the note value of a beat: the denominator is 2 to the power of the exponent. It must be a whole number from 0 to 31. Without an exponent, the denominator is 4.
+- The numerator is the number of beats in a measure: a whole number from 1 to 4294967295.
+- The exponent gives the note value of a beat: the denominator is 2 to the power of the exponent. It's a whole number from 0 to 31. Without an exponent, the denominator is 4.
 - Time signatures only change the beat lines that appear throughout the chart during gameplay. They have no influence on the notes themselves.
 
 | Written | Time signature |
