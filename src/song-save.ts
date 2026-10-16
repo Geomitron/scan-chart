@@ -1,5 +1,6 @@
 import { chartNormalizations, ChartNormalizationKind } from './chart/chart-normalize'
 import { midiNormalizations, MidiNormalizationKind } from './chart/midi-normalize'
+import { deprecatedTagNormalizations, DeprecatedTagNormalizationKind } from './deprecated-tags'
 import { iniNormalizations, IniNormalizationKind } from './ini/ini-normalize'
 import { SongDocument, documentFiles } from './song-document'
 import { songHashes } from './song-hashes'
@@ -7,17 +8,23 @@ import { songSectionAgreement } from './song-section'
 import type { SongFile } from './song-files'
 
 /**
- * One normalization of a song: of its chart file, in either format, of its song.ini, or of a `.chart` `[Song]` section
- * that disagrees with song.ini (`songSection`).
+ * One normalization of a song: of its chart file, in either format, of its song.ini, of the deprecated song.ini tags it
+ * can do without, or of a `.chart` `[Song]` section that disagrees with song.ini (`songSection`).
  */
 export interface SongNormalization {
-	readonly kind: ChartNormalizationKind | MidiNormalizationKind | IniNormalizationKind | 'songSection'
-	/** The section or MIDI track it rewrites, `song.ini`, or `null` for the whole chart file. */
+	readonly kind: ChartNormalizationKind | MidiNormalizationKind | IniNormalizationKind | DeprecatedTagNormalizationKind | 'songSection'
+	/**
+	 * The section or MIDI track it rewrites, `song.ini`, or `null` for the whole chart file. A deprecated tag's rewrite
+	 * is `song.ini`'s, though the chart can change with it.
+	 */
 	readonly section: string | null
 	readonly apply: (song: SongDocument) => SongDocument
 }
 
-/** Every normalization a song needs: its chart file's, in its format, and its song.ini's. */
+/**
+ * Every normalization a song needs: its chart file's, in its format, its song.ini's, and the rewrites that leave its
+ * deprecated song.ini tags (`deprecatedTagNormalizations`).
+ */
 export function songNormalizations(song: SongDocument): SongNormalization[] {
 	const normalizations: SongNormalization[] = []
 	const { chart, ini } = song
@@ -51,6 +58,7 @@ export function songNormalizations(song: SongDocument): SongNormalization[] {
 			})
 		}
 	}
+	normalizations.push(...deprecatedTagNormalizations(song))
 	// Last, so it compares the other normalizations' output.
 	if (songSectionAgreement(song) !== null) {
 		normalizations.push({ kind: 'songSection', section: 'Song', apply: current => songSectionAgreement(current) ?? current })
