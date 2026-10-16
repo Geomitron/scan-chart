@@ -3,6 +3,10 @@ import { describe, expect, it } from 'vitest'
 import { parseLyricFlags } from 'src/chart/lyric-parser'
 import { lyricWords, phraseText, strongWordsIn } from 'src/ini/explicit-lyrics'
 import { scanSongFolder } from 'src/scan-song-folder'
+import type { SongFile } from 'src/song-files'
+
+import { chartFile, expertSection } from './helpers/chart-files'
+import { midiFile, midiNote, midiText } from './helpers/midi-files'
 
 const encode = (text: string) => new TextEncoder().encode(text)
 /** Lyrics as the parser keeps them: their text, with the flags its symbols set. */
@@ -55,20 +59,31 @@ describe('missingExplicitLyrics', () => {
 			const start = (index + 1) * 768
 			return [`${start} = E "phrase_start"`, ...syllables.map((syllable, at) => `${start + at * 48} = E "lyric ${syllable}"`), `${start + 700} = E "phrase_end"`]
 		})
-		const chart = ['[Song]', '{', '  Resolution = 192', '}', '[SyncTrack]', '{', '  0 = TS 4', '  0 = B 120000', '}',
-			'[Events]', '{', ...events.map(event => `  ${event}`), '}', '[ExpertSingle]', '{', '  768 = N 0 0', '}', '']
-		return [{ fileName: 'notes.chart', data: encode(chart.join('\r\n')) }, { fileName: 'song.ini', data: encode(['[song]', 'name = Song', ...lines, ''].join('\r\n')) }]
+		return songFiles(chartFile(expertSection('768 = N 0 0'), events), lines)
 	}
-	const explicit = async (phrases: readonly (readonly string[])[], lines?: readonly string[]) => {
-		const scanned = await scanSongFolder(song(phrases, lines))
-		return scanned.issues.filter(issue => issue.code === 'missingExplicitLyrics').map(({ severity, scope, file, message }) => ({ severity, scope, file, message }))
-	}
+	const songFiles = (chart: Uint8Array, lines: readonly string[], chartName = 'notes.chart') =>
+		[{ fileName: chartName, data: chart }, { fileName: 'song.ini', data: encode(['[song]', 'name = Song', ...lines, ''].join('\r\n')) }]
+	const messages = async (files: SongFile[]) =>
+		(await scanSongFolder(files)).issues.filter(issue => issue.code === 'missingExplicitLyrics').map(({ severity, scope, file, message }) => ({ severity, scope, file, message }))
+	const explicit = (phrases: readonly (readonly string[])[], lines?: readonly string[]) => messages(song(phrases, lines))
 
 	it('recommends explicit_lyrics = True for lyrics with a strong word, in every scan, naming the first phrase', async () => {
 		expect(await explicit([['We', 'don\'t', 'give', 'a'], ['fuck-', 'in\'', 'damn']])).toEqual([{ severity: 'recommendation', scope: 'metadata', file: 'song.ini',
 			message: 'The lyrics have a word that may be explicit, at 0:04: "fuckin\' damn". If they\'re explicit, set "explicit_lyrics = True".' }])
 		expect((await explicit([['shit'], ['clean'], ['Shit-', 'ty']]))[0].message)
 			.toBe('The lyrics have words that may be explicit in 2 phrases, the first at 0:02: "shit". If they\'re explicit, set "explicit_lyrics = True".')
+	})
+
+	it('counts a phrase that a harmony part repeats once', async () => {
+		// Each part's phrase holds one pitched note and its lyric; a beat is 480 ticks, 500 ms.
+		const phrase = (tick: number, lyric: string) => [...midiNote(tick, 105, 400), ...midiNote(tick, 60, 100), midiText(tick, lyric, 'lyrics')]
+		const mid = midiFile([
+			{ name: 'PART GUITAR', events: midiNote(1920, 96, 10) },
+			{ name: 'PART VOCALS', events: [...phrase(960, 'shit'), ...phrase(1920, 'fuck')] },
+			{ name: 'HARM1', events: phrase(960, 'shit') },
+		])
+		expect((await messages(songFiles(mid, [], 'notes.mid'))).map(issue => issue.message))
+			.toEqual(['The lyrics have words that may be explicit in 2 phrases, the first at 0:01: "shit". If they\'re explicit, set "explicit_lyrics = True".'])
 	})
 
 	it('reports explicit_lyrics = False, blank or not a boolean, but never True, and nothing for lyrics without a strong word', async () => {
