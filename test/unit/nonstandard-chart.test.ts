@@ -10,7 +10,8 @@ import { calculateCompetitiveHashes } from 'src/competitive'
 import { resolveChart } from 'src/gameplay-chart'
 import { editSong, parseSongFiles } from 'src/song-document'
 import { fileBytes } from 'src/song-files'
-import { saveSong, songHashes } from 'src/song-save'
+import { songHashes } from 'src/song-hashes'
+import { saveSong } from 'src/song-save'
 
 const encode = (text: string) => new TextEncoder().encode(text)
 const decode = (bytes: Uint8Array) => new TextDecoder().decode(bytes)

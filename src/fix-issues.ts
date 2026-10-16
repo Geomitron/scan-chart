@@ -15,7 +15,7 @@ import { trimDotnet } from './shared/text'
 import { songContext } from './song-context'
 import { continueEdits, SongDocument, withSongIni } from './song-document'
 import { readFileBytes, readRange, type SongFile } from './song-files'
-import { songHashes } from './song-save'
+import { songHashes } from './song-hashes'
 
 /** What `fixIssues` fixes, and how. */
 export interface FixOptions {
