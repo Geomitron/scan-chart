@@ -65,7 +65,7 @@ export function deprecatedTagNormalizations(song: SongDocument): DeprecatedTagNo
 	add('multiplierNote', (current, found) => {
 		if (!isReported(found, ['multiplier_note'])) return null
 		const rewritten = rewriteMultiplierNote(current)
-		return rewritten !== null && 'song' in rewritten ? rewritten.song : null
+		return 'song' in rewritten ? rewritten.song : null
 	})
 	// Renaming a tag, or removing one that changes nothing, reads the song as before, so the rewrite found for the song
 	// applies to it as the other normalizations leave it.
