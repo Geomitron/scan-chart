@@ -23,11 +23,8 @@ describe('scanIni: unknownIniValues', () => {
 		])
 
 		const result = scanIni(files)
-		expect(result.unknownIniValues).toEqual({
-			diff_vocals_harm: '3',
-			sysex_slider: 'True',
-			rating: '2',
-		})
+		expect(result.unknownIniValues).toEqual({ sysex_slider: 'True' })
+		expect(result.metadata).toMatchObject({ diff_vocals_harm: 3, rating: 2 })
 	})
 
 	it('does not include recognized keys in unknownIniValues', () => {
@@ -110,16 +107,17 @@ describe('scanIni: unknownIniValues', () => {
 		])
 
 		const result = scanIni(files)
-		// Every key but name and the three Clone Hero reads, playlist, sub_playlist and explicit_lyrics, is preserved
-		expect(Object.keys(result.unknownIniValues)).toHaveLength(35)
-		expect(result.metadata).toMatchObject({ playlist: 'My Setlist', sub_playlist: 'Favorites', explicit_lyrics: true })
-		expect(result.unknownIniValues.diff_vocals_harm).toBe('3')
-		expect(result.unknownIniValues.diff_guitar_real).toBe('5')
+		// Every key but name, the three Clone Hero reads, playlist, sub_playlist and explicit_lyrics, and the eleven YARG reads
+		// as metadata, is preserved
+		expect(Object.keys(result.unknownIniValues)).toHaveLength(24)
+		expect(result.metadata).toMatchObject({
+			playlist: 'My Setlist', sub_playlist: 'Favorites', explicit_lyrics: true, diff_vocals_harm: 3, diff_guitar_real: 5, diff_bass_real: 4, diff_keys_real: 3,
+			diff_guitar_real_22: 5, diff_bass_real_22: 4, vocal_gender: 'male', vocal_scroll_speed: 100, rating: 1, video_loop: true, video_end_time: 180000,
+		})
+		expect(result.unknownIniValues.diff_dance).toBe('2')
 		expect(result.unknownIniValues.sysex_slider).toBe('True')
 		expect(result.unknownIniValues.kit_type).toBe('1')
 		expect(result.unknownIniValues.real_guitar_tuning).toBe('0 0 0 0 0 0')
-		expect(result.unknownIniValues.vocal_gender).toBe('male')
-		expect(result.unknownIniValues.rating).toBe('1')
 		expect(result.unknownIniValues.link_name_a).toBe('YouTube')
 		expect(result.unknownIniValues.banner_link_a).toBe('https://youtube.com')
 	})
@@ -189,7 +187,39 @@ describe('scanIni: unknownIniValues', () => {
 
 		const result = scanIni(files)
 		expect(result.unknownIniValues.real_guitar_22_tuning).toBe('-2 -2 -2 -2 -2 -2 Standard Drop D')
-		expect(result.unknownIniValues.tags).toBe('cover')
-		expect(result.unknownIniValues.credit_composed_by).toBe('John Doe & Jane Doe')
+		expect(result.metadata).toMatchObject({ tags: 'cover', credit_composed_by: 'John Doe & Jane Doe' })
+	})
+})
+
+describe('scanIni: the keys only YARG reads', () => {
+	const read = (lines: string[]) => scanIni(buildIni(['[Song]', ...lines])).metadata!
+
+	it('reads each with YARG\'s type, and its default when it isn\'t set', () => {
+		expect(read(['name = Song'])).toMatchObject({
+			preview: null, video_end_time: -1, video_loop: false, background: '', rating: 0, tags: '', diff_vocals_harm: -1, diff_elite_drums: -1,
+			date_released: '', credit_album_art_designed_by: '', charter_audio: '', link_youtube: '', vocal_gender: '', vocal_scroll_speed: null,
+			clean_vocals: false, tuning_offset_cents: 0,
+		})
+		expect(read(['video = bg.webm', 'cover = art.png', 'date_released = 2004-05', 'charter_drums = <b>Me</b>', 'clean_vocals = 1', 'tuning_offset_cents = -15']))
+			.toMatchObject({ video: 'bg.webm', cover: 'art.png', date_released: '2004-05', charter_drums: 'Me', clean_vocals: true, tuning_offset_cents: -15 })
+	})
+
+	it('reads preview as YARG does: a whole number, then after spaces or "=" another, or -1', () => {
+		expect(read(['preview = 30000 60000']).preview).toEqual({ start: 30000, end: 60000 })
+		expect(read(['preview = 30000=60000']).preview).toEqual({ start: 30000, end: 60000 })
+		expect(read(['preview = 30000']).preview).toEqual({ start: 30000, end: -1 })
+		expect(read(['preview = 30000abc 60000']).preview).toEqual({ start: 30000, end: -1 })
+		for (const value of ['', 'soon', '-']) expect(read([`preview = ${value}`.trim()]).preview).toBeNull()
+	})
+
+	it('reads vocal_scroll_speed as other numbers are read, as not set when it\'s blank, -1 or not a number', () => {
+		expect(read(['vocal_scroll_speed = 80']).vocal_scroll_speed).toBe(80)
+		for (const value of ['', '-1', 'fast']) expect(read([`vocal_scroll_speed = ${value}`.trim()]).vocal_scroll_speed).toBeNull()
+		const { metadata, metadataIssues } = scanIni(buildIni(['[Song]', 'vocal_scroll_speed = 80.5', 'rating = 2.5']))
+		expect(metadata).toMatchObject({ vocal_scroll_speed: 81, rating: 3 })
+		expect(metadataIssues.map(issue => issue.description).filter(description => description.includes('integer'))).toEqual([
+			'The "rating" value in "song.ini" is "2.5", which is not an integer.',
+			'The "vocal_scroll_speed" value in "song.ini" is "80.5", which is not an integer.',
+		])
 	})
 })

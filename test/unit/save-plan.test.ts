@@ -90,6 +90,11 @@ describe('createSong', () => {
 		expect(bytesOf(serializeSong(song).files[1])).toBe('[song]\r\n')
 	})
 
+	it('writes the keys only YARG reads after explicit_lyrics, preview as its two times, and no line for a null', () => {
+		const song = createSong({ format: 'mid', metadata: { delay: 10, vocal_scroll_speed: null, preview: { start: 1000, end: 31000 }, rating: 2, explicit_lyrics: true } })
+		expect(bytesOf(serializeSong(song).files[1])).toBe('[song]\r\nexplicit_lyrics = True\r\npreview = 1000 31000\r\nrating = 2\r\ndelay = 10\r\n')
+	})
+
 	it('refuses a resolution the format can\'t hold, and chartOffsetMs', () => {
 		expect(() => createSong({ format: 'mid', resolution: 0x8000 })).toThrow('resolution')
 		expect(() => createSong({ format: 'chart', resolution: 1.5 })).toThrow('resolution')

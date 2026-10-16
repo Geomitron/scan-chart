@@ -36,7 +36,7 @@ export interface SongIniInput {
 	readonly styleNotes: boolean
 }
 
-/** The tags of GuitarGame_ChartFormats' song.ini standard, besides the ones scan-chart reads. */
+/** The tags of GuitarGame_ChartFormats' song.ini standard. */
 const standardTags = [
 	'name', 'artist', 'album', 'genre', 'year', 'rating', 'charter', 'frets', 'version', 'preview_start_time', 'preview_end_time', 'playlist',
 	'sub_playlist', 'album_track', 'track', 'playlist_track', 'song_length', 'modchart', 'loading_phrase', 'diff_band', 'diff_guitar', 'diff_guitarghl',
@@ -49,18 +49,11 @@ const standardTags = [
 ]
 /** The tags Clone Hero (SongEntry) or YARG (SongIniHandler) reads that the standard and scan-chart don't. */
 const gameTags = [
-	'diff_coop', 'diff_coopghl', 'diff_rhythmghl', 'explicit_lyrics', 'md5_hash',
-	'banner_link_a', 'banner_link_b', 'bass_type', 'boss_battle', 'cassettecolor', 'charter_audio', 'charter_bass', 'charter_bass_6f', 'charter_drums',
-	'charter_elite_drums', 'charter_guitar', 'charter_guitar_6f', 'charter_keys', 'charter_lower_diff', 'charter_pro_bass', 'charter_pro_guitar',
-	'charter_pro_keys', 'charter_rhythm', 'charter_rhythm_6f', 'charter_venue', 'charter_vocals', 'clean_vocals', 'count', 'covered_by',
-	'credit_album_art_by', 'credit_album_art_designed_by', 'credit_album_cover', 'credit_arranged_by', 'credit_background', 'credit_composed_by',
-	'credit_courtesy_of', 'credit_engineered_by', 'credit_license', 'credit_mastered_by', 'credit_mixed_by', 'credit_other', 'credit_performed_by',
-	'credit_produced_by', 'credit_published_by', 'credit_written_by', 'dance_type', 'date_released', 'diff_elite_drums', 'drum_fallback_blue',
-	'early_hit_window_size', 'eof_midi_import_drum_accent_velocity', 'eof_midi_import_drum_ghost_velocity', 'guitar_type', 'hopofreq', 'keys_type',
-	'kit_type', 'link_bandcamp', 'link_bluesky', 'link_facebook', 'link_instagram', 'link_name_a', 'link_name_b', 'link_other', 'link_spotify',
-	'link_twitter', 'link_youtube', 'location', 'preview', 'real_keys_lane_count_left', 'real_keys_lane_count_right', 'scores',
-	'scores_ext', 'sub_genre', 'sysex_high_hat_ctrl', 'sysex_open_bass', 'sysex_pro_slide', 'sysex_rimshot', 'sysex_slider', 'tags', 'tutorial',
-	'unlock_completed', 'unlock_id', 'unlock_require', 'unlock_text', 'venue_hint', 'vocal_character_hint',
+	'diff_coop', 'diff_coopghl', 'diff_rhythmghl', 'md5_hash', 'banner_link_a', 'banner_link_b', 'bass_type', 'boss_battle', 'cassettecolor', 'count',
+	'credit_album_art_by', 'credit_album_cover', 'dance_type', 'drum_fallback_blue', 'early_hit_window_size', 'eof_midi_import_drum_accent_velocity',
+	'eof_midi_import_drum_ghost_velocity', 'guitar_type', 'hopofreq', 'keys_type', 'kit_type', 'link_name_a', 'link_name_b', 'real_keys_lane_count_left',
+	'real_keys_lane_count_right', 'scores', 'scores_ext', 'sysex_high_hat_ctrl', 'sysex_open_bass', 'sysex_pro_slide', 'sysex_rimshot', 'sysex_slider',
+	'tutorial', 'unlock_completed', 'unlock_id', 'unlock_require', 'unlock_text',
 ]
 /** scan-chart's own tag: the issue codes a chart means to have. */
 const ignoredIssuesTag = 'ignored_issues'
@@ -124,8 +117,8 @@ export function songIniIssues(input: SongIniInput): MetadataFinding[] {
 }
 
 /**
- * song.ini tags in the order scan-chart writes them: the standard's in `defaultMetadata`'s order, then the other tags
- * some game reads, then the rest, each in the order given.
+ * song.ini tags in the order scan-chart writes them: the ones it reads in `defaultMetadata`'s order, then the other
+ * tags some game reads, then the rest, each in the order given.
  */
 export function standardTagOrder(keys: readonly string[]): string[] {
 	const ranked = keys.filter(key => tagOrder.includes(key)).sort((a, b) => tagRank(a) - tagRank(b))
@@ -227,6 +220,11 @@ function unneededKeys(songSection: SongSection, metadata: typeof defaultMetadata
 	check('modchart', isFalse)
 	check('explicit_lyrics', isFalse)
 	check('video_start_time', isZero)
+	// YARG reads these as it reads them without the line.
+	check('video_loop', isFalse)
+	check('rating', isZero)
+	check('clean_vocals', isFalse)
+	check('tuning_offset_cents', isZero)
 	// YARG reads a .mid chart's drums as pro unless pro_drums is false, and five_lane_drums = False as 4-lane drums.
 	check('pro_drums', value => isFalse(value) && chart !== null && (chart.format === 'chart' || chart.drumType === null))
 	check('five_lane_drums', value => isFalse(value) && chart !== null

@@ -2,6 +2,7 @@ import { writeMidi } from '@geomitron/midi-file'
 
 import type { ChartFormat } from './gameplay-chart'
 import { songIniSection } from './ini/ini-edit'
+import { formatIniValue } from './ini/ini-writer'
 import { defaultMetadata } from './ini/metadata'
 import { parseSongFiles, SongDocument } from './song-document'
 import type { SongMetadata } from './song-metadata'
@@ -31,7 +32,7 @@ export function createSong(options: {
 
 	const entries = (Object.keys(defaultMetadata) as (keyof typeof defaultMetadata)[]).flatMap(key => {
 		const value = metadata[key]
-		return value === undefined ? [] : [[key, typeof value === 'boolean' ? (value ? 'True' : 'False') : String(value)] as const]
+		return value === undefined || value === null ? [] : [[key, formatIniValue(value)] as const]
 	})
 	const chart = format === 'chart'
 		? new TextEncoder().encode(['[Song]', '{', `  Resolution = ${resolution}`, '}', '[SyncTrack]', '{', '  0 = TS 4', '  0 = B 120000', '}', '[Events]', '{', '}', ''].join('\r\n'))
