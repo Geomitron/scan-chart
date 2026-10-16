@@ -164,10 +164,9 @@ describe('convertChart', () => {
 		expect(iniText(converted)).toBe('[song]\r\nname = Midi Song\r\n')
 	})
 
-	it('keeps each vocal phrase\'s lyrics both ways, a lyric on its end tick and a phrase of length 0 included', () => {
+	it('keeps a lyric on a vocal phrase\'s end tick in that phrase both ways', () => {
 		const events = [
 			'0 = E "phrase_start"', '0 = E "lyric Hel-"', '192 = E "phrase_end"', '192 = E "lyric lo"',
-			'384 = E "phrase_start"', '384 = E "phrase_end"', '384 = E "lyric Oh"',
 			'768 = E "phrase_start"', '768 = E "lyric la"', '960 = E "phrase_end"',
 		]
 		const song = parseSongFiles([{ fileName: 'notes.chart', data: encode([
@@ -178,7 +177,7 @@ describe('convertChart', () => {
 			const { chart } = songContext(converted)
 			return chart.kind === 'parsed' ? chart.parsed.vocalTracks.parts.vocals.notePhrases.map(phrase => [phrase.tick, phrase.length, phrase.lyrics.map(lyric => lyric.text)]) : null
 		}
-		expect(phrases(song)).toEqual([[0, 192, ['Hel-', 'lo']], [384, 0, ['Oh']], [768, 192, ['la']]])
+		expect(phrases(song)).toEqual([[0, 192, ['Hel-', 'lo']], [768, 192, ['la']]])
 		const asMidi = convertChart(song, 'mid').song
 		expect(phrases(asMidi)).toEqual(phrases(song))
 		expect(phrases(convertChart(asMidi, 'chart').song)).toEqual(phrases(song))

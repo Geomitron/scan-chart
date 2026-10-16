@@ -365,10 +365,7 @@ describe('writeMidiFile round-trip: drum tracks', () => {
 			mix(0, '[mix 3 drums2]'), mix(0, '[mix 0 drums4]'), mix(480, '[mix 3 drums2d]'), mix(1440, '[mix 3 drums2]'), mix(1920, '[mix 3 drums2easy]'),
 		], [[0, 97], [0, 98], [480, 97], [480, 98], [720, 96], [960, 97], [1440, 97], [1920, 98], [0, 61]])
 		const parsed = parseChartAndIni([{ fileName: 'notes.mid', data: source }]).parsedChart!
-		const mixEvents = (data: Uint8Array) => parseMidi(data).tracks.flatMap(track => {
-			let tick = 0
-			return track.flatMap(event => (tick += event.deltaTime, event.type === 'text' && /^\[?mix /.test(event.text) ? [[tick, event.text]] : []))
-		})
+		const mixEvents = (data: Uint8Array) => parseMidi(data).tracks.flatMap(trackTexts).filter(([, text]) => /^\[?mix /.test(text))
 		const discoTicks = (chart: ParsedChart) => flatNotes(findTrack(chart, 'drums')).filter(n => n.flags & noteFlags.disco).map(n => n.tick)
 		const written = writeMidiFile(parsed)
 		// An easy mix event, which scan-chart doesn't read, is written back as it was.
