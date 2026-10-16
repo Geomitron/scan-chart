@@ -66,9 +66,9 @@ function serializeSongSection(chart: ParsedChart): string[] {
 	if (m.charter != null) lines.push(`  Charter = "${m.charter}"`)
 	if (m.album != null) lines.push(`  Album = "${m.album}"`)
 	if (m.genre != null) lines.push(`  Genre = "${m.genre}"`)
-	// [Song]'s `Year` is historically written with a leading `, ` separator
-	// (a GHTCP quirk the scan-chart parser strips back out — see chart-parser).
-	if (m.year != null) lines.push(`  Year = ", ${m.year}"`)
+	// The standard writes the year alone (Geo, 2026-10-16). The reader removes one leading `, `, the separator older
+	// charts write before the year, so a year that starts with one keeps a separator to read back as written.
+	if (m.year != null) lines.push(`  Year = "${m.year.startsWith(', ') ? ', ' : ''}${m.year}"`)
 
 	lines.push(`  Resolution = ${chart.resolution}`)
 

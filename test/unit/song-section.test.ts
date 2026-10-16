@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
+import { writeChartFile } from 'src/chart/chart-writer'
+import { createEmptyChart } from 'src/chart/create-chart'
 import { editSong, parseSongFiles, SongDocument } from 'src/song-document'
 import { songSectionAgreement } from 'src/song-section'
 import { saveSong } from 'src/song-save'
@@ -25,7 +27,16 @@ describe('the [Song] normalization', () => {
 	it('adds a key only song.ini sets, as scan-chart writes [Song]', () => {
 		const normalized = songSectionAgreement(song(['Resolution = 192'],
 			'[song]\nartist = Band\nyear = 2002\ndiff_band = 4\nsong_length = 200000\npreview_end_time = 61500\nicon = x\n'))
-		expect(songLines(normalized)).toEqual(['Resolution = 192', 'Artist = "Band"', 'Year = ", 2002"', 'Difficulty = 4', 'Length = 200', 'PreviewEnd = 61.5'])
+		expect(songLines(normalized)).toEqual(['Resolution = 192', 'Artist = "Band"', 'Year = "2002"', 'Difficulty = 4', 'Length = 200', 'PreviewEnd = 61.5'])
+		const chart = createEmptyChart()
+		chart.metadata.year = '2002'
+		expect(writeChartFile(chart).split(/\r?\n/).map(line => line.trim())).toContain('Year = "2002"')
+	})
+
+	it('writes the ", " the reader removes before a year that starts with one', () => {
+		expect(songLines(songSectionAgreement(song(['Resolution = 192'], '[song]\nyear = , 2002\n')))).toEqual(['Resolution = 192', 'Year = ", , 2002"'])
+		expect(songLines(songSectionAgreement(song(['Year = 2001'], '[song]\nyear = , 2002\n')))).toEqual(['Year = , , 2002'])
+		expect(songLines(songSectionAgreement(song(['Year = ", 2001"'], '[song]\nyear = , 2002\n')))).toEqual(['Year = ", , 2002"'])
 	})
 
 	it('copies Offset and PreviewStart into song.ini when it doesn\'t set them, and removes other keys only [Song] sets', () => {
