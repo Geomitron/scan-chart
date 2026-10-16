@@ -4,7 +4,7 @@ import { imageSize } from './assets/scan-image'
 import { contentNames, hasContentExtension } from './assets/scan-media'
 import { fixEmptyPhrases, fixEmptyTracks, fixHopoTags, fixMultiplierNote, fixSustains } from './fix-chart'
 import { ignoredIssueCodes, keyList } from './ini/ini-checks'
-import { asUtf8Ini, rewriteSongIni, songIniRepeats } from './ini/ini-edit'
+import { asUtf8Ini, rewriteSongIni, SongIniRewrite, songIniRepeats } from './ini/ini-edit'
 import { isBooleanTag, isNumberTag, newerTag, olderTags } from './ini/metadata'
 import { IniTokens, parseIniTokens } from './ini/parse-ini'
 import { chooseEdits, FixRecord, hashChanges, hashNames, IniFixSubject, issueFixTable } from './issue-fixes'
@@ -114,12 +114,39 @@ async function longestAudio(files: readonly SongFile[]): Promise<{ ms: number } 
 }
 
 /** One song.ini change, which fixes one tag's issue, or lays out or orders the file. */
-interface IniFix extends IniFixSubject {
+export interface IniFix extends IniFixSubject {
 	readonly code: IssueCode
 	readonly layout?: true
 	readonly order?: true
 	readonly remove?: readonly string[]
 	readonly set?: readonly (readonly [key: string, value: string])[]
+}
+
+type SongSection = { readonly [key: string]: string }
+
+/** The fix that removes `key`'s line for its issue of `code`, named by the line for a tag that changes nothing. */
+export function removalFix(code: IssueCode, key: string, songSection: SongSection): IniFix {
+	return { code, subject: code === 'defaultIniValue' ? `${key} = ${songSection[key]}` : key, remove: [key] }
+}
+
+/**
+ * The fix that writes an older name's value under its tag, such as `frets` as `charter` (`deprecatedIniTag`), or `null`
+ * when `key` isn't an older name song.ini sets. A chart fix may have removed it already, as the star power fix removes
+ * `star_power_note`.
+ */
+export function renameFix(key: string, songSection: SongSection): IniFix | null {
+	const newer = newerTag(key)
+	return newer === undefined || songSection[key] === undefined ? null : { code: 'deprecatedIniTag', subject: key, value: newer, set: [[newer, songSection[key]]], remove: [key] }
+}
+
+/** The song.ini rewrite that makes `fixes`. */
+export function iniFixRewrite(fixes: readonly IniFix[]): SongIniRewrite {
+	return {
+		layout: fixes.some(fix => fix.layout === true),
+		order: fixes.some(fix => fix.order === true),
+		remove: new Set(fixes.flatMap(fix => fix.remove ?? [])),
+		set: new Map(fixes.flatMap(fix => fix.set ?? [])),
+	}
 }
 
 /**
@@ -151,7 +178,7 @@ function fixSongIni(
 	if (codes.has('iniLayout')) fixes.push({ code: 'iniLayout', subject: 'the layout', layout: true })
 	if (codes.has('iniTagOrder')) fixes.push({ code: 'iniTagOrder', subject: 'the tag order', order: true })
 	for (const code of ['blankIniValue', 'blankIniNumber', 'defaultIniValue', 'redundantDrumType'] as const) {
-		for (const key of keysOf(code)) fixes.push({ code, subject: code === 'defaultIniValue' ? `${key} = ${songSection[key]}` : key, remove: [key] })
+		for (const key of keysOf(code)) fixes.push(removalFix(code, key, songSection))
 	}
 	// Games read an older name, such as frets, only without a line of its tag, so a blank one goes only with it.
 	for (const [key, older] of olderTags) {
@@ -176,9 +203,8 @@ function fixSongIni(
 		else record.skip('iconName', ini.fileName, `Without its extension and in lowercase, "${icon}" has other characters than a-z, 0-9, "-" and "_": choose an icon name.`)
 	}
 	for (const key of keysOf('deprecatedIniTag')) {
-		const newer = newerTag(key)
-		// A chart fix may have removed it already, as the star power fix removes star_power_note.
-		if (newer !== undefined && songSection[key] !== undefined) fixes.push({ code: 'deprecatedIniTag', subject: key, value: newer, set: [[newer, songSection[key]]], remove: [key] })
+		const rename = renameFix(key, songSection)
+		if (rename !== null) fixes.push(rename)
 		else if (key === 'delay') record.skip('deprecatedIniTag', ini.fileName, 'Removing "delay" moves every note against the audio: the audio or the notes have to change first.')
 	}
 	for (const code of ['missingSongLength', 'songLengthMismatch'] as const) {
@@ -189,12 +215,7 @@ function fixSongIni(
 	if (fixes.length === 0) return song
 
 	const before = songHashes(song)
-	const apply = (chosen: readonly IniFix[]) => continueEdits(song, withSongIni(song, rewriteSongIni(tokens, {
-		layout: chosen.some(fix => fix.layout === true),
-		order: chosen.some(fix => fix.order === true),
-		remove: new Set(chosen.flatMap(fix => fix.remove ?? [])),
-		set: new Map(chosen.flatMap(fix => fix.set ?? [])),
-	})))
+	const apply = (chosen: readonly IniFix[]) => continueEdits(song, withSongIni(song, rewriteSongIni(tokens, iniFixRewrite(chosen))))
 	const mayChange = (fix: IniFix) => issueFixTable[fix.code]!.hashes !== 'keepsHashes'
 	const changedAlone = new Map<IniFix, readonly string[]>()
 	const changesOf = (fix: IniFix) => {

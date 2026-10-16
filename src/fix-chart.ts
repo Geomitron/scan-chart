@@ -378,9 +378,13 @@ function authoredNotes(song: SongDocument, track: Track, note: NoteEvent): (Auth
 	return midiTrack?.events.filter(event => event.scope === track.difficulty && event.tick === note.tick && event.type === type) ?? []
 }
 
+/** Whether a `deprecatedIniTag` finding is about one of `keys`. */
+export const reportsDeprecatedTag = (findings: readonly MetadataFinding[], keys: readonly string[]) =>
+	findings.some(finding => finding.metadataIssue === 'deprecatedIniTag' && finding.keys?.some(key => keys.includes(key)))
+
 /** Whether a deprecated tag's issue that one of `keys` is about is reported. */
-const isTagReported = (issues: readonly Issue[], findings: readonly MetadataFinding[], keys: readonly string[]) => issues.some(issue => issue.code === 'deprecatedIniTag')
-	&& findings.some(finding => finding.metadataIssue === 'deprecatedIniTag' && finding.keys?.some(key => keys.includes(key)))
+const isTagReported = (issues: readonly Issue[], findings: readonly MetadataFinding[], keys: readonly string[]) =>
+	issues.some(issue => issue.code === 'deprecatedIniTag') && reportsDeprecatedTag(findings, keys)
 
 /**
  * The song with `edit` made to its chart and `keys` removed from song.ini, if it plays the same, phrases and canonical
