@@ -40,7 +40,8 @@ A scanner decodes `song.ini` as it decodes a `.chart` file: see [Encoding](/char
 Each line after `[song]` is a key line, a comment, or a blank line.
 
 - A line ends at a line feed, or at a carriage return followed by a line feed. A carriage return alone doesn't end a line. **Recommended:** a carriage return and a line feed.
-- A scanner ignores blank lines, and spaces and tabs at the start and the end of each line.
+- A scanner ignores blank lines, and white space at the start and the end of each line.
+- White space is a space, a tab, or another character that .NET counts as white space, such as a no-break space (U+00A0). A byte order mark (U+FEFF) isn't white space.
 
 ### Comments
 
@@ -57,7 +58,7 @@ A comment is a line whose first character, after any spaces, is `;`. It takes th
 ```
 
 - **The key** is the text before the first `=`. A scanner matches keys in any letter case. **Recommended:** in lowercase, as these pages write them. A key has no spaces.
-- **The value** is the text after the `=`, without the spaces and tabs at its start and end. It has no quotation marks around it.
+- **The value** is the text after the `=`, without the white space at its start and end. It has no quotation marks around it.
 - **Recommended:** one space on each side of the `=`.
 - Each key appears once in a file.
 
@@ -67,8 +68,9 @@ A comment is a line whose first character, after any spaces, is `;`. It takes th
 
 `name`, `artist`, `album`, `genre`, `year`, `charter`, `song_length`, `diff_band`, `diff_guitar`, `diff_guitar_coop`, `diff_rhythm`, `diff_bass`, `diff_drums`, `diff_drums_real`, `diff_keys`, `diff_keys_ghl`, `diff_guitarghl`, `diff_guitar_coop_ghl`, `diff_rhythm_ghl`, `diff_bassghl`, `diff_vocals`, `preview_start_time`, `preview_end_time`, `icon`, `loading_phrase`, `album_track`, `playlist_track`, `playlist`, `sub_playlist`, `modchart`, `explicit_lyrics`, `sustain_cutoff_threshold`, `chord_snap_threshold`, `video_start_time`, `five_lane_drums`, `pro_drums`
 
-- A [deprecated](/ini/settings#deprecated) key that an older chart still holds goes after `explicit_lyrics`, in the order `delay`, `hopo_frequency`, `eighthnote_hopo`, `multiplier_note`.
-- Other keys, such as `ignored_issues` and the keys only YARG reads, come last.
+- The keys only YARG reads go after `explicit_lyrics`, in the order of [Read by YARG only](/ini/metadata#read-by-yarg-only).
+- A [deprecated](/ini/settings#deprecated) key that an older chart still holds goes after them, before `sustain_cutoff_threshold`, in the order `delay`, `hopo_frequency`, `eighthnote_hopo`, `multiplier_note`.
+- Other keys, such as `ignored_issues`, come last.
 - The order doesn't change how a scanner reads the file. It keeps files alike, so that each key is in the same place in every file.
 - scan-chart writes keys in this order. It reports keys out of order as `iniTagOrder`, with its `styleNotes` option, and `fixIssues` puts them in order.
 
@@ -92,13 +94,6 @@ A key that isn't in the file isn't set, and a scanner uses its default. [Metadat
 
 In a text key, `0` and `-1` are text: `charter = 0` shows the charter as "0".
 
-{/* review: Q1
-Should scan-chart report `-1` and blank text by default, now that both are invalid? Its checks, as you decided in the review of the checks, report a blank number by default, as `blankIniNumber`, a warning, since YARG reads it as 0. They report `-1` in any key, and blank text, as `blankIniValue`, a recommendation, only with the `styleNotes` option. `fixIssues` removes all three either way. `blankIniValue` would fire on about three charts in four of the chart list, nearly all for the `-1` difficulties Clone Hero writes. The census's ten most common `-1` keys are all difficulties.
-- A. Keep them as style notes | `-1` and blank text reported only with `styleNotes`; a blank number reported by default | A form that breaks a requirement gets no report in a default scan
-- B. Report them by default | `blankIniValue` in every scan, as a warning | A report on about three charts in four, for a form that changes nothing in any game
-Recommendation: A. `-1` in a difficulty or a preview time reads as not set in Clone Hero, YARG and scan-chart alike, so the song lists and plays the same with it or without it. A default report on most charts would bury the reports that change how a song reads. A blank number, which YARG reads as 0, stays reported by default.
-*/}
-
 ## Ignored
 
 - **Sections other than `[song]`.** An exporter may keep them. scan-chart reports one as `iniLayout`, and `fixIssues` keeps its lines as `;` comments.
@@ -107,7 +102,7 @@ Recommendation: A. `-1` in a difficulty or a preview time reads as not set in Cl
 ## Invalid forms
 
 <Accordion title="Lines before [song]">
-Clone Hero and scan-chart ignore them, and read the `[song]` section after them. YARG skips blank lines, but when the first line that isn't blank is a comment or a key line, it misses `[song]` and ignores the whole file. It also misses a `[song]` that comes right after another section's header. scan-chart reports lines before `[song]` as `iniLayout`, and `fixIssues` writes `[song]` first and keeps the lines before it as `;` comments.
+Clone Hero and scan-chart ignore them, and read the `[song]` section after them. YARG skips blank lines, but when the first line that isn't blank is a comment or a key line, it misses `[song]` and ignores the whole file. It also misses a `[song]` that comes right after another section's header. scan-chart reports any line before `[song]` other than a `;` comment as `iniLayout`, and `fixIssues` writes `[song]` first and keeps the lines before it as `;` comments. It doesn't report a `;` comment before `[song]`.
 </Accordion>
 
 <Accordion title="No [song] section">
@@ -142,6 +137,10 @@ Clone Hero ignores it. YARG reads the first word as the key, so `name Song` is `
 Clone Hero reads `diff guitar = 3` as a key named `diff guitar`, which no scanner knows, and `name = = Song` as the value `= Song`. YARG reads them as the key `diff` with the value `guitar = 3`, and as the value `Song`. A scanner reads them as Clone Hero does.
 </Accordion>
 
+<Accordion title="A key or section name longer than 1,024 characters">
+Clone Hero can't read the file, so it reads the folder as if it had no `song.ini`: see [Files in a song folder](/song-folders#invalid-forms). YARG and scan-chart read the line as a key or section they don't know. A scanner reads it as YARG and scan-chart do.
+</Accordion>
+
 <Accordion title="A value that starts or ends with other white space, such as a no-break space">
 Clone Hero and scan-chart remove every kind of white space from both ends of a value. YARG removes only spaces and other characters up to U+0020, so a no-break space at either end stays part of the value there. A scanner removes it, as Clone Hero does. scan-chart doesn't write a value that starts or ends with white space.
 </Accordion>
@@ -161,7 +160,7 @@ scan-chart reads the leading number of most keys, so `12abc` is 12, and rounds `
 </Accordion>
 
 <Accordion title="A boolean in another form, such as yes or 2">
-Clone Hero and scan-chart read any whole number other than 0 as true, and anything else that isn't `true` or `false` as not set. YARG reads a value that starts with `1` or `true` as true, and anything else as false: `2` is false, and `10` is true.
+Clone Hero and scan-chart read any whole number other than 0 as true, and anything else that isn't `true` or `false` as not set. YARG reads a value that starts with `1` or `true` as true, and anything else as false: `2` is false, and `10` is true. A scanner reads it as Clone Hero does.
 </Accordion>
 
 <Accordion title="A blank value">
