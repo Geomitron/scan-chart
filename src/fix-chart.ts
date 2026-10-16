@@ -399,13 +399,17 @@ function withoutTags(song: SongDocument, keys: readonly string[], edit: (batch: 
 
 /**
  * Forces the notes whose HOPO or strum `hopo_frequency` or `eighthnote_hopo` changes, then removes the tags
- * (`deprecatedIniTag`), so every note plays the same. A `.chart` note's `N 5` line, which swaps HOPO and strum, is
+ * (`deprecatedIniTag`), so every note plays the same. Beside `hopofreq`, which YARG reads without them, the tags stay. A `.chart` note's `N 5` line, which swaps HOPO and strum, is
  * added or removed; a `.mid` note gets a one-tick force HOPO or force strum note on its difficulty.
  */
 export function fixHopoTags(song: SongDocument, issues: readonly Issue[], findings: readonly MetadataFinding[], record: FixRecord): SongDocument {
 	const context = songContext(song)
 	const { chart, ini } = song
 	if (!isTagReported(issues, findings, ['hopo_frequency', 'eighthnote_hopo']) || ini === null) return song
+	if (context.ini.songSection?.hopofreq !== undefined) {
+		record.skip('deprecatedIniTag', ini.fileName, 'YARG reads "hopofreq" when song.ini has neither "hopo_frequency" nor "eighthnote_hopo", so they stay.')
+		return song
+	}
 	if (chart === null || context.chart.kind !== 'parsed' || (chart.format === 'mid' && chart.tokens === null)) {
 		record.skip('deprecatedIniTag', ini.fileName, 'The chart can\'t be read, so it can\'t be rewritten to play the same without the HOPO tags.')
 		return song
