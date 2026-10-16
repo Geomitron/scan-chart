@@ -226,7 +226,7 @@ Each key is the difficulty of one instrument:
 - Clone Hero and YARG show `song_length` in the song list, and sort by it. Clone Hero also adds it up for a setlist and for its play-time statistic, writes it into a replay, and sends it to the leaderboard as the song's duration.
 - Neither game uses it to decide when the song ends: a song plays until its audio and its last note have ended, or until a valid `end` event. See [The end of the song](/chart/events#the-end-of-the-song).
 - When `song_length` is missing or 0, Clone Hero measures the audio, without `crowd`. When it can't, it takes the end of the last note, plus one beat. It writes the value it found into `song.ini`, except for a `.sng` file or an encrypted song, which it doesn't write to. YARG measures the audio when the value is 0 or less, and doesn't write it.
-- scan-chart reports a missing `song_length` as `missingSongLength`, and a `song_length` shorter than the end of the chart's last note. With its `mediaIssues` option, it also reports a `song_length` more than a second away from the longest audio file's length as `songLengthMismatch`. `fixIssues` sets the value to that length.
+- scan-chart reports a missing `song_length` as `missingSongLength`. It reports a `song_length` shorter than where the chart's last note ends in the audio as `shortSongLength`, a warning, placing the chart by `delay`, or without one by the `.chart` file's `Offset`. With its `mediaIssues` option, it also reports a `song_length` more than a second away from the longest audio file's length as `songLengthMismatch`. `fixIssues` sets the value to that length.
 
 ### Previews
 
@@ -272,12 +272,12 @@ A phrase shown before the song starts: Clone Hero shows it on the loading screen
 - Clone Hero shows an explicit-lyrics badge after the song's name in the song list when it's `True`. It shows `False` and no key alike, so `explicit_lyrics = False` changes nothing.
 - Clone Hero's test builds from 1.1.0.5275 to 1.1.0.5684 checked each song without the key against a list of words, and wrote `True` or `False` into its `song.ini`. Other builds don't.
 - YARG doesn't read `explicit_lyrics`. Its own key for this is `rating`: see [Read by YARG only](#read-by-yarg-only).
-- scan-chart reads it. In every scan, it reports lyrics that hold a word from its list of strong profanities and slurs while `explicit_lyrics` isn't `True`. It checks English words only, so it can also report a name, or a word that means something else in another language. A word list can't show that lyrics are clean, so it never reports a `True`. `fixIssues` sets `explicit_lyrics = True` only when its `codes` option names the check.
+- scan-chart reads it. In every scan, it reports lyrics that hold a word from its list of strong profanities and slurs while `explicit_lyrics` isn't `True`, as `missingExplicitLyrics`, a recommendation. It checks English words only, so it can also report a name, or a word that means something else in another language. A word list can't show that lyrics are clean, so it never reports a `True`, and `fixIssues` doesn't change the key.
 - **Recommended:** when the check reports lyrics that aren't explicit, list its code in [`ignored_issues`](#read-by-tools). This records that the charter has checked the lyrics. `explicit_lyrics = False` can't record it, since it means the same as no key: scan-chart's `fixIssues` removes a key that holds its default value.
 
 ## Read by YARG only
 
-YARG reads more keys, which other games ignore. A song may hold them, and an exporter keeps them:
+YARG reads more keys, which other games ignore. A song may hold them, and an exporter keeps them. scan-chart reads each as a metadata field, by the rules on [Syntax](/ini/reading-rules), so a blank number there is not set, where YARG reads 0. It reports `video_loop = False`, `rating = 0`, `clean_vocals = False` and `tuning_offset_cents = 0` as `defaultIniValue`, since each is the key's default:
 
 | Keys | What they hold |
 |---|---|
@@ -324,5 +324,5 @@ Clone Hero uses the main key whenever it's in the file: a blank `charter` shows 
 </Accordion>
 
 <Accordion title="A song_length that isn't the audio's length">
-Clone Hero measures the audio only when `song_length` is missing or 0, and YARG only when it's 0 or less, so both show the wrong length, and Clone Hero sends it to the leaderboard. scan-chart reports a `song_length` shorter than the end of the last note. With its `mediaIssues` option, it reports one more than a second away from the longest audio file's length as `songLengthMismatch`, and `fixIssues` sets it to that length.
+Clone Hero measures the audio only when `song_length` is missing or 0, and YARG only when it's 0 or less, so both show the wrong length, and Clone Hero sends it to the leaderboard. scan-chart reports a `song_length` shorter than the end of the last note as `shortSongLength`. With its `mediaIssues` option, it reports one more than a second away from the longest audio file's length as `songLengthMismatch`, and `fixIssues` sets it to that length.
 </Accordion>

@@ -100,7 +100,7 @@ In a text key, `0` and `-1` are text: `charter = 0` shows the charter as "0".
 ## Invalid forms
 
 <Accordion title="Lines before [song]">
-Clone Hero and scan-chart ignore them, and read the `[song]` section after them. YARG skips blank lines, but when the first line that isn't blank is a comment or a key line, it misses `[song]` and ignores the whole file. It also misses a `[song]` that comes right after another section's header. scan-chart reports a line before `[song]` as `iniLayout`, unless it's blank or a `;` comment, and `fixIssues` writes `[song]` first and keeps the lines before it as `;` comments. So it doesn't report a file that YARG ignores because a `;` comment comes before `[song]`.
+Clone Hero and scan-chart ignore them, and read the `[song]` section after them. YARG skips blank lines, but when the first line that isn't blank is a comment or a key line, it misses `[song]` and ignores the whole file. It also misses a `[song]` that comes right after another section's header. scan-chart reports any line that isn't blank before `[song]` as `iniLayout`, and `fixIssues` writes `[song]` on the first line, with the earlier lines kept as comments after it. scan-chart reports a line before `[song]` as `iniLayout`, unless it's blank or a `;` comment, and `fixIssues` writes `[song]` first and keeps the lines before it as `;` comments. So it doesn't report a file that YARG ignores because a `;` comment comes before `[song]`.
 </Accordion>
 
 <Accordion title="No [song] section">
@@ -108,7 +108,7 @@ A scanner reads the folder as if it had no `song.ini`: see [Files in a song fold
 </Accordion>
 
 <Accordion title="Two [song] sections">
-Clone Hero and scan-chart read them as one section, and the last line of each key counts. YARG reads only the last section. A scanner reads them as Clone Hero does. When scan-chart's `fixIssues` lays out or orders the file, it merges them into one section.
+Clone Hero and scan-chart read them as one section, and the last line of each key counts. YARG reads only the last section. A scanner reads them as Clone Hero does. scan-chart reports the second section as `iniLayout`, and when its `fixIssues` lays out or orders the file, it merges them into one section.
 </Accordion>
 
 <Accordion title="A section header with spaces or a comment, such as [ song ]">
