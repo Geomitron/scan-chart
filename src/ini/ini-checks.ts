@@ -283,7 +283,10 @@ export function ignoredIssueCodes(songSection: SongSection): { codes: ReadonlySe
 	return { codes, issues }
 }
 
-/** A line before `[song]`, a section other than `[song]`, and comments that don't start with ";": the first of each kind. */
+/**
+ * A line before `[song]`, a comment included, which makes YARG ignore the file; a second `[song]` section; a section
+ * other than `[song]`; and comments that don't start with ";": the first of each kind.
+ */
 function layoutIssues(tokens: IniTokens): MetadataFinding[] {
 	if (tokens.text === null) return []
 	// As parseIniTokens reads lines: without one leading byte order mark, and trimmed.
@@ -292,16 +295,18 @@ function layoutIssues(tokens: IniTokens): MetadataFinding[] {
 	const report = (kind: string, description: string) => {
 		if (!found.has(kind)) found.set(kind, description)
 	}
-	let seenSong = false
+	let songSections = 0
 	lines.forEach((line, index) => {
 		const at = `Line ${index + 1} of "song.ini"`
+		const isSection = line.startsWith('[') && line.endsWith(']')
+		if (line.length > 0 && !isSection && songSections === 0) report('before', `${at} comes before "[song]". Start the file with "[song]".`)
 		if (line.startsWith('#')) report('#', `${at} is a comment that starts with "#". Start comments with ";".`)
 		else if (line.startsWith('//')) report('//', `${at} is a comment that starts with "//", which some readers read as a tag. Start comments with ";".`)
-		else if (line.startsWith('[') && line.endsWith(']')) {
-			if (toLowerInvariant(line.slice(1, -1)) === 'song') seenSong = true
-			else report(`[${line}`, `"song.ini" has a "${line}" section. Games read only "[song]": move its tags there, or remove it.`)
-		} else if (line.length > 0 && !line.startsWith(';') && !seenSong) {
-			report('before', `${at} comes before "[song]". Start the file with "[song]".`)
+		else if (isSection) {
+			if (toLowerInvariant(line.slice(1, -1)) !== 'song') report(`[${line}`, `"song.ini" has a "${line}" section. Games read only "[song]": move its tags there, or remove it.`)
+			else if (++songSections === 2) {
+				report('second', `${at} starts a second "[song]" section. Clone Hero reads the sections as one, and YARG only the last: write every tag in one "[song]" section.`)
+			}
 		}
 	})
 	return [...found.values()].map(description => ({ metadataIssue: 'iniLayout', description }))

@@ -21,8 +21,8 @@ async function iniIssues(lines: string[], codes: readonly string[], options: Sca
 describe('song.ini layout', () => {
 	const codes = ['iniLayout']
 
-	it('accepts [song] in any letter case, after comments and blank lines', async () => {
-		expect(await iniIssues(['; A comment', '', '[Song]', 'name = Song'], codes)).toEqual([])
+	it('accepts [song] in any letter case, after blank lines, with comments after it', async () => {
+		expect(await iniIssues(['', '[Song]', '; A comment', 'name = Song'], codes)).toEqual([])
 	})
 
 	it('reports a line before [song], another section, and comments that don\'t start with ";"', async () => {
@@ -31,6 +31,18 @@ describe('song.ini layout', () => {
 			['iniLayout', 'Line 3 of "song.ini" is a comment that starts with "#". Start comments with ";".'],
 			['iniLayout', 'Line 4 of "song.ini" is a comment that starts with "//", which some readers read as a tag. Start comments with ";".'],
 			['iniLayout', '"song.ini" has a "[Other]" section. Games read only "[song]": move its tags there, or remove it.'],
+		])
+	})
+
+	it('reports a ";" comment before [song], since YARG then ignores the file', async () => {
+		expect(await iniIssues(['', '; A comment', '[song]', 'name = Song'], codes))
+			.toEqual([['iniLayout', 'Line 2 of "song.ini" comes before "[song]". Start the file with "[song]".']])
+	})
+
+	it('reports a second [song] section once, since YARG reads only the last', async () => {
+		expect(await iniIssues(['[song]', 'name = Song', '[Other]', 'key = value', '[SONG]', 'artist = Band', '[song]', 'year = 2001'], codes)).toEqual([
+			['iniLayout', '"song.ini" has a "[Other]" section. Games read only "[song]": move its tags there, or remove it.'],
+			['iniLayout', 'Line 5 of "song.ini" starts a second "[song]" section. Clone Hero reads the sections as one, and YARG only the last: write every tag in one "[song]" section.'],
 		])
 	})
 })

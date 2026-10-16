@@ -349,7 +349,7 @@ export type MetadataIssueType =
 	| 'missingValue' // Metadata is missing a required value
 	| 'invalidValue' // Metadata property was set to an unsupported value
 	| 'extraValue' // Metadata contains a property that should not be included
-	| 'iniLayout' // "song.ini" has a line before "[song]", another section, or a comment that doesn't start with ";"
+	| 'iniLayout' // "song.ini" has a line before "[song]", a second "[song]" section, another section, or a comment that doesn't start with ";"
 	| 'iniTagOrder' // The tags of "song.ini" aren't in the standard order; only with ScanOptions.styleNotes
 	| 'blankIniValue' // A "song.ini" number is -1, or a text value is blank; only with ScanOptions.styleNotes
 	| 'blankIniNumber' // A "song.ini" number is blank, which Clone Hero reads as not set and YARG as 0

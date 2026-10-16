@@ -49,10 +49,24 @@ function expectHashesKept(result: Awaited<ReturnType<typeof fix>>) {
 describe('fixIssues: song.ini', () => {
 	it('writes [song] first, comments with ";", and the lines games don\'t read as comments, keeping the hashes', async () => {
 		const result = await fix(folder(['name = Early', '[Song]', '# A comment', 'name = Song', 'artist = Band', '// old', '[Other]', 'key = value']), { codes: ['iniLayout'] })
-		expect(result.ini).toBe('; name = Early\r\n[song]\r\n;# A comment\r\nname = Song\r\nartist = Band\r\n; old\r\n; [Other]\r\n; key = value\r\n')
+		expect(result.ini).toBe('[song]\r\n; name = Early\r\n;# A comment\r\nname = Song\r\nartist = Band\r\n; old\r\n; [Other]\r\n; key = value\r\n')
 		expect(result.report.fixed).toEqual([{ code: 'iniLayout', file: 'song.ini', description: 'Wrote "[song]" first, comments with ";", and the lines games don\'t read as comments.' }])
 		expect(result.codes).not.toContain('iniLayout')
 		expectHashesKept(result)
+	})
+
+	it('moves a ";" comment before [song] after it, and merges a second [song] section, keeping the hashes', async () => {
+		const comment = await fix(folder(['; Charted for a pack', '', '[song]', 'name = Song', 'artist = Band']), { codes: ['iniLayout'] })
+		expect(comment.ini).toBe('[song]\r\n; Charted for a pack\r\nname = Song\r\nartist = Band\r\n')
+		expect(comment.codes).not.toContain('iniLayout')
+		expectHashesKept(comment)
+
+		const sections = await fix(folder(['[song]', 'name = Old', 'artist = Band', '[Song]', 'name = Song']), { codes: ['iniLayout'] })
+		expect(sections.ini).toBe('[song]\r\nname = Song\r\nartist = Band\r\n')
+		expect(sections.report.fixed).toEqual([{ code: 'iniLayout', file: 'song.ini', description: 'Wrote "[song]" first, comments with ";", and the lines games don\'t read as comments. '
+			+ 'It also merged its 2 "[song]" sections and kept only the last line of "name", the one Clone Hero reads.' }])
+		expect(sections.codes).not.toContain('iniLayout')
+		expectHashesKept(sections)
 	})
 
 	it('puts the tags in the standard order, then the other tags games read, then the rest, with each tag\'s comments', async () => {
