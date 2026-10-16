@@ -1,39 +1,13 @@
-/** Default values for known `song.ini` `[Song]` fields. */
-export const defaultMetadata = {
-	name: 'Unknown Name',
-	artist: 'Unknown Artist',
-	album: 'Unknown Album',
-	genre: 'Unknown Genre',
-	year: 'Unknown Year',
-	charter: 'Unknown Charter',
-	/** Units of ms */ song_length: 0,
-	diff_band: -1,
-	diff_guitar: -1,
-	diff_guitar_coop: -1,
-	diff_rhythm: -1,
-	diff_bass: -1,
-	diff_drums: -1,
-	diff_drums_real: -1,
-	diff_keys: -1,
-	diff_keys_ghl: -1,
-	diff_guitarghl: -1,
-	diff_guitar_coop_ghl: -1,
-	diff_rhythm_ghl: -1,
-	diff_bassghl: -1,
-	diff_vocals: -1,
-	/** Units of ms */ preview_start_time: -1,
-	/** Units of ms */ preview_end_time: -1,
-	icon: '',
-	loading_phrase: '',
-	album_track: 16000,
-	playlist_track: 16000,
-	playlist: '',
-	sub_playlist: '',
-	modchart: false,
-	explicit_lyrics: false,
-	// The keys only YARG reads, which Clone Hero ignores.
+/** Both preview times YARG reads from song.ini's `preview`, in milliseconds. */
+export interface PreviewTimes {
+	readonly start: number
+	readonly end: number
+}
+
+/** Default values for the `song.ini` keys only YARG reads, which Clone Hero ignores, in the order scan-chart writes them. */
+export const yargOnlyMetadata = {
 	/** Units of ms: both preview times, written `<start> <end>`. YARG reads it over `preview_start_time` and `preview_end_time`. */
-	preview: null as { readonly start: number; readonly end: number } | null,
+	preview: null as PreviewTimes | null,
 	/** Units of ms */ video_end_time: -1,
 	video_loop: false,
 	background: '',
@@ -101,6 +75,42 @@ export const defaultMetadata = {
 	venue_hint: '',
 	vocal_character_hint: '',
 	tuning_offset_cents: 0,
+}
+
+/** Default values for known `song.ini` `[Song]` fields. */
+export const defaultMetadata = {
+	name: 'Unknown Name',
+	artist: 'Unknown Artist',
+	album: 'Unknown Album',
+	genre: 'Unknown Genre',
+	year: 'Unknown Year',
+	charter: 'Unknown Charter',
+	/** Units of ms */ song_length: 0,
+	diff_band: -1,
+	diff_guitar: -1,
+	diff_guitar_coop: -1,
+	diff_rhythm: -1,
+	diff_bass: -1,
+	diff_drums: -1,
+	diff_drums_real: -1,
+	diff_keys: -1,
+	diff_keys_ghl: -1,
+	diff_guitarghl: -1,
+	diff_guitar_coop_ghl: -1,
+	diff_rhythm_ghl: -1,
+	diff_bassghl: -1,
+	diff_vocals: -1,
+	/** Units of ms */ preview_start_time: -1,
+	/** Units of ms */ preview_end_time: -1,
+	icon: '',
+	loading_phrase: '',
+	album_track: 16000,
+	playlist_track: 16000,
+	playlist: '',
+	sub_playlist: '',
+	modchart: false,
+	explicit_lyrics: false,
+	...yargOnlyMetadata,
 	/** Units of ms */ delay: 0,
 	hopo_frequency: 0,
 	eighthnote_hopo: false,

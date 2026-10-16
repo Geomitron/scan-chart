@@ -1,4 +1,4 @@
-import { defaultMetadata } from './metadata'
+import { defaultMetadata, type PreviewTimes } from './metadata'
 
 /**
  * Metadata input shape accepted by `writeIniFile`. Matches the shape
@@ -48,7 +48,7 @@ export function writeIniFile(metadata: IniMetadata): string {
 }
 
 /** A metadata value as song.ini writes it: a boolean as `True` or `False`, `preview` as `<start> <end>`, and the rest as text. */
-export function formatIniValue(value: string | number | boolean | { readonly start: number; readonly end: number }): string {
+export function formatIniValue(value: string | number | boolean | PreviewTimes): string {
 	if (typeof value === 'boolean') return value ? 'True' : 'False'
 	if (typeof value === 'object') return `${value.start} ${value.end}`
 	return String(value)

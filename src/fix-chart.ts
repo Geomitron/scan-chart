@@ -11,6 +11,8 @@ import { EventType, eventTypes } from './chart/raw-types'
 import { NoteEvent, noteFlags, noteTypes } from './chart/types'
 import { keyList } from './ini/ini-checks'
 import { asUtf8Ini, rewriteSongIni } from './ini/ini-edit'
+import { olderTags } from './ini/metadata'
+import { writtenKey } from './ini/scan-ini'
 import { chooseEdits, FixRecord, hashChanges, hashNames, issueFixTable } from './issue-fixes'
 import type { Issue, IssueCode, MetadataFinding } from './issues'
 import { songContext } from './song-context'
@@ -467,9 +469,11 @@ export function fixHopoTags(song: SongDocument, issues: readonly Issue[], findin
 export function fixMultiplierNote(song: SongDocument, issues: readonly Issue[], findings: readonly MetadataFinding[], record: FixRecord): SongDocument {
 	const { chart, ini } = song
 	const { settings, ini: { songSection } } = songContext(song)
-	// The first is the line games read: the tag, or its older name without it. Both go, so neither is left to read.
-	const tags = ['multiplier_note', 'star_power_note'].filter(key => songSection?.[key] !== undefined)
-	if (settings.multiplier_note !== 103 || !isTagReported(issues, findings, tags.slice(0, 1)) || chart?.format !== 'mid' || chart.tokens === null || ini === null) return song
+	// The issue is about the line games read: the tag, or its older name without it.
+	const read = writtenKey(songSection ?? {}, 'multiplier_note')
+	if (settings.multiplier_note !== 103 || !isTagReported(issues, findings, [read]) || chart?.format !== 'mid' || chart.tokens === null || ini === null) return song
+	// Both names go, so neither is left to read.
+	const tags = ['multiplier_note', olderTags.get('multiplier_note')!].filter(key => songSection?.[key] !== undefined)
 	const tokens = chart.tokens
 	let [moved, dropped] = [0, 0]
 	const result = withoutTags(song, tags, batch => {
@@ -491,7 +495,7 @@ export function fixMultiplierNote(song: SongDocument, issues: readonly Issue[], 
 		record.skip('deprecatedIniTag', ini.fileName, `Moving the star power to note 116 ${result.problem}.`)
 		return song
 	}
-	const ignored = dropped === 0 ? '' : `, removed ${dropped} ${dropped === 1 ? 'note' : 'notes'} 116 that "${tags[0]} = 103" made games ignore,`
+	const ignored = dropped === 0 ? '' : `, removed ${dropped} ${dropped === 1 ? 'note' : 'notes'} 116 that "${read} = 103" made games ignore,`
 	record.fixed.push({
 		code: 'deprecatedIniTag',
 		file: chart.fileName,
