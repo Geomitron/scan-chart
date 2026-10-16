@@ -82,7 +82,7 @@ The metadata is the `[song]` section of a `song.ini` file, as key and value pair
 - **Required:** a boolean written as `True` or `False`.
 - A number is digits, with an optional `-` before them, and no spaces.
 - Keys and values hold no `;` and no line break, and keys hold no `=`.
-- The older names of `song.ini` keys, `frets`, `track`, `pro_drum` and `star_power_note`, aren't part of a `.sng` file's metadata. Write `charter`, `album_track` and `pro_drums`.
+- The older names of `song.ini` keys, `frets`, `track`, `pro_drum` and `star_power_note`, aren't part of a `.sng` file's metadata. Write `charter`, `album_track`, `pro_drums` and `multiplier_note`.
 
 **Edge case: the chart's `[Song]` section.** Clone Hero takes nothing from a `.chart` file's `[Song]` section but `Offset` and `PreviewStart`, and those only when the metadata doesn't set `delay` or `preview_start_time`. So the metadata holds every value the song needs.
 
@@ -125,7 +125,7 @@ It can also convert the audio to `.opus`. Before packing a folder, write its boo
 ## Invalid forms
 
 <Accordion title="A .sng file inside a song folder">
-Clone Hero loads it as a song of its own. YARG doesn't look for songs inside a song folder, so it skips it.
+Clone Hero loads it as a song of its own. YARG doesn't look for songs inside a song folder, so it skips it. A scanner loads it as a song of its own, as Clone Hero does.
 </Accordion>
 
 <Accordion title="An extension other than .sng, such as .SNG">
@@ -145,7 +145,7 @@ Clone Hero, YARG and SngCli find each file by its offset. parse-sng ignores the 
 </Accordion>
 
 <Accordion title="One name used twice, or two names that differ only in letter case">
-Clone Hero and YARG don't load a `.sng` file that holds one name twice. YARG makes names lowercase first, so it also doesn't load one that holds `Song.opus` and `song.opus`. Clone Hero reads those as two files. When SngCli packs two files with one name, it keeps the first.
+Clone Hero and YARG don't load a `.sng` file that holds one name twice. YARG makes names lowercase first, so it also doesn't load one that holds `Song.opus` and `song.opus`. Clone Hero reads those as two files. A scanner reads them as Clone Hero does. When SngCli packs two files with one name, it keeps the first.
 </Accordion>
 
 <Accordion title="A file name not in lowercase, such as Notes.chart">
