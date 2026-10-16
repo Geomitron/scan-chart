@@ -46,10 +46,19 @@ export const defaultMetadata = {
 type MetadataKey = keyof typeof defaultMetadata
 
 /**
- * The older name of each tag that has one, which games read only when the file doesn't have the tag: `frets` for
- * `charter`, and `track` for `album_track`.
+ * The older name of each tag that has one, which games read only when the file doesn't have the tag, whatever the
+ * tag's value: `frets` for `charter`, `track` for `album_track`, `pro_drum` for `pro_drums`, and `star_power_note` for
+ * `multiplier_note`.
  */
-export const olderTags: ReadonlyMap<string, string> = new Map([['charter', 'frets'], ['album_track', 'track']])
+export const olderTags: ReadonlyMap<string, string> = new Map([
+	['charter', 'frets'],
+	['album_track', 'track'],
+	['pro_drums', 'pro_drum'],
+	['multiplier_note', 'star_power_note'],
+])
+
+/** The older names Clone Hero 1.1.0.6142 didn't read, so the hashes it calculated, the frozen legacy ones, ignore them. */
+export const olderTagsUnreadByLegacy: readonly string[] = ['pro_drum', 'star_power_note']
 
 /** The tag `older` is an older name of, or `undefined`. */
 export function newerTag(older: string): string | undefined {
@@ -65,10 +74,13 @@ export function tagRank(key: string): number {
 	return rank === -1 ? Infinity : rank
 }
 
-const numberTags = new Set([...tagOrder.filter(key => typeof defaultMetadata[key as MetadataKey] === 'number'), 'track', 'video_end_time'])
-const booleanTags = new Set([...tagOrder.filter(key => typeof defaultMetadata[key as MetadataKey] === 'boolean'), 'video_loop'])
+/** The tags whose default is of `type`, with their older names. */
+const tagsOfType = (type: 'number' | 'boolean') => tagOrder.filter(key => typeof defaultMetadata[key as MetadataKey] === type)
+	.flatMap(key => [key, ...olderTags.has(key) ? [olderTags.get(key)!] : []])
+const numberTags = new Set([...tagsOfType('number'), 'video_end_time'])
+const booleanTags = new Set([...tagsOfType('boolean'), 'video_loop'])
 
-/** Whether games read a tag as a number: a number above, any `diff_` tag, `track` or `video_end_time`. */
+/** Whether games read a tag as a number: a number above or its older name, any `diff_` tag, or `video_end_time`. */
 export function isNumberTag(key: string): boolean {
 	return key.startsWith('diff_') || numberTags.has(key)
 }

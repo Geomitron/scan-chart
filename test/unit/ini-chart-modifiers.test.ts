@@ -1,10 +1,14 @@
 import { MidiData, writeMidi } from '@geomitron/midi-file'
 import { describe, expect, it } from 'vitest'
 
-import { parseChartAndIni } from 'src/chart/parse-chart-and-ini'
+import { songBundle20251010 } from 'src/chart/identity/public'
+import { parseChartAndIni, type ParsedChart } from 'src/chart/parse-chart-and-ini'
 import { parseChartFile } from 'src/chart/parse-chart-file'
+import type { IniChartModifiers } from 'src/chart/types'
 import { drumTypes } from 'src/types'
 import { scanIni } from 'src/ini/scan-ini'
+
+import { midi as drumsMidi } from './helpers/chart-files'
 
 function modifiers(lines: readonly string[]) {
 	const result = scanIni([{ fileName: 'song.ini', data: new TextEncoder().encode(['[song]', ...lines].join('\n')) }])
@@ -64,6 +68,63 @@ describe('song.ini chart modifiers, read as Clone Hero reads them', () => {
 			five_lane_drums: expected,
 			eighthnote_hopo: expected,
 		})
+	})
+})
+
+describe('pro_drum and star_power_note, the older names of pro_drums and multiplier_note', () => {
+	const read = (lines: readonly string[]) => modifiers(lines).metadata
+
+	it('reads an older name only when its tag isn\'t in the file, whatever the tag\'s value', () => {
+		expect(read(['pro_drum = True', 'star_power_note = 116'])).toMatchObject({ pro_drums: true, multiplier_note: 116 })
+		for (const value of ['', '0', '-1', 'False', 'yes']) {
+			expect(read([`pro_drums = ${value}`.trim(), 'pro_drum = True']).pro_drums).toBe(value === '-1')
+			expect(read([`multiplier_note = ${value}`.trim(), 'star_power_note = 116']).multiplier_note).toBe(0)
+		}
+		// The tag wins wherever its line is, and an older name's own line only counts without it.
+		expect(read(['star_power_note = 103', 'multiplier_note = 116', 'pro_drum = False', 'pro_drums = True'])).toMatchObject({ multiplier_note: 116, pro_drums: true })
+	})
+
+	it('reads an older name as its tag would be read: in any letter case, its last line, and its value as Clone Hero reads the tag\'s', () => {
+		expect(read(['PRO_DRUM = TRUE', 'Star_Power_Note = 103'])).toMatchObject({ pro_drums: true, multiplier_note: 103 })
+		expect(read(['star_power_note = 116', 'star_power_note = 103', 'pro_drum = 1', 'pro_drum = 0'])).toMatchObject({ multiplier_note: 103, pro_drums: false })
+		expect(read(['pro_drum = -1', 'star_power_note = +116'])).toMatchObject({ pro_drums: true, multiplier_note: 116 })
+		for (const value of ['', 'yes', '1.0']) expect(read([`pro_drum = ${value}`.trim()]).pro_drums).toBe(false)
+	})
+
+	it('reports an older name\'s value that isn\'t a value of its tag, naming the line read', () => {
+		const valueIssues = (lines: readonly string[]) => modifiers(lines).issues.filter(issue => issue.includes(' value in '))
+		expect(read(['star_power_note = 103.0']).multiplier_note).toBe(0)
+		expect(valueIssues(['star_power_note = 103.0'])).toEqual(['The "star_power_note" value in "song.ini" is "103.0", which is not an integer.'])
+		expect(valueIssues(['star_power_note = 50'])).toEqual(['The "star_power_note" value in "song.ini" is "50", which is not a valid value.'])
+		expect(valueIssues(['multiplier_note = 50', 'star_power_note = 116'])).toEqual(['The "multiplier_note" value in "song.ini" is "50", which is not a valid value.'])
+	})
+
+	it('parses the chart with them for the canonical hashes, and without them for the frozen legacy hashes, as Clone Hero 1.1 read neither', () => {
+		// Red, yellow and blue: in a .mid file, pro drums read yellow and blue as cymbals without a tom marker.
+		const chart = drumsMidi({ 'PART DRUMS': [97, 98, 99].map((noteNumber, index) => ({ tick: index * 480, noteNumber })) })
+		const folder = (ini: string) => [{ fileName: 'notes.mid', data: chart }, { fileName: 'song.ini', data: new TextEncoder().encode(`[song]\r\n${ini}\r\n`) }]
+		const older = parseChartAndIni(folder('pro_drum = True')).parsedChart!
+		const newer = parseChartAndIni(folder('pro_drums = True')).parsedChart!
+		const neither = parseChartAndIni(folder('pro_drums = False')).parsedChart!
+		expect(older.drumType).toBe(drumTypes.fourLanePro)
+		expect(older.iniChartModifiers.pro_drums).toBe(true)
+		expect(older.legacyIniChartModifiers.pro_drums).toBe(false)
+		expect(newer.legacyIniChartModifiers.pro_drums).toBe(true)
+
+		const bundle = (parsed: ParsedChart, legacyModifiers?: IniChartModifiers) => {
+			const outcome = songBundle20251010.calculate({
+				source: { format: 'mid', bytes: chart }, modifiers: parsed.iniChartModifiers, legacyModifiers,
+				legacyMetadata: parsed.songHashMetadata, canonicalMetadata: parsed.songHashMetadata,
+			})
+			if (outcome.kind !== 'accepted') throw new Error('Expected the bundle')
+			return { legacy: outcome.frozenLegacy6142.tracks[0].identity.trackHash.value, canonical: outcome.canonical20260801.tracks[0].identity.trackHash.value }
+		}
+		const [withOlder, withNewer, withNeither] = [bundle(older, older.legacyIniChartModifiers), bundle(newer), bundle(neither)]
+		expect(withOlder.canonical).toBe(withNewer.canonical)
+		expect(withOlder.legacy).toBe(withNeither.legacy)
+		expect(withNewer.legacy).not.toBe(withNeither.legacy)
+		// Without legacyModifiers, the legacy hashes read modifiers.
+		expect(bundle(older).legacy).toBe(withNewer.legacy)
 	})
 })
 

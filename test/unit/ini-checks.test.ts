@@ -167,15 +167,23 @@ describe('song.ini values', () => {
 		expect(await values(['eighthnote_hopo = True'], codes)).toEqual([hopos('eighthnote_hopo')])
 		expect(await values(['frets = Someone'], codes)).toEqual([['deprecatedIniTag', '"song.ini" sets "charter" with "frets", its name in older charts. Write "charter" instead.']])
 		expect(await values(['track = 3'], codes)).toEqual([['deprecatedIniTag', '"song.ini" sets "album_track" with "track", its name in older charts. Write "album_track" instead.']])
-		const unchanged = ['delay = 0', 'hopo_frequency = 0', 'eighthnote_hopo = 0', 'charter = Me', 'frets = Someone', 'album_track = 2', 'track = 3', 'multiplier_note = 103']
+		expect(await values(['pro_drum = True', 'star_power_note = 116'], codes)).toEqual([
+			['deprecatedIniTag', '"song.ini" sets "pro_drums" with "pro_drum", its name in older charts. Write "pro_drums" instead.'],
+			['deprecatedIniTag', '"song.ini" sets "multiplier_note" with "star_power_note", its name in older charts. Write "multiplier_note" instead.'],
+		])
+		const unchanged = ['delay = 0', 'hopo_frequency = 0', 'eighthnote_hopo = 0', 'charter = Me', 'frets = Someone', 'album_track = 2', 'track = 3', 'multiplier_note = 103',
+			'star_power_note = 116', 'pro_drums = False', 'pro_drum = True']
 		expect(await values(unchanged, codes)).toEqual([])
-		expect(await values(['charter =', 'frets = Someone', 'album_track = -1', 'track = 3'], codes)).toEqual([])
+		expect(await values(['charter =', 'frets = Someone', 'album_track = -1', 'track = 3', 'multiplier_note =', 'star_power_note = 116'], codes)).toEqual([])
 	})
 
-	it('reports multiplier_note = 103 in a .mid chart', async () => {
+	it('reports multiplier_note = 103 in a .mid chart, or star_power_note = 103 without it', async () => {
 		const mid = midi({ 'PART GUITAR': [{ tick: 1920, noteNumber: 96 }] })
-		expect(await values(['multiplier_note = 103'], ['deprecatedIniTag'], mid, 'notes.mid')).toEqual([['deprecatedIniTag',
-			'"song.ini" sets "multiplier_note" to 103, which makes MIDI note 103 the star power note. Move the star power phrases to note 116 first. Then remove the tag.']])
+		const message = (key: string) => ['deprecatedIniTag',
+			`"song.ini" sets "${key}" to 103, which makes MIDI note 103 the star power note. Move the star power phrases to note 116 first. Then remove the tag.`]
+		expect(await values(['multiplier_note = 103'], ['deprecatedIniTag'], mid, 'notes.mid')).toEqual([message('multiplier_note')])
+		expect(await values(['star_power_note = 103'], ['deprecatedIniTag'], mid, 'notes.mid')).toEqual([message('star_power_note')])
+		expect(await values(['multiplier_note = 103', 'star_power_note = 116'], ['deprecatedIniTag'], mid, 'notes.mid')).toEqual([message('multiplier_note')])
 	})
 
 	it('reports a drum type flag the chart doesn\'t need', async () => {
@@ -215,8 +223,9 @@ describe('song.ini default values', () => {
 	it('reports the tags for older charts that change nothing', async () => {
 		const keys = async (lines: string[], chart?: Uint8Array, fileName?: string) => (await unneeded(lines, chart, fileName)).map(message => message.match(/"\w+ = /g))
 		expect(await keys(['charter = Me', 'frets = Someone', 'album_track = 2', 'track = 3', 'end_events = 0'])).toEqual([['"frets = ', '"track = ', '"end_events = ']])
-		// Games read charter and album_track whenever they're in the file, whatever their value.
+		// Games read a tag whenever it's in the file, whatever its value.
 		for (const value of ['', '0', '-1']) expect(await keys([`charter = ${value}`.trim(), 'frets = Someone', `album_track = ${value}`.trim(), 'track = 3'])).toEqual([['"frets = ', '"track = ']])
+		expect(await keys(['pro_drums = True', 'pro_drum = False', 'multiplier_note = 116', 'star_power_note = 103'])).toEqual([['"pro_drum = ', '"multiplier_note = ', '"star_power_note = ']])
 		expect(await keys(['hopo_frequency = 0', 'eighthnote_hopo = 0'])).toEqual([['"hopo_frequency = ', '"eighthnote_hopo = ']])
 		expect(await unneeded(['frets = Someone', 'track = 3', 'hopo_frequency = 170', 'delay = 50'])).toEqual([])
 		// hopo_frequency comes before eighthnote_hopo.

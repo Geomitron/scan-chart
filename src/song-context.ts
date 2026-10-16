@@ -7,8 +7,8 @@ import { parseMidiTokens } from './chart/midi-reparse'
 import { ChartSource, ParsedChartFile, parseChartSource } from './chart/parse-chart-file'
 import { parseRules } from './chart/parse-rules'
 import type { IniChartModifiers } from './chart/types'
-import { defaultMetadata } from './ini/metadata'
-import { scanIni } from './ini/scan-ini'
+import { defaultMetadata, olderTagsUnreadByLegacy } from './ini/metadata'
+import { extractSongMetadata, scanIni } from './ini/scan-ini'
 import { ObjectCache } from './shared/object-cache'
 import type { SongDocument } from './song-document'
 import type { SongFile } from './song-files'
@@ -19,6 +19,11 @@ export interface SongContext {
 	readonly ini: ReturnType<typeof scanIni>
 	/** The parse settings: song.ini's values over the defaults. */
 	readonly settings: IniChartModifiers
+	/**
+	 * The parse settings Clone Hero 1.1.0.6142 read, for the frozen legacy hashes: `settings`, without the older names
+	 * it didn't read, `pro_drum` and `star_power_note`.
+	 */
+	readonly legacySettings: IniChartModifiers
 	/** The metadata the canonical SongHash reads: song.ini's `[song]` section, or else the `.chart` `[Song]` section. */
 	readonly songHashMetadata: SongHashMetadata
 	readonly chart: ChartParseOutcome
@@ -49,11 +54,16 @@ function createSongContext(song: SongDocument): SongContext {
 	const ini = scanIni(currentFiles(song))
 	// Clone Hero reads only song.ini, in any letter case; scanIni also reads another .ini file when there's no song.ini.
 	const settings: IniChartModifiers = ini.metadata && ini.songSection !== null ? { ...defaultMetadata, ...ini.metadata } : defaultMetadata
+	const { songSection } = ini
+	const legacySettings = songSection !== null && olderTagsUnreadByLegacy.some(key => songSection[key] !== undefined)
+		? { ...defaultMetadata, ...extractSongMetadata(Object.fromEntries(Object.entries(songSection).filter(([key]) => !olderTagsUnreadByLegacy.includes(key)))).metadata }
+		: settings
 	const { chart } = song
 	const chartSong = chart?.format === 'chart' ? readChartSongMetadata(chart.tokens.bytes) : {}
 	return {
 		ini,
 		settings,
+		legacySettings,
 		songHashMetadata: selectSongHashMetadata(ini.songSection, chartSong),
 		chart: chart === null ? { kind: 'none' } : parseChart(chart, settings),
 	}

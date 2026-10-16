@@ -56,7 +56,7 @@ const gameTags = [
 	'credit_produced_by', 'credit_published_by', 'credit_written_by', 'dance_type', 'date_released', 'diff_elite_drums', 'drum_fallback_blue',
 	'early_hit_window_size', 'eof_midi_import_drum_accent_velocity', 'eof_midi_import_drum_ghost_velocity', 'guitar_type', 'hopofreq', 'keys_type',
 	'kit_type', 'link_bandcamp', 'link_bluesky', 'link_facebook', 'link_instagram', 'link_name_a', 'link_name_b', 'link_other', 'link_spotify',
-	'link_twitter', 'link_youtube', 'location', 'preview', 'pro_drum', 'real_keys_lane_count_left', 'real_keys_lane_count_right', 'scores',
+	'link_twitter', 'link_youtube', 'location', 'preview', 'real_keys_lane_count_left', 'real_keys_lane_count_right', 'scores',
 	'scores_ext', 'sub_genre', 'sysex_high_hat_ctrl', 'sysex_open_bass', 'sysex_pro_slide', 'sysex_rimshot', 'sysex_slider', 'tags', 'tutorial',
 	'unlock_completed', 'unlock_id', 'unlock_require', 'unlock_text', 'venue_hint', 'vocal_character_hint',
 ]
@@ -246,10 +246,11 @@ function deprecatedTagIssues(songSection: SongSection, metadata: typeof defaultM
 	if (hasValue(songSection, 'hopo_frequency') && hopoFrequency) add('hopo_frequency', changesHopos('hopo_frequency'))
 	if (hasValue(songSection, 'eighthnote_hopo') && metadata.eighthnote_hopo && !hopoFrequency) add('eighthnote_hopo', changesHopos('eighthnote_hopo'))
 	if (chart?.format === 'mid' && metadata.multiplier_note === 103) {
-		add('multiplier_note', '"song.ini" sets "multiplier_note" to 103, which makes MIDI note 103 the star power note. Move the star power phrases to note 116 first. Then remove the tag.')
+		const key = songSection.multiplier_note === undefined ? olderTags.get('multiplier_note')! : 'multiplier_note'
+		add(key, `"song.ini" sets "${key}" to 103, which makes MIDI note 103 the star power note. Move the star power phrases to note 116 first. Then remove the tag.`)
 	}
 	for (const [tag, older] of olderTags) {
-		if (hasValue(songSection, older) && songSection[tag] === undefined) {
+		if (hasValue(songSection, older) && songSection[tag] === undefined && !issues.some(issue => issue.keys?.includes(older))) {
 			add(older, `"song.ini" sets "${tag}" with "${older}", its name in older charts. Write "${tag}" instead.`)
 		}
 	}

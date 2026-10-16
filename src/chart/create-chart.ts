@@ -54,6 +54,7 @@ export function createEmptyChart(options?: {
 		chartBytes: new Uint8Array(0),
 		format,
 		iniChartModifiers: defaultIniChartModifiers,
+		legacyIniChartModifiers: defaultIniChartModifiers,
 		songHashMetadata: selectSongHashMetadata(null, {}),
 	}
 }

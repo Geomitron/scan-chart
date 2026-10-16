@@ -151,6 +151,11 @@ export interface FrozenLegacyTrackRequest {
 }
 
 export interface SongBundleIdentityRequest extends SourceParseRequest {
+	/**
+	 * The modifiers the legacy hashes read, which can differ from `modifiers`: Clone Hero 1.1.0.6142 didn't read
+	 * song.ini's `pro_drum` or `star_power_note`. `modifiers` when omitted.
+	 */
+	readonly legacyModifiers?: IniChartModifiers
 	/** The header strings for the legacy SongHash, written as given. */
 	readonly legacyMetadata: SongHashMetadata
 	/** The metadata for the canonical SongHash, which its writer resolves (see `CanonicalSongIdentityRequest`). */
@@ -310,7 +315,7 @@ export const canonical20260801: Canonical20260801Api = {
 }
 
 function calculateSongBundleIdentity(request: SongBundleIdentityRequest): SongBundleIdentityOutcome {
-	const legacyParsed = parseFrozenLegacySource(request)
+	const legacyParsed = parseFrozenLegacySource({ source: request.source, modifiers: request.legacyModifiers ?? request.modifiers })
 	if (legacyParsed.kind === 'rejected') return legacyParsed
 	const canonicalParsed = parseCanonicalSource(request)
 	if (canonicalParsed.kind === 'rejected') return canonicalParsed
