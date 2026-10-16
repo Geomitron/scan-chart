@@ -116,14 +116,6 @@ One genre, as specific as possible: "Complextro" rather than "Electronic". scan-
 
 **Edge case: a value with more than the year.** Clone Hero shows `year` as written, in song details and on the main menu, and sorts and groups songs by the smallest four-digit number in the value. YARG shows only the value's first run of four or more digits, or the whole value when it has none. So `year = , 2002`, with the `, ` that older charts write before `[Song]`'s `Year`, shows as ", 2002" in Clone Hero and as "2002" in YARG.
 
-{/* review: Q1
-Should the `, ` before `[Song]`'s `Year` leave the standard? You asked whether YARG shows it. It doesn't, from either file. YARG shows only a year's first run of four or more digits, everywhere in its menus, and removes a leading `, ` or `,` from `[Song]`'s `Year` when it reads it. Clone Hero removes a leading `, ` from `[Song]`'s `Year`, with a code comment that the comma made songs look better in Guitar Hero III. It reads `[Song]` only for a song without song.ini, and writes the year without the comma into the song.ini it creates. Clone Hero is the game that shows the comma: it shows song.ini's `year` as written, so `year = , 2002` in song.ini shows ", 2002" in song details. Moonscraper and scan-chart write `Year = ", 2002"`. Moonscraper reads only the digits of the value. The `[Song]` page made `, ` the recommended form in batch 1. The census didn't record `year` values, so the number of song.ini files with the comma isn't known.
-- A. Keep `, ` recommended in `[Song]` | As now | Charters keep writing a form whose only use was Guitar Hero III's import. Some copy it into song.ini, where Clone Hero shows it
-- B. Recommend `Year = "2002"`. A leading `, ` stays valid | Every scanner already reads both forms alike. scan-chart's exporter writes new `Year` lines without the comma, and keeps an existing line's form when it edits one | A scan-chart change. Charts saved by Moonscraper keep the comma. No hash changes
-- C. As B, and deprecate the `, ` form | scan-chart reports it, and `fixIssues` removes it | A report on most `.chart` files Moonscraper saved, for a form that changes nothing in any game. Removing it changes the chart file, so the hash Clone Hero and YARG tell songs apart by changes
-Recommendation: B, and no change to either game. No game shows the comma from `[Song]` or needs it, so the standard stops recommending it without reporting or rewriting the files that hold it. YARG needs no fix: it already shows only the year. Clone Hero shows song.ini's `year` as written, and the standard already holds it to four digits.
-*/}
-
 ### charter
 
 - The names of everyone who placed notes in the chart, joined with "&".
@@ -167,17 +159,7 @@ charter_vocals = Charter A & Charter B
 - **Recommended:** `charter` names every charter in the part keys. An exporter that writes part keys writes `charter` from them: each name once, in the order of this table, joined with " & ".
 - A game that shows one credit shows `charter`. A game that shows credits by part shows each part key that's set.
 - YARG reads the part keys, and shows some of them in its credits menu, for songs from its own sources. Clone Hero doesn't read them.
-- scan-chart reads them. With its `metadataStyle` option, it reports a name in a part key that `charter` doesn't hold.
-
-{/* review: Q2
-How should a song credit its charters, now that YARG has a key for each part? Today `charter` is the one credit every game uses. Clone Hero shows it in song details, the results and the charter sort, and looks for an icon named after it. YARG shows it in song details, at the start of the song, in the charter sort and on Discord. The canonical SongHash holds it, and Chorus Encore shows it.
-YARG reads 16 `charter_` keys. It uses 8 of them (guitar, bass, drums, vocals, keys, pro keys, venue and audio), and only in its credits menu, which lists songs from its own sources (`yarg`, `yargdlc`, `yarn` and `creativech`). There it shows "Charted by" with the names in those keys, split at commas, each once, sorted alphabetically. It never fills `charter` from them.
-Clone Hero reads none of them. scan-chart keeps them as written, and reads them as metadata fields once your Q4 B answer is built. In the census, 61,751 of the 63,812 song.ini files have `charter`, and none has a `charter_` key.
-- A. One credit, written from the part keys | `charter` names every charter. Part keys are optional. An exporter writes `charter` from them: each name once, in the order of the part credits table, joined with " & ". A game that shows one credit shows `charter`, and a game that shows credits by part shows the part keys. scan-chart's `metadataStyle` reports a part key's name missing from `charter` | No game or hash change. Clone Hero shows the part credits joined, because the file holds the join. A file edited by hand can let the two disagree, which the check reports
-- B. As A, and games join the part keys when `charter` isn't set | Clone Hero, YARG and scan-chart show the part keys joined as in A, and the SongHash holds that join, when a song has part keys and no `charter` | Changes to Clone Hero and YARG, and a canonical rule for the SongHash's charter that Clone Hero and scan-chart both implement. No library song changes, since none has a part key. It helps only files that already miss A's recommendation
-- C. Part keys win | When any part key is set, games show the joined part keys instead of `charter`. `charter` stays for older game versions | Changes to Clone Hero and YARG. The SongHash, the charter sort and Clone Hero's icon follow the join. A file whose two disagree shows one credit in released versions and another in new ones
-Recommendation: A. Every game, the leaderboards and Chorus Encore keep one credit, and games that show part credits get them beside it, with no change to any game or hash. Clone Hero shows the joined credit you asked for because the exporter writes it into `charter`. B can follow if songs with part keys and no `charter` appear.
-*/}
+- scan-chart reads them. With its `metadataStyle` option, it reports a name in a part key that `charter` doesn't hold, as `uncreditedPartCharter`.
 
 ## Difficulties
 
