@@ -1,5 +1,5 @@
 import { chartStats } from './chart/chart-analysis'
-import { reportsDeprecatedTag, rewriteHopoTags, rewriteMultiplierNote } from './fix-chart'
+import { multiplierNote103Line, reportsDeprecatedTag, rewriteHopoTags, rewriteMultiplierNote } from './fix-chart'
 import { IniFix, iniFixRewrite, removalFix, renameFix } from './fix-issues'
 import { deprecatedTags, hopoTags, ignoredIssueCodes } from './ini/ini-checks'
 import { asUtf8Ini, rewriteSongIni } from './ini/ini-edit'
@@ -13,10 +13,10 @@ import type { SongDocument } from './song-document'
  * A kind of rewrite that leaves a song without a deprecated song.ini tag, which only older charts need:
  * - `hopoTags`: the notes whose strum or HOPO `hopo_frequency` or `eighthnote_hopo` changes are forced, and the tags
  *   removed.
- * - `multiplierNote`: a `.mid` file's star power moves from note 103 to note 116, and `multiplier_note = 103` is
- *   removed.
- * - `deprecatedTags`: an older name, such as `frets`, is renamed, and a deprecated tag that changes nothing, such as
- *   `delay = 0`, is removed.
+ * - `multiplierNote`: a `.mid` file's star power moves from note 103 to note 116, and `multiplier_note = 103`, or
+ *   `star_power_note = 103` without it, is removed.
+ * - `deprecatedTags`: an older name, such as `frets` or `pro_drum`, is renamed, and a deprecated tag that changes
+ *   nothing, such as `delay = 0`, is removed.
  */
 export type DeprecatedTagNormalizationKind = 'hopoTags' | 'multiplierNote' | 'deprecatedTags'
 
@@ -44,24 +44,29 @@ export function deprecatedTagNormalizations(song: SongDocument): DeprecatedTagNo
 
 	const found = songIniFindingsOf(song)
 	const normalizations: DeprecatedTagNormalization[] = []
-	const add = (kind: DeprecatedTagNormalizationKind, rewrite: (current: SongDocument, found: readonly MetadataFinding[]) => SongDocument | null) => {
+	/** The tags the chart rewrites remove. */
+	const removed = new Set<string>()
+	type Rewrite = (current: SongDocument, found: readonly MetadataFinding[]) => { readonly song: SongDocument; readonly keys: readonly string[] } | null
+	const add = (kind: DeprecatedTagNormalizationKind, rewrite: Rewrite) => {
 		const rewritten = rewrite(song, found)
 		if (rewritten === null) return
-		normalizations.push({ kind, apply: current => (current === song ? rewritten : rewrite(current, songIniFindingsOf(current))) ?? current })
+		for (const key of rewritten.keys) removed.add(key)
+		normalizations.push({ kind, apply: current => (current === song ? rewritten : rewrite(current, songIniFindingsOf(current)))?.song ?? current })
 	}
 	add('hopoTags', (current, found) => {
 		if (!reportsDeprecatedTag(found, hopoTags)) return null
 		const rewritten = rewriteHopoTags(current)
-		return 'song' in rewritten ? rewritten.song : null
+		return 'song' in rewritten ? rewritten : null
 	})
 	add('multiplierNote', (current, found) => {
-		if (!reportsDeprecatedTag(found, ['multiplier_note'])) return null
+		const read = multiplierNote103Line(current)
+		if (read === null || !reportsDeprecatedTag(found, [read])) return null
 		const rewritten = rewriteMultiplierNote(current)
-		return 'song' in rewritten ? rewritten.song : null
+		return 'song' in rewritten ? rewritten : null
 	})
-	// Renaming a tag, or removing one that changes nothing, reads the song as before, so the tags found for the song are
-	// rewritten as song.ini sets them once the other normalizations have run: a chart rewrite may have removed one.
-	const tags = renamedOrRemoved(found)
+	// Renaming a tag, or removing one that changes nothing, reads the song as before, so the other tags found for the
+	// song are rewritten as song.ini sets them once the other normalizations have run.
+	const tags = renamedOrRemoved(found).filter(tag => !removed.has(tag.key))
 	if (tagFixes(tags, written).length > 0) {
 		normalizations.push({
 			kind: 'deprecatedTags',

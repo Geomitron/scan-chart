@@ -259,15 +259,27 @@ describe('saving (E7)', () => {
 		expect(save('defaultIniValue')).toEqual({ normalized: ['hopoTags'], ini: '[song]\r\nname = Test\r\ndelay = 0\r\nsong_length = 60000\r\nignored_issues = defaultIniValue\r\n' })
 	})
 
-	it('moves a .mid file\'s star power from note 103 to 116, and removes multiplier_note = 103, keeping every canonical hash', () => {
-		const { edited, files, report, ini } = saveEditedMid([...midiNote(0, 96, 240), ...midiNote(0, 103, 480), ...midiNote(960, 97)],
-			'[song]\r\nname = Test\r\nmultiplier_note = 103\r\nsong_length = 60000\r\n')
-		expect(report.normalized).toEqual([{ kind: 'multiplierNote', section: 'song.ini' }])
-		expect(ini).toBe('[song]\r\nname = Test\r\nsong_length = 60000\r\n')
-		const saved = parseSongFiles(files)
-		expect(authoredTracks(saved.chart!)[0].events.filter(event => event.scope === 'instrument').map(event => [event.type, event.tick, event.length])).toEqual([['starPower', 0, 480]])
-		expect(resolveChart(saved).tracks).toEqual(resolveChart(edited).tracks)
-		expect(songHashes(saved)).toEqual(songHashes(edited))
+	it('moves a .mid file\'s star power from note 103 to 116, and removes multiplier_note = 103 or star_power_note = 103, keeping every canonical hash', () => {
+		for (const key of ['multiplier_note', 'star_power_note']) {
+			const { edited, files, report, ini } = saveEditedMid([...midiNote(0, 96, 240), ...midiNote(0, 103, 480), ...midiNote(960, 97)],
+				`[song]\r\nname = Test\r\n${key} = 103\r\nsong_length = 60000\r\n`)
+			expect(report.normalized, key).toEqual([{ kind: 'multiplierNote', section: 'song.ini' }])
+			expect(ini, key).toBe('[song]\r\nname = Test\r\nsong_length = 60000\r\n')
+			const saved = parseSongFiles(files)
+			expect(authoredTracks(saved.chart!)[0].events.filter(event => event.scope === 'instrument').map(event => [event.type, event.tick, event.length])).toEqual([['starPower', 0, 480]])
+			expect(resolveChart(saved).tracks).toEqual(resolveChart(edited).tracks)
+			expect(songHashes(saved)).toEqual(songHashes(edited))
+		}
+	})
+
+	it('renames pro_drum and star_power_note through the older-name table', () => {
+		// Two solos and no star power: Clone Hero would read the solos as star power without multiplier_note = 116.
+		const solos = [...midiNote(0, 103, 100), ...midiNote(960, 103, 100)]
+		const { edited, files, report, ini } = saveEditedMid([...midiNote(0, 96, 240), ...midiNote(960, 97), ...solos],
+			'[song]\r\nname = Test\r\npro_drum = True\r\nstar_power_note = 116\r\n')
+		expect(report.normalized).toEqual([{ kind: 'deprecatedTags', section: 'song.ini' }])
+		expect(ini).toBe('[song]\r\nname = Test\r\nmultiplier_note = 116\r\npro_drums = True\r\n')
+		expect(songHashes(parseSongFiles(files))).toEqual(songHashes(edited))
 	})
 
 	it('renames frets and track, and removes the deprecated tags that change nothing, keeping delay and the other tags', () => {
