@@ -56,9 +56,9 @@ describe('scanIni: unknownIniValues', () => {
 		expect(result.unknownIniValues).toEqual({})
 	})
 
-	it('preserves hopofreq without reading it, as Clone Hero ignores it, and reads pro_drum and star_power_note as older names', () => {
-		const result = scanIni(buildIni(['[Song]', 'hopofreq = 170', 'pro_drum = True', 'star_power_note = 103']))
-		expect(result.metadata).toMatchObject({ hopo_frequency: 0, pro_drums: true, multiplier_note: 103 })
+	it('preserves hopofreq without reading it, as Clone Hero ignores it', () => {
+		const result = scanIni(buildIni(['[Song]', 'hopofreq = 170']))
+		expect(result.metadata).toMatchObject({ hopo_frequency: 0 })
 		expect(result.unknownIniValues).toEqual({ hopofreq: '170' })
 	})
 

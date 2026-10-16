@@ -7,9 +7,12 @@ const encode = (text: string) => new TextEncoder().encode(text)
 /** An Expert guitar `.chart` section holding `lines`. */
 export const expertSection = (...lines: string[]) => ['[ExpertSingle]', '{', ...lines.map(line => `  ${line}`), '}']
 
-/** A `.chart` file at 192 ticks per beat and 120 BPM, with the sections given, or an Expert guitar track of two notes. */
-export const chartFile = (sections: readonly string[] = expertSection('768 = N 0 0', '960 = N 1 0')) => encode([
-	'[Song]', '{', '  Resolution = 192', '}', '[SyncTrack]', '{', '  0 = TS 4', '  0 = B 120000', '}', '[Events]', '{', '}', ...sections,
+/**
+ * A `.chart` file at 192 ticks per beat and 120 BPM, with the sections given, or an Expert guitar track of two notes,
+ * and the `[Events]` lines given.
+ */
+export const chartFile = (sections: readonly string[] = expertSection('768 = N 0 0', '960 = N 1 0'), events: readonly string[] = []) => encode([
+	'[Song]', '{', '  Resolution = 192', '}', '[SyncTrack]', '{', '  0 = TS 4', '  0 = B 120000', '}', '[Events]', '{', ...events.map(line => `  ${line}`), '}', ...sections,
 ].join('\r\n') + '\r\n')
 
 /** A `.chart` file whose only track is Expert guitar, holding `lines`. */

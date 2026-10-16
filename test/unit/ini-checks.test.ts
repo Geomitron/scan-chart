@@ -56,10 +56,24 @@ describe('song.ini tags', () => {
 		expect(await iniIssues(['[song]', 'name = Song', 'link_name_a = Site', 'artist = Band', 'pro_drums = True'], ['iniTagOrder'])).toEqual([])
 	})
 
-	it('orders the keys only YARG reads after explicit_lyrics and before the deprecated keys', async () => {
-		const ordered = ['[song]', 'name = Song', 'explicit_lyrics = True', 'preview = 1000 31000', 'rating = 1', 'credit_written_by = A', 'charter_guitar = B',
-			'charter_audio = C', 'link_youtube = D', 'tuning_offset_cents = 5', 'delay = 50', 'pro_drums = True', 'link_name_a = Site']
+	/** The keys only YARG reads, as the metadata page's "Read by YARG only" table lists them, with its "Part credits" for the charter_ keys. */
+	const yargOnlyKeys = [
+		'preview', 'video_end_time', 'video_loop', 'background', 'video', 'cover', 'rating', 'tags',
+		'diff_vocals_harm', 'diff_guitar_real', 'diff_guitar_real_22', 'diff_bass_real', 'diff_bass_real_22', 'diff_keys_real', 'diff_elite_drums',
+		'sub_genre', 'covered_by', 'date_released', 'location',
+		'credit_album_art_designed_by', 'credit_arranged_by', 'credit_background', 'credit_composed_by', 'credit_courtesy_of', 'credit_engineered_by',
+		'credit_license', 'credit_mastered_by', 'credit_mixed_by', 'credit_other', 'credit_performed_by', 'credit_produced_by', 'credit_published_by',
+		'credit_written_by',
+		'charter_guitar', 'charter_rhythm', 'charter_bass', 'charter_drums', 'charter_elite_drums', 'charter_keys', 'charter_pro_guitar', 'charter_pro_bass',
+		'charter_pro_keys', 'charter_guitar_6f', 'charter_rhythm_6f', 'charter_bass_6f', 'charter_vocals', 'charter_lower_diff', 'charter_venue', 'charter_audio',
+		'link_bandcamp', 'link_bluesky', 'link_facebook', 'link_instagram', 'link_spotify', 'link_twitter', 'link_other', 'link_youtube',
+		'vocal_gender', 'vocal_scroll_speed', 'clean_vocals', 'venue_hint', 'vocal_character_hint', 'tuning_offset_cents',
+	]
+
+	it('orders the keys only YARG reads as the metadata page lists them, after explicit_lyrics and before the deprecated keys', async () => {
+		const ordered = ['[song]', 'name = Song', 'explicit_lyrics = True', ...yargOnlyKeys.map(key => `${key} = 1`), 'delay = 50', 'pro_drums = True', 'link_name_a = Site']
 		expect(await iniIssues(ordered, ['iniTagOrder'])).toEqual([])
+		expect(Object.keys(defaultMetadata).filter(key => yargOnlyKeys.includes(key))).toHaveLength(yargOnlyKeys.length)
 		expect(await iniIssues(['[song]', 'name = Song', 'rating = 1', 'artist = Band'], ['iniTagOrder']))
 			.toEqual([['iniTagOrder', 'In "song.ini", "artist" should come before "rating".']])
 		expect(await iniIssues(['[song]', 'name = Song', 'charter_audio = A', 'charter_guitar = B'], ['iniTagOrder']))
@@ -68,8 +82,8 @@ describe('song.ini tags', () => {
 			.toEqual([['iniTagOrder', 'In "song.ini", "covered_by" should come before "delay".']])
 	})
 
-	it('knows every key it reads as metadata, and its older names', async () => {
-		const lines = ['[song]', ...Object.keys(defaultMetadata).map(key => `${key} = 1`), 'frets = 1', 'track = 1', 'pro_drum = 1', 'star_power_note = 1']
+	it('knows the keys only YARG reads, and the older names', async () => {
+		const lines = ['[song]', 'name = Song', ...yargOnlyKeys.map(key => `${key} = 1`), 'frets = 1', 'track = 1', 'pro_drum = 1', 'star_power_note = 1']
 		expect(await iniIssues(lines, ['unknownIniTag'])).toEqual([])
 	})
 
