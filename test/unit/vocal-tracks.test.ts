@@ -1273,6 +1273,58 @@ describe('normalizedVocalTracks', () => {
 		expect(phrases[1].lyrics.map(l => l.text)).toEqual(['boundary', 'phrase2lyric'])
 	})
 
+	it('holds the note and lyric on a .mid phrase\'s end tick, unless the next phrase starts there', () => {
+		const midi = buildMidi(480, [
+			tempoTrack(),
+			eventsTrack(),
+			vocalTrack('PART VOCALS', {
+				lyrics: [{ tick: 480, text: 'Hel-' }, { tick: 960, text: 'lo' }, { tick: 1920, text: 'Next' }, { tick: 2400, text: 'line' }],
+				notes: [
+					{ tick: 480, pitch: 60, length: 240 },
+					{ tick: 960, pitch: 62, length: 240 },
+					{ tick: 1920, pitch: 64, length: 240 },
+					{ tick: 2400, pitch: 65, length: 240 },
+				],
+				phrases: [{ tick: 480, length: 480 }, { tick: 1920, length: 480 }, { tick: 2400, length: 480 }],
+			}),
+		])
+		const phrases = parseChartFile(midi, 'mid').vocalTracks.parts.vocals.notePhrases
+		expect(phrases.map(phrase => [phrase.notes.map(note => note.tick), phrase.lyrics.map(lyric => lyric.text)])).toEqual([
+			[[480, 960], ['Hel-', 'lo']],
+			[[1920], ['Next']],
+			[[2400], ['line']],
+		])
+	})
+
+	it('holds the note and lyric on the tick of a .mid phrase of length 0', () => {
+		const midi = buildMidi(480, [
+			tempoTrack(),
+			eventsTrack(),
+			vocalTrack('PART VOCALS', {
+				lyrics: [{ tick: 480, text: 'Oh' }, { tick: 960, text: 'yeah' }],
+				notes: [{ tick: 480, pitch: 60, length: 240 }, { tick: 960, pitch: 62, length: 240 }],
+				phrases: [{ tick: 480, length: 0 }, { tick: 960, length: 480 }],
+			}),
+		])
+		const phrases = parseChartFile(midi, 'mid').vocalTracks.parts.vocals.notePhrases
+		expect(phrases.map(phrase => [phrase.tick, phrase.length, phrase.notes.map(note => note.tick), phrase.lyrics.map(lyric => lyric.text)])).toEqual([
+			[480, 0, [480], ['Oh']],
+			[960, 480, [960], ['yeah']],
+		])
+	})
+
+	it('holds a harmony\'s note and lyric on the end tick of HARM1\'s phrase', () => {
+		const harmony = (name: string, pitch: number) => vocalTrack(name, {
+			lyrics: [{ tick: 0, text: 'Oh' }, { tick: 480, text: 'yeah' }],
+			notes: [{ tick: 0, pitch, length: 240 }, { tick: 480, pitch, length: 240 }],
+			phrases: [{ tick: 0, length: 480 }],
+		})
+		const parts = parseChartFile(buildMidi(480, [tempoTrack(), eventsTrack(), harmony('HARM1', 60), harmony('HARM2', 64)]), 'mid').vocalTracks.parts
+		for (const phrases of [parts.harmony1.notePhrases, parts.harmony2.notePhrases, parts.harmony2.staticLyricPhrases]) {
+			expect(phrases.map(phrase => [phrase.notes.map(note => note.tick), phrase.lyrics.map(lyric => lyric.text)])).toEqual([[[0, 480], ['Oh', 'yeah']]])
+		}
+	})
+
 	it('lyric at boundary tick stays in new phrase regardless of MIDI event ordering', () => {
 		// Same edge case as above, but explicitly construct the MIDI with the
 		// lyric event placed BEFORE the noteOff (phrase 1 end) and the noteOn
