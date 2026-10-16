@@ -66,6 +66,7 @@ export const issueSeverities: { readonly [code in IssueCode]: IssueSeverity } = 
 	defaultIniValue: 'recommendation',
 	songLengthMismatch: 'recommendation',
 	creditSeparator: 'recommendation',
+	uncreditedPartCharter: 'recommendation',
 	textSpacing: 'recommendation',
 	featuringFormat: 'recommendation',
 	titleTagOrder: 'recommendation',

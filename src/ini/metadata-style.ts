@@ -1,6 +1,15 @@
 import type { MetadataFinding } from '../issues'
 import type { MetadataIssueType } from '../types'
-import { defaultMetadata } from './metadata'
+import { defaultMetadata, yargOnlyMetadata } from './metadata'
+
+type PartCreditKey = Extract<keyof typeof yargOnlyMetadata, `charter_${string}`>
+/** The part credit keys, in the order of the part credits table on the Metadata page. */
+const partCreditKeys = (Object.keys(yargOnlyMetadata) as (keyof typeof yargOnlyMetadata)[])
+	.filter((key): key is PartCreditKey => key.startsWith('charter_'))
+/** A credit's names, split at "&" or ",", each without a part in parentheses after it, such as "(Guitar)". */
+const creditNames = (credit: string) => credit.split(/[&,]/).map(name => name.replace(/\([^)]*\)\s*$/, '').trim()).filter(name => name !== '')
+/** A name as two credits are compared: letter case and runs of spaces don't count. */
+const nameKey = (name: string) => name.replace(/\s+/g, ' ').toLowerCase()
 
 /** Title tag words that tell charts of one song apart, which go after the other title tags. */
 const chartTagWords = /overchart|\b6[- ]?fret|open notes|\b2x (kick|bass pedal)|expert\+|pro drums|\b(full|band|drums?|guitar|bass|keys) (chart|only)\b/i
@@ -15,9 +24,10 @@ export function marksSingle(album: string) {
 }
 
 /**
- * Guesses about the metadata's text against the charting guidelines' style: credits joined with "&", single spaces, where
- * featured artists and title tags go, one genre, a four-digit year, and how a single's album is written. Each is a guess,
- * so they're reported only when asked for. `metadata`'s text has its style tags removed.
+ * Guesses about the metadata's text against the charting guidelines' style: credits joined with "&", every part credit's
+ * names in `charter`, single spaces, where featured artists and title tags go, one genre, a four-digit year, and how a
+ * single's album is written. Each is a guess, so they're reported only when asked for. `metadata`'s text has its style
+ * tags removed.
  */
 export function metadataStyleIssues(metadata: typeof defaultMetadata): MetadataFinding[] {
 	const issues: MetadataFinding[] = []
@@ -28,6 +38,23 @@ export function metadataStyleIssues(metadata: typeof defaultMetadata): MetadataF
 
 	if (isGiven('charter') && /\s*[,/+;]\s*|\s+and\s+/i.test(charter)) {
 		add('creditSeparator', `The charter value "${charter}" lists several names. Join them with " & ".`)
+	}
+	// charter is the one credit games show, so it names every part's charters (Geo, 2026-10-16). Without charter, the
+	// missing value is already reported.
+	if (isGiven('charter')) {
+		const credited = new Set(creditNames(charter).map(nameKey))
+		const uncredited = new Map<string, string>()
+		for (const key of partCreditKeys) {
+			for (const partName of creditNames(metadata[key])) {
+				const found = nameKey(partName)
+				if (!credited.has(found) && !uncredited.has(found)) uncredited.set(found, `"${partName}" (${key})`)
+			}
+		}
+		const names = [...uncredited.values()]
+		if (names.length > 0) {
+			const list = names.length === 1 ? names[0] : `${names.slice(0, -1).join(', ')} or ${names[names.length - 1]}`
+			add('uncreditedPartCharter', `The charter value "${charter}" doesn't name ${list}. Name every part's charters in charter.`)
+		}
 	}
 
 	for (const key of ['name', 'artist', 'album', 'genre', 'charter'] as const) {

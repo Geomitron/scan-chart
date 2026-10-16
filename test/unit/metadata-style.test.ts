@@ -23,6 +23,33 @@ describe('metadata style', () => {
 		expect(codes({ charter: 'A & B (Drums)' })).toEqual([])
 	})
 
+	it('reports a part credit\'s name that charter doesn\'t hold', () => {
+		expect(style({ charter: 'Charter A', charter_drums: 'Charter B' }))
+			.toEqual([['uncreditedPartCharter', 'The charter value "Charter A" doesn\'t name "Charter B" (charter_drums). Name every part\'s charters in charter.']])
+		// Each name once, in the part credits table's order, whatever the order of the keys.
+		expect(style({ charter: 'A', charter_vocals: 'C & B', charter_guitar: 'B', charter_bass: 'A' }).map(([, description]) => description))
+			.toEqual(['The charter value "A" doesn\'t name "B" (charter_guitar) or "C" (charter_vocals). Name every part\'s charters in charter.'])
+	})
+
+	it('reads a name in charter the same with its part in parentheses, in another letter case or spacing', () => {
+		const uncredited = (values: Partial<typeof defaultMetadata>) => codes(values).filter(code => code === 'uncreditedPartCharter')
+		expect(uncredited({ charter: 'Charter A (Guitar) & charter  b (Drums)', charter_guitar: 'Charter A', charter_drums: 'Charter B (Pro)' })).toEqual([])
+		expect(uncredited({ charter: 'A & B', charter_vocals: 'A & B', charter_audio: 'B, A' })).toEqual([])
+	})
+
+	it('compares part credits from song.ini without their style tags', async () => {
+		const encode = (text: string) => new TextEncoder().encode(text)
+		const chart = encode('[Song]\r\n{\r\n  Resolution = 192\r\n}\r\n[SyncTrack]\r\n{\r\n  0 = B 120000\r\n}\r\n[ExpertSingle]\r\n{\r\n  768 = N 0 0\r\n}\r\n')
+		const ini = encode('[song]\r\ncharter = <color=#ff0000>Charter A</color>\r\ncharter_guitar = <b>Charter A</b>\r\ncharter_drums = <b>Charter B</b>\r\n')
+		const scanned = await scanSongFolder([{ fileName: 'notes.chart', data: chart }, { fileName: 'song.ini', data: ini }], { metadataStyle: true })
+		expect(scanned.issues.filter(issue => issue.code === 'uncreditedPartCharter').map(issue => [issue.severity, issue.file, issue.message]))
+			.toEqual([['recommendation', 'song.ini', 'The charter value "Charter A" doesn\'t name "Charter B" (charter_drums). Name every part\'s charters in charter.']])
+	})
+
+	it('leaves part credits to the missing charter report when charter isn\'t set', () => {
+		expect(codes({ charter_drums: 'Charter B' })).toEqual([])
+	})
+
 	it('reports two spaces in a row, but not the artist\'s own styling', () => {
 		expect(style({ name: 'Song  Name' })).toEqual([['textSpacing', 'The name value "Song  Name" has two spaces in a row.']])
 		expect(codes({ name: 'Come What(ever) May', artist: 'Y&T', genre: 'R&B' })).toEqual([])
