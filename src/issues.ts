@@ -56,6 +56,7 @@ export const issueSeverities: { readonly [code in IssueCode]: IssueSeverity } = 
 	quotedIniValue: 'warning',
 	unknownIniTag: 'recommendation',
 	missingSongLength: 'recommendation',
+	shortSongLength: 'warning',
 	missingAlbumTrack: 'recommendation',
 	difficultyRange: 'recommendation',
 	iconName: 'recommendation',

@@ -196,6 +196,7 @@ export function songIniFindings(song: SongDocument, context: SongContext, stats:
 		chart: chart.kind !== 'parsed' || stats === null ? null : {
 			format: chart.source.format,
 			drumType: stats.instruments.includes('drums') ? chart.parsed.drumType : null,
+			lastNoteEndMs: lastNoteEndMs(chart.parsed),
 			detectedDrumType: () => parseChartSource(chart.source, { ...settings, pro_drums: false, five_lane_drums: false }, parseRules.canonical20260801).drumType,
 			solosReadAsStarPower: () => {
 				const starPower = (parsed: ParsedChartFile) => JSON.stringify(parsed.trackData.map(track => track.starPowerSections.map(phrase => [phrase.tick, phrase.length])))
@@ -205,6 +206,15 @@ export function songIniFindings(song: SongDocument, context: SongContext, stats:
 		extraIniKeys: options.extraIniKeys ?? [],
 		styleNotes: options.styleNotes ?? false,
 	})
+}
+
+/** Where the chart's last note ends, sustain included, in milliseconds, or 0 when it has no notes. */
+function lastNoteEndMs(chart: ParsedChartFile): number {
+	let end = 0
+	for (const track of chart.trackData) {
+		for (const group of track.noteEventGroups) for (const note of group) end = Math.max(end, note.msTime + note.msLength)
+	}
+	return end
 }
 
 /** Each instrument's song.ini difficulty rating. */

@@ -356,6 +356,7 @@ export type MetadataIssueType =
 	| 'quotedIniValue' // A "song.ini" value is in quotes
 	| 'unknownIniTag' // "song.ini" has a tag no game reads
 	| 'missingSongLength' // "song.ini" doesn't set song_length
+	| 'shortSongLength' // song_length is shorter than the end of the chart's last note
 	| 'missingAlbumTrack' // "song.ini" doesn't set album_track, and the album isn't a single
 	| 'difficultyRange' // A difficulty rating is outside 0 to 10
 	| 'iconName' // The icon isn't written as an icon's name

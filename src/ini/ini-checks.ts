@@ -19,12 +19,14 @@ export interface SongIniInput {
 	/** Keys another issue asks to set, such as a charted instrument's difficulty, which aren't reported as blank. */
 	readonly requiredKeys: readonly string[]
 	/**
-	 * The chart's format and drum type, or `null` when it didn't parse. `detectedDrumType` reads it without song.ini's drum
-	 * flags; `solosReadAsStarPower` says whether a guitar or keys track reads its solos as star power without `multiplier_note`.
+	 * The chart's format, drum type and where its last note ends, sustain included, in milliseconds, or `null` when it
+	 * didn't parse. `detectedDrumType` reads it without song.ini's drum flags; `solosReadAsStarPower` says whether a guitar
+	 * or keys track reads its solos as star power without `multiplier_note`.
 	 */
 	readonly chart: {
 		readonly format: 'chart' | 'mid'
 		readonly drumType: DrumType | null
+		readonly lastNoteEndMs: number
 		readonly detectedDrumType: () => DrumType | null
 		readonly solosReadAsStarPower: () => boolean
 	} | null
@@ -137,9 +139,9 @@ const isBlank = (key: string, value: string | undefined) => value === '' || (val
 const hasValue = (songSection: SongSection, key: string) => songSection[key] !== undefined && !isBlank(key, songSection[key])
 
 /**
- * The charting recommendations about song.ini's values, and the keys reported missing: song_length and album_track
- * unset, a difficulty outside 0 to 10, an icon that isn't an icon's name, a tag for older charts that changes how the
- * chart reads, and a drum type flag the chart doesn't need.
+ * The charting recommendations about song.ini's values, and the keys reported missing: song_length unset or shorter
+ * than the chart, album_track unset, a difficulty outside 0 to 10, an icon that isn't an icon's name, a tag for older
+ * charts that changes how the chart reads, and a drum type flag the chart doesn't need.
  */
 function valueIssues({ songSection, metadata, chart, styleNotes }: SongIniInput): { issues: MetadataFinding[]; missing: string[] } {
 	const issues: MetadataFinding[] = []
@@ -149,6 +151,10 @@ function valueIssues({ songSection, metadata, chart, styleNotes }: SongIniInput)
 	if (!(metadata.song_length > 0)) {
 		missing.push('song_length')
 		add('missingSongLength', 'Metadata is missing "song_length": set it to the length of the longest audio file, in milliseconds.')
+	} else if (chart !== null && metadata.song_length < chart.lastNoteEndMs) {
+		// The audio's length can't be told from the chart, so only a length too short for the notes is reported.
+		add('shortSongLength', `The "song_length" value is ${metadata.song_length}, but the chart's last note ends at ${Math.ceil(chart.lastNoteEndMs)} ms. `
+			+ 'Set it to the length of the longest audio file, in milliseconds.')
 	}
 	if (metadata.album_track === defaultMetadata.album_track && metadata.album !== defaultMetadata.album && !marksSingle(metadata.album)) {
 		missing.push('album_track')
