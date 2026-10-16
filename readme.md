@@ -266,7 +266,7 @@ import { editSong, parseSong, serializeSong, writeSavePlanFile } from 'scan-char
 const song = await parseSong(await readSongFolder('songs/Example Song'))
 const edited = editSong(song, batch => batch.setMetadata('genre', 'Rock'))
 const plan = serializeSong(edited)
-console.log(`Rewrote ${plan.report.normalized.length} nonstandard spellings`)
+for (const { kind, section } of plan.report.normalized) console.log(`Saving rewrote ${kind}${section === null ? '' : ` in ${section}`}`)
 
 const output = 'songs/Example Song (edited)'
 await mkdir(output, { recursive: true })
@@ -281,11 +281,11 @@ In a browser, `savePlanToBlobs` gives each file as a `Blob`, ready to download.
 
 The report says what saving changed beyond your edits:
 
-- `normalized` lists the nonstandard spellings saving rewrote, such as lines out of tick order or missing Windows line endings.
-- `withheld` lists the ones it left alone, because rewriting them would change a TrackHash or the SongHash that your edits didn't change. The hashes Clone Hero 1.1 calculated aren't kept: a rewrite may change them.
+- `normalized` lists each rewrite saving made, by its kind and the section, MIDI track or file it rewrote: a nonstandard spelling, such as lines out of tick order or missing Windows line endings, or a song.ini tag only older charts need.
+- `withheld` lists the rewrites it left out, because rewriting them would change a TrackHash or the SongHash that your edits didn't change. The hashes Clone Hero 1.1 calculated aren't kept: a rewrite may change them.
 - `spentHashes` lists the TrackHashes and SongHash your edits changed.
 
-Saving also rewrites the song so that it no longer needs the song.ini tags that only older charts need, where it plays the same and keeps every TrackHash and the SongHash. `normalized` lists these rewrites too:
+Saving rewrites the song so that it no longer needs the song.ini tags that only older charts need, where it plays the same and keeps every TrackHash and the SongHash. `normalized` lists these rewrites by these kinds:
 
 - `hopoTags`: the notes whose strum or HOPO `hopo_frequency` or `eighthnote_hopo` changes are forced, and the tags are removed.
 - `multiplierNote`: a `.mid` file's star power moves from note 103 to note 116, and `multiplier_note = 103` is removed.
