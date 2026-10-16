@@ -42,7 +42,7 @@ A game plays any type of chart on any kit:
 - **Pro on a 4-lane kit:** cymbals are played as plain pads.
 - **5-lane on a 4-lane or pro kit:** the five pads become red, a yellow cymbal, a blue tom, a green cymbal from `N 4`, and a green tom from `N 5`.
 
-**Edge case: `N 4` and `N 5` at one tick.** In a 5-lane chart played on a pro kit, Clone Hero and scan-chart give a green cymbal and a blue tom, and YARG a blue cymbal and a green tom. In a pro chart, a scanner moves the `N 5` to a blue tom. **Recommended:** `N 4` and `N 5` on different ticks in a pro chart.
+**Edge case: `N 4` and `N 5` at one tick.** In a 5-lane chart played on a pro kit, Clone Hero and scan-chart give a green cymbal and a blue tom, and YARG a blue cymbal and a green tom. In a pro chart, Clone Hero and scan-chart move the `N 5` to a blue tom, and YARG plays both in the green lane: as two green notes, or with `N 68` as a green cymbal and a green tom. **Recommended:** `N 4` and `N 5` on different ticks in a pro chart.
 
 ## Notes
 
@@ -63,6 +63,8 @@ A drum note's length has no effect. An exporter should write 0.
 `N 32` is a kick that a scanner plays only when the player has the double kick modifier enabled, because these kicks realistically need a double kick pedal to play properly. Charters alternate `N 0` and `N 32` in fast kick passages.
 
 **Recommended:** `N 32` only in `ExpertDrums`.
+
+**Edge case:** Clone Hero plays `N 32` in `EasyDrums`, `MediumDrums` and `HardDrums` as a double kick, when the double kick modifier is on. YARG never plays it there, and scan-chart reports it as `difficultyForbiddenNote`.
 
 ## Modifiers
 
@@ -127,10 +129,12 @@ A `mix` event sets up the drum audio for one difficulty, and its `d` flag turns 
 
 **Edge case:** a scanner also accepts `_` between the parts, and square brackets around the text.
 
+**Edge case: disco flip in a 5-lane chart.** Clone Hero and scan-chart mark the red and yellow notes as flipped, and Clone Hero swaps them when the chart is played on a pro kit. YARG ignores `mix` events in a 5-lane chart.
+
 ## Ignored
 
 - **A `mix` event that names another difficulty** than its section's.
-- **The `mix` flags `easy` and `easynokick`,** which have no effect on the notes.
+- **The `mix` flags `easy` and `easynokick`,** which have no effect on the notes. YARG reads one as the end of a flip, so an exporter writes them only while no flip is on.
 - **`N 33` and `N 39`,** which some charts write for kick accents and ghosts. No scanner gives them a meaning.
 
 ## Invalid forms
@@ -141,6 +145,14 @@ A scanner reads the chart as 5-lane.
 
 <Accordion title="N 0 and N 32 at one tick">
 Clone Hero merges them into one double kick, and scan-chart keeps the longer, or the double kick when they're the same length. YARG keeps both: one kick on Expert, and two on Expert+.
+</Accordion>
+
+<Accordion title="A mix event spelled another way">
+Clone Hero reads more than one space or `_` between the parts, and any one character as the configuration, so `mix 3  drums0d`, with two spaces, and `mix 3 drumsxd` are flips there. scan-chart reads them as Clone Hero does, and saving writes them in the standard spelling. YARG reads more than one space or `_` too, but only a digit from `0` to `5` as the configuration, so it doesn't read `mix 3 drumsxd` as a `mix` event.
+</Accordion>
+
+<Accordion title="A mix event with another flag, such as drums0x">
+Clone Hero and scan-chart ignore it, and scan-chart writes it back as it is. YARG reads it as an event that turns the flip off.
 </Accordion>
 
 <Accordion title="Two mix events of one difficulty at one tick">

@@ -33,6 +33,8 @@ A practice section marks where a part of the song starts, such as the intro or a
 
 **Edge case: the names Clone Hero shows.** Clone Hero has a table of Rock Band section names, and shows a name from it when it finds one there, such as `Verse 1` for `verse_1`. It shows any other name with each `_` replaced by a space. It does the same in a `.mid` file.
 
+**Edge case: a chart with no practice sections.** When a song with no practice sections is played, Clone Hero makes ten, named `0% - 10%` to `90% - 100%`. They start at tenths of the chart's length, which ends a beat after the last note. It does the same in a `.mid` file. scan-chart reports `noSections`.
+
 ## Lyrics
 
 A lyric is one syllable or word of the vocals. Vocal phrases group lyrics into the lines a scanner shows:
@@ -53,6 +55,8 @@ A `.chart` file holds one set of lyrics, without pitches.
 
 **Edge case: a lyric on a phrase's last tick.** A lyric on the tick where its phrase ends belongs to that phrase, unless the next phrase starts on that tick: then it belongs to the next phrase.
 
+**Edge case: the same lyric twice at one tick.** Clone Hero shows it twice. YARG and scan-chart keep one.
+
 ## The coda
 
 ```text
@@ -72,13 +76,6 @@ A `.chart` file holds one set of lyrics, without pitches.
 - **Required:** `end` at least one beat after the end of the last note, sustain included.
 - **Required:** one `end` at most.
 
-{/* review: Q1
-Should `end` count in a song's length? Each game has two lengths. The song list shows song.ini's `song_length`, the length of the audio: Clone Hero and YARG measure the audio when the key is missing. The length a song plays already stops at `end` in both games (in Clone Hero, for a .chart file, once its `end` fix is released). The canonical SongHash holds the chart's own length: the end of the last note, plus one beat. The legacy SongHash holds `song_length`. No hash holds `end`.
-- A. As now | `end` changes only when the song stops playing | None
-- B. SongHash's length ends at `end` when there is one | The canonical SongHash holds the time of `end` instead of the last note's end plus one beat | The canonical SongHash of every chart with an `end` changes, and Clone Hero's SongHash has to change to match. Two copies of one chart that differ only in `end` get different leaderboards
-Recommendation: A. A valid `end` comes at least a beat after the last note, so it cuts no note and changes no score: it only shows the results sooner. Putting it in SongHash would split leaderboards over a difference that changes no play, and the games don't agree on which `end` counts.
-*/}
-
 ## Deprecated
 
 - **`prc`,** an older word for `section`: `prc_verse_1` is a practice section named `verse_1`. Write `section` instead.
@@ -91,7 +88,11 @@ Recommendation: A. A valid `end` comes at least a beat after the last note, so i
 ## Invalid forms
 
 <Accordion title="Two practice sections at one tick">
-A scanner uses the later one.
+Clone Hero and scan-chart use the later one. YARG keeps both, unless their texts are the same.
+</Accordion>
+
+<Accordion title="No separator after section or prc">
+Clone Hero skips the character after `section` or `prc`, so `E "sectionIntro"` is a section named `ntro` there. YARG reads a section named `Intro`. scan-chart doesn't read it as a section, and keeps it as text.
 </Accordion>
 
 <Accordion title="A practice section name with spaces at its ends">
@@ -115,7 +116,11 @@ Clone Hero and scan-chart read them in the order written, so the new phrase ends
 </Accordion>
 
 <Accordion title="A phrase_end with no open phrase">
-It has no effect.
+It has no effect in Clone Hero and scan-chart. YARG starts a phrase there, which the next `phrase_start` or `phrase_end` ends.
+</Accordion>
+
+<Accordion title="Text that starts with phrase_start or phrase_end">
+Clone Hero reads any text that starts with `phrase_start`, such as `phrase_start_2`, as a phrase start, and any text that starts with `phrase_end` as a phrase end. YARG and scan-chart read only the exact words. scan-chart keeps such text, and writes it back.
 </Accordion>
 
 <Accordion title="More than one coda or end">

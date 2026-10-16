@@ -24,7 +24,7 @@ The `nonstandardChartLine` issue names the first such line in each section.
 
 ## Sections
 
-- **No resolution:** a file with no `[Song]` section, or no `Resolution` in it, is read with a resolution of 192. Saving adds it.
+- **No resolution:** a file with no `[Song]` section, or no `Resolution` in it, is read with a resolution of 192, as every scanner reads it. Saving adds `Resolution = 192`, and the `[Song]` section when there's none.
 - **Order:** `[Song]` and `[SyncTrack]` are read wherever they are. Saving puts them first, in that order.
 - **A repeated name:** the first section with the name is read. Saving removes the others.
 
@@ -40,7 +40,7 @@ These forms don't mean to games what they probably meant to the charter. scan-ch
 
 - **A decimal comma,** such as `Offset = 0,1`, is read as no value.
 - **A `Resolution` that isn't a whole number,** such as `Resolution = 480.5`, is read by its leading digits, as 480.
-- **An `[Events]` text with no closing quotation mark,** such as `1 = E "phrase_start`, isn't read. A lyric is the exception: `E "lyric Saa` is read as the lyric `Saa`.
+- **An `[Events]` text with no closing quotation mark,** such as `1 = E "phrase_start`, isn't read. A lyric is the exception: `E "lyric Saa` is read as the lyric `Saa`, as YARG reads it. Clone Hero reads every such text as an empty event, a lyric included.
 
 The `nonstandardChartLine` issue names them too.
 

@@ -36,6 +36,8 @@ A section's name is a difficulty followed by an instrument, such as `ExpertSingl
 
 A scanner matches names exactly, in the letter case shown.
 
+**Edge case: names close to these.** Clone Hero checks only some of a name's characters, so it reads a few other names as instrument sections: `[ExpertSingl]` is Expert guitar there. YARG's chart loader adds `[ExpertDoubleDrums]` to Expert drums when the file also has `[ExpertDrums]`. YARG's song list and scan-chart match names exactly.
+
 ## Notes
 
 A note is an `N` event:
