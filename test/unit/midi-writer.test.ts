@@ -149,6 +149,18 @@ describe('writeMidiFile round-trip: EVENTS track', () => {
 		expect(roundTrip(chart).endEvents.map(e => e.tick)).toEqual([1920])
 	})
 
+	it('writes practice sections, coda and end in brackets, which released Clone Hero needs', () => {
+		const chart = createEmptyChart({ format: 'mid', resolution: 480 })
+		chart.sections.push({ tick: 0, name: 'Intro', msTime: 0, msLength: 0 })
+		chart.endEvents.push({ tick: 3840, msTime: 0, msLength: 0 })
+		const td = emptyDrumTrack('expert')
+		td.noteEventGroups.push([note(0, noteTypes.kick)])
+		td.drumFreestyleSections.push({ tick: 1920, length: 480, isCoda: true, msTime: 0, msLength: 0 })
+		chart.trackData.push(td)
+		const eventsTrack = parseMidi(writeMidiFile(chart)).tracks.find(track => track.some(event => event.type === 'trackName' && event.text === 'EVENTS'))!
+		expect(trackTexts(eventsTrack)).toEqual([[0, '[section Intro]'], [1920, '[coda]'], [3840, '[end]']])
+	})
+
 	it('preserves unrecognized EVENTS events on .mid source', () => {
 		const chart = createEmptyChart({ format: 'mid' })
 		chart.unrecognized.eventsTrackTextEvents.push({ tick: 480, text: 'crowd_noclap', msTime: 0, msLength: 0 })
