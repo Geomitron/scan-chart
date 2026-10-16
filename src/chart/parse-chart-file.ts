@@ -341,15 +341,15 @@ function groupIntoPhrases(
 
 	const result: VocalPhrase[] = []
 	for (const [phraseIndex, phrase] of timedPhrases.entries()) {
+		// A phrase holds the notes and lyrics from its start tick through its end tick, unless the next phrase starts on
+		// its end tick, as Clone Hero reads lyrics (Chart.cs:501-508). A .chart lyric outside every phrase is ignored; a
+		// .mid lyric before a phrase belongs to it, as YARG's MIDI vocals loader reads it.
 		const phraseEnd = phrase.tick + phrase.length
-		// A .chart phrase holds the lyrics from its start tick through its end tick, unless the next phrase starts on
-		// its end tick, and a lyric outside every phrase is ignored, as Clone Hero reads them (Chart.cs:501-508). A
-		// .mid lyric belongs to the first phrase that ends after it, as YARG's MIDI vocals loader reads it.
-		const lyricEnd = format === 'chart' && timedPhrases[phraseIndex + 1]?.tick !== phraseEnd ? phraseEnd + 1 : phraseEnd
+		const end = timedPhrases[phraseIndex + 1]?.tick === phraseEnd ? phraseEnd : phraseEnd + 1
 
 		// Collect raw notes within this phrase
 		const rawNotes: typeof data.notes = []
-		while (noteIdx < data.notes.length && data.notes[noteIdx].tick < phraseEnd) {
+		while (noteIdx < data.notes.length && data.notes[noteIdx].tick < end) {
 			if (data.notes[noteIdx].tick >= phrase.tick) {
 				rawNotes.push(data.notes[noteIdx])
 			}
@@ -360,11 +360,11 @@ function groupIntoPhrases(
 		const untimedLyrics: { tick: number; text: string; flags: number }[] = []
 
 		// Pre-collect all lyrics within this phrase's tick range. This advances
-		// lyricIdx to a consistent position (phraseEnd) regardless of which notes
-		// exist. Note processing uses a local iterator (phraseLyricIdx) over this
-		// pre-collected list for flag detection.
+		// lyricIdx to a consistent position (the phrase's end) regardless of which
+		// notes exist. Note processing uses a local iterator (phraseLyricIdx) over
+		// this pre-collected list for flag detection.
 		const phraseLyrics: { tick: number; text: string; flags: number }[] = []
-		while (lyricIdx < sortedLyrics.length && sortedLyrics[lyricIdx].tick < lyricEnd) {
+		while (lyricIdx < sortedLyrics.length && sortedLyrics[lyricIdx].tick < end) {
 			const lyric = sortedLyrics[lyricIdx]
 			lyricIdx++
 			if (format === 'chart' && lyric.tick < phrase.tick) continue

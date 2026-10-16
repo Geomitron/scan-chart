@@ -131,6 +131,8 @@ export interface VocalNote {
  * which pitch/percussion notes and lyric syllables belong to the same sung line.
  * The game scores and displays vocals phrase-by-phrase as playback crosses
  * these ranges instead of treating every note as an unrelated standalone event.
+ * A phrase holds the notes and lyrics from its tick through its end tick,
+ * unless the next phrase starts on its end tick.
  */
 export interface VocalPhrase {
 	/** Tick position where the vocal phrase begins. */
