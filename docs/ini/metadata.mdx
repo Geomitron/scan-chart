@@ -65,7 +65,7 @@ Clone Hero and YARG show the tags as formatting wherever they show the value:
 - **Recommended:** colors as `#RRGGBB`. The games also read 22 color names, such as `lime`, except Clone Hero in `loading_phrase`, where only `black`, `blue`, `green`, `orange`, `purple`, `red`, `white` and `yellow` work.
 - Tags in `charter` stop Clone Hero from finding an icon named after the charter: set [`icon`](#icon) instead.
 - Clone Hero removes the tags from text it sends out of the game, such as its Discord status. YARG sends them to Discord as written.
-- scan-chart keeps the tags, unless its `removeStyleTags` option is `true`. The SongHash ignores them.
+- scan-chart keeps the tags, unless its `removeStyleTags` option is `true`. The [SongHash](/hashes/songhash#style-tags) ignores them.
 - Both games ignore tags and letter case to sort and search. Clone Hero ignores any text between `<` and `>`, even when it isn't a tag, and both games show such text as written: `Song <Live>` shows its `<Live>`, but sorts as "Song", and a search for "live" doesn't find it in Clone Hero.
 
 ## The song
