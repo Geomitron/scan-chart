@@ -55,8 +55,8 @@ export function buildVocalPartTrack(
 	const isHarm2 = partName === 'harmony2'
 	const isPartVocals = partName === 'vocals'
 
-	// Phrase markers. A phrase of length 0 stays at length 0: it holds the notes and lyrics on its tick, and a tick
-	// longer, it would hold the next tick's too.
+	// Phrase markers. A phrase of length 0 stays at length 0: it holds the notes and lyrics on its tick
+	// (`docs/mid/vocals.mdx`), and a tick longer, it would hold the next tick's too.
 	if (isHarm3) {
 		// no-op: all phrases come from CopyDown on re-parse.
 	} else if (isHarm2) {
