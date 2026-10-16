@@ -27,7 +27,7 @@ export interface MidiDrumsNoflips {
 /** How readers rank one difficulty's mix events at one tick: an event turning the flip off, then `d`, then `dnoflip`. */
 const flagRank: { readonly [flag in DrumMixEvent['flag']]: number } = { '': 0, d: 1, dnoflip: 2 }
 
-/** A mix event's text, as the writers write it: `mix <difficulty> drums<configuration><flag>`. `.mid` puts it in brackets. */
+/** A mix event's text, as the writers write it in either format: `mix <difficulty> drums<configuration><flag>`, without brackets. */
 export function drumMixText(difficulty: Difficulty, { configuration, flag }: Pick<DrumMixEvent, 'configuration' | 'flag'>): string {
 	return `mix ${discoFlipDifficultyMap.indexOf(difficulty)} drums${configuration}${flag}`
 }

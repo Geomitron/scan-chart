@@ -184,7 +184,7 @@ describe('saving (E7)', () => {
 		const editedMid = editSong(mid, batch => batch.setLength(guitar.events[0], 480))
 		const savedMid = saveSong(mid, editedMid)
 		expect(savedMid.report.normalized).toEqual([{ kind: 'noflipDuringFlip', section: 'PART DRUMS' }])
-		expect(trackTexts(parseMidi(fileBytes(savedMid.files[0])).tracks[2])).toEqual([[480, '[mix 3 drums1d]'], [959, '[mix 3 drums1]'], [960, '[mix 3 drums0dnoflip]']])
+		expect(trackTexts(parseMidi(fileBytes(savedMid.files[0])).tracks[2])).toEqual([[480, '[mix 3 drums1d]'], [959, 'mix 3 drums1'], [960, '[mix 3 drums0dnoflip]']])
 		expect(songHashes(parseSongFiles(savedMid.files))).toEqual(songHashes(editedMid))
 	})
 
