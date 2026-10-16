@@ -4,7 +4,7 @@ import { dirname, extname, join, relative, resolve, sep } from 'node:path'
 
 import { parseChartAndIni } from '../../src/chart/parse-chart-and-ini'
 import { parseChartFileFrozenLegacyIdentity } from '../../src/chart/parse-chart-file'
-import { canonical20260801, songBundle20251010 } from '../../src/chart/identity/public'
+import { canonical20260801, frozenLegacy6142, songBundle20251010 } from '../../src/chart/identity/public'
 import type { TrackDuration } from '../../src/chart/chart-duration'
 import type { Difficulty, File, Instrument, ScannedChartMetadata } from '../../src/types'
 import type { SongHashMetadata } from '../../src/chart/identity/song-hash-20251010'
@@ -242,14 +242,15 @@ async function generateSong(folder: string, inputRoot: string, outputRoot: strin
 	if (!parsed.parsedChart) {
 		throw new Error(parsed.chartFolderIssues.map(issue => issue.description).join(' ') || 'Chart parser rejected the source')
 	}
+	const legacyModifiers = frozenLegacy6142.readModifiers(loaded.iniBytes)
 	const historicalDuration = resolveHistoricalDuration(loaded.iniBytes, loaded.fileNames, parseChartFileFrozenLegacyIdentity(
-		parsed.parsedChart.chartBytes, parsed.parsedChart.format, parsed.parsedChart.legacyIniChartModifiers,
+		parsed.parsedChart.chartBytes, parsed.parsedChart.format, legacyModifiers,
 	))
 	const legacyMetadata = songMetadata(parsed.parsedChart.metadata)
 	const bundle = songBundle20251010.calculate({
 		source: { format: parsed.parsedChart.format, bytes: parsed.parsedChart.chartBytes },
 		modifiers: parsed.parsedChart.iniChartModifiers,
-		legacyModifiers: parsed.parsedChart.legacyIniChartModifiers,
+		legacyModifiers,
 		legacyMetadata,
 		canonicalMetadata: parsed.parsedChart.songHashMetadata,
 		...(historicalDuration.kind === 'available' ? { legacyDurationMs: historicalDuration.durationMs } : {}),

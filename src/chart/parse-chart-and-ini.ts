@@ -24,11 +24,6 @@ export type ParsedChart = ParsedChartFile & {
 	/** The fully-resolved ini modifiers that influenced parsing. */
 	iniChartModifiers: IniChartModifiers
 	/**
-	 * The ini modifiers Clone Hero 1.1.0.6142 read, for the frozen legacy hashes: `iniChartModifiers` without the older
-	 * names it didn't read, `pro_drum` and `star_power_note`.
-	 */
-	legacyIniChartModifiers: IniChartModifiers
-	/**
 	 * The metadata Clone Hero hashes into the canonical SongHash, before the SongHash writer resolves it.
 	 * When a song.ini with a `[song]` section loads, only its values are used; otherwise the `.chart [Song]`
 	 * values are. Blank values are "Unknown …". Unlike `metadata`, style tags and the "0"/"-1" sentinels remain.
@@ -100,7 +95,7 @@ export function parseChartAndIni(files: File[]): ParseChartAndIniResult {
 /** `parseChartAndIni` for a song document, from its context: what the 8.x writers, the converter's encoders, take. */
 export function parseSongChartAndIni(song: SongDocument): ParseChartAndIniResult {
 	const { folderIssues: chartFolderIssues } = findChartData(song.files)
-	const { ini: iniData, settings: iniChartModifiers, legacySettings: legacyIniChartModifiers, songHashMetadata, chart } = songContext(song)
+	const { ini: iniData, settings: iniChartModifiers, songHashMetadata, chart } = songContext(song)
 
 	let parsedChart: ParsedChart | null = null
 	if (chart.kind === 'parsed') {
@@ -123,7 +118,6 @@ export function parseSongChartAndIni(song: SongDocument): ParseChartAndIniResult
 			chartBytes: chart.bytes,
 			format: chart.source.format,
 			iniChartModifiers,
-			legacyIniChartModifiers,
 			songHashMetadata,
 		}) as ParsedChart
 		parsedCharts.set(parsedChart, { source: chart.source, parsed: inner })
