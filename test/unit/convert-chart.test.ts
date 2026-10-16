@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest'
 import { calculateCompetitiveHashes } from 'src/competitive'
 import { ConversionError, convertChart } from 'src/convert-chart'
 import { resolveChart } from 'src/gameplay-chart'
+import { songContext } from 'src/song-context'
 import { documentFiles, parseSongFiles, SongDocument } from 'src/song-document'
 import { fileBytes } from 'src/song-files'
 import { chartSpellingIssues } from 'src/spelling-issues'
@@ -161,6 +162,26 @@ describe('convertChart', () => {
 		expect(report.dropped).toEqual([{ content: 'MIDI track VENUE', count: 1 }])
 		expect(decode(fileBytes(documentFiles(converted)[0])).split('}')[0]).toBe('[Song]\r\n{\r\n  Resolution = 480\r\n  Name = "Midi Song"\r\n')
 		expect(iniText(converted)).toBe('[song]\r\nname = Midi Song\r\n')
+	})
+
+	it('keeps each vocal phrase\'s lyrics both ways, a lyric on its end tick and a phrase of length 0 included', () => {
+		const events = [
+			'0 = E "phrase_start"', '0 = E "lyric Hel-"', '192 = E "phrase_end"', '192 = E "lyric lo"',
+			'384 = E "phrase_start"', '384 = E "phrase_end"', '384 = E "lyric Oh"',
+			'768 = E "phrase_start"', '768 = E "lyric la"', '960 = E "phrase_end"',
+		]
+		const song = parseSongFiles([{ fileName: 'notes.chart', data: encode([
+			'[Song]', '{', '  Resolution = 192', '}', '[SyncTrack]', '{', '  0 = B 120000', '}',
+			'[Events]', '{', ...events.map(line => `  ${line}`), '}', ...expert(['0 = N 0 0']),
+		].join('\r\n') + '\r\n') }])
+		const phrases = (converted: SongDocument) => {
+			const { chart } = songContext(converted)
+			return chart.kind === 'parsed' ? chart.parsed.vocalTracks.parts.vocals.notePhrases.map(phrase => [phrase.tick, phrase.length, phrase.lyrics.map(lyric => lyric.text)]) : null
+		}
+		expect(phrases(song)).toEqual([[0, 192, ['Hel-', 'lo']], [384, 0, ['Oh']], [768, 192, ['la']]])
+		const asMidi = convertChart(song, 'mid').song
+		expect(phrases(asMidi)).toEqual(phrases(song))
+		expect(phrases(convertChart(asMidi, 'chart').song)).toEqual(phrases(song))
 	})
 
 	it('refuses a value .mid can\'t store unless forced, and then writes the nearest', () => {

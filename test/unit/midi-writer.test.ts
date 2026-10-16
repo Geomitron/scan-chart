@@ -832,6 +832,22 @@ describe('writeMidiFile round-trip: vocal tracks', () => {
 		expect(harmony2.staticLyricPhrases.map(p => [p.tick, p.length, p.notes.length])).toEqual([[0, 960, 1]])
 	})
 
+	it('writes a vocal phrase of length 0 at length 0, so the lyric after it stays in the next phrase', () => {
+		const chart = createEmptyChart({ format: 'mid', resolution: 480 })
+		chart.vocalTracks.parts.vocals = {
+			...EMPTY_VOCAL_PART,
+			notePhrases: [
+				phrase(480, 0, { lyrics: [{ tick: 480, text: 'Oh' }], notes: [{ tick: 480, length: 240, pitch: 60 }] }),
+				phrase(960, 480, { lyrics: [{ tick: 481, text: 'yeah' }, { tick: 960, text: 'la' }], notes: [{ tick: 960, length: 240, pitch: 62 }] }),
+			],
+		}
+		const phrases = roundTrip(chart).vocalTracks.parts.vocals.notePhrases
+		expect(phrases.map(p => [p.tick, p.length, p.notes.map(n => n.tick), p.lyrics.map(l => l.text)])).toEqual([
+			[480, 0, [480], ['Oh']],
+			[960, 480, [960], ['yeah', 'la']],
+		])
+	})
+
 	it('preserves vocal star power on PART VOCALS', () => {
 		const chart = createEmptyChart({ format: 'mid' })
 		chart.vocalTracks.parts.vocals = {

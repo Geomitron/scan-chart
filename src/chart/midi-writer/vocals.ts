@@ -32,8 +32,8 @@ import type { AbsoluteEvent } from './shared'
  * 106 can have different boundaries, so a lyric/note may appear in only one
  * set but still needs to be emitted).
  *
- * Zero-length vocal notes are preserved via per-event `seq` tags so
- * `finalizeMidiTrack` keeps noteOn immediately before its matching noteOff.
+ * Zero-length vocal notes and phrases are preserved via per-event `seq` tags
+ * so `finalizeMidiTrack` keeps noteOn immediately before its matching noteOff.
  *
  * Range shifts (note 0) and lyric shifts (note 1) are per-part for lossless
  * round-trip — PART VOCALS and HARM1 often have distinct marker sets.
@@ -55,25 +55,26 @@ export function buildVocalPartTrack(
 	const isHarm2 = partName === 'harmony2'
 	const isPartVocals = partName === 'vocals'
 
-	// Phrase markers.
+	// Phrase markers. A phrase of length 0 stays at length 0: it holds the notes and lyrics on its tick, and a tick
+	// longer, it would hold the next tick's too.
 	if (isHarm3) {
 		// no-op: all phrases come from CopyDown on re-parse.
 	} else if (isHarm2) {
 		for (const phrase of part.staticLyricPhrases) {
-			addNoteOnOff(events, phrase.tick, Math.max(phrase.length, 1), 105, 100)
+			addNoteOnOff(events, phrase.tick, phrase.length, 105, 100, true)
 		}
 	} else if (isPartVocals) {
 		for (const phrase of part.notePhrases) {
 			const noteNumber = phrase.player === 2 ? 106 : 105
-			addNoteOnOff(events, phrase.tick, Math.max(phrase.length, 1), noteNumber, 100)
+			addNoteOnOff(events, phrase.tick, phrase.length, noteNumber, 100, true)
 		}
 	} else {
 		// harmony1
 		for (const phrase of part.notePhrases) {
-			addNoteOnOff(events, phrase.tick, Math.max(phrase.length, 1), 105, 100)
+			addNoteOnOff(events, phrase.tick, phrase.length, 105, 100, true)
 		}
 		for (const phrase of part.staticLyricPhrases) {
-			addNoteOnOff(events, phrase.tick, Math.max(phrase.length, 1), 106, 100)
+			addNoteOnOff(events, phrase.tick, phrase.length, 106, 100, true)
 		}
 	}
 
