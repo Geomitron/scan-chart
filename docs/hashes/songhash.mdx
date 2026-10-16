@@ -1,0 +1,204 @@
+---
+title: "SongHash"
+description: "The hash that identifies a song on the leaderboards: its metadata, its length and its TrackHashes."
+---
+
+A SongHash identifies a song on Clone Hero's leaderboards. It's a hash of the song's metadata that the leaderboards show, the length of its chart, and the [TrackHash](/hashes/btrack) of each of its tracks. The leaderboards find a song by its SongHash, and keep a leaderboard for each TrackHash in it.
+
+A SongHash isn't the hash that games use to tell songs apart in their song lists, which is a hash of the chart file alone: see [Files](/sng#files).
+
+This song folder holds a `song.ini` file and a `notes.chart` file:
+
+```ini
+[song]
+name = Example Song
+artist = Example Artist
+album = Example Album
+genre = Rock
+year = 2024
+charter = <color=#AEFFFF>Geo</color>
+icon = Geo
+song_length = 5000
+```
+
+```text
+[Song]
+{
+  Name = "Another Name"
+  Resolution = 192
+}
+[SyncTrack]
+{
+  0 = TS 4
+  0 = B 123456
+  768 = B 60000
+}
+[Events]
+{
+  1536 = E "end"
+}
+[ExpertSingle]
+{
+  0 = N 0 0
+  384 = N 1 0
+  768 = N 2 192
+}
+[EasySingle]
+{
+  0 = N 0 0
+}
+[ExpertDrums]
+{
+}
+```
+
+Its SongHash holds:
+
+| Field | Value |
+|---|---|
+| Name | `Example Song`, from `song.ini`, not `[Song]` |
+| Artist, album, genre, year | `Example Artist`, `Example Album`, `Rock`, `2024` |
+| Duration | 3945 milliseconds: the last note ends at tick 960, and one beat is added |
+| Charter | `Geo`, without its style tags |
+| Icon | None, since `geo` is the charter's name |
+| Tracks | Easy guitar, then Expert guitar. The empty drums section isn't a track |
+
+The SongHash is `qG95qDOk-5zH930U4qHe0n7tKQ2Vau73A2QkYlue2ho`. Without the `end` event or `song_length`, it's the same: neither changes a SongHash.
+
+This page specifies version 20260801. Clone Hero 1.1 calculates version 20251010, which [Version 20251010](#version-20251010) describes.
+
+## Layout
+
+A SongHash is calculated from these fields, written one after another, with nothing between them. Every number is little-endian:
+
+| Field | Holds |
+|---|---|
+| Identifier | `43 48 53 48`, the text `CHSH` |
+| Version | `20260801`, as an unsigned 32-bit number |
+| Name | Text |
+| Artist | Text |
+| Album | Text |
+| Genre | Text |
+| Year | Text |
+| Duration | The chart's length in milliseconds, as a signed 64-bit number |
+| Charter | Text |
+| Icon | Text |
+| Track count | The number of tracks, as an unsigned 32-bit number |
+| Tracks | 40 bytes for each track: its instrument and difficulty, as unsigned 32-bit numbers, then the 32 bytes of its TrackHash |
+
+Text is its length in bytes, as a signed 32-bit number, then its UTF-8 bytes, with no byte order mark and nothing after them.
+
+The SongHash is the BLAKE3 hash of these bytes, which is 32 bytes, written in base64url without padding as a [TrackHash](/hashes/btrack#trackhash) is. It has 43 characters.
+
+## Metadata
+
+A scanner takes the seven values from the song's metadata:
+
+- **From `song.ini`:** `name`, `artist`, `album`, `genre`, `year`, `charter` and `icon` in its `[song]` section, read as [Syntax](/ini/reading-rules) says. When the section has no `charter` line, `frets` is read in its place.
+- **From `[Song]`,** only when no `song.ini` with a `[song]` section loads: `Name`, `Artist`, `Album`, `Genre`, `Year` and `Charter` in the `.chart` file, read as [`[Song]`](/chart/song#metadata) says, `Year` without a leading `, `. The icon is unset.
+- **From a `.sng` file's** [metadata](/sng#metadata), with the keys of `song.ini`.
+
+A key that `song.ini` doesn't hold is unset, even when `[Song]` holds it. Then, for each value, in this order:
+
+1. A value that's missing, blank, `0` or `-1` is unset.
+2. The value's style tags are removed, and spaces and other white space at its ends with them, until neither changes it.
+3. The icon is written in lowercase. When it's the charter's name in lowercase, after step 2, it's unset.
+4. An unset value is `Unknown Name`, `Unknown Artist`, `Unknown Album`, `Unknown Genre`, `Unknown Year` or `Unknown Charter`, and an unset icon is empty text.
+
+So with `charter = <b>GeO</b>` and `icon = geo`, the charter is `GeO` and the icon is empty.
+
+### Style tags
+
+Step 2 removes each [style tag](/ini/metadata#style-tags) with one of these names, in any letter case: `align`, `allcaps`, `alpha`, `b`, `br`, `color`, `cspace`, `font`, `font-weight`, `gradient`, `i`, `indent`, `line-height`, `line-indent`, `link`, `lowercase`, `margin`, `mark`, `mspace`, `nobr`, `noparse`, `page`, `pos`, `rotate`, `s`, `size`, `smallcaps`, `space`, `sprite`, `strikethrough`, `style`, `sub`, `sup`, `u`, `uppercase`, `voffset` and `width`, and each tag that starts with `#`, such as the color tag `<#AEFFFF>`.
+
+A tag is `<`, then the name, optionally after `/` and white space, then anything up to the next `>`. A name ends where a character that isn't a letter, a digit or `_` follows it. So `<b>`, `</b>`, `< / b >` and `<color=#AEFFFF>` are tags, and `<bold>` isn't. Text in angle brackets that isn't a tag stays: `Song <Live>` keeps its `<Live>`. A `<` without a `>` after it isn't a tag.
+
+The white space trimmed is that of [Syntax](/ini/reading-rules): U+0009 to U+000D, U+0020, U+0085, U+00A0, U+1680, U+2000 to U+200A, U+2028, U+2029, U+202F, U+205F and U+3000. A byte order mark, U+FEFF, isn't white space.
+
+**Edge case: a value of only style tags.** `genre = <b></b>` isn't blank in step 1, so it becomes empty text in step 2, not `Unknown Genre`.
+
+**Edge case: `0` and `-1`.** A game shows `charter = 0` as "0", but the SongHash holds `Unknown Charter`. Step 1 compares the value as written, so `<b>0</b>` stays `0`.
+
+**Edge case: `year`.** A leading `, ` is removed from `[Song]`'s `Year`, but not from `song.ini`'s `year`: `year = , 2002` stays `, 2002`.
+
+**Edge case: a folder Clone Hero doesn't list.** Clone Hero doesn't list a song without a `name`, or a `.mid` file without `song.ini`, so it calculates no SongHash for one. scan-chart calculates one all the same, with `Unknown Name` and the other unset values.
+
+**Edge case: a `.sng` file.** Clone Hero matches the keys of a `.sng` file's metadata exactly, reads no `frets`, and never falls back to `[Song]`. scan-chart doesn't read `.sng` files.
+
+## Duration
+
+The duration is the chart's length in milliseconds, from its notes alone:
+
+1. Take the end of each note, its tick plus its length, in every track of the song. The latest of them is the last tick, or 0 when the chart has no notes.
+2. Add one beat, `resolution` ticks, to the last tick.
+3. Change that tick to seconds through the tempo map, with each tempo rounded to the nearest thousandth of a BPM, as for the [TrackHash](/hashes/btrack#trackhash). A chart without a tempo marker at tick 0 has 120 BPM there.
+4. Multiply by 1000, and round up to a whole millisecond.
+
+The notes are those of the [BTrack](/hashes/btrack#notes): after [How notes resolve](/chart/note-resolution), so a sustain's cutoff and snapped chords count. Vocal notes, `end` events, phrases, practice sections, `song_length`, the audio and `delay` don't count, and the duration is the same at any song speed.
+
+Step 3 uses 64-bit floating point, in this order:
+
+```text
+for each tempo marker, in order of tick:
+  its time = the previous marker's time + (its tick − the previous marker's tick) × 60 ÷ (resolution × the previous marker's bpm)
+take the last tempo marker at or before endTick: tempoTick, tempoTime, bpm
+time = tempoTime + (endTick − tempoTick) × 60 ÷ (resolution × bpm)
+while tempoTick + truncate((time − tempoTime) × resolution × bpm ÷ 60) ≠ endTick:
+  time = the next 64-bit float above time
+duration = ceiling(time × 1000)
+```
+
+The loop makes the time convert back to the same tick. It changes a few results by a millisecond: at a resolution of 3 and 25 BPM, one beat is 2.4 seconds, but the duration is 2401, because 2.4 converts back to tick 2.
+
+In the example at the top, the last note ends at tick 960, so the end is tick 1152. Ticks 0 to 768 take 1.944012 seconds at 123.456 BPM, and ticks 768 to 1152 take 2 seconds at 60 BPM, so the duration is 3945 milliseconds.
+
+**Edge case: a chart without notes.** Its duration is one beat at its first tempo, and its SongHash holds no tracks.
+
+## Tracks
+
+The SongHash holds each [track that has a BTrack](/hashes/btrack#which-tracks-have-one): each instrument at each difficulty with at least one note. A track without notes, or an instrument without a track at a difficulty, has no record.
+
+| ID | Instrument |
+|---|---|
+| 0 | Guitar |
+| 1 | Co-op guitar |
+| 2 | Rhythm guitar |
+| 3 | Bass |
+| 4 | Drums |
+| 5 | Keys |
+| 6 | 6-fret guitar |
+| 7 | 6-fret co-op guitar |
+| 8 | 6-fret rhythm guitar |
+| 9 | 6-fret bass |
+| 10 | 6-fret keys |
+
+| ID | Difficulty |
+|---|---|
+| 0 | Easy |
+| 1 | Medium |
+| 2 | Hard |
+| 3 | Expert |
+
+- The records are in ascending order of instrument, then of difficulty.
+- Each holds the 32 bytes of the track's TrackHash, not its text.
+- Drums have one record for each difficulty, whatever the [drum type](/chart/drums#drum-types). Clone Hero's leaderboards keep drums and pro drums apart by the instrument a score was played on.
+- ID 11 is kept for vocals, which have no TrackHash, and is never written. A new instrument would take 12 or more.
+
+## Version 20251010
+
+Clone Hero 1.1 calculates a SongHash of version 20251010, with the same layout. Clone Hero 1.1's code is the reference for it. It differs from version 20260801 in these ways:
+
+| | Version 20251010 | Version 20260801 |
+|---|---|---|
+| Version | `20251010` | `20260801` |
+| Difficulty IDs | Expert 0, Hard 1, Medium 2, Easy 3, so Expert comes first | Easy 0 to Expert 3 |
+| Instruments | 0 to 9: 6-fret keys is never in it | 0 to 10 |
+| Tracks | Every track the chart's reader created, even without notes: every recognized `.chart` section, and in a `.mid` file each instrument's Expert and each difficulty with notes | Tracks with at least one note |
+| TrackHashes | [Legacy TrackHashes](/hashes/btrack-20240320#the-legacy-trackhash) | TrackHashes |
+| Duration | `song_length` when it isn't 0, negative values included. Otherwise the audio's length, rounded up to a millisecond, without `crowd`. Otherwise the last note's end plus one beat, with exact tempos | The chart's duration |
+| Metadata | In a value that holds a `<`, the text from each `<` to the next `>` is removed, and so is every other `>`. A `<` with no `>` after it stays. Nothing is trimmed, `0` and `-1` are text, and the icon is never cleared. The icon is lowercase, and keeps its tags | As [Metadata](#metadata) says |
+| Chart file | The last of `notes.chart` and `notes.mid` that the folder's listing gave | `notes.mid` |
+
+So in version 20251010, `Song <Live>` is `Song `, with a space at its end, `>_< Album` is `_< Album`, and `name = 0` is `0`.
+
+**Edge case: the historical duration.** A version 20251010 SongHash holds the duration Clone Hero found when it scanned the song, which may have come from audio that's no longer in the folder. To check one, use the duration that was stored with it. scan-chart calculates a version 20251010 SongHash only from metadata and a duration given to it.

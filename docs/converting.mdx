@@ -1,13 +1,104 @@
 ---
 title: "Converting between .chart and .mid"
-description: "What each format can't hold, and what converting changes."
+description: "What each format can't hold, and what an exporter writes when it converts a chart."
 ---
 
-<Warning>Placeholder for the local preview. This page isn't written yet.</Warning>
+An exporter converts a chart by reading it as a scanner does, then writing what it read in the other format. Most of a chart converts with nothing lost, but each format holds some things the other can't. For example, a `.chart` file gives each difficulty its own star power, and a `.mid` file gives one instrument's difficulties the same star power:
 
-It will cover:
+```text
+[ExpertSingle]
+{
+  768 = S 2 1536
+  ...
+}
+[HardSingle]
+{
+  960 = S 2 768
+  ...
+}
+```
 
-- What `.mid` can't hold: per-difficulty phrases, tom and cymbal choices, limits on tempos, time signatures and resolution
-- What `.chart` can't hold: vocal pitches, harmonies, venue
-- The song.ini settings converting writes
-- How often converting keeps every TrackHash
+A `.mid` file can hold only one of these phrases, for every difficulty. An exporter writes Expert's, from tick 768 to tick 2304, so Hard's star power changes, and with it Hard's [TrackHash](/hashes/btrack).
+
+- **Recommended:** a conversion keeps every TrackHash wherever the other format can hold the chart.
+- **Recommended:** before it converts, an exporter tells the user which tracks will change, and what will be left out.
+
+## What converts as it is
+
+These convert in both directions, each written the way the other format writes it, and every TrackHash stays the same:
+
+| In a `.chart` file | In a `.mid` file |
+|---|---|
+| Notes, chords, sustains and open notes | Notes, with opens as the [open modifier](/mid/modifiers#open-notes) |
+| Forced notes | Forced ranges, for the notes whose strum or HOPO would otherwise change: see below |
+| Taps | The tap modifier for each difficulty |
+| Star power, solos, drum fills and lanes, when each difficulty has the same ones | Phrase notes. A solo's note-off goes one tick after its `soloend` tick, as [Solos](/mid/phrases#solos) says |
+| A phrase of length 0 | A phrase of length 0 |
+| Drums of every type, cymbal markers, accents, ghosts, flams, double kicks and disco flip | Drum notes, tom markers, velocities, flam notes and mix events. See [Drums](/mid/drums) |
+| Range shifts, each in its difficulty's section | Range shifts, each with its difficulty: see [Range shifts](/mid/instrument-tracks#range-shifts) |
+| Lyrics and vocal phrases in `[Events]` | Lyrics and phrases in `PART VOCALS`, without notes |
+| Tempo markers, time signatures and the resolution, within the limits below | The tempo track, and the header's division |
+
+**Forced notes.** The two formats decide natural HOPOs with different thresholds: about a third of a beat, `65 × resolution ÷ 192` ticks in a `.chart` file and `resolution ÷ 3 + 1` ticks in a `.mid` file, both rounded down. A `.mid` file also has one more rule for a single note after a chord: see [Natural HOPOs](/mid/modifiers#natural-hopos). So an exporter forces every note whose strum or HOPO the other format would decide differently, and doesn't force the others.
+
+**Snapped chords.** An exporter writes the notes after [`chord_snap_threshold`](/chart/note-resolution#snap-close-notes-into-chords) has moved them, so the key changes nothing more in the converted chart.
+
+## What .mid can't hold
+
+A `.mid` instrument track holds all four difficulties, and its phrases, modifiers and text events apply to each of them. So these can't be written for one difficulty alone:
+
+- **Phrases that differ between difficulties:** star power, solos and drum fills. **Recommended:** write the phrases of Expert, or of the hardest difficulty the instrument has, and give them to every difficulty.
+- **Lanes that differ between difficulties.** A lane's velocity puts it on Expert, on Expert and Hard, on every difficulty but Easy, or on all four: see [Lanes](/mid/phrases#lanes). A lane on Hard and not on Expert is written for Expert too.
+- **A tom on one difficulty and a cymbal on another, at one tick,** on yellow or blue. A tom marker covers every difficulty: see [Toms](/mid/drums#toms). On green, the tom can be written as its own note, so both stay.
+- **A flam on one difficulty and not another, at one tick.** A flam note covers every difficulty: see [Flams](/mid/drums#flams).
+- **Text events and versus phrases that differ between difficulties.** An exporter writes those of the hardest difficulty. Neither reaches a TrackHash.
+
+The tempo track and the header also have limits:
+
+| Value | A `.chart` file holds | A `.mid` file holds |
+|---|---|---|
+| Tempo | 0.001 to 4,294,967.295 BPM, in thousandths of a BPM | 3.5763 BPM and faster, in whole microseconds a beat |
+| Time signature | A numerator up to 4,294,967,295, and a denominator up to 2,147,483,648 | A numerator up to 255, and a denominator up to 128 |
+| Resolution | Any whole number from 1 up | Up to 32,767 |
+
+- A tempo slower than 3.5763 BPM, a time signature or a resolution over these limits can't be converted to `.mid`. **Recommended:** an exporter refuses the conversion, or with the user's consent writes the nearest value it can.
+- A tempo faster than 245.316 BPM may move by less than a microsecond a beat. Games play the tempo each file holds, so the timing changes by a fraction of a millisecond, and the TrackHash changes when the tempo moves by more than its rounding: see [TrackHash](/hashes/btrack#trackhash).
+
+Tempo anchors, `A` in `[SyncTrack]`, and sections a scanner ignores have no place in a `.mid` file either.
+
+## What .chart can't hold
+
+- **Vocal notes and harmonies.** A `.chart` file holds one set of lyrics, with its phrases, and no notes: see [Lyrics](/chart/events#lyrics). The pitches, the percussion, `HARM1` to `HARM3`, and the star power of `PART VOCALS` are left out.
+- **Tracks the `.chart` format has no section for,** such as `BEAT`, `VENUE`, pro keys, pro guitar and other games' instrument tracks. See [Ignored](/mid/structure#ignored).
+- **Notes a scanner ignores in an instrument track,** such as animation notes, and notes 121 to 125.
+- **A solo of length 0.** A `.chart` solo covers at least its own tick, so it's written one tick long, and the TrackHash changes.
+
+`.chart` instrument sections hold text events, but the text events of a `.mid` instrument track, such as `[idle]`, mean nothing there.
+
+## The song.ini settings
+
+A converted chart reads the same only with some `song.ini` keys, because the two formats read some things differently by default. When it converts to `.mid`, an exporter writes:
+
+- **`sustain_cutoff_threshold`,** when a sustain is no longer than the cutoff the `.mid` file would be read with. A `.mid` file cuts sustains up to about a third of a beat by default, and a `.chart` file cuts none: see [The sustain cutoff](/mid/note-pairing#the-sustain-cutoff). The value is one tick less than the shortest such sustain. When no sustain is that short, the key isn't needed.
+- **`multiplier_note = 116`,** when a 5-fret, 6-fret or keys instrument has two or more solos and no star power, so that the solos aren't read as star power: see [Solos](/mid/phrases#solos).
+- **`delay`, `preview_start_time` and `preview_end_time`,** from `[Song]`'s `Offset`, `PreviewStart` and `PreviewEnd`, when `song.ini` doesn't set them, since a `.mid` file has no `[Song]`.
+- **A `song.ini` file,** when the song has none, with the values of `[Song]`.
+
+**Recommended:** in a `.mid` file, a note with no sustain is either length 0, or shorter than every scanner's cutoff, so that every game reads it with no sustain: shorter than `sustain_cutoff_threshold`, or without it, shorter than the resolution divided by 3, rounded down. YARG cuts only a sustain shorter than the cutoff, and its default cutoff is a tick less than Clone Hero's.
+
+When it converts to `.chart`, an exporter writes `[Song]` from `song.ini`, as [`[Song]`](/chart/song#metadata) says, and `song.ini` stays as it is.
+
+**Edge case: keys that don't need writing.** `hopo_frequency` and `eighthnote_hopo` change the threshold the same way in both formats, so the forced notes still cover them. `pro_drums` and `five_lane_drums` aren't needed when the notes give the drum type: in a `.mid` file, a tom marker that covers a note makes the chart pro, and a 5-lane green note makes it 5-lane. See [Drum types](/mid/drums#drum-types), which also says how YARG reads a `.mid` drums chart that has neither.
+
+## How often TrackHashes stay
+
+Converting a `.mid` file to `.chart` keeps every TrackHash for almost every chart. Converting a `.chart` file to `.mid` keeps every TrackHash for about nine charts in ten. Most of the rest have phrases that differ between difficulties, and some have tempos faster than 245.316 BPM.
+
+The [TrackHash](/hashes/btrack#trackhash) rounds each tempo to a thousandth of a BPM, so that every tempo of a `.mid` file, and every `.chart` tempo up to 245.316 BPM, converts with the same TrackHash. The SongHash changes when a TrackHash changes.
+
+{/* review: Q2
+Should the page give measured figures? On the whole library, on 12 October, before the .mid round-trip fixes: .chart to .mid kept every TrackHash in 37,486 of 42,386 songs (88.44%), and .mid to .chart in 21,282 of 21,308 (99.88%). A sample of 2,125 .chart songs after the fixes, on 15 October: 89.46%.
+- A. Words only, as now | "Almost every chart" and "about nine charts in ten" | Less precise, but stays true as converters change
+- B. Figures, measured again at the release | The release thread converts the whole library both ways at the release commit, and the page gives the figures and the date | A number describes the library and scan-chart's converter, not the formats, and goes out of date with each converter fix
+Recommendation: A on this page. The release thread can measure again and give the figures on the scan-chart tab.
+*/}

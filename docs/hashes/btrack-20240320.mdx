@@ -1,0 +1,118 @@
+---
+title: "BTrack 20240320 (obsolete)"
+description: "The older BTrack format and TrackHash that Clone Hero 1.1 calculates."
+---
+
+<Warning>This version is obsolete. New programs write [version 20260801](/hashes/btrack). This page is for checking the hashes Clone Hero 1.1 calculated.</Warning>
+
+Clone Hero 1.1 writes each track as a BTrack of version 20240320, and its legacy TrackHash is a hash of that whole file. Its leaderboards hold every score played on Clone Hero 1.1 by these hashes, and each song by a [SongHash of version 20251010](/hashes/songhash#version-20251010), which holds them. Clone Hero 1.1's code is the reference for this version.
+
+This `.chart` file has one track, Expert guitar:
+
+```text
+[Song]
+{
+  Resolution = 192
+}
+[SyncTrack]
+{
+  0 = TS 4
+  0 = B 120000
+}
+[Events]
+{
+}
+[ExpertSingle]
+{
+  0 = N 0 0
+  0 = S 2 192
+  192 = N 1 96
+}
+```
+
+Its BTrack is these 136 bytes:
+
+```text
+43 48 4e 46                     identifier, CHNF
+c0 d7 34 01                     version 20240320
+c0 00 00 00                     resolution 192
+01 00 00 00                     1 tempo:
+00 00 00 00 00 00 00 00           tick 0
+00 00 00 00 00 00 5e 40           120 BPM
+01 00 00 00                     1 time signature:
+00 00 00 00 00 00 00 00           tick 0
+04 00 00 00 04 00 00 00           4/4
+01 00 00 00                     1 star power phrase:
+00 00 00 00 00 00 00 00           tick 0
+c0 00 00 00 00 00 00 00           length 192
+00 00 00 00                     0 solos
+00 00 00 00                     0 lanes
+00 00 00 00                     0 drum fills
+02 00 00 00                     2 notes:
+00 00 00 00 00 00 00 00           tick 0
+00 00 00 00 00 00 00 00           length 0
+02 00 00 00 01 00 00 00           green, strum
+c0 00 00 00 00 00 00 00           tick 192
+60 00 00 00 00 00 00 00           length 96
+03 00 00 00 01 00 00 00           red, strum
+```
+
+Its legacy TrackHash is `bLRupqmuemBT2XL2bPISQI0F5cZgPLY_BzEpxiKRzDc`. The TrackHash of version 20260801 for the same track is `ewVfnLFazT8nsQyO09qat4CgKichUepV8yw1mxypxSA`.
+
+## The file
+
+Every number is little-endian.
+
+| Field | Holds |
+|---|---|
+| Identifier | `43 48 4E 46`, the text `CHNF` |
+| Version | `20240320`, as an unsigned 32-bit number |
+| Resolution | The chart's resolution, as an unsigned 32-bit number |
+| Tempo | A count, then each tempo: tick, and tempo in BPM |
+| Time signature | A count, then each time signature: tick, numerator and denominator |
+| Star power | A count, then each phrase: tick and length |
+| Solo | A count, then each solo: tick and length |
+| Lane | A count, then each lane: tick, length, and 1 for a double lane or 0 for a single lane |
+| Drum fill | A count, then each fill: tick, length, and 1 at or after the coda or 0 before it |
+| Note | A count, then each note: tick, length, note type and flags |
+
+- Each count is an unsigned 32-bit number, and is written even when it's 0. Nothing follows the notes.
+- The records are those of [version 20260801](/hashes/btrack#sections), with the same [note types and flags](/hashes/btrack#note-types-and-flags).
+- There's no list of range shifts.
+- A file is `40 + 16 × (tempos + time signatures + star power phrases + solos) + 17 × (lanes + drum fills) + 24 × notes` bytes long.
+
+## The legacy TrackHash
+
+The legacy TrackHash is the BLAKE3 hash of the whole file, from its identifier to its last note: 32 bytes, written in base64url without padding as 43 characters. The tempos are hashed exactly as the file holds them, without rounding.
+
+**Edge case: scan-chart 8.** scan-chart 8.0.1 and earlier write the legacy TrackHash with padding, as 44 characters that end in `=`. Without the `=`, it's the TrackHash.
+
+## What Clone Hero 1.1 writes
+
+Clone Hero 1.1 fills the lists as [version 20260801](/hashes/btrack#from-a-chart-to-a-btrack) says, from the chart as it reads it. It reads some charts differently from the format pages:
+
+| Chart | Clone Hero 1.1 | The format pages |
+|---|---|---|
+| A `.mid` tap modifier | Doesn't cover the note on its end tick. Nor does any other modifier with a length | [Covers](/mid/modifiers#taps) the note on its end tick |
+| A `.chart` `TS 4 ` with a space at its end | 4/1 | 4/4 |
+| A `dnoflip` while a `d` disco flip is on | The flip stays on until the next off event | The later event counts: see [Disco flip](/chart/drums#disco-flip) |
+| `.chart` instrument text in quotation marks, such as `E "solo"` | Not read | Read as without them |
+| A `.mid` tom marker that covers no note | Makes the chart pro | [Doesn't](/mid/drums#drum-types) |
+| A `.mid` kick at the velocity of an accent or ghost | An accented or ghost kick | A kick |
+| `.chart` `N 109` | Ignored | A [flam](/chart/drums#flams) |
+| Tracks | Every recognized `.chart` section, and in a `.mid` file each instrument's Expert and each difficulty a modifier gives, even without notes | Only tracks with a note |
+| Two notes of one type at one tick | The longer, or the first of equal length, with the other's flags added. So a kick and a double kick are a double kick, and a note can be both ghost and accent | The [longer](/chart/note-resolution#remove-duplicate-notes) |
+| A lane whose notes are all on its end tick | Left out | [Kept](/chart/phrases#lanes): a lane covers its end tick |
+| A note that `chord_snap_threshold` moves onto a note of its fret | The chord's type, and the next note's HOPO, come from the tick it moves to | They come from the [written ticks](/chart/note-resolution#snap-close-notes-into-chords) |
+| A `.chart` file without `[Song]` | Resolution 192, with no HOPO threshold and no sustain cutoff, so no natural HOPOs | Read as `Resolution = 192` |
+| A `[Song]` without `Resolution` | The file isn't loaded | Resolution 192 |
+| `notes.chart` and `notes.mid` in one folder | The last of the two that the folder's listing gives | [`notes.mid`](/song-folders#the-chart) |
+| `pro_drum` and `star_power_note` in `song.ini` | Not read | [Older names](/ini/settings#deprecated) of `pro_drums` and `multiplier_note` |
+
+**Edge case: scan-chart's `frozenLegacy6142`.** scan-chart calculates legacy TrackHashes with its `frozenLegacy6142` profile, which agrees with Clone Hero 1.1 for almost every track. It reads some charts differently: a `TS` with a space at its end, a `dnoflip` during a `d` flip, quoted text, a tom marker that covers no note, two notes of one type at one tick, snapped chords, and a `.chart` file without `[Song]`, which it doesn't load. It also applies an `[ENABLE_CHART_DYNAMICS]` event to every note of a later difficulty, writes no empty `.mid` difficulty but Expert, and reads every `.mid` track of an instrument. To check a legacy TrackHash, use Clone Hero 1.1.
+
+## Telling the versions apart
+
+Both versions start with `CHNF`, so the 4 bytes of the version tell them apart: `C0 D7 34 01` for 20240320, and `C1 27 35 01` for 20260801. A reader that reads both chooses by them, and rejects any other version. The next 4 bytes are the resolution in version 20240320 and the section count in version 20260801, and either can be a small number, so they can't tell the versions apart.
+
+A legacy TrackHash and a TrackHash of version 20260801 are both 43 characters, so a hash alone doesn't say which it is.

@@ -66,6 +66,10 @@
 					{
 						"group": "Differences",
 						"pages": ["differences"]
+					},
+					{
+						"group": "Hashes",
+						"pages": ["hashes/btrack", "hashes/songhash", "hashes/btrack-20240320"]
 					}
 				]
 			},
