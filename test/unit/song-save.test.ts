@@ -227,6 +227,17 @@ describe('saving (E7)', () => {
 		expect(songHashes(saved)).toEqual(songHashes(edited))
 	})
 
+	it('keeps the tags of the codes song.ini\'s ignored_issues lists, as fixIssues does', () => {
+		const save = (ignored: string) => {
+			const ini = { fileName: 'song.ini', data: encode(`[song]\r\nname = Test\r\nhopo_frequency = 170\r\ndelay = 0\r\nsong_length = 60000\r\nignored_issues = ${ignored}\r\n`) }
+			const original = parseSongFiles([{ fileName: 'notes.chart', data: encode([...header, '[ExpertSingle]', '{', '  0 = N 0 0', '  150 = N 1 0', '  192 = N 2 0', '}'].join('\r\n') + '\r\n') }, ini])
+			const { files, report } = saveSong(original, lengthenExpertNote(original))
+			return { normalized: report.normalized.map(entry => entry.kind), ini: decode(fileBytes(files[1])) }
+		}
+		expect(save('deprecatedIniTag')).toEqual({ normalized: ['deprecatedTags'], ini: '[song]\r\nname = Test\r\nhopo_frequency = 170\r\nsong_length = 60000\r\nignored_issues = deprecatedIniTag\r\n' })
+		expect(save('defaultIniValue')).toEqual({ normalized: ['hopoTags'], ini: '[song]\r\nname = Test\r\ndelay = 0\r\nsong_length = 60000\r\nignored_issues = defaultIniValue\r\n' })
+	})
+
 	it('moves a .mid file\'s star power from note 103 to 116, and removes multiplier_note = 103, keeping every canonical hash', () => {
 		const ini = { fileName: 'song.ini', data: encode('[song]\r\nname = Test\r\nmultiplier_note = 103\r\nsong_length = 60000\r\n') }
 		const original = parseSongFiles([{ fileName: 'notes.mid', data: midiFile([

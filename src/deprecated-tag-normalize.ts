@@ -1,5 +1,6 @@
 import { chartStats } from './chart/chart-analysis'
 import { rewriteHopoTags, rewriteMultiplierNote } from './fix-chart'
+import { ignoredIssueCodes } from './ini/ini-checks'
 import { asUtf8Ini, rewriteSongIni, SongIniRewrite } from './ini/ini-edit'
 import { newerTag, olderTags } from './ini/metadata'
 import { IniTokens, parseIniTokens } from './ini/parse-ini'
@@ -37,7 +38,7 @@ const hopoTags = ['hopo_frequency', 'eighthnote_hopo']
  * phrases and every canonical hash included. `delay` with a value stays: removing it moves every note against the audio.
  * So does `multiplier_note = 116` where a `.mid` chart's solos would otherwise read as star power, and so do the HOPO
  * tags beside `hopofreq`, which YARG reads without them. Only a UTF-8 song.ini is rewritten, so its other bytes stay as
- * written.
+ * written, and a song.ini that lists `deprecatedIniTag` or `defaultIniValue` in `ignored_issues` keeps those tags.
  */
 export function deprecatedTagNormalizations(song: SongDocument): DeprecatedTagNormalization[] {
 	const { ini } = song
@@ -75,11 +76,15 @@ export function deprecatedTagNormalizations(song: SongDocument): DeprecatedTagNo
 	return normalizations
 }
 
-/** A song's song.ini findings, style notes included, which name the tags that change nothing. */
+/**
+ * A song's song.ini findings, style notes included, which name the tags that change nothing. A code song.ini's
+ * `ignored_issues` lists has none, so its tags stay, as `fixIssues` leaves them.
+ */
 function songIniFindingsOf(song: SongDocument): MetadataFinding[] {
 	const context = songContext(song)
 	const stats = context.chart.kind === 'parsed' ? chartStats(context.chart.parsed, context.settings, context.chart.source.format) : null
-	return songIniFindings(song, context, stats, { styleNotes: true })
+	const ignored = context.ini.songSection === null ? null : ignoredIssueCodes(context.ini.songSection).codes
+	return songIniFindings(song, context, stats, { styleNotes: true }).filter(finding => !ignored?.has(finding.metadataIssue))
 }
 
 /** Whether song.ini sets one of `keys` in a way that changes how the chart reads (`deprecatedIniTag`). */
