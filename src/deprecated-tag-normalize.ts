@@ -1,8 +1,8 @@
 import { chartStats } from './chart/chart-analysis'
-import { rewriteHopoTags, rewriteMultiplierNote } from './fix-chart'
+import { reportsDeprecatedTag, rewriteHopoTags, rewriteMultiplierNote } from './fix-chart'
+import { IniFix, iniFixRewrite, removalFix, renameFix } from './fix-issues'
 import { deprecatedTags, hopoTags, ignoredIssueCodes } from './ini/ini-checks'
-import { asUtf8Ini, rewriteSongIni, SongIniRewrite } from './ini/ini-edit'
-import { newerTag } from './ini/metadata'
+import { asUtf8Ini, rewriteSongIni } from './ini/ini-edit'
 import { IniTokens, parseIniTokens } from './ini/parse-ini'
 import type { MetadataFinding } from './issues'
 import { songIniFindings } from './scan-song-folder'
@@ -50,22 +50,26 @@ export function deprecatedTagNormalizations(song: SongDocument): DeprecatedTagNo
 		normalizations.push({ kind, apply: current => (current === song ? rewritten : rewrite(current, songIniFindingsOf(current))) ?? current })
 	}
 	add('hopoTags', (current, found) => {
-		if (!isReported(found, hopoTags)) return null
+		if (!reportsDeprecatedTag(found, hopoTags)) return null
 		const rewritten = rewriteHopoTags(current)
 		return 'song' in rewritten ? rewritten.song : null
 	})
 	add('multiplierNote', (current, found) => {
-		if (!isReported(found, ['multiplier_note'])) return null
+		if (!reportsDeprecatedTag(found, ['multiplier_note'])) return null
 		const rewritten = rewriteMultiplierNote(current)
 		return 'song' in rewritten ? rewritten.song : null
 	})
-	// Renaming a tag, or removing one that changes nothing, reads the song as before, so the rewrite found for the song
-	// applies to it as the other normalizations leave it.
-	const rewrite = tagRewrite(song, found)
-	if (rewrite !== null) {
+	// Renaming a tag, or removing one that changes nothing, reads the song as before, so the tags found for the song are
+	// rewritten as song.ini sets them once the other normalizations have run: a chart rewrite may have removed one.
+	const tags = renamedOrRemoved(found)
+	if (tagFixes(tags, written).length > 0) {
 		normalizations.push({
 			kind: 'deprecatedTags',
-			apply: current => current.ini === null ? current : { ...current, ini: { ...current.ini, tokens: rewriteSongIni(current.ini.tokens, rewrite) } },
+			apply: current => {
+				if (current.ini === null) return current
+				const fixes = tagFixes(tags, parseIniTokens(current.ini.tokens).iniObject.song ?? {})
+				return fixes.length === 0 ? current : { ...current, ini: { ...current.ini, tokens: rewriteSongIni(current.ini.tokens, iniFixRewrite(fixes)) } }
+			},
 		})
 	}
 	return normalizations
@@ -82,27 +86,25 @@ function songIniFindingsOf(song: SongDocument): MetadataFinding[] {
 	return songIniFindings(song, context, stats, { styleNotes: true }).filter(finding => !ignored?.has(finding.metadataIssue))
 }
 
-/** Whether song.ini sets one of `keys` in a way that changes how the chart reads (`deprecatedIniTag`). */
-const isReported = (found: readonly MetadataFinding[], keys: readonly string[]) =>
-	found.some(finding => finding.metadataIssue === 'deprecatedIniTag' && finding.keys?.some(key => keys.includes(key)))
+/** A tag saving rewrites song.ini for, and the code of its finding. */
+interface TagFinding {
+	readonly code: 'deprecatedIniTag' | 'defaultIniValue'
+	readonly key: string
+}
 
-/** The song.ini rewrite that renames each older name of a tag and removes each deprecated tag that changes nothing. */
-function tagRewrite(song: SongDocument, found: readonly MetadataFinding[]): SongIniRewrite | null {
-	const songSection = songContext(song).ini.songSection ?? {}
-	const remove = new Set<string>()
-	const set = new Map<string, string>()
-	for (const finding of found) {
-		for (const key of finding.keys ?? []) {
-			const newer = newerTag(key)
-			if (finding.metadataIssue === 'deprecatedIniTag' && newer !== undefined) {
-				set.set(newer, songSection[key])
-				remove.add(key)
-			} else if (finding.metadataIssue === 'defaultIniValue' && deprecatedTags.has(key)) {
-				remove.add(key)
-			}
-		}
-	}
-	return remove.size === 0 ? null : { layout: false, order: false, remove, set }
+/** The tags of `found` saving rewrites: each `deprecatedIniTag` names, and each deprecated tag `defaultIniValue` names. */
+function renamedOrRemoved(found: readonly MetadataFinding[]): TagFinding[] {
+	return found.flatMap(({ metadataIssue: code, keys = [] }) => code === 'deprecatedIniTag' || code === 'defaultIniValue'
+		? keys.filter(key => code === 'deprecatedIniTag' || deprecatedTags.has(key)).map(key => ({ code, key }))
+		: [])
+}
+
+/**
+ * The song.ini fixes of `tags` as `songSection` sets them, as `fixIssues` makes them: each older name renamed, and each
+ * tag that changes nothing removed.
+ */
+function tagFixes(tags: readonly TagFinding[], songSection: { readonly [key: string]: string }): IniFix[] {
+	return tags.flatMap(({ code, key }) => code === 'deprecatedIniTag' ? renameFix(key, songSection) ?? [] : [removalFix(code, key, songSection)])
 }
 
 /** Whether a song.ini is UTF-8, so a rewrite keeps every byte it doesn't change. */
