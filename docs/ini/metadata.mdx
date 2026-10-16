@@ -68,8 +68,6 @@ Clone Hero and YARG show the tags as formatting wherever they show the value:
 - scan-chart keeps the tags, unless its `removeStyleTags` option is `true`. The SongHash ignores them.
 - Both games ignore tags and letter case to sort and search. Clone Hero ignores any text between `<` and `>`, even when it isn't a tag, and both games show such text as written: `Song <Live>` shows its `<Live>`, but sorts as "Song", and a search for "live" doesn't find it in Clone Hero.
 
-**Edge case:** Clone Hero's Artist - Album sort keeps the tags, so a styled artist is listed apart from the same artist without them.
-
 ## The song
 
 | Key | Value |
@@ -116,16 +114,70 @@ One genre, as specific as possible: "Complextro" rather than "Electronic". scan-
 - Only the year, in four digits, without a month, a day or a time. scan-chart reports any other form as `yearFormat`.
 - The year the album named in `album` was released. For a live recording, the year of the performance. Clone Hero's Artist - Album sort orders by artist, then year, then album, so one year for every song of an album keeps the album together.
 
-**Edge case:** Clone Hero sorts songs by a four-digit year it finds in the value, and YARG shows only the first run of four or more digits. Unlike `[Song]`'s `Year`, `year` is written without a leading `, `: YARG shows the comma.
+**Edge case: a value with more than the year.** Clone Hero shows `year` as written, in song details and on the main menu, and sorts and groups songs by the smallest four-digit number in the value. YARG shows only the value's first run of four or more digits, or the whole value when it has none. So `year = , 2002`, with the `, ` that older charts write before `[Song]`'s `Year`, shows as ", 2002" in Clone Hero and as "2002" in YARG.
+
+{/* review: Q1
+Should the `, ` before `[Song]`'s `Year` leave the standard? You asked whether YARG shows it. It doesn't, from either file. YARG shows only a year's first run of four or more digits, everywhere in its menus, and removes a leading `, ` or `,` from `[Song]`'s `Year` when it reads it. Clone Hero removes a leading `, ` from `[Song]`'s `Year`, with a code comment that the comma made songs look better in Guitar Hero III. It reads `[Song]` only for a song without song.ini, and writes the year without the comma into the song.ini it creates. Clone Hero is the game that shows the comma: it shows song.ini's `year` as written, so `year = , 2002` in song.ini shows ", 2002" in song details. Moonscraper and scan-chart write `Year = ", 2002"`. Moonscraper reads only the digits of the value. The `[Song]` page made `, ` the recommended form in batch 1. The census didn't record `year` values, so the number of song.ini files with the comma isn't known.
+- A. Keep `, ` recommended in `[Song]` | As now | Charters keep writing a form whose only use was Guitar Hero III's import. Some copy it into song.ini, where Clone Hero shows it
+- B. Recommend `Year = "2002"`. A leading `, ` stays valid | Every scanner already reads both forms alike. scan-chart's exporter writes new `Year` lines without the comma, and keeps an existing line's form when it edits one | A scan-chart change. Charts saved by Moonscraper keep the comma. No hash changes
+- C. As B, and deprecate the `, ` form | scan-chart reports it, and `fixIssues` removes it | A report on most `.chart` files Moonscraper saved, for a form that changes nothing in any game. Removing it changes the chart file, so the hash Clone Hero and YARG tell songs apart by changes
+Recommendation: B, and no change to either game. No game shows the comma from `[Song]` or needs it, so the standard stops recommending it without reporting or rewriting the files that hold it. YARG needs no fix: it already shows only the year. Clone Hero shows song.ini's `year` as written, and the standard already holds it to four digits.
+*/}
 
 ### charter
 
 - The names of everyone who placed notes in the chart, joined with "&".
 - Credit for other work, such as reviewing note placement, adding lyrics, tempo mapping or preparing the audio, may go in `loading_phrase` instead.
-- When charters split the work by instrument or difficulty, each name may be followed by its part in parentheses: `Charter A (Guitar) & Charter B (Keys)`.
+- When charters split the work by instrument or difficulty, each name may be followed by its part in parentheses: `Charter A (Guitar) & Charter B (Keys)`. A song with [part credits](#part-credits) doesn't need the parts in parentheses.
 - Write `charter`, not `frets`: see [Deprecated](#deprecated).
 
-YARG also reads a charter for each part, such as `charter_guitar`: see [Read by YARG only](#read-by-yarg-only).
+`charter` is the song's one credit. Clone Hero and YARG show it and sort songs by it, and Clone Hero looks for an icon named after it.
+
+### Part credits
+
+A song may also name the charters of each part, in these keys:
+
+| Key | Part |
+|---|---|
+| `charter_guitar` | Lead guitar |
+| `charter_rhythm` | Rhythm guitar |
+| `charter_bass` | Bass guitar |
+| `charter_drums` | Drums |
+| `charter_elite_drums` | YARG's elite drums |
+| `charter_keys` | Keys |
+| `charter_pro_guitar` | YARG's pro guitar |
+| `charter_pro_bass` | YARG's pro bass |
+| `charter_pro_keys` | YARG's pro keys |
+| `charter_guitar_6f` | 6-fret guitar |
+| `charter_rhythm_6f` | 6-fret rhythm guitar |
+| `charter_bass_6f` | 6-fret bass |
+| `charter_vocals` | Vocals |
+| `charter_lower_diff` | The difficulties below Expert |
+| `charter_venue` | The venue: YARG's lighting and camera cuts |
+| `charter_audio` | The audio |
+
+```ini
+charter = Charter A & Charter B
+charter_guitar = Charter A
+charter_drums = Charter B
+charter_vocals = Charter A & Charter B
+```
+
+- Each value names the charters of its part, joined with " & ", in the style of `charter`.
+- **Recommended:** `charter` names every charter in the part keys. An exporter that writes part keys writes `charter` from them: each name once, in the order of this table, joined with " & ".
+- A game that shows one credit shows `charter`. A game that shows credits by part shows each part key that's set.
+- YARG reads the part keys, and shows some of them in its credits menu, for songs from its own sources. Clone Hero doesn't read them.
+- scan-chart reads them. With its `metadataStyle` option, it reports a name in a part key that `charter` doesn't hold.
+
+{/* review: Q2
+How should a song credit its charters, now that YARG has a key for each part? Today `charter` is the one credit every game uses. Clone Hero shows it in song details, the results and the charter sort, and looks for an icon named after it. YARG shows it in song details, at the start of the song, in the charter sort and on Discord. The canonical SongHash holds it, and Chorus Encore shows it.
+YARG reads 16 `charter_` keys. It uses 8 of them (guitar, bass, drums, vocals, keys, pro keys, venue and audio), and only in its credits menu, which lists songs from its own sources (`yarg`, `yargdlc`, `yarn` and `creativech`). There it shows "Charted by" with the names in those keys, split at commas, each once, sorted alphabetically. It never fills `charter` from them.
+Clone Hero reads none of them. scan-chart keeps them as written, and reads them as metadata fields once your Q4 B answer is built. In the census, 61,751 of the 63,812 song.ini files have `charter`, and none has a `charter_` key.
+- A. One credit, written from the part keys | `charter` names every charter. Part keys are optional. An exporter writes `charter` from them: each name once, in the order of the part credits table, joined with " & ". A game that shows one credit shows `charter`, and a game that shows credits by part shows the part keys. scan-chart's `metadataStyle` reports a part key's name missing from `charter` | No game or hash change. Clone Hero shows the part credits joined, because the file holds the join. A file edited by hand can let the two disagree, which the check reports
+- B. As A, and games join the part keys when `charter` isn't set | Clone Hero, YARG and scan-chart show the part keys joined as in A, and the SongHash holds that join, when a song has part keys and no `charter` | Changes to Clone Hero and YARG, and a canonical rule for the SongHash's charter that Clone Hero and scan-chart both implement. No library song changes, since none has a part key. It helps only files that already miss A's recommendation
+- C. Part keys win | When any part key is set, games show the joined part keys instead of `charter`. `charter` stays for older game versions | Changes to Clone Hero and YARG. The SongHash, the charter sort and Clone Hero's icon follow the join. A file whose two disagree shows one credit in released versions and another in new ones
+Recommendation: A. Every game, the leaderboards and Chorus Encore keep one credit, and games that show part credits get them beside it, with no change to any game or hash. Clone Hero shows the joined credit you asked for because the exporter writes it into `charter`. B can follow if songs with part keys and no `charter` appear.
+*/}
 
 ## Difficulties
 
@@ -176,17 +228,11 @@ Each key is the difficulty of one instrument:
 - When `song_length` is missing or 0, Clone Hero measures the audio, without `crowd`. When it can't, it takes the end of the last note, plus one beat. It writes the value it found into `song.ini`, except for a `.sng` file or an encrypted song, which it doesn't write to. YARG measures the audio when the value is 0 or less, and doesn't write it.
 - scan-chart reports a missing `song_length` as `missingSongLength`, and a `song_length` shorter than the end of the chart's last note. With its `mediaIssues` option, it also reports a `song_length` more than a second away from the longest audio file's length as `songLengthMismatch`. `fixIssues` sets the value to that length.
 
-{/* review: Q2
-Should `song_length` come from the chart, as the SongHash's length does? Both games have two lengths. The menu length is `song_length`: the song list, sorting, Clone Hero's setlist totals and play-time statistic, its replay header, and the `Duration` its validator sends to the leaderboard. Clone Hero's legacy SongHash holds it too. The play length comes from the audio, the last note and a valid `end`, and neither game reads `song_length` for it. When the key is missing or 0, Clone Hero measures the audio, falls back to the last note's end plus one beat, and writes the result; YARG measures the audio when it's 0 or less. The canonical SongHash already holds a length from the chart: the end of the last note plus one beat, at rounded tempos. scan-chart checks `song_length` against the audio only.
-- A. The audio's length, as now, with a new check | `song_length` stays the longest audio file's length. scan-chart reports a `song_length` shorter than the end of the last note, which needs no audio | A new scan-chart check. No hash or game change
-- B. As now, with no new check | `song_length` stays the audio's length. Only `songLengthMismatch` checks it, and only when the audio is read | A wrong value goes unreported when the audio isn't read
-- C. Derived from the chart | `song_length` becomes a length from the chart, such as the last note's end plus one beat | The song list, setlist totals and statistics show less than the song plays, and the leaderboard's duration changes. The legacy SongHash changes for every song whose `song_length` is rewritten
-Recommendation: A. The games use `song_length` for their menus and the leaderboard's duration, where players expect the length they hear. The SongHash already holds a length from the chart, so deriving `song_length` from the chart too adds nothing to the hash, and A's check catches the clearly wrong values without the audio.
-*/}
-
 ### Previews
 
-Clone Hero plays 30 seconds from `preview_start_time`. When it isn't set, Clone Hero starts at 20 seconds, or at 0 when the audio is shorter than that. YARG plays from `preview_start_time` to `preview_end_time`, and 30 seconds when one of them isn't set. Clone Hero doesn't read `preview_end_time`.
+Clone Hero plays 30 seconds from `preview_start_time`. When it isn't set, Clone Hero starts at 20 seconds, or at 0 when the audio is shorter than that. Clone Hero doesn't read `preview_end_time`.
+
+YARG plays from `preview_start_time` to `preview_end_time`. With only one of them set, it plays 30 seconds from the start, or the 30 seconds before the end. With neither, it plays from 20 to 50 seconds, or the middle 30 seconds of audio shorter than 50 seconds, or the whole of audio shorter than 30 seconds.
 
 - A `preview_end_time` of 0 means not set: a preview can't end at the start of the song.
 - A `.chart` file's `[Song]` section may repeat both times: see [[Song]](/chart/song).
@@ -226,15 +272,8 @@ A phrase shown before the song starts: Clone Hero shows it on the loading screen
 - Clone Hero shows an explicit-lyrics badge after the song's name in the song list when it's `True`. It shows `False` and no key alike, so `explicit_lyrics = False` changes nothing.
 - Clone Hero's test builds from 1.1.0.5275 to 1.1.0.5684 checked each song without the key against a list of words, and wrote `True` or `False` into its `song.ini`. Other builds don't.
 - YARG doesn't read `explicit_lyrics`. Its own key for this is `rating`: see [Read by YARG only](#read-by-yarg-only).
-- scan-chart reads it. With its `metadataStyle` option, it reports lyrics that hold a word from its list of strong profanities and slurs, while `explicit_lyrics` isn't `True`, as `missingExplicitLyrics`. It checks English words only. A word list can't show that lyrics are clean, so it never reports a `True`. `fixIssues` sets `explicit_lyrics = True` only when its `codes` option names `missingExplicitLyrics`.
-
-{/* review: Q3
-Should scan-chart check for explicit lyrics in a song whose `explicit_lyrics` isn't `True`? It can, but only one way: it can find a strong word in the lyrics, and can't show that lyrics are clean. Clone Hero's test builds 1.1.0.5275 to 1.1.0.5684 ran such a check on every song without the key, with a private list of 449 lines that includes mild words such as "hell" and "damn", and wrote `True` or `False` into song.ini. A later commit turned it off. The census has 221 `explicit_lyrics = False` and no `True`. Clone Hero's list can't go into MIT-licensed scan-chart without its developers' permission.
-- A. Build it as a guess | `missingExplicitLyrics`, a recommendation, under `metadataStyle`. English only. A short list of strong words and slurs written for scan-chart, so it needs no license notice; mild words never fire. Words are rebuilt from their syllables and matched whole. `fixIssues` sets `True` only when asked for the code. Measured on the library before it goes on by default | Some false reports, such as a name, or a word that means something else in another language: `ignored_issues` silences them. A list to write and keep
-- B. Build it on by default now | As A, reported in every scan | Its precision isn't measured yet
-- C. Don't build it | Charters set the key themselves | Explicit lyrics stay unmarked in most charts
-Recommendation: A. It reports only what it can see, a strong word with no `True`, and stays behind `metadataStyle` until a measurement of the library shows how often it's right. A list written for scan-chart keeps the package free of other licenses, and keeps "explicit" in the sense of a parental advisory rather than of a chat filter.
-*/}
+- scan-chart reads it. In every scan, it reports lyrics that hold a word from its list of strong profanities and slurs while `explicit_lyrics` isn't `True`. It checks English words only, so it can also report a name, or a word that means something else in another language. A word list can't show that lyrics are clean, so it never reports a `True`. `fixIssues` sets `explicit_lyrics = True` only when its `codes` option names the check.
+- **Recommended:** when the check reports lyrics that aren't explicit, list its code in [`ignored_issues`](#read-by-tools). This records that the charter has checked the lyrics. `explicit_lyrics = False` can't record it, since it means the same as no key: scan-chart's `fixIssues` removes a key that holds its default value.
 
 ## Read by YARG only
 
@@ -249,25 +288,17 @@ YARG reads more keys, which other games ignore. A song may hold them, and an exp
 | `tags` | `cover` marks the song as a cover, not the original recording |
 | `diff_vocals_harm`, `diff_guitar_real`, `diff_guitar_real_22`, `diff_bass_real`, `diff_bass_real_22`, `diff_keys_real` and `diff_elite_drums` | The difficulties of YARG's other instruments |
 | `sub_genre`, `covered_by`, `date_released` and `location` | More about the song. `date_released` is `yyyy-MM-dd` or `yyyy-MM` |
-| `credit_` and `charter_` keys, such as `charter_guitar` | Credits, and the charter of each part |
+| `credit_album_art_designed_by`, `credit_arranged_by`, `credit_background`, `credit_composed_by`, `credit_courtesy_of`, `credit_engineered_by`, `credit_license`, `credit_mastered_by`, `credit_mixed_by`, `credit_other`, `credit_performed_by`, `credit_produced_by`, `credit_published_by` and `credit_written_by`, and the `charter_` keys of [Part credits](#part-credits) | Credits for the song's recording and art, and the charters of each part |
 | `link_bandcamp`, `link_bluesky`, `link_facebook`, `link_instagram`, `link_spotify`, `link_twitter`, `link_other` and `link_youtube` | Links |
 | `vocal_gender`, `vocal_scroll_speed`, `clean_vocals`, `venue_hint`, `vocal_character_hint` and `tuning_offset_cents` | The vocals and the venue |
 
-scan-chart reads these keys as YARG reads them, into a separate group of its metadata.
-
-{/* review: Q4
-How should scan-chart expose the keys only YARG reads? It reads none of them today: it keeps them as written, and writes them back. You asked for every valid key it doesn't read yet. scan-chart's `SongMetadata` is "a song's metadata as Clone Hero reads it", and its key list also fixes the order its exporter writes and checks. YARG reads these keys by its own rules: when a key and its other name are both in the file, the later line wins, and a blank number is 0.
-- A. A typed `yarg` group | `SongMetadata.yarg`, with each key typed as YARG reads it, such as `rating: number` and `video_loop: boolean`. The other names of `credit_album_art_designed_by` read as older names | A second set of reading rules to keep in step with YARG. `SongMetadata` stays Clone Hero's reading
-- B. New fields beside Clone Hero's | Each key added to `SongMetadata` and the exporter's key order | Mixes two games' reading rules in one type, and about 60 keys in the order scan-chart checks
-- C. As now | Kept as written, not read | Tools that want YARG's values parse them themselves
-Recommendation: A. It reads every valid key, as you asked, without changing what `SongMetadata` means or the order scan-chart writes and checks.
-*/}
+scan-chart reads these keys too, as fields of its metadata beside the keys above, by the rules of [Syntax](/ini/reading-rules).
 
 ## Read by tools
 
 | Key | What it holds |
 |---|---|
-| `ignored_issues` | Issue codes a tool such as scan-chart doesn't report for this song, separated by commas: `ignored_issues = discouragedAudio, albumArtSize`. A charter writes it to keep a recommendation or warning they've chosen not to follow, such as an intended `preview` audio file, out of the issue list. Games ignore it |
+| `ignored_issues` | Issue codes a tool such as scan-chart doesn't report for this song, separated by commas: `ignored_issues = isDefaultBPM, discouragedAudio`. A charter writes it to keep a recommendation or warning they've chosen not to follow out of the issue list, such as the warning for a tempo map left at 120 BPM in a song that is at 120 BPM throughout, or for an intended `preview` audio file. Games ignore it |
 
 **Edge case:** an issue that means games read the file differently can't be ignored: scan-chart reports such a code, and an unknown code, in `ignored_issues` itself.
 
@@ -276,7 +307,7 @@ Recommendation: A. It reads every valid key, as you asked, without changing what
 - **`frets`**, an older name for `charter`. A scanner reads it only when there's no `charter` line. Write `charter` instead. `frets = 0`, common in older files, shows the charter as "0" when there's no `charter` line.
 - **`track`**, an older name for `album_track`. Clone Hero reads it only when there's no `album_track` line, and YARG uses whichever of the two comes later in the file. Write `album_track` instead.
 
-scan-chart's `fixIssues` renames `frets` to `charter`, and `track` to `album_track`.
+scan-chart's `fixIssues`, and its saving of an edited song, rename `frets` to `charter`, and `track` to `album_track`.
 
 ## Ignored
 
