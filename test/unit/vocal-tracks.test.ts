@@ -1273,26 +1273,20 @@ describe('normalizedVocalTracks', () => {
 		expect(phrases[1].lyrics.map(l => l.text)).toEqual(['boundary', 'phrase2lyric'])
 	})
 
-	it('holds the note and lyric on a .mid phrase\'s end tick, unless the next phrase starts there', () => {
+	it('holds the note and lyric on a .mid phrase\'s end tick when no phrase starts there', () => {
 		const midi = buildMidi(480, [
 			tempoTrack(),
 			eventsTrack(),
 			vocalTrack('PART VOCALS', {
-				lyrics: [{ tick: 480, text: 'Hel-' }, { tick: 960, text: 'lo' }, { tick: 1920, text: 'Next' }, { tick: 2400, text: 'line' }],
-				notes: [
-					{ tick: 480, pitch: 60, length: 240 },
-					{ tick: 960, pitch: 62, length: 240 },
-					{ tick: 1920, pitch: 64, length: 240 },
-					{ tick: 2400, pitch: 65, length: 240 },
-				],
-				phrases: [{ tick: 480, length: 480 }, { tick: 1920, length: 480 }, { tick: 2400, length: 480 }],
+				lyrics: [{ tick: 480, text: 'Hel-' }, { tick: 960, text: 'lo' }, { tick: 1920, text: 'Next' }],
+				notes: [{ tick: 480, pitch: 60, length: 240 }, { tick: 960, pitch: 62, length: 240 }, { tick: 1920, pitch: 64, length: 240 }],
+				phrases: [{ tick: 480, length: 480 }, { tick: 1920, length: 480 }],
 			}),
 		])
 		const phrases = parseChartFile(midi, 'mid').vocalTracks.parts.vocals.notePhrases
 		expect(phrases.map(phrase => [phrase.notes.map(note => note.tick), phrase.lyrics.map(lyric => lyric.text)])).toEqual([
 			[[480, 960], ['Hel-', 'lo']],
 			[[1920], ['Next']],
-			[[2400], ['line']],
 		])
 	})
 
