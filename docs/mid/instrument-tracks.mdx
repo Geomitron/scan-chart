@@ -113,6 +113,21 @@ In a `.chart` file each difficulty's section has its own phrases. In a `.mid` fi
 - Notes of different lanes at one tick, in one difficulty, form a chord. Each note ends at its own note-off, so a chord's sustains can end at different ticks.
 - An open note may be in a chord with fret notes when it's written as a note: on 5-fret after `ENHANCED_OPENS`, and on 6-fret. The player holds the fret notes and strums.
 
+## Range shifts
+
+A range shift tells the player which frets a stretch of one 5-fret difficulty uses, as in a `.chart` file. See [Range shifts](/chart/instrument-sections#range-shifts). In a `.mid` file it's a text event, `FF 01`, in the 5-fret track, and its difficulty part says which difficulty it applies to:
+
+```text
+<tick>  Text  [ld_range_shift <difficulty> <position>]
+<tick>  Text  [ld_range_shift <difficulty> <position> <size>]
+```
+
+- The parts and their values are the same as in a `.chart` file.
+- **Required:** square brackets around the whole text. Unlike other text events, a range shift isn't read without them.
+- A range shift lasts from its tick until the next range shift of its difficulty.
+
+**Edge case:** of two range shifts of one difficulty at one tick, a scanner uses the later one in the file.
+
 ## Difficulties
 
 A difficulty is a track only if it holds at least one note. [How notes resolve](/chart/note-resolution) says how a scanner turns its notes into the notes a player plays, with the `.mid` differences on [Note pairing](/mid/note-pairing#the-sustain-cutoff) and [Note modifiers](/mid/modifiers#natural-hopos).
@@ -136,6 +151,10 @@ scan-chart's export writes both under their new names.
 Clone Hero reads the first, even when it has no notes. `T1 GEMS` and `PART GUITAR` are one instrument there, and so are `PART DRUM` and `PART DRUMS`. YARG's song list uses the first track that has a note. YARG's gameplay uses the last `PART GUITAR` or `PART DRUMS`, and otherwise the first track that holds anything, so the song list and the notes played can differ.
 
 scan-chart reports `multipleMidiTracks`. It reads every track, and its TrackHash uses the first. Saving with scan-chart keeps every track. scan-chart's export writes only the first, under its standard name.
+</Accordion>
+
+<Accordion title="A range shift in another form, or with a value out of range">
+A scanner ignores it, as it ignores the forms that [Instrument sections](/chart/instrument-sections#invalid-forms) lists for a `.chart` file. In a `.mid` file, that also includes a range shift without square brackets, one in another type of text event, and one outside a 5-fret track. A scanner still reads one with white space around the whole text, such as ` [ld_range_shift 0 1] `. scan-chart keeps the text, and writes it back.
 </Accordion>
 
 <Accordion title="Two notes of one number at one tick">

@@ -89,9 +89,10 @@ Delta times can't be negative, so a track's events are always in tick order.
 A scanner reads a track's events at one tick in the order the file holds them. The order matters for:
 
 - a note-off and a note-on of one pitch. See [Note pairing](/mid/note-pairing#events-at-one-tick);
-- text events that change the notes after them, such as `ENHANCED_OPENS`. See [Note modifiers](/mid/modifiers#open-notes).
+- text events that change the notes after them, such as `ENHANCED_OPENS`. See [Note modifiers](/mid/modifiers#open-notes);
+- a vocal phrase's note-on and the lyric at its start tick. From its code, Clone Hero loses a phrase whose only lyric comes before the note-on. See [Phrases](/mid/vocals#phrases).
 
-**Recommended:** at one tick, the time signature before the tempo, as in a `.chart` file.
+**Recommended:** at one tick, the time signature before the tempo, as in a `.chart` file, and a vocal phrase's note-on before its lyric. scan-chart's export writes them in this order.
 
 ## The tempo track
 
@@ -143,7 +144,7 @@ Text events hold practice sections, lyrics and the other events these pages list
 - **Required:** in `EVENTS` and instrument tracks, every text is a text event, `FF 01`. Vocal tracks hold lyrics. See [Lyrics](/mid/vocals#lyrics).
 - **Required:** text is UTF-8. A `.mid` file has no byte order mark.
 
-In `EVENTS` and instrument tracks, square brackets around the whole text are optional, as in a `.chart` file: `[section Intro]` means the same as `section Intro`. **Recommended:** no brackets. In a vocal track, text that starts with `[` is never a lyric. See [Lyrics](/mid/vocals#lyrics).
+In `EVENTS` and instrument tracks, square brackets around the whole text are optional, as in a `.chart` file: `[section Intro]` means the same as `section Intro`. **Recommended:** no brackets. A range shift is the exception: it's written with them. See [Range shifts](/mid/instrument-tracks#range-shifts). In a vocal track, text that starts with `[` is never a lyric. See [Lyrics](/mid/vocals#lyrics).
 
 ## Ignored
 
@@ -165,7 +166,7 @@ YARG's song scan refuses the file. Clone Hero and scan-chart read the first 6 by
 </Accordion>
 
 <Accordion title="A track count that doesn't match the tracks">
-Clone Hero reads every track. YARG's song scan and scan-chart read only as many tracks as the header counts, so a track after them is lost. Saving with scan-chart keeps the other tracks as they are, and its export leaves them out and writes the right count.
+A scanner reads every track, whatever the header counts, as Clone Hero does. YARG's song scan reads only as many tracks as the header counts, so it doesn't list an instrument in a track after them, though YARG's gameplay reads that track. scan-chart reports the wrong count. Saving with scan-chart keeps the header as it is, and its export writes the right count.
 </Accordion>
 
 <Accordion title="A chunk of another kind among the tracks">
@@ -187,7 +188,7 @@ Clone Hero and scan-chart refuse a file whose track holds a status byte from F1 
 <Accordion title="No end of track, or events after it">
 Clone Hero and scan-chart read a track without an end of track to the end of its chunk. YARG's song scan can fail on it, and then doesn't list the song. scan-chart's export adds an end of track.
 
-Clone Hero and YARG ignore events after the end of track, and scan-chart reads them. scan-chart's export writes them before the new end of track, so games then read them.
+A scanner ignores the events after the end of track, as Clone Hero and YARG do. So it also ignores a note whose note-off comes after it. Saving with scan-chart keeps them as they are. scan-chart reports them, and `fixIssues` can move the end of track after them, which changes the TrackHash.
 </Accordion>
 
 <Accordion title="A damaged file">
@@ -215,7 +216,7 @@ Clone Hero and scan-chart read a first track named `EVENTS` as the EVENTS track,
 </Accordion>
 
 <Accordion title="A tempo of 0, or a numerator of 0">
-Clone Hero and YARG fail to load the chart. Clone Hero finds it only when the song is played, because its song scan doesn't read the tempo track. scan-chart refuses a numerator of 0. It reads a tempo of 0 as an infinite tempo, and its export writes it back.
+Clone Hero and YARG fail to load the chart. Clone Hero finds it only when the song is played, because its song scan doesn't read the tempo track. scan-chart refuses the file.
 </Accordion>
 
 <Accordion title="Two tempos, or two time signatures, at one tick">
@@ -227,7 +228,7 @@ Clone Hero and YARG store the denominator in one byte, which can't hold 256 or m
 </Accordion>
 
 <Accordion title="Text of another type in EVENTS or an instrument track">
-Clone Hero ignores it. YARG reads the types `FF 04` to `FF 09`, and scan-chart reads `FF 05`, `FF 06` and `FF 07`, so a section written as a marker event, `FF 06`, is a section there but not in Clone Hero. scan-chart's export writes such text as `FF 01`.
+Clone Hero ignores it. YARG reads the types `FF 04` to `FF 09`, and scan-chart reads `FF 05`, `FF 06` and `FF 07`, so a section written as a marker event, `FF 06`, is a section there but not in Clone Hero. A coda is the exception: scan-chart reads it only from a text event, as Clone Hero does. See [EVENTS track](/mid/events#invalid-forms). scan-chart's export writes such text as `FF 01`.
 </Accordion>
 
 <Accordion title="Text that isn't UTF-8">

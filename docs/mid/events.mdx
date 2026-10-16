@@ -20,13 +20,6 @@ It's the `.mid` form of a `.chart` file's [[Events]](/chart/events) section. One
 - A file has at most one `EVENTS` track, after the tempo track. See [Tracks](/mid/structure#tracks).
 - A scanner matches every event below in the letter case shown.
 - Square brackets around the text are optional, as in a `.chart` file: `[section Intro]` means the same as `section Intro`. **Recommended:** no brackets.
-
-{/* review: Q1
-When should scan-chart's export stop writing brackets around practice sections, `coda` and `end`? This page recommends no brackets, from your answer to the last revision's Q4. Released Clone Hero reads a `.mid` practice section and `end` only with brackets. The change that reads them without brackets is planned for Clone Hero's second merge request. scan-chart's export writes `[section …]`, `[coda]` and `[end]` today.
-- A. Once Clone Hero releases its change | The export keeps writing brackets until then, which is valid | Files scan-chart writes don't follow the recommendation for a while
-- B. In 9.0.0 | The export writes no brackets from the start | Released Clone Hero loses the practice sections and the end of every `.mid` file scan-chart writes, until its change is released
-Recommendation: A. Brackets stay valid, and B costs players their practice sections in the game most of them use.
-*/}
 - **Required:** the event is the whole text, with no spaces around it or just inside its brackets.
 
 ## Practice sections
@@ -41,6 +34,8 @@ A practice section marks where a part of the song starts, such as the intro or a
 - **Recommended:** at least one practice section in a chart.
 
 **Edge case: the names Clone Hero shows.** Clone Hero has a table of Rock Band section names, and shows a name from it when it finds one there, such as `Verse 1` for `verse_1`. It shows any other name with each `_` replaced by a space. It does the same in a `.chart` file.
+
+**Edge case: a chart with no practice sections.** When a song with no practice sections is played, Clone Hero makes ten, named `0% - 10%` to `90% - 100%`. They start at tenths of the chart's length, which ends a beat after the last note. It does the same in a `.chart` file. YARG makes none. scan-chart reports `noSections`.
 
 ## Lyrics
 
@@ -100,6 +95,10 @@ Clone Hero uses the later one. YARG keeps both, sorted by name. scan-chart keeps
 
 <Accordion title="Lyrics or phrase events in EVENTS">
 Clone Hero ignores them. YARG reads `lyric` events, `phrase_start` and `phrase_end` as lyrics, mixed with the lyrics of `PART VOCALS`. scan-chart reports `invalidLyric`, `invalidPhraseStart` and `invalidPhraseEnd`, and keeps them.
+</Accordion>
+
+<Accordion title="A coda with one bracket, after a byte order mark, or in another type of text event">
+Clone Hero reads a coda only from a text event, `FF 01`, whose text is `coda` or `[coda]`, with nothing around it but white space. So `[coda` and `coda]` aren't a coda there, nor is a `[coda]` that starts with a byte order mark, U+FEFF, or a `[coda]` written as a lyric, marker or cue point event. scan-chart reads them as Clone Hero does, and keeps them as text. YARG reads neither `[coda` nor `coda]`, but reads a coda after a byte order mark, and in a lyric, marker or cue point event.
 </Accordion>
 
 <Accordion title="More than one coda or end">
