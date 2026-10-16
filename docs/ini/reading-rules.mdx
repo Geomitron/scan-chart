@@ -102,7 +102,7 @@ In a text key, `0` and `-1` are text: `charter = 0` shows the charter as "0".
 ## Invalid forms
 
 <Accordion title="Lines before [song]">
-Clone Hero and scan-chart ignore them, and read the `[song]` section after them. YARG skips blank lines, but when the first line that isn't blank is a comment or a key line, it misses `[song]` and ignores the whole file. It also misses a `[song]` that comes right after another section's header. scan-chart reports any line before `[song]` other than a `;` comment as `iniLayout`, and `fixIssues` writes `[song]` first and keeps the lines before it as `;` comments. It doesn't report a `;` comment before `[song]`.
+Clone Hero and scan-chart ignore them, and read the `[song]` section after them. YARG skips blank lines, but when the first line that isn't blank is a comment or a key line, it misses `[song]` and ignores the whole file. It also misses a `[song]` that comes right after another section's header. scan-chart reports a line before `[song]` as `iniLayout`, unless it's blank or a `;` comment, and `fixIssues` writes `[song]` first and keeps the lines before it as `;` comments. So it doesn't report a file that YARG ignores because a `;` comment comes before `[song]`.
 </Accordion>
 
 <Accordion title="No [song] section">
