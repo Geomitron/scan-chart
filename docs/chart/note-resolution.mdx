@@ -88,6 +88,8 @@ When a note starts before the sustain of an earlier note on the same fret has en
 
 For example, blue at 400 with length 300, then blue at 500 with length 0, becomes blue at 400 with length 100 and blue at 500 with length 200. The sustain cutoff isn't applied again afterward.
 
+A sustain that ends on the tick where the next note of its fret starts doesn't overlap it, and doesn't change.
+
 **Recommended:** end each sustain at or before the next note on its fret.
 
 **Edge case:** YARG doesn't trim overlapping sustains: it keeps each note's length as written.

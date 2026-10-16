@@ -69,6 +69,8 @@ Each `solo` has its `soloend` before the next `solo`.
 
 A drum fill marks a stretch where the drummer can play freely and activate star power by hitting the fill's last note. It includes its end tick. An exporter should put a note on the fill's end tick.
 
+**Edge case: a drum fill without a note on its end tick.** The games choose different notes to activate star power. Clone Hero uses the note closest to the end tick, from the fill's start up to `resolution ÷ 32 + 1` ticks after its end, and the fill activates nothing without a note there. YARG uses the first note at or after the end tick, however far after the fill it is, or the track's last note.
+
 A drum fill whose tick is at or after the [`coda`](/chart/events#the-coda) is a Big Rock Ending instead: a closing freestyle section with no star power activation.
 
 On 5-fret guitar, bass and keys, an `S 64` at or after the `coda` is a Big Rock Ending, and has no meaning before it.
@@ -86,11 +88,13 @@ A lane marks a passage too fast to play note for note. Inside it, the player kee
 
 A lane should cover at least two notes, and only notes that fit its pattern: YARG cancels a lane whose notes don't.
 
+**Edge case: lanes Clone Hero skips.** Clone Hero doesn't play a drum lane that covers only one pad note, or whose first pad note comes more than a sixteenth of a beat after its start: 12 ticks at a resolution of 192.
+
 **Edge case: lanes on 5-fret today.** YARG plays tremolo and trill lanes only from a `.mid` file, and Clone Hero plays lanes only on drums, so no game yet plays them from a `.chart` file. On 6-fret, `S 64` to `S 66` have no meaning.
 
 ## Ignored
 
-- **A phrase of any other type,** and a phrase on an instrument the table doesn't list for it.
+- **A phrase of any other type,** and a phrase on an instrument the table doesn't list for it. YARG reads `S 67` as a kick lane on drums.
 - **Versus phrases,** `S 0` and `S 1`, which mark the parts each player plays in a face-off in older games. An exporter should keep them when rewriting a file.
 
 ## Invalid forms
@@ -113,4 +117,8 @@ A scanner ignores it. scan-chart reports an empty star power phrase, solo or lan
 
 <Accordion title="A soloend with no open solo, or a solo that never ends">
 A scanner ignores it.
+</Accordion>
+
+<Accordion title="A solo in square brackets, such as E [solo]">
+Clone Hero and scan-chart don't read `E [solo]` and `E [soloend]` as a solo, and YARG does. scan-chart keeps them as text, and writes them back.
 </Accordion>

@@ -134,6 +134,8 @@ Each entry of the `Song` section names a value:
 
 [[Song]](/chart/song) lists the keys.
 
+**Edge case: white space in an entry.** A scanner removes white space from both ends of the key and of the value, and from both ends of the text inside the quotation marks, so `Name = " Song Name "` is `Song Name`. White space is every character that .NET counts as white space, such as a tab or a no-break space, U+00A0, but not a byte order mark, U+FEFF. YARG removes only the characters up to U+0020, so a no-break space at either end stays part of the value there.
+
 ## Text
 
 Text events are written differently in the two kinds of section:
@@ -162,7 +164,7 @@ Clone Hero refuses the file. scan-chart doesn't check for the mark, and reads th
 </Accordion>
 
 <Accordion title="Events out of tick order">
-Clone Hero refuses a file whose `SyncTrack` events go back in time, and YARG drops each event that does. scan-chart reports `unsortedChartLines`, and saving puts the lines in tick order.
+Clone Hero refuses a file whose events go back in time in any section. YARG's song list refuses the file too. YARG's chart loader sorts the instrument sections, and drops each `SyncTrack` or `Events` line that goes back in time. scan-chart reports `unsortedChartLines`, and saving puts the lines in tick order.
 </Accordion>
 
 <Accordion title="Two tempo markers, or two time signatures, at one tick in SyncTrack">
@@ -170,19 +172,27 @@ Both games use the later one, and so does scan-chart. Saving removes the earlier
 </Accordion>
 
 <Accordion title="A section name that appears twice">
-A scanner uses the first section with that name and ignores the rest. Saving removes the others.
+Clone Hero reads the first instrument section with that name. It joins every `[Song]`, `[SyncTrack]` and `[Events]` section into one, and the last `Resolution` counts. YARG's chart loader reads the first `[Song]` and `[SyncTrack]`, and joins the `[Events]` sections and the instrument sections of one name. scan-chart reads the first section with each name, and ignores the rest. Saving removes the others.
+</Accordion>
+
+<Accordion title="No Song section">
+A scanner reads the file with a resolution of 192, as it reads a `[Song]` section without `Resolution`. scan-chart's saving adds a `[Song]` section with `Resolution = 192`.
+</Accordion>
+
+<Accordion title="No SyncTrack section">
+From its code, Clone Hero plays the chart at 120 BPM in 4/4. YARG's chart loader and scan-chart refuse the file.
 </Accordion>
 
 <Accordion title="Song not first, or SyncTrack not second">
-Clone Hero reads the file's first section as `[Song]`, whatever its name. scan-chart reads `[Song]` and `[SyncTrack]` wherever they are, and saving puts them first. A file with no `[Song]` section, or no `Resolution` in it, is read with a resolution of 192, and saving adds it.
+Clone Hero takes the song's metadata from the file's first section, whatever its name, and finds `Resolution` in `[Song]` wherever it is. YARG's chart loader refuses the file, and its song list reads `[Song]` only when the file starts with it. scan-chart reads `[Song]` and `[SyncTrack]` wherever they are, and takes the metadata from the first section, as Clone Hero does. Saving puts them first.
 </Accordion>
 
 <Accordion title="An event of another type in SyncTrack or Events">
-Clone Hero refuses a file with one in `SyncTrack`, and YARG skips it. scan-chart keeps it, and writes it back as it is.
+Clone Hero refuses a file with one in `SyncTrack` or `Events`, and YARG skips it. scan-chart keeps it, and writes it back as it is.
 </Accordion>
 
 <Accordion title="A quoted text event in an instrument section">
-Clone Hero doesn't read `768 = E "solo"` as a solo, and YARG does. scan-chart reports `quotedChartTrackEvent`, and saving removes the quotation marks.
+YARG and scan-chart read `768 = E "solo"` as a solo, and so does Clone Hero from its next release on. Clone Hero 1.1 doesn't. The same holds for `soloend` and `mix` events. scan-chart reports `quotedChartTrackEvent`, and saving removes the quotation marks.
 </Accordion>
 
 <Accordion title="Other spellings, such as a missing = or extra spaces">

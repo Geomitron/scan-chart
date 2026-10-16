@@ -42,7 +42,9 @@ Each line names one value, as [Named entries](/chart/syntax#named-entries) descr
 - **Text** is written in quotation marks: `Name = "Song Name"`.
 - **Times** are written in seconds, as digits with an optional `-` before them and an optional decimal part, without quotation marks: `PreviewStart = 45.5`. **Recommended:** at most three decimals.
 
-**Edge case: `Year`.** A scanner removes a leading `, `, so `Year = "2002"` means the same as `Year = ", 2002"`.
+**Edge case: times in milliseconds.** Scanners change a time to milliseconds differently, so it can differ by 1 millisecond between them. Clone Hero and scan-chart round up, and YARG rounds down. A decimal time isn't stored exactly, so `PreviewStart = 1.001` is 1,002 milliseconds in Clone Hero and 1,000 in YARG. The `song.ini` keys hold milliseconds, so they're exact.
+
+**Edge case: `Year`.** A scanner removes a leading `, `, so `Year = "2002"` means the same as `Year = ", 2002"`. YARG also removes a leading `,` without the space.
 
 **Edge case: `PreviewEnd = 0`.** It means there's no preview end: a preview can't end at the start of the song. Moonscraper writes it in every chart.
 
@@ -68,12 +70,28 @@ A scanner ignores every other key. An exporter may keep them as written. Older c
 
 ## Invalid forms
 
-<Accordion title="No Resolution, or one that isn't a whole number from 1 up">
-A scanner that reads a file without a `Resolution` uses 192, and scan-chart's saving adds `Resolution = 192`. A scanner reads the value's leading digits, so `Resolution = 480.5` reads as 480. It refuses a file whose `Resolution` doesn't start with a digit, or is 0. A scanner that finds `Resolution` more than once uses the last one.
+<Accordion title="No Resolution">
+A scanner reads a file with no `[Song]` section, or no `Resolution` in it, with a resolution of 192. scan-chart's saving adds `Resolution = 192`.
+</Accordion>
+
+<Accordion title="A Resolution that isn't a whole number from 1 up, in digits">
+A scanner reads the value's leading digits, so `Resolution = 480.5` reads as 480. YARG's chart loader reads every character as a digit, so `Resolution = 192.5` is 19185 there. A scanner refuses a file whose `Resolution` doesn't start with a digit, or is 0.
+</Accordion>
+
+<Accordion title="A Resolution in quotation marks">
+A scanner removes the quotation marks, so `Resolution = "480"` reads as 480. YARG's song list reads a quoted value as 0, and doesn't list the song. scan-chart saves the line as it is.
+</Accordion>
+
+<Accordion title="Resolution written more than once">
+Clone Hero, scan-chart and YARG's song list use the last one, and YARG's chart loader the first.
 </Accordion>
 
 <Accordion title="A key written more than once">
-A scanner uses the first line of the key that has a value.
+A scanner uses the first line of the key that has a value. YARG's song list uses the last line, even an empty one.
+</Accordion>
+
+<Accordion title='A time in another form, such as Offset = 1e-1 or Offset = "0.1"'>
+Clone Hero and scan-chart read an exponent, a `+` and quotation marks around the number, so both of these are 0.1 seconds. YARG reads only a sign, digits and a decimal point, so it reads `1e-1` as 1 second, and a quoted time as 0. A decimal comma, such as `Offset = 0,1`, gives no time in Clone Hero and scan-chart. scan-chart saves the line as it is. See [Nonstandard files](/scan-chart/nonstandard-files#lines-read-as-written).
 </Accordion>
 
 <Accordion title="No song.ini">
@@ -85,5 +103,5 @@ A scanner uses `song.ini`, as described above. When scan-chart saves an edited s
 </Accordion>
 
 <Accordion title='Name = "TEMPO TRACK" or Name = "midi_export"'>
-Some converters wrote these instead of the song's name. A scanner ignores that line and every metadata line after it. scan-chart saves the section as it is.
+Some converters wrote these instead of the song's name. Clone Hero and scan-chart ignore that line and every metadata line after it, and Clone Hero doesn't list such a song when its folder has no `song.ini`. YARG reads the line as the song's name. scan-chart saves the section as it is.
 </Accordion>

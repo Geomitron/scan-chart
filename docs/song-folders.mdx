@@ -29,7 +29,7 @@ A whole song folder can also be packed into one file. See [.sng files](/sng).
 | `background.jpg` | An image shown behind the highway | See [Art and video](#art-and-video) |
 | `video.webm` | A video shown behind the highway | See [Art and video](#art-and-video) |
 
-A song folder should hold only files a game reads. Backups, editor projects and files the operating system adds, such as `desktop.ini`, `Thumbs.db` and `__MACOSX`, make the folder larger and do nothing. Some games read files this page doesn't name, such as YARG's `_clean` and `_explicit` audio files; those are allowed.
+A song folder should hold only files a game reads. Backups, editor projects and files the operating system adds, such as `desktop.ini`, `Thumbs.db` and `__MACOSX`, make the folder larger and do nothing. Some games read files this page doesn't name, such as YARG's `.aiff` audio and its `_clean` and `_explicit` audio files; those are allowed.
 
 ### File names
 
@@ -37,7 +37,7 @@ A song folder should hold only files a game reads. Backups, editor projects and 
 
 ## The chart
 
-The chart is `notes.chart` or `notes.mid`. A scanner doesn't read a chart file with any other name. [Syntax](/chart/syntax) gives the structure of a `.chart` file.
+The chart is `notes.chart` or `notes.mid`. [Syntax](/chart/syntax) gives the structure of a `.chart` file.
 
 A song folder should hold only one chart.
 
@@ -87,6 +87,8 @@ A song's audio is one file, or several files called stems that are combined whil
 
 **Edge case: several album art files.** A folder should hold only one. A scanner that finds several uses the first of `album.png`, `album.jpg` and `album.jpeg`.
 
+**Edge case: a video in a subfolder.** When a song is played, Clone Hero also looks for the video in the song folder's subfolders, and plays the first one it finds. YARG, and scan-chart's video checks, look only in the song folder itself.
+
 ## Deprecated
 
 - **`crowd` audio:** crowd noise and singing. Games supply their own crowd.
@@ -99,7 +101,11 @@ Games choose differently between them: YARG plays the first of `.opus`, `.ogg`, 
 </Accordion>
 
 <Accordion title="No audio file">
-YARG doesn't load the song. Clone Hero loads it without sound. A folder whose only audio is `preview` or `crowd` has no audio. scan-chart reports it as `noAudio`.
+A folder whose only audio is `preview` or `crowd` has no audio. Clone Hero loads the song without sound. From its code, it still plays `crowd` audio if there is one. YARG doesn't load the song, unless the folder has `crowd` audio, which YARG counts as the song's audio. scan-chart reports it as `noAudio`.
+</Accordion>
+
+<Accordion title="A chart file with another name, such as song.mid">
+Clone Hero and YARG don't read it, so a folder with no `notes.chart` or `notes.mid` isn't a song there. YARG also reads `notes.midi` as a `.mid` chart. scan-chart reads a `.chart` or `.mid` file with another name when the folder has no `notes.chart` or `notes.mid`, and reports `invalidChart`.
 </Accordion>
 
 <Accordion title="No song.ini">
@@ -107,11 +113,11 @@ Clone Hero loads a `.chart` folder without `song.ini`, takes the song's metadata
 </Accordion>
 
 <Accordion title="A file name in another letter case, such as Song.ini">
-YARG finds a file in any letter case, and Clone Hero finds most of them on Windows, whose file system ignores letter case. scan-chart reads the chart and `song.ini` in any letter case, and reports them as `invalidChart` and `invalidIni`. It doesn't read audio, album art or video in another letter case: it reports audio as `invalidAudio`, and album art, background images and video as `fileNameCase`. `fixIssues` renames a file it reports as `fileNameCase` in lowercase.
+Clone Hero finds the chart only with a lowercase extension: it finds `Notes.mid`, but not `notes.MID`. It opens `song.ini`, album art and audio by their lowercase names. So on Windows, whose file system ignores letter case, it finds them in any letter case, and on other systems only in lowercase. YARG finds a file in any letter case when it scans. From its code, on a file system that doesn't ignore letter case, YARG then loads the chart only by its lowercase name. scan-chart reads the chart and `song.ini` in any letter case, and reports them as `invalidChart` and `invalidIni`. It doesn't read audio, album art or video in another letter case: it reports audio as `invalidAudio`, and album art, background images and video as `fileNameCase`. `fixIssues` renames a file it reports as `fileNameCase` in lowercase.
 </Accordion>
 
 <Accordion title="Two names that differ only in letter case">
-Which file a scanner reads depends on the operating system. On Windows, the two can't exist in one folder at all.
+On Windows, the two can't exist in one folder at all. On other systems, which one Clone Hero reads depends on the file system. YARG skips every file whose name is the same as another's in lowercase, so `song.ini` and `Song.ini` together hide both.
 </Accordion>
 
 <Accordion title="A song folder inside a song folder">
