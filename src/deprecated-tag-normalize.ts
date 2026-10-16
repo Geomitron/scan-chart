@@ -7,7 +7,6 @@ import type { MetadataFinding } from './issues'
 import { songIniFindings } from './scan-song-folder'
 import { songContext } from './song-context'
 import type { SongDocument } from './song-document'
-import type { SongNormalization } from './song-save'
 
 /**
  * A kind of rewrite that leaves a song without a deprecated song.ini tag, which only older charts need:
@@ -18,6 +17,13 @@ import type { SongNormalization } from './song-save'
  *   `delay = 0`, is removed.
  */
 export type DeprecatedTagNormalizationKind = 'hopoTags' | 'multiplierNote' | 'deprecatedTags'
+
+/** One rewrite of a song that leaves a deprecated song.ini tag. */
+export interface DeprecatedTagNormalization {
+	readonly kind: DeprecatedTagNormalizationKind
+	/** Rewrites the song as it is now. Returns `song` unchanged when there's nothing left to rewrite. */
+	readonly apply: (song: SongDocument) => SongDocument
+}
 
 /** The deprecated song.ini tags: the settings only older charts need, and the older names of tags. */
 const deprecatedTags: ReadonlySet<string> = new Set(['delay', 'hopo_frequency', 'eighthnote_hopo', 'multiplier_note', ...olderTags.values()])
@@ -33,7 +39,7 @@ const hopoTags = ['hopo_frequency', 'eighthnote_hopo']
  * tags beside `hopofreq`, which YARG reads without them. Only a UTF-8 song.ini is rewritten, so its other bytes stay as
  * written.
  */
-export function deprecatedTagNormalizations(song: SongDocument): SongNormalization[] {
+export function deprecatedTagNormalizations(song: SongDocument): DeprecatedTagNormalization[] {
 	const { ini } = song
 	if (ini === null || ini.fileName.toLowerCase() !== 'song.ini' || !isUtf8(ini.tokens)) return []
 	const written = parseIniTokens(ini.tokens).iniObject.song ?? {}
@@ -41,11 +47,11 @@ export function deprecatedTagNormalizations(song: SongDocument): SongNormalizati
 	if (!Object.keys(written).some(key => deprecatedTags.has(key) && !kept.has(key))) return []
 
 	const found = songIniFindingsOf(song)
-	const normalizations: SongNormalization[] = []
+	const normalizations: DeprecatedTagNormalization[] = []
 	const add = (kind: DeprecatedTagNormalizationKind, rewrite: (current: SongDocument, found: readonly MetadataFinding[]) => SongDocument | null) => {
 		const rewritten = rewrite(song, found)
 		if (rewritten === null) return
-		normalizations.push({ kind, section: 'song.ini', apply: current => (current === song ? rewritten : rewrite(current, songIniFindingsOf(current))) ?? current })
+		normalizations.push({ kind, apply: current => (current === song ? rewritten : rewrite(current, songIniFindingsOf(current))) ?? current })
 	}
 	add('hopoTags', (current, found) => {
 		if (kept.size > 0 || !isReported(found, hopoTags)) return null
@@ -63,7 +69,6 @@ export function deprecatedTagNormalizations(song: SongDocument): SongNormalizati
 	if (rewrite !== null) {
 		normalizations.push({
 			kind: 'deprecatedTags',
-			section: 'song.ini',
 			apply: current => current.ini === null ? current : { ...current, ini: { ...current.ini, tokens: rewriteSongIni(current.ini.tokens, rewrite) } },
 		})
 	}
