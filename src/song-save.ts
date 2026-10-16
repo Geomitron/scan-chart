@@ -1,6 +1,6 @@
 import { chartNormalizations, ChartNormalizationKind } from './chart/chart-normalize'
 import { midiNormalizations, MidiNormalizationKind } from './chart/midi-normalize'
-import { deprecatedTagNormalizations, DeprecatedTagNormalizationKind } from './deprecated-tags'
+import { deprecatedTagNormalizations, DeprecatedTagNormalizationKind } from './deprecated-tag-normalize'
 import { iniNormalizations, IniNormalizationKind } from './ini/ini-normalize'
 import { SongDocument, documentFiles } from './song-document'
 import { songHashes } from './song-hashes'
@@ -58,7 +58,7 @@ export function songNormalizations(song: SongDocument): SongNormalization[] {
 			})
 		}
 	}
-	normalizations.push(...deprecatedTagNormalizations(song))
+	for (const { kind, apply } of deprecatedTagNormalizations(song)) normalizations.push({ kind, section: 'song.ini', apply })
 	// Last, so it compares the other normalizations' output.
 	if (songSectionAgreement(song) !== null) {
 		normalizations.push({ kind: 'songSection', section: 'Song', apply: current => songSectionAgreement(current) ?? current })
