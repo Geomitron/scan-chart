@@ -30,6 +30,18 @@ function lengthenExpertNote(original: SongDocument) {
 	return editSong(original, batch => batch.setLength(expert.events.find(event => event.tick === 192)!, 96))
 }
 
+/** Saves a `.mid` song with a PART GUITAR track of `events` and song.ini `ini`, edited to give its first green note 480 ticks. */
+function saveEditedMid(events: readonly TimedMidiEvent[], ini: string | Uint8Array) {
+	const original = parseSongFiles([
+		{ fileName: 'notes.mid', data: midiFile([{ name: 'PART GUITAR', events }]) },
+		{ fileName: 'song.ini', data: typeof ini === 'string' ? encode(ini) : ini },
+	])
+	const green = authoredTracks(original.chart!)[0].events.find(event => event.type === 'green')!
+	const edited = editSong(original, batch => batch.setLength(green, 480))
+	const { files, report } = saveSong(original, edited)
+	return { edited, files, report, ini: decode(fileBytes(files[1])) }
+}
+
 describe('saving (E7)', () => {
 	it('gives back an unedited song byte for byte, even with nonstandard spelling', () => {
 		const original = song([...header, '[ExpertSingle]', '{', '\t192 = N 1 0', '\t0 = N 0 0', '}'], '\n')
@@ -227,6 +239,15 @@ describe('saving (E7)', () => {
 		expect(songHashes(saved)).toEqual(songHashes(edited))
 	})
 
+	it('rewrites the HOPO tags of the chart the normalizations before them leave', () => {
+		// The tabs make the spacing normalization rewrite the section before the HOPO tags are rewritten.
+		const ini = { fileName: 'song.ini', data: encode('[song]\r\nname = Test\r\nhopo_frequency = 170\r\nsong_length = 60000\r\n') }
+		const original = parseSongFiles([{ fileName: 'notes.chart', data: encode([...header, '[ExpertSingle]', '{', '\t0 = N 0 0', '\t150 = N 1 0', '\t192 = N 2 0', '}'].join('\r\n') + '\r\n') }, ini])
+		const { files, report } = saveSong(original, lengthenExpertNote(original))
+		expect(report.normalized.map(entry => entry.kind)).toEqual(['spacing', 'hopoTags'])
+		expect(decode(fileBytes(files[0]))).toContain('[ExpertSingle]\r\n{\r\n  0 = N 0 0\r\n  150 = N 1 0\r\n  150 = N 5 0\r\n  192 = N 2 96\r\n}')
+	})
+
 	it('keeps the tags of the codes song.ini\'s ignored_issues lists, as fixIssues does', () => {
 		const save = (ignored: string) => {
 			const ini = { fileName: 'song.ini', data: encode(`[song]\r\nname = Test\r\nhopo_frequency = 170\r\ndelay = 0\r\nsong_length = 60000\r\nignored_issues = ${ignored}\r\n`) }
@@ -239,15 +260,10 @@ describe('saving (E7)', () => {
 	})
 
 	it('moves a .mid file\'s star power from note 103 to 116, and removes multiplier_note = 103, keeping every canonical hash', () => {
-		const ini = { fileName: 'song.ini', data: encode('[song]\r\nname = Test\r\nmultiplier_note = 103\r\nsong_length = 60000\r\n') }
-		const original = parseSongFiles([{ fileName: 'notes.mid', data: midiFile([
-			{ name: 'PART GUITAR', events: [...midiNote(0, 96, 240), ...midiNote(0, 103, 480), ...midiNote(960, 97)] },
-		]) }, ini])
-		const [guitar] = authoredTracks(original.chart!)
-		const edited = editSong(original, batch => batch.setLength(guitar.events.find(event => event.type === 'green')!, 480))
-		const { files, report } = saveSong(original, edited)
+		const { edited, files, report, ini } = saveEditedMid([...midiNote(0, 96, 240), ...midiNote(0, 103, 480), ...midiNote(960, 97)],
+			'[song]\r\nname = Test\r\nmultiplier_note = 103\r\nsong_length = 60000\r\n')
 		expect(report.normalized).toEqual([{ kind: 'multiplierNote', section: 'song.ini' }])
-		expect(decode(fileBytes(files[1]))).toBe('[song]\r\nname = Test\r\nsong_length = 60000\r\n')
+		expect(ini).toBe('[song]\r\nname = Test\r\nsong_length = 60000\r\n')
 		const saved = parseSongFiles(files)
 		expect(authoredTracks(saved.chart!)[0].events.filter(event => event.scope === 'instrument').map(event => [event.type, event.tick, event.length])).toEqual([['starPower', 0, 480]])
 		expect(resolveChart(saved).tracks).toEqual(resolveChart(edited).tracks)
@@ -256,37 +272,23 @@ describe('saving (E7)', () => {
 
 	it('renames frets and track, and removes the deprecated tags that change nothing, keeping delay and the other tags', () => {
 		const lines = ['[song]', 'name = Test', 'frets = Someone', 'track = 3', 'delay = 0', 'eighthnote_hopo = False', 'hopo_frequency = 0', 'modchart = False', 'song_length = 60000']
-		const original = parseSongFiles([{ fileName: 'notes.mid', data: midiFile([{ name: 'PART GUITAR', events: midiNote(0, 96, 240) }]) }, { fileName: 'song.ini', data: encode(lines.join('\r\n') + '\r\n') }])
-		const [guitar] = authoredTracks(original.chart!)
-		const edited = editSong(original, batch => batch.setLength(guitar.events[0], 480))
-		const { files, report } = saveSong(original, edited)
+		const { edited, files, report, ini } = saveEditedMid(midiNote(0, 96, 240), lines.join('\r\n') + '\r\n')
 		expect(report.normalized).toEqual([{ kind: 'deprecatedTags', section: 'song.ini' }])
-		expect(decode(fileBytes(files[1]))).toBe('[song]\r\nname = Test\r\ncharter = Someone\r\nalbum_track = 3\r\nmodchart = False\r\nsong_length = 60000\r\n')
+		expect(ini).toBe('[song]\r\nname = Test\r\ncharter = Someone\r\nalbum_track = 3\r\nmodchart = False\r\nsong_length = 60000\r\n')
 		expect(songHashes(parseSongFiles(files))).toEqual(songHashes(edited))
-
-		const delayed = parseSongFiles([original.files[0], { fileName: 'song.ini', data: encode('[song]\r\nname = Test\r\ndelay = 90\r\n') }])
-		const editedDelay = editSong(delayed, batch => batch.setLength(guitar.events[0], 480))
-		expect(saveSong(delayed, editedDelay).report.normalized).toEqual([])
+		expect(saveEditedMid(midiNote(0, 96, 240), '[song]\r\nname = Test\r\ndelay = 90\r\n').report.normalized).toEqual([])
 	})
 
 	it('keeps the HOPO tags beside hopofreq, which YARG reads without them', () => {
 		// At 480 ticks per beat, a .mid's own threshold is 161 ticks: 240 ticks apart is a HOPO only with hopo_frequency = 300.
 		const lines = ['[song]', 'name = Test', 'hopo_frequency = 300', 'eighthnote_hopo = False', 'hopofreq = 2', 'delay = 0']
-		const original = parseSongFiles([{ fileName: 'notes.mid', data: midiFile([{ name: 'PART GUITAR', events: [...midiNote(0, 96), ...midiNote(240, 97)] }]) },
-			{ fileName: 'song.ini', data: encode(lines.join('\r\n') + '\r\n') }])
-		const [guitar] = authoredTracks(original.chart!)
-		const { files, report } = saveSong(original, editSong(original, batch => batch.setLength(guitar.events[0], 120)))
+		const { report, ini } = saveEditedMid([...midiNote(0, 96), ...midiNote(240, 97)], lines.join('\r\n') + '\r\n')
 		expect(report.normalized).toEqual([{ kind: 'deprecatedTags', section: 'song.ini' }])
-		expect(decode(fileBytes(files[1]))).toBe('[song]\r\nname = Test\r\nhopo_frequency = 300\r\neighthnote_hopo = False\r\nhopofreq = 2\r\n')
+		expect(ini).toBe('[song]\r\nname = Test\r\nhopo_frequency = 300\r\neighthnote_hopo = False\r\nhopofreq = 2\r\n')
 	})
 
 	it('removes multiplier_note = 116 only where a .mid chart\'s solos wouldn\'t read as star power without it', () => {
-		const save = (events: TimedMidiEvent[]) => {
-			const original = parseSongFiles([{ fileName: 'notes.mid', data: midiFile([{ name: 'PART GUITAR', events: [...midiNote(0, 96, 240), ...midiNote(960, 97), ...events] }]) },
-				{ fileName: 'song.ini', data: encode('[song]\r\nname = Test\r\nmultiplier_note = 116\r\n') }])
-			const [guitar] = authoredTracks(original.chart!)
-			return decode(fileBytes(saveSong(original, editSong(original, batch => batch.setLength(guitar.events.find(event => event.type === 'green')!, 480))).files[1]))
-		}
+		const save = (solos: TimedMidiEvent[]) => saveEditedMid([...midiNote(0, 96, 240), ...midiNote(960, 97), ...solos], '[song]\r\nname = Test\r\nmultiplier_note = 116\r\n').ini
 		// Without the tag, Clone Hero reads two solos and no star power as star power.
 		expect(save([...midiNote(0, 103, 100), ...midiNote(960, 103, 100)])).toBe('[song]\r\nname = Test\r\nmultiplier_note = 116\r\n')
 		expect(save([...midiNote(0, 103, 100)])).toBe('[song]\r\nname = Test\r\n')
@@ -294,9 +296,7 @@ describe('saving (E7)', () => {
 
 	it('leaves the deprecated tags of a song.ini that isn\'t UTF-8, so its other bytes stay as written', () => {
 		const utf16 = new Uint8Array([0xff, 0xfe, ...[...'[song]\r\nname = Tést\r\ndelay = 0\r\n'].flatMap(character => [character.charCodeAt(0), 0])])
-		const original = parseSongFiles([{ fileName: 'notes.mid', data: midiFile([{ name: 'PART GUITAR', events: midiNote(0, 96, 240) }]) }, { fileName: 'song.ini', data: utf16 }])
-		const [guitar] = authoredTracks(original.chart!)
-		const { files, report } = saveSong(original, editSong(original, batch => batch.setLength(guitar.events[0], 480)))
+		const { files, report } = saveEditedMid(midiNote(0, 96, 240), utf16)
 		expect(report.normalized).toEqual([])
 		expect(fileBytes(files[1])).toEqual(utf16)
 	})
