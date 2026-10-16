@@ -1,0 +1,292 @@
+---
+title: "BTrack and TrackHash"
+description: "The binary form of one track, and the hash that identifies its leaderboard."
+---
+
+A BTrack is one track written as a small binary file. It holds what changes how the track plays and scores, such as its notes, star power and tempos, and leaves out what doesn't, such as practice sections and lyrics. A track's TrackHash is a hash of its BTrack. Clone Hero's leaderboards use it to tell tracks apart: scores on tracks with one TrackHash share a leaderboard, and a track that plays differently gets a leaderboard of its own.
+
+A scanner writes a track's BTrack from the chart as it reads it, not from the file's text. So a `.chart` file and a `.mid` file that play the same have one TrackHash. This `.chart` file has one track, Expert guitar:
+
+```text
+[Song]
+{
+  Resolution = 480
+}
+[SyncTrack]
+{
+  0 = TS 4
+  0 = B 120000
+}
+[ExpertSingle]
+{
+  0 = N 0 0
+}
+```
+
+Its BTrack holds four sections:
+
+| Section | Holds |
+|---|---|
+| Resolution | 480 |
+| Tempo | At tick 0, 120 BPM |
+| Time signature | At tick 0, 4/4 |
+| Note | At tick 0, length 0: green, strum |
+
+Its TrackHash is `JuNMNQmSSnOcJ5loj4W1niOlY9vU7MQZK-RtMemomls`. A `.mid` file with the same note and a tempo of 499,999 microseconds a beat, which is 120.00024 BPM, has the same TrackHash, because the TrackHash rounds each tempo to a thousandth of a BPM: see [TrackHash](#trackhash).
+
+This page specifies version 20260801 of the file. Clone Hero 1.1 hashes an older version: see [BTrack 20240320](/hashes/btrack-20240320). The [SongHash](/hashes/songhash) of a song holds the TrackHashes of all its tracks.
+
+## Which tracks have one
+
+Each track has a BTrack: each instrument at each difficulty that holds at least one note. The instruments are:
+
+- 5-fret guitar, co-op guitar, rhythm guitar, bass and keys;
+- 6-fret guitar, co-op guitar, rhythm guitar, bass and keys;
+- drums.
+
+A kick counts as a note. These have no BTrack:
+
+- a section or difficulty without notes: see [Tracks](/chart/instrument-sections#tracks) and [Difficulties](/mid/instrument-tracks#difficulties);
+- vocals and harmonies;
+- a second track for an instrument in a `.mid` file, since the first counts;
+- tracks the format pages don't cover, such as pro keys and pro guitar.
+
+A song's drums have one track for each difficulty, whatever the [drum type](/chart/drums#drum-types). Its notes keep their cymbals and toms, so a pro drums chart and a 4-lane chart with the same pads have different TrackHashes. Clone Hero's leaderboards keep drums and pro drums apart by the instrument a score was played on, not by the TrackHash.
+
+A song folder that holds both `notes.chart` and `notes.mid` uses `notes.mid`: see [The chart](/song-folders#the-chart).
+
+## The file
+
+Every number is little-endian.
+
+| Offset | Bytes | Field | Holds |
+|---|---|---|---|
+| 0 | 4 | Identifier | `43 48 4E 46`, the text `CHNF`. **Required** |
+| 4 | 4 | Version | `20260801`, as an unsigned 32-bit number. **Required** |
+| 8 | 4 | Section count, `N` | The number of sections, as an unsigned 32-bit number |
+| 12 | 20 × `N` | Section map | For each section: its ID and the offset of its data, as unsigned 64-bit numbers, then the length of its data in bytes, as an unsigned 32-bit number |
+| 12 + 20 × `N` | | Sections | Each section's data |
+
+- **Required:** the sections in ascending order of ID, in the map and in the data, each ID once.
+- **Required:** offsets counted from the file's first byte. The first section starts right after the map, each next section right after the one before, and the last section ends the file.
+- **Required:** the Resolution section. Each other section is in the file only when it holds at least one record.
+- IDs below 100 are kept for this specification. A program may add a section of its own with a higher ID. A reader skips the data of a section whose ID it doesn't know, but checks its place in the map as for any other section.
+
+### Sections
+
+The Resolution section holds the chart's resolution, as an unsigned 32-bit number, and nothing else. Each other section holds a count, as an unsigned 32-bit number, then that many records:
+
+| ID | Section | Each record | Bytes |
+|---|---|---|---|
+| 1 | Resolution | No records: the resolution alone | 4 |
+| 2 | Tempo | Tick; tempo in beats per minute, as a 64-bit float | 16 |
+| 3 | Time signature | Tick; numerator; denominator | 16 |
+| 4 | Star power | Tick; length | 16 |
+| 5 | Solo | Tick; length | 16 |
+| 6 | Lane | Tick; length; one byte, 1 for a double lane and 0 for a single lane | 17 |
+| 7 | Drum fill | Tick; length; one byte, 1 at or after the coda and 0 before it | 17 |
+| 8 | Range shift | Tick; position; size | 24 |
+| 9 | Note | Tick; length; note type; flags | 24 |
+
+Ticks, lengths, positions and sizes are signed 64-bit numbers. Numerators, denominators, note types and flags are unsigned 32-bit numbers. A section's length in the map is exactly 4 bytes for its count, plus its records.
+
+- **Required:** a resolution of at least 1.
+- **Required:** every tick, length, position and size 0 or more.
+- **Required:** a finite tempo greater than 0, and a numerator and denominator of at least 1.
+- **Required:** records in ascending order of tick. Tempos, time signatures, star power phrases, solos and range shifts each have at most one record at a tick. Notes at one tick are in ascending order of note type, with at most one note of a type.
+- **Required:** no star power phrase overlaps another, no solo overlaps another, and no note overlaps the next note of its type. Lanes may overlap.
+- **Required:** at each tick, at most one single lane and one double lane, the single lane first.
+- **Required:** a note in each star power phrase, solo and lane, as [Star power and solos](#star-power-and-solos) and [Lanes](#lanes) say. A drum fill needs none.
+- **Required:** a range shift's position from 1 to 5, its size from 1 to 5, and the two adding up to no more than 6.
+
+**Edge case: a file without a tempo or time signature section.** It's valid, and a game plays it at 120 BPM and 4/4. Its TrackHash differs from that of the same track with those sections, and a scanner always writes them: see [Tempos and time signatures](#tempos-and-time-signatures).
+
+### Note types and flags
+
+| Value | Note type | Value | Note type |
+|---|---|---|---|
+| 1 | Open | 10 | White 1 |
+| 2 | Green | 11 | White 2 |
+| 3 | Red | 12 | White 3 |
+| 4 | Yellow | 13 | Kick |
+| 5 | Blue | 14 | Red drum |
+| 6 | Orange | 15 | Yellow drum |
+| 7 | Black 1 | 16 | Blue drum |
+| 8 | Black 2 | 17 | Green drum |
+| 9 | Black 3 | | |
+
+Open is the open note of 5-fret and 6-fret. Black 1 to 3 and White 1 to 3 are the 6-fret frets, from the lowest.
+
+A note's flags are the sum of these values:
+
+| Value | Flag | Notes it may be on |
+|---|---|---|
+| 1 | Strum | 5-fret and 6-fret notes |
+| 2 | HOPO | 5-fret and 6-fret notes |
+| 4 | Tap | 5-fret and 6-fret notes |
+| 8 | Double kick | Kick |
+| 16 | Tom | Red, yellow, blue and green drums |
+| 32 | Cymbal | Red, yellow, blue and green drums |
+| 64 | Disco no-flip | Red and yellow drums |
+| 128 | Disco | Red and yellow drums |
+| 256 | Flam | Drum notes |
+| 512 | Ghost | Red, yellow, blue and green drums |
+| 1024 | Accent | Red, yellow, blue and green drums |
+
+- **Required:** each flag only on the notes the table gives it.
+- **Required:** at most one of strum, HOPO and tap; at most one of double kick, tom and cymbal; at most one of disco no-flip and disco; and at most one of ghost and accent.
+- **Required:** exactly one of strum, HOPO and tap on each 5-fret and 6-fret note.
+
+**Edge case: what readers check.** Clone Hero and scan-chart check the double kick, tom, cymbal and disco flags against the note type, ghost and accent against the kick, and the four groups of the second rule. They don't check the strum, HOPO, tap and flam flags against the note type, or ghost and accent against 5-fret and 6-fret notes, or the last rule. So they accept a 5-fret note without strum, HOPO or tap, a drum note with one of them, and a flam, ghost or accent on a 5-fret note. No scanner writes them.
+
+{/* review: Q1
+Readers don't check every limit on flags. Should a file that breaks the limits they don't check be invalid, as the page says now?
+- A. Invalid; readers stay as they are | The page keeps "Required" and its edge case. Nothing changes in Clone Hero or scan-chart | The standard says more than readers check, as it does elsewhere, such as for tick order in a .chart file
+- B. Invalid; both readers reject them | A Clone Hero change, a scan-chart change and new file vectors. No TrackHash changes, since no scanner writes such a file | Another Clone Hero merge request for files no scanner writes
+- C. Valid | The page drops the three rules | A file could then hold a flam on a guitar note, which means nothing
+Recommendation: A. The rules describe what a scanner writes, and no file in use breaks them; B can follow if another program starts writing BTracks.
+*/}
+
+## From a chart to a BTrack
+
+A scanner reads the chart as the format pages say, and writes what it read. This section says which events fill each section, and the steps that apply to each.
+
+### Resolution
+
+The chart's resolution: [`Resolution`](/chart/song#resolution) in a `.chart` file, or the [header's division](/mid/structure#resolution) in a `.mid` file.
+
+### Tempos and time signatures
+
+Every tempo marker and time signature, from [`[SyncTrack]`](/chart/sync-track) or the [tempo track](/mid/structure#the-tempo-track). Every track of a song holds the same ones.
+
+- A tempo is in beats per minute, as a 64-bit float: a `.chart` `B` value divided by 1000, or 60,000,000 divided by a `.mid` tempo's microseconds per beat. The division is done in 64-bit floating point and rounded to the nearest value, with no step through decimal text.
+- A time signature holds its denominator, not the power of 2 that a `.chart` `TS` event writes: `TS 7 3` is 7/8.
+- Of two tempo markers or two time signatures at one tick, the later one in the file counts.
+- A chart without a tempo marker at tick 0 gets 120 BPM there, and one without a time signature at tick 0 gets 4/4, as [The start of the chart](/chart/sync-track#the-start-of-the-chart) says. So a scanner always writes both sections.
+
+### Star power and solos
+
+Star power phrases are `S 2` in a `.chart` file and note 116 in a `.mid` file, along with any [solos read as star power](/mid/phrases#solos). Solos are `solo` and `soloend` in a `.chart` file and note 103 in a `.mid` file. A `.chart` solo's length is its `soloend` tick minus its `solo` tick, plus 1, so that it covers its `soloend` tick, as on [Phrases](/chart/phrases#solos).
+
+For each, in this order:
+
+1. Of two phrases at one tick, the longer counts.
+2. When a phrase starts before an earlier one ends, the earlier one ends where the later one starts, and the later one ends where the later of the two ended.
+3. A phrase without a note is left out. A phrase holds a note when a note starts from its tick up to, but not including, its end tick. A phrase of length 0 holds the notes on its tick.
+
+### Lanes
+
+Single lanes are `S 65` in a `.chart` file and note 126 in a `.mid` file, and double lanes `S 66` and note 127. A `.mid` lane's velocity gives the difficulties it's on: see [Lanes](/mid/phrases#lanes).
+
+1. Of two lanes of one kind at one tick, the longer counts.
+2. A lane without a note is left out. A lane holds a note when a note starts from its tick through its end tick.
+3. Lanes that overlap stay as they are, even lanes of one kind.
+
+### Drum fills
+
+Drum fills and Big Rock Endings are `S 64` in a `.chart` file and note 120 in a `.mid` file. Every one goes in the BTrack as written, on every instrument: none is left out, and no step applies. A `.mid` fill goes in the BTrack of every difficulty.
+
+The byte after a fill's length is 1 when the fill starts at or after the first coda, which makes it a Big Rock Ending: see [The coda](/chart/events#the-coda) and the [`.mid` coda](/mid/events#the-coda).
+
+### Range shifts
+
+Every valid [range shift](/chart/instrument-sections#range-shifts) of a 5-fret track, in `.chart` or [`.mid`](/mid/instrument-tracks#range-shifts), with its position and size. A range shift without a size has the size of its difficulty.
+
+- Of two range shifts at one tick, the later one in the file counts.
+- A range shift that repeats the range before it stays.
+- A track without range shifts has no Range shift section. The full range before the first one isn't written.
+
+### Notes
+
+The notes are those a player plays, after every step of [How notes resolve](/chart/note-resolution), with the `.mid` rules of [Note pairing](/mid/note-pairing) and [Note modifiers](/mid/modifiers). So each note's length is its sustain after the cutoff, two notes of one type are never at one tick, and no note overlaps the next one of its type.
+
+- **5-fret:** open, and green to orange. Each note has the strum, HOPO or tap flag it resolves to.
+- **6-fret:** open, and black 1 to 3 and white 1 to 3, with strum, HOPO or tap as on 5-fret. See [6-fret](/chart/instrument-sections#6-fret).
+- **Drums:** as below.
+
+Each drum note keeps its pad, its length, and these flags:
+
+| Note | Note type | Flags |
+|---|---|---|
+| Kick | Kick | Double kick on a double kick: `N 32` or note 95 |
+| Red | Red drum | Tom |
+| Yellow, blue and green | Yellow, blue and green drum | Tom or cymbal, by the drum type: always tom in a 4-lane chart; in a pro chart, by its cymbal or tom markers; in a 5-lane chart, as the pads are played on a pro kit |
+
+A 5-lane chart's notes are those a pro kit plays: see [Playing one type on another kit](/chart/drums#playing-one-type-on-another-kit). On top of the table:
+
+- **Disco and disco no-flip:** on red and yellow drum notes during a [disco flip](/chart/drums#disco-flip), and the notes keep their written pads.
+- **Flam:** on every drum note at a [flam](/chart/drums#flams), kicks included.
+- **Accent and ghost:** on pad notes, as [Accents and ghosts](/chart/drums#accents-and-ghosts) says. Never on a kick, even when a `.mid` kick has the velocity of one.
+- **A kick and a double kick at one tick** are one note: the longer one, or the double kick when their lengths are equal.
+
+## What the TrackHash holds that games ignore
+
+A BTrack holds every event above, including some that the format pages call ignored, or that no game plays yet. A change to any of them changes the TrackHash, and an exporter that drops one changes it too:
+
+- a drum fill or Big Rock Ending without a note, and a `.mid` fill on a difficulty where it covers no note;
+- `S 64` on 5-fret before the coda, and note 120 there;
+- `S 64` to `S 66` on 6-fret, and notes 120, 126 and 127 there;
+- lanes and `.chart` Big Rock Endings on 5-fret, which no game plays yet;
+- each drum note's length;
+- a `.chart` cymbal marker on a tick without its note, which still makes the chart pro;
+- double kicks on Easy, Medium and Hard;
+- range shifts, which change no note.
+
+A BTrack leaves out everything else, such as practice sections, lyrics, vocals, versus phrases, `S 67`, notes 121 to 125, and modifiers and markers that apply to no note. Some `song.ini` keys change what a BTrack holds, because they change how the chart reads: [`hopo_frequency`, `eighthnote_hopo`](/chart/note-resolution#deprecated), [`sustain_cutoff_threshold`](/chart/note-resolution#cut-off-short-sustains), [`chord_snap_threshold`](/chart/note-resolution#snap-close-notes-into-chords), [`multiplier_note`](/ini/settings#deprecated), `pro_drums` and `five_lane_drums`. The BTrack doesn't hold the keys themselves.
+
+## TrackHash
+
+A track's TrackHash is calculated from its BTrack, and only from a valid one. It hashes the Resolution section and each of sections 2 to 9 that the file holds. The identifier, the version, the offsets, the lengths and any section of another ID aren't hashed, so a later version of the file can keep every TrackHash.
+
+1. Write the number of sections hashed, as an unsigned 32-bit number.
+2. Write each of their IDs, as an unsigned 64-bit number, in ascending order.
+3. Write each of their data, in the same order. In the Tempo section, round each tempo to the nearest thousandth of a BPM first: `floor(bpm × 1000 + 0.5) ÷ 1000`, in 64-bit floating point.
+4. Hash those bytes with BLAKE3, which gives 32 bytes.
+5. Write the 32 bytes in base64url without padding: base64, with `-` for `+` and `_` for `/`, and no `=` at the end. A TrackHash has 43 characters.
+
+The BTrack keeps each tempo exact, and only the hash rounds it. A `.chart` file stores tempos in thousandths of a BPM and a `.mid` file in microseconds a beat, so a chart converted between them keeps its tempos only to a thousandth of a BPM. Rounding lets it keep its TrackHash. A `.chart` tempo is already a whole number of thousandths, so rounding never changes one. A tempo exactly halfway rounds up: 307,200 microseconds a beat is 195.3125 BPM, which rounds to 195.313.
+
+For the example at the top of the page, with the `.mid` file's tempo of 120.00024 BPM rounded to 120, these 108 bytes are hashed:
+
+```text
+04 00 00 00                                  4 sections
+01 00 00 00 00 00 00 00                      ID 1, Resolution
+02 00 00 00 00 00 00 00                      ID 2, Tempo
+03 00 00 00 00 00 00 00                      ID 3, Time signature
+09 00 00 00 00 00 00 00                      ID 9, Note
+e0 01 00 00                                  resolution 480
+01 00 00 00                                  1 tempo:
+00 00 00 00 00 00 00 00                        tick 0
+00 00 00 00 00 00 5e 40                        120 BPM
+01 00 00 00                                  1 time signature:
+00 00 00 00 00 00 00 00                        tick 0
+04 00 00 00 04 00 00 00                        4/4
+01 00 00 00                                  1 note:
+00 00 00 00 00 00 00 00                        tick 0
+00 00 00 00 00 00 00 00                        length 0
+02 00 00 00 01 00 00 00                        green, strum
+```
+
+Its TrackHash is `JuNMNQmSSnOcJ5loj4W1niOlY9vU7MQZK-RtMemomls`, for the `.chart` file and the `.mid` file alike. The two BTrack files are 164 bytes each, and differ only in the 8 bytes of the tempo.
+
+[scan-chart's golden vectors](https://github.com/Geomitron/scan-chart/tree/master/test/golden-vectors) test an implementation: charts with their BTracks and TrackHashes, song folders with their SongHashes, and BTrack files that a reader accepts or rejects. scan-chart passes all of them, and so does Clone Hero's implementation of this version.
+
+**Edge case: other hashes of a BTrack.** Clone Hero's HashScanTool `scan` lists a BLAKE3 hash of the whole BTrack file for each track, which isn't the TrackHash. Clone Hero's leaderboards also record a hash of the song's exact tempos and time signatures. The legacy TrackHash of Clone Hero 1.1 is on [BTrack 20240320](/hashes/btrack-20240320).
+
+## Invalid forms
+
+<Accordion title="A file that breaks a requirement">
+A reader rejects the whole file: it reads nothing from it, and calculates no TrackHash. Clone Hero and scan-chart accept and reject the same files.
+</Accordion>
+
+<Accordion title="Another version, such as 20240320">
+A reader of this version rejects the file. A reader that also reads [BTrack 20240320](/hashes/btrack-20240320) tells the two apart by the version, since both start with `CHNF`.
+</Accordion>
+
+<Accordion title="A section with no records">
+A reader rejects the file. A scanner leaves such a section out.
+</Accordion>
+
+<Accordion title="Two notes of one type at one tick, or other overlaps a scanner removes">
+A reader rejects the file. A scanner never writes one, because [How notes resolve](/chart/note-resolution#remove-duplicate-notes) and the steps above remove them first.
+</Accordion>
