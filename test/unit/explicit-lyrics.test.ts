@@ -43,6 +43,7 @@ describe('matching the strong words', () => {
 
 	it('leaves out mild words, words with an innocent sense, and censored spellings', () => {
 		expect(strong('Hell damn crap ass bitch cock pussy balls')).toEqual([])
+		expect(strong('Kike canta con Spic and Span')).toEqual([])
 		expect(strong(phraseText(lyrics('f*ck', 'sh#t', 'f**king')))).toEqual([])
 	})
 })

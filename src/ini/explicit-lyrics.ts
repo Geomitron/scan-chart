@@ -5,16 +5,16 @@ import { toLowerInvariant } from '../shared/text'
  * The strong words, written for scan-chart and released under its MIT license, not taken from another list. They're
  * the strong profanities and slurs that make a song's lyrics explicit by common rating practice, as a parental
  * advisory label or a radio edit treats them, with their inflections written out. English only. Mild words, such as
- * "hell", "damn", "crap", "ass" and "bitch", and words with a common innocent sense, such as "cock" and "pussy", aren't
- * listed, so a lyric with only those isn't reported. An entry of several words matches those words in a row.
+ * "hell", "damn", "crap", "ass" and "bitch", and words with a common innocent sense, such as "cock", "pussy", "kike" (a
+ * Spanish nickname) and "spic" ("spic and span"), aren't listed, so a lyric with only those isn't reported. An entry of
+ * several words matches those words in a row.
  */
 const strongWords: ReadonlySet<string> = new Set([
 	'fuck', 'fucks', 'fucked', 'fucker', 'fuckers', 'fucking', 'fuckhead', 'fuckface', 'clusterfuck',
 	'motherfucker', 'motherfuckers', 'motherfucking', 'mothafucka', 'mothafuckas', 'muthafucka', 'muthafuckas',
 	'shit', 'shits', 'shitty', 'shitting', 'shithead', 'shitheads', 'shitless', 'bullshit', 'horseshit', 'dipshit',
 	'cunt', 'cunts', 'cocksucker', 'cocksuckers',
-	'nigger', 'niggers', 'nigga', 'niggas', 'niggaz', 'faggot', 'faggots', 'kike', 'kikes', 'spic', 'spics', 'wetback', 'wetbacks',
-	'gook', 'gooks', 'porch monkey', 'porch monkeys',
+	'nigger', 'niggers', 'nigga', 'niggas', 'niggaz', 'faggot', 'faggots', 'wetback', 'wetbacks', 'gook', 'gooks', 'porch monkey', 'porch monkeys',
 ])
 
 /** A lyric phrase that holds a strong word. */
