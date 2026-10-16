@@ -241,6 +241,13 @@ describe('fixIssues: song_length', () => {
 		expectHashesKept(result)
 	})
 
+	it('leaves a song_length shorter than the chart, since only the audio gives the right one', async () => {
+		const result = await fix(song(['[song]', 'name = Song', 'song_length = 1000']), { codes: ['shortSongLength'] })
+		expect(result.ini).toBe('[song]\r\nname = Song\r\nsong_length = 1000\r\n')
+		expect(result.report).toMatchObject({ fixed: [], skipped: [{ code: 'shortSongLength', file: 'song.ini', reason: 'fixIssues has no fix for it.' }] })
+		expect(issueFixes.shortSongLength).toBeUndefined()
+	})
+
 	it('leaves song_length when an audio file\'s length can\'t be read', async () => {
 		const result = await fix(song(['[song]', 'name = Song'], [{ fileName: 'song.opus', data: opus(80) }, { fileName: 'drums.ogg', data: new Uint8Array(4) }]))
 		expect(result.ini).toBe('[song]\r\nname = Song\r\n')
