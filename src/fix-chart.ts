@@ -401,25 +401,47 @@ function withoutTags(song: SongDocument, keys: readonly string[], edit: (batch: 
 
 /**
  * Forces the notes whose HOPO or strum `hopo_frequency` or `eighthnote_hopo` changes, then removes the tags
- * (`deprecatedIniTag`), so every note plays the same. Beside `hopofreq`, which YARG reads without them, the tags stay. A `.chart` note's `N 5` line, which swaps HOPO and strum, is
- * added or removed; a `.mid` note gets a one-tick force HOPO or force strum note on its difficulty.
+ * (`deprecatedIniTag`), as `rewriteHopoTags` does.
  */
 export function fixHopoTags(song: SongDocument, issues: readonly Issue[], findings: readonly MetadataFinding[], record: FixRecord): SongDocument {
-	const context = songContext(song)
 	const { chart, ini } = song
 	if (!isTagReported(issues, findings, ['hopo_frequency', 'eighthnote_hopo']) || ini === null) return song
-	if (context.ini.songSection?.hopofreq !== undefined) {
-		record.skip('deprecatedIniTag', ini.fileName, 'YARG reads "hopofreq" when song.ini has neither "hopo_frequency" nor "eighthnote_hopo", so they stay.')
+	const rewritten = rewriteHopoTags(song)
+	if ('reason' in rewritten) {
+		record.skip('deprecatedIniTag', ini.fileName, rewritten.reason)
 		return song
 	}
+	const { keys, forced } = rewritten
+	const tags = keyList(keys)
+	record.fixed.push({
+		code: 'deprecatedIniTag',
+		file: chart!.fileName,
+		description: forced === 0
+			? `Removed ${tags}, without which every note reads the same.`
+			: `Forced ${forced} ${forced === 1 ? 'note' : 'notes'} to play the same without ${tags}, and removed ${keys.length === 1 ? 'it' : 'them'}.`,
+	})
+	return rewritten.song
+}
+
+/**
+ * Forces the notes whose HOPO or strum `hopo_frequency` or `eighthnote_hopo` changes, then removes the tags, so every
+ * note plays the same. A `.chart` note's `N 5` line, which swaps HOPO and strum, is added or removed; a `.mid` note gets
+ * a one-tick force HOPO or force strum note on its difficulty. Beside `hopofreq`, which YARG reads without them, the
+ * tags stay. Gives the song with the tags it removed and how many notes it forced, if it plays the same, phrases and
+ * canonical hashes included; otherwise why it isn't rewritten. The song has a song.ini.
+ */
+export function rewriteHopoTags(song: SongDocument): { song: SongDocument; keys: readonly string[]; forced: number } | { reason: string } {
+	const context = songContext(song)
+	const { chart } = song
+	if (context.ini.songSection?.hopofreq !== undefined) {
+		return { reason: 'YARG reads "hopofreq" when song.ini has neither "hopo_frequency" nor "eighthnote_hopo", so they stay.' }
+	}
 	if (chart === null || context.chart.kind !== 'parsed' || (chart.format === 'mid' && chart.tokens === null)) {
-		record.skip('deprecatedIniTag', ini.fileName, 'The chart can\'t be read, so it can\'t be rewritten to play the same without the HOPO tags.')
-		return song
+		return { reason: 'The chart can\'t be read, so it can\'t be rewritten to play the same without the HOPO tags.' }
 	}
 	const { settings } = context
 	// Without hopo_frequency, eighthnote_hopo = True would apply, so it goes too.
 	const keys = [...settings.hopo_frequency > 0 ? ['hopo_frequency'] : [], ...settings.eighthnote_hopo ? ['eighthnote_hopo'] : []]
-	const tags = keys.map(key => `"${key}"`).join(' and ')
 	const withTags = context.chart.parsed
 	const without = parseChartSource(context.chart.source, { ...settings, hopo_frequency: 0, eighthnote_hopo: false }, parseRules.canonical20260801)
 	let forced = 0
@@ -447,36 +469,52 @@ export function fixHopoTags(song: SongDocument, issues: readonly Issue[], findin
 			})
 		}
 	})
-	if ('problem' in result) {
-		record.skip('deprecatedIniTag', ini.fileName, `Rewriting the chart to play the same without ${tags} ${result.problem}.`)
-		return song
-	}
-	record.fixed.push({
-		code: 'deprecatedIniTag',
-		file: chart.fileName,
-		description: forced === 0
-			? `Removed ${tags}, without which every note reads the same.`
-			: `Forced ${forced} ${forced === 1 ? 'note' : 'notes'} to play the same without ${tags}, and removed ${keys.length === 1 ? 'it' : 'them'}.`,
-	})
-	return result.song
+	if ('problem' in result) return { reason: `Rewriting the chart to play the same without ${keyList(keys)} ${result.problem}.` }
+	return { song: result.song, keys, forced }
 }
 
 /**
- * Moves a `.mid` file's star power from note 103 to note 116 in each guitar and keys track, removes the notes 116 there,
- * which `multiplier_note = 103` makes games ignore, then removes the tag, or its older name `star_power_note`
- * (`deprecatedIniTag`). The drums tracks keep their notes 103, which mark solos whatever the tag.
+ * Moves a `.mid` file's star power from note 103 to note 116 and removes `multiplier_note`, or its older name
+ * `star_power_note` (`deprecatedIniTag`), as `rewriteMultiplierNote` does.
  */
 export function fixMultiplierNote(song: SongDocument, issues: readonly Issue[], findings: readonly MetadataFinding[], record: FixRecord): SongDocument {
 	const { chart, ini } = song
 	const { settings, ini: { songSection } } = songContext(song)
 	// The issue is about the line games read: the tag, or its older name without it.
 	const read = writtenKey(songSection ?? {}, 'multiplier_note')
-	if (settings.multiplier_note !== 103 || !isTagReported(issues, findings, [read]) || chart?.format !== 'mid' || chart.tokens === null || ini === null) return song
-	// Both names go, so neither is left to read.
-	const tags = ['multiplier_note', olderTags.get('multiplier_note')!].filter(key => songSection?.[key] !== undefined)
+	if (settings.multiplier_note !== 103 || !isTagReported(issues, findings, [read]) || ini === null) return song
+	const rewritten = rewriteMultiplierNote(song)
+	if (rewritten === null) return song
+	if ('reason' in rewritten) {
+		record.skip('deprecatedIniTag', ini.fileName, rewritten.reason)
+		return song
+	}
+	const { keys, moved, dropped } = rewritten
+	const ignored = dropped === 0 ? '' : `, removed ${dropped} ${dropped === 1 ? 'note' : 'notes'} 116 that "${read} = 103" made games ignore,`
+	record.fixed.push({
+		code: 'deprecatedIniTag',
+		file: chart!.fileName,
+		description: `Moved ${moved} star power ${moved === 1 ? 'phrase' : 'phrases'} from note 103 to note 116${ignored} and removed ${keyList(keys)}.`,
+	})
+	return rewritten.song
+}
+
+/**
+ * Moves a `.mid` file's star power from note 103 to note 116 in each guitar and keys track, removes the notes 116 there,
+ * which `multiplier_note = 103` makes games ignore, then removes the tag and its older name `star_power_note`, so
+ * neither is left to read. The drums tracks keep their notes 103, which mark solos whatever the tag. Gives the song with
+ * the tags it removed, how many phrases it moved and notes 116 it removed, if it plays the same, phrases and canonical
+ * hashes included; otherwise why it isn't rewritten. `null` for a song without a `.mid` file that can be edited. The
+ * song has a song.ini.
+ */
+export function rewriteMultiplierNote(song: SongDocument): { song: SongDocument; keys: readonly string[]; moved: number; dropped: number } | { reason: string } | null {
+	const { chart } = song
+	if (chart?.format !== 'mid' || chart.tokens === null) return null
+	const { songSection } = songContext(song).ini
+	const keys = ['multiplier_note', olderTags.get('multiplier_note')!].filter(key => songSection?.[key] !== undefined)
 	const tokens = chart.tokens
 	let [moved, dropped] = [0, 0]
-	const result = withoutTags(song, tags, batch => {
+	const result = withoutTags(song, keys, batch => {
 		[moved, dropped] = [0, 0]
 		for (const track of midiAuthoredTracks(tokens).filter(track => track.isFirst && isFret(track.instrument))) {
 			for (const event of track.events.filter(event => event.scope === 'instrument')) {
@@ -491,15 +529,6 @@ export function fixMultiplierNote(song: SongDocument, issues: readonly Issue[], 
 			}
 		}
 	})
-	if ('problem' in result) {
-		record.skip('deprecatedIniTag', ini.fileName, `Moving the star power to note 116 ${result.problem}.`)
-		return song
-	}
-	const ignored = dropped === 0 ? '' : `, removed ${dropped} ${dropped === 1 ? 'note' : 'notes'} 116 that "${read} = 103" made games ignore,`
-	record.fixed.push({
-		code: 'deprecatedIniTag',
-		file: chart.fileName,
-		description: `Moved ${moved} star power ${moved === 1 ? 'phrase' : 'phrases'} from note 103 to note 116${ignored} and removed ${keyList(tags)}.`,
-	})
-	return result.song
+	if ('problem' in result) return { reason: `Moving the star power to note 116 ${result.problem}.` }
+	return { song: result.song, keys, moved, dropped }
 }
