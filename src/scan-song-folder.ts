@@ -51,7 +51,10 @@ export interface ScanOptions {
 	 * song.ini lines: tags out of the standard order, `-1` numbers and blank text values, and lines that change nothing. Default: `false`.
 	 */
 	readonly styleNotes?: boolean
-	/** Guesses about the metadata's style, such as credits joined with "and", which can be wrong. Default: `false`. */
+	/**
+	 * Guesses about the metadata's style, such as credits joined with "and", which can be wrong. Default: `false`. One
+	 * guess, `missingExplicitLyrics`, is reported without it.
+	 */
 	readonly metadataStyle?: boolean
 	/** Remove style tags, such as `<b>`, from the metadata's text values, for plain-text display. Default: `false`. */
 	readonly removeStyleTags?: boolean
