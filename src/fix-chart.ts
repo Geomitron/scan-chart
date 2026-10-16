@@ -488,10 +488,9 @@ export function rewriteHopoTags(song: SongDocument): TagRewrite<{ readonly force
  */
 export function fixMultiplierNote(song: SongDocument, issues: readonly Issue[], findings: readonly MetadataFinding[], record: FixRecord): SongDocument {
 	const { ini } = song
-	const { settings, ini: { songSection } } = songContext(song)
 	// The issue is about the line games read: the tag, or its older name without it.
-	const read = writtenKey(songSection ?? {}, 'multiplier_note')
-	if (settings.multiplier_note !== 103 || !isTagReported(issues, findings, [read]) || ini === null) return song
+	const read = multiplierNote103Line(song)
+	if (read === null || !isTagReported(issues, findings, [read]) || ini === null) return song
 	const rewritten = rewriteMultiplierNote(song)
 	if ('reason' in rewritten) {
 		record.skip('deprecatedIniTag', ini.fileName, rewritten.reason)
@@ -505,6 +504,15 @@ export function fixMultiplierNote(song: SongDocument, issues: readonly Issue[], 
 		description: `Moved ${moved} star power ${moved === 1 ? 'phrase' : 'phrases'} from note 103 to note 116${ignored} and removed ${keyList(keys)}.`,
 	})
 	return rewritten.song
+}
+
+/**
+ * The line games read as `multiplier_note = 103`: the tag, or its older name `star_power_note` without it; `null` when
+ * they read another value.
+ */
+export function multiplierNote103Line(song: SongDocument): string | null {
+	const { settings, ini: { songSection } } = songContext(song)
+	return settings.multiplier_note === 103 ? writtenKey(songSection ?? {}, 'multiplier_note') : null
 }
 
 /**
