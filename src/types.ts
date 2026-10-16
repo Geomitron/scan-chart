@@ -360,6 +360,7 @@ export type MetadataIssueType =
 	| 'missingAlbumTrack' // "song.ini" doesn't set album_track, and the album isn't a single
 	| 'difficultyRange' // A difficulty rating is outside 0 to 10
 	| 'iconName' // The icon isn't written as an icon's name
+	| 'missingExplicitLyrics' // The lyrics hold a strong word, and explicit_lyrics isn't True
 	| 'deprecatedIniTag' // A tag only older charts need changes how the chart reads
 	| 'redundantDrumType' // pro_drums or five_lane_drums sets the drum type games already read
 	| 'defaultIniValue' // A "song.ini" value changes nothing: games read the song the same without it; only with ScanOptions.styleNotes

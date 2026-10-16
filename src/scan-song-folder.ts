@@ -11,6 +11,7 @@ import { parseChartSource, type ParsedChartFile } from './chart/parse-chart-file
 import { parseRules } from './chart/parse-rules'
 import { calculateCompetitiveHashes, CompetitiveHashes } from './competitive'
 import { resolveChart } from './gameplay-chart'
+import { explicitLyricMatches } from './ini/explicit-lyrics'
 import { ignoredIssueCodes, songIniIssues } from './ini/ini-checks'
 import { metadataStyleIssues } from './ini/metadata-style'
 import { defaultMetadata } from './ini/metadata'
@@ -202,6 +203,7 @@ export function songIniFindings(song: SongDocument, context: SongContext, stats:
 				const starPower = (parsed: ParsedChartFile) => JSON.stringify(parsed.trackData.map(track => track.starPowerSections.map(phrase => [phrase.tick, phrase.length])))
 				return starPower(parseChartSource(chart.source, { ...settings, multiplier_note: 0 }, parseRules.canonical20260801)) !== starPower(chart.parsed)
 			},
+			explicitLyrics: () => explicitLyricMatches(chart.parsed.vocalTracks),
 		},
 		extraIniKeys: options.extraIniKeys ?? [],
 		styleNotes: options.styleNotes ?? false,
