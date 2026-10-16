@@ -139,7 +139,7 @@ A note's flags are the sum of these values:
 
 **Edge case: what readers check.** Clone Hero and scan-chart check the double kick, tom, cymbal and disco flags against the note type, ghost and accent against the kick, and the four groups of the second rule. They don't check the strum, HOPO, tap and flam flags against the note type, or ghost and accent against 5-fret and 6-fret notes, or the last rule. So they accept a 5-fret note without strum, HOPO or tap, a drum note with one of them, and a flam, ghost or accent on a 5-fret note. No scanner writes them.
 
-{/* review: Q1
+{/* review: Q5
 Readers don't check every limit on flags. Should a file that breaks the limits they don't check be invalid, as the page says now?
 - A. Invalid; readers stay as they are | The page keeps "Required" and its edge case. Nothing changes in Clone Hero or scan-chart | The standard says more than readers check, as it does elsewhere, such as for tick order in a .chart file
 - B. Invalid; both readers reject them | A Clone Hero change, a scan-chart change and new file vectors. No TrackHash changes, since no scanner writes such a file | Another Clone Hero merge request for files no scanner writes
