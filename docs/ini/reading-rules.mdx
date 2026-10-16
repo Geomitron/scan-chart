@@ -28,8 +28,6 @@ album_track = 3
 
 A scanner decodes `song.ini` as it decodes a `.chart` file: see [Encoding](/chart/syntax#encoding). **Recommended:** UTF-8.
 
-**Edge case:** Clone Hero reads `loading_phrase` and the [settings](/ini/settings) a second time when a song starts, as UTF-8 unless the file starts with a byte order mark. In a `song.ini` saved as ISO-8859-1, the loading screen then shows the accented letters of `loading_phrase` as replacement characters, while the song list shows the name and artist correctly.
-
 ## The [song] section
 
 - **Required:** one `[song]` section, on the file's first line. Every key is inside it.
@@ -156,7 +154,7 @@ A scanner uses the last line. scan-chart reports it as `duplicateIniKey`, and sa
 <Accordion title="A number in another form, such as 1.5 or 12abc">
 Clone Hero reads a number as .NET does: an optional sign, then digits, within the 32-bit range, with spaces allowed around them. It uses the key's default for anything else. YARG reads a number's leading digits, so `12abc` is 12 and `1.5` is 1, and reads 0 when there are none. A scanner reads it as Clone Hero does.
 
-scan-chart reads the leading number of most keys, so `12abc` is 12, and rounds `1.5` to 2 and reports it as `invalidValue`. It reads `hopo_frequency`, `multiplier_note`, `sustain_cutoff_threshold` and `chord_snap_threshold` as Clone Hero does, and reports anything else as `invalidValue`. A `delay` with a decimal point means something else again: see [Settings](/ini/settings#invalid-forms).
+scan-chart reads the leading number of most keys, so `12abc` is 12, and rounds `1.5` to 2 and reports it as `invalidValue`. It reads `hopo_frequency`, `multiplier_note`, `sustain_cutoff_threshold` and `chord_snap_threshold` as Clone Hero does, and reports anything else as `invalidValue`. A scanner reads a `delay` with a decimal point by its leading digits instead: see [Settings](/ini/settings#invalid-forms).
 </Accordion>
 
 <Accordion title="A boolean in another form, such as yes or 2">
