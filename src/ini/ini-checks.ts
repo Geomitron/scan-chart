@@ -20,8 +20,8 @@ export interface SongIniInput {
 	/** Keys another issue asks to set, such as a charted instrument's difficulty, which aren't reported as blank. */
 	readonly requiredKeys: readonly string[]
 	/**
-	 * The chart's format, drum type and where its last note ends, sustain included, in milliseconds, or `null` when it
-	 * didn't parse. `detectedDrumType` reads it without song.ini's drum flags; `solosReadAsStarPower` says whether a guitar
+	 * The chart's format, drum type and how far into the audio its last note ends, sustain included, in milliseconds, or
+	 * `null` when it didn't parse. `detectedDrumType` reads it without song.ini's drum flags; `solosReadAsStarPower` says whether a guitar
 	 * or keys track reads its solos as star power without `multiplier_note`; `explicitLyrics` gives the lyric phrases
 	 * that hold a strong word.
 	 */
@@ -150,7 +150,7 @@ function valueIssues({ songSection, metadata, chart, styleNotes }: SongIniInput)
 		add('missingSongLength', 'Metadata is missing "song_length": set it to the length of the longest audio file, in milliseconds.')
 	} else if (chart !== null && metadata.song_length < chart.lastNoteEndMs) {
 		// The audio's length can't be told from the chart, so only a length too short for the notes is reported.
-		add('shortSongLength', `The "song_length" value is ${metadata.song_length}, but the chart's last note ends at ${Math.ceil(chart.lastNoteEndMs)} ms. `
+		add('shortSongLength', `The "song_length" value is ${metadata.song_length}, but the chart's last note ends ${Math.ceil(chart.lastNoteEndMs)} ms into the audio. `
 			+ 'Set it to the length of the longest audio file, in milliseconds.')
 	}
 	if (metadata.album_track === defaultMetadata.album_track && metadata.album !== defaultMetadata.album && !marksSingle(metadata.album)) {

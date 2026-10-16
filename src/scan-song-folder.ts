@@ -197,7 +197,8 @@ export function songIniFindings(song: SongDocument, context: SongContext, stats:
 		chart: chart.kind !== 'parsed' || stats === null ? null : {
 			format: chart.source.format,
 			drumType: stats.instruments.includes('drums') ? chart.parsed.drumType : null,
-			lastNoteEndMs: lastNoteEndMs(chart.parsed),
+			// The games place the chart against the audio by song.ini's delay, or by the .chart Offset without one.
+			lastNoteEndMs: lastNoteEndMs(chart.parsed) + (ini.metadata.delay !== 0 ? ini.metadata.delay : songMetadata(song).chartOffsetMs),
 			detectedDrumType: () => parseChartSource(chart.source, { ...settings, pro_drums: false, five_lane_drums: false }, parseRules.canonical20260801).drumType,
 			solosReadAsStarPower: () => {
 				const starPower = (parsed: ParsedChartFile) => JSON.stringify(parsed.trackData.map(track => track.starPowerSections.map(phrase => [phrase.tick, phrase.length])))
