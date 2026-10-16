@@ -74,6 +74,7 @@ describe('SongHash 20251010', () => {
 				tracks: [conductor, guitar, bass, drums],
 			})) },
 			modifiers: defaultMetadata,
+			legacyModifiers: defaultMetadata,
 			legacyMetadata: metadata,
 			canonicalMetadata: metadata,
 			legacyDurationMs: historicalSongHashDurationMs(1000n),
@@ -114,6 +115,7 @@ describe('SongHash 20251010', () => {
 		const result = songBundle20251010.calculate({
 			source: { format: 'chart', bytes: chart() },
 			modifiers: defaultMetadata,
+			legacyModifiers: defaultMetadata,
 			legacyMetadata: metadata,
 			canonicalMetadata: metadata,
 		})
@@ -150,6 +152,7 @@ describe('SongHash 20251010', () => {
 		const result = songBundle20251010.calculate({
 			source: { format: 'chart', bytes: chart() },
 			modifiers: defaultMetadata,
+			legacyModifiers: defaultMetadata,
 			legacyMetadata: metadata,
 			canonicalMetadata: metadata,
 			legacyDurationMs: historicalSongHashDurationMs(1000n),
@@ -211,6 +214,7 @@ describe('SongHash 20251010', () => {
 		const result = songBundle20251010.calculate({
 			source: { format: 'chart', bytes: chart() },
 			modifiers: defaultMetadata,
+			legacyModifiers: defaultMetadata,
 			legacyMetadata: metadata,
 			canonicalMetadata: metadata,
 			legacyDurationMs: historicalSongHashDurationMs(1000n),
@@ -229,6 +233,7 @@ describe('SongHash 20251010', () => {
 		const result = songBundle20251010.calculate({
 			source: { format: 'chart', bytes: chart() },
 			modifiers: defaultMetadata,
+			legacyModifiers: defaultMetadata,
 			legacyMetadata: metadata,
 			canonicalMetadata: metadata,
 			legacyDurationMs: historicalSongHashDurationMs(1000n),
@@ -265,6 +270,7 @@ describe('SongHash 20251010', () => {
 		const result = songBundle20251010.calculate({
 			source: { format: 'chart', bytes: chart() },
 			modifiers: defaultMetadata,
+			legacyModifiers: defaultMetadata,
 			legacyMetadata: metadata,
 			canonicalMetadata: metadata,
 		})

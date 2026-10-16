@@ -1,7 +1,9 @@
 import { blake3 } from '@awasm/noble'
 
+import { parseIni } from '../../ini/parse-ini'
+import { extractSongMetadata } from '../../ini/scan-ini'
 import { Difficulty, Instrument } from '../../types'
-import { IniChartModifiers } from '../types'
+import { defaultIniChartModifiers, IniChartModifiers } from '../types'
 import { parseChartFileFrozenLegacyIdentity, ParsedChartFile } from '../parse-chart-file'
 import { calculateTrackHash } from '../track-hasher'
 import {
@@ -113,6 +115,12 @@ export interface FrozenLegacyTrackIdentity {
 }
 
 export interface FrozenLegacy6142Api {
+	/**
+	 * The chart modifiers Clone Hero 1.1.0.6142 read from a song folder's song.ini, given its bytes or `null` without one,
+	 * for `parseSource` and `songBundle20251010`. They're read as for the canonical hashes, but without `pro_drum` and
+	 * `star_power_note`, the older names of `pro_drums` and `multiplier_note`, which it didn't read.
+	 */
+	readModifiers(songIni: Uint8Array | null): IniChartModifiers
 	parseSource(request: SourceParseRequest): FrozenLegacyParseOutcome
 	calculateTrackDuration(request: FrozenLegacyTrackRequest): TrackDuration
 	calculateTrackIdentity(request: FrozenLegacyTrackRequest): FrozenLegacyTrackIdentity
@@ -152,10 +160,10 @@ export interface FrozenLegacyTrackRequest {
 
 export interface SongBundleIdentityRequest extends SourceParseRequest {
 	/**
-	 * The modifiers the legacy hashes read, which can differ from `modifiers`: Clone Hero 1.1.0.6142 didn't read
-	 * song.ini's `pro_drum` or `star_power_note`. `modifiers` when omitted.
+	 * The modifiers the legacy hashes read, from `frozenLegacy6142.readModifiers`. They can differ from `modifiers`, since
+	 * Clone Hero 1.1.0.6142 didn't read song.ini's `pro_drum` or `star_power_note`.
 	 */
-	readonly legacyModifiers?: IniChartModifiers
+	readonly legacyModifiers: IniChartModifiers
 	/** The header strings for the legacy SongHash, written as given. */
 	readonly legacyMetadata: SongHashMetadata
 	/** The metadata for the canonical SongHash, which its writer resolves (see `CanonicalSongIdentityRequest`). */
@@ -271,7 +279,32 @@ request: FrozenLegacyTrackRequest,
 	}
 }
 
+/** The song.ini older names Clone Hero 1.1.0.6142 didn't read: `pro_drum` and `star_power_note`. */
+const olderNamesUnreadByLegacy: readonly string[] = ['pro_drum', 'star_power_note']
+
+function readFrozenLegacyModifiers(songIni: Uint8Array | null): IniChartModifiers {
+	let songSection: { readonly [key: string]: string } | undefined
+	try {
+		songSection = songIni === null ? undefined : parseIni(songIni).iniObject.song
+	} catch {
+		songSection = undefined
+	}
+	if (songSection === undefined) return { ...defaultIniChartModifiers }
+	const read = extractSongMetadata(Object.fromEntries(Object.entries(songSection).filter(([key]) => !olderNamesUnreadByLegacy.includes(key)))).metadata
+	return {
+		song_length: read.song_length,
+		hopo_frequency: read.hopo_frequency,
+		eighthnote_hopo: read.eighthnote_hopo,
+		multiplier_note: read.multiplier_note,
+		sustain_cutoff_threshold: read.sustain_cutoff_threshold,
+		chord_snap_threshold: read.chord_snap_threshold,
+		five_lane_drums: read.five_lane_drums,
+		pro_drums: read.pro_drums,
+	}
+}
+
 export const frozenLegacy6142: FrozenLegacy6142Api = {
+	readModifiers: readFrozenLegacyModifiers,
 	parseSource: parseFrozenLegacySource,
 	calculateTrackDuration: request => calculateParsedTrackDuration({
 		chart: request.chart[frozenLegacyChartToken],
@@ -315,7 +348,7 @@ export const canonical20260801: Canonical20260801Api = {
 }
 
 function calculateSongBundleIdentity(request: SongBundleIdentityRequest): SongBundleIdentityOutcome {
-	const legacyParsed = parseFrozenLegacySource({ source: request.source, modifiers: request.legacyModifiers ?? request.modifiers })
+	const legacyParsed = parseFrozenLegacySource({ source: request.source, modifiers: request.legacyModifiers })
 	if (legacyParsed.kind === 'rejected') return legacyParsed
 	const canonicalParsed = parseCanonicalSource(request)
 	if (canonicalParsed.kind === 'rejected') return canonicalParsed

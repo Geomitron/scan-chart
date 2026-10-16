@@ -127,9 +127,6 @@ export const olderTags: ReadonlyMap<string, string> = new Map([
 	['multiplier_note', 'star_power_note'],
 ])
 
-/** The older names Clone Hero 1.1.0.6142 didn't read, so the hashes it calculated, the frozen legacy ones, ignore them. */
-export const olderTagsUnreadByLegacy: readonly string[] = ['pro_drum', 'star_power_note']
-
 /** The tag `older` is an older name of, or `undefined`. */
 export function newerTag(older: string): string | undefined {
 	return [...olderTags].find(([, name]) => name === older)?.[0]

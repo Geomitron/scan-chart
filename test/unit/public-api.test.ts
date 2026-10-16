@@ -52,6 +52,7 @@ describe('public API', () => {
 		const internal = songBundle20251010.calculate({
 			source: { format: 'chart', bytes: chart },
 			modifiers: defaultMetadata,
+			legacyModifiers: defaultMetadata,
 			legacyMetadata: metadata,
 			canonicalMetadata: metadata,
 		})

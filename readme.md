@@ -203,7 +203,7 @@ if (hashes.accepted) {
 
 A chart that the hash rules reject has no hashes, and `reason` says why. To also get each track's BTrack, the binary file its TrackHash is calculated from, pass `{ btracks: true }` as the second argument.
 
-The same entry point exports the specification the hashes are defined by. `canonical20260801` defines the hashes Clone Hero uses now, and `frozenLegacy6142` the hashes Clone Hero 1.1 calculated. `songBundle20251010` calculates both kinds at once.
+The same entry point exports the specification the hashes are defined by. `canonical20260801` defines the hashes Clone Hero uses now, and `frozenLegacy6142` the hashes Clone Hero 1.1 calculated. `songBundle20251010` calculates both kinds at once. The settings Clone Hero 1.1 read from song.ini can differ from today's, so the legacy hashes take their own: `frozenLegacy6142.readModifiers` reads them from song.ini's bytes.
 
 ## Edit and save a song
 
