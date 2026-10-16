@@ -113,6 +113,8 @@ The work that costs more is off by default. Turn it on with the second argument:
 
 A result field you didn't ask for is `null`.
 
+One guess is reported in every scan, without `metadataStyle`: `missingExplicitLyrics`, for lyrics that hold a strong profanity or slur while song.ini's `explicit_lyrics` isn't `True`. It checks English words only, so a word in another language can match. A song can list the code in `ignored_issues`, described below.
+
 These options adjust what's reported:
 
 - `albumArtSizes` lists the album art sizes `albumArt` and `mediaIssues` accept, as the side of a square in pixels. It's `[512]` by default, so art that isn't 512x512 is reported.
