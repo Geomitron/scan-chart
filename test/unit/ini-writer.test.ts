@@ -97,10 +97,21 @@ describe('writeIniFile round-trip', () => {
 	it('preserves extraIniFields for unknown ini keys', () => {
 		const out = roundTrip({
 			name: 'N',
-			extraIniFields: { rating: '1', vocal_gender: 'male' },
+			extraIniFields: { link_name_a: 'Site', kit_type: '1' },
 		})
 		expect(out.name).toBe('N')
-		expect(out.extraIniFields).toEqual({ rating: '1', vocal_gender: 'male' })
+		expect(out.extraIniFields).toEqual({ link_name_a: 'Site', kit_type: '1' })
+	})
+
+	it('preserves the keys only YARG reads, with their types', () => {
+		const input = {
+			preview: { start: 30000, end: 60000 }, video_end_time: 90000, video_loop: true, rating: 3, tags: 'cover', diff_vocals_harm: 4,
+			covered_by: 'Cover Band', credit_composed_by: 'Composer', charter_guitar: 'Charter A', link_youtube: 'https://youtu.be/x',
+			vocal_scroll_speed: 120, clean_vocals: true, tuning_offset_cents: -20,
+		}
+		const out = roundTrip(input)
+		for (const key of Object.keys(input) as (keyof typeof input)[]) expect(out[key]).toEqual(input[key])
+		expect(out.extraIniFields).toBeUndefined()
 	})
 
 	it('round-trips a full metadata set with mixed types', () => {
@@ -122,10 +133,12 @@ describe('writeIniFile round-trip', () => {
 			sub_playlist: 'Favorites',
 			modchart: false,
 			explicit_lyrics: true,
+			rating: 2,
+			tags: 'cover',
 			pro_drums: true,
 			five_lane_drums: false,
 			end_events: true,
-			extraIniFields: { rating: '2', tags: 'cover' },
+			extraIniFields: { link_name_a: 'Site', kit_type: '1' },
 		}
 		const out = roundTrip(input)
 		for (const key of Object.keys(input) as (keyof typeof input)[]) {
@@ -133,5 +146,16 @@ describe('writeIniFile round-trip', () => {
 			expect(out[key as keyof typeof defaultMetadata]).toEqual(input[key])
 		}
 		expect(out.extraIniFields).toEqual(input.extraIniFields)
+	})
+})
+
+describe('writeIniFile key order', () => {
+	it('writes the keys only YARG reads after explicit_lyrics, before the deprecated keys, and leaves out their defaults', () => {
+		const text = writeIniFile({
+			delay: 50, tuning_offset_cents: 10, charter_guitar: 'A', credit_written_by: 'B', preview: { start: 1000, end: 31000 }, explicit_lyrics: true,
+			name: 'Song', rating: 0, video_loop: false, vocal_scroll_speed: null, clean_vocals: false, video_end_time: -1, extraIniFields: { kit_type: '1' },
+		})
+		expect(text).toBe(['[song]', 'name = Song', 'explicit_lyrics = True', 'preview = 1000 31000', 'credit_written_by = B', 'charter_guitar = A',
+			'tuning_offset_cents = 10', 'delay = 50', 'kit_type = 1', ''].join('\r\n'))
 	})
 })

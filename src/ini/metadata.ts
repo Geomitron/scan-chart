@@ -31,6 +31,76 @@ export const defaultMetadata = {
 	sub_playlist: '',
 	modchart: false,
 	explicit_lyrics: false,
+	// The keys only YARG reads, which Clone Hero ignores.
+	/** Units of ms: both preview times, written `<start> <end>`. YARG reads it over `preview_start_time` and `preview_end_time`. */
+	preview: null as { readonly start: number; readonly end: number } | null,
+	/** Units of ms */ video_end_time: -1,
+	video_loop: false,
+	background: '',
+	video: '',
+	cover: '',
+	/** 1 Family Friendly, 2 Supervision Recommended, 3 Mature, 4 No Rating, 5 Sensitive Content; 0 isn't set. */
+	rating: 0,
+	/** `cover` marks a cover. */
+	tags: '',
+	diff_vocals_harm: -1,
+	diff_guitar_real: -1,
+	diff_guitar_real_22: -1,
+	diff_bass_real: -1,
+	diff_bass_real_22: -1,
+	diff_keys_real: -1,
+	diff_elite_drums: -1,
+	sub_genre: '',
+	covered_by: '',
+	/** `yyyy-MM-dd` or `yyyy-MM`, as written. */
+	date_released: '',
+	location: '',
+	credit_album_art_designed_by: '',
+	credit_arranged_by: '',
+	credit_background: '',
+	credit_composed_by: '',
+	credit_courtesy_of: '',
+	credit_engineered_by: '',
+	credit_license: '',
+	credit_mastered_by: '',
+	credit_mixed_by: '',
+	credit_other: '',
+	credit_performed_by: '',
+	credit_produced_by: '',
+	credit_published_by: '',
+	credit_written_by: '',
+	charter_guitar: '',
+	charter_rhythm: '',
+	charter_bass: '',
+	charter_drums: '',
+	charter_elite_drums: '',
+	charter_keys: '',
+	charter_pro_guitar: '',
+	charter_pro_bass: '',
+	charter_pro_keys: '',
+	charter_guitar_6f: '',
+	charter_rhythm_6f: '',
+	charter_bass_6f: '',
+	charter_vocals: '',
+	charter_lower_diff: '',
+	charter_venue: '',
+	charter_audio: '',
+	link_bandcamp: '',
+	link_bluesky: '',
+	link_facebook: '',
+	link_instagram: '',
+	link_spotify: '',
+	link_twitter: '',
+	link_other: '',
+	link_youtube: '',
+	/** 0 to 3 or a name: female, male, nonbinary or other. */
+	vocal_gender: '',
+	/** A percentage, or `null` when it isn't set. */
+	vocal_scroll_speed: null as number | null,
+	clean_vocals: false,
+	venue_hint: '',
+	vocal_character_hint: '',
+	tuning_offset_cents: 0,
 	/** Units of ms */ delay: 0,
 	hopo_frequency: 0,
 	eighthnote_hopo: false,
@@ -77,10 +147,10 @@ export function tagRank(key: string): number {
 /** The tags whose default is of `type`, with their older names. */
 const tagsOfType = (type: 'number' | 'boolean') => tagOrder.filter(key => typeof defaultMetadata[key as MetadataKey] === type)
 	.flatMap(key => [key, ...olderTags.has(key) ? [olderTags.get(key)!] : []])
-const numberTags = new Set([...tagsOfType('number'), 'video_end_time'])
-const booleanTags = new Set([...tagsOfType('boolean'), 'video_loop'])
+const numberTags = new Set([...tagsOfType('number'), 'vocal_scroll_speed'])
+const booleanTags = new Set(tagsOfType('boolean'))
 
-/** Whether games read a tag as a number: a number above or its older name, any `diff_` tag, or `video_end_time`. */
+/** Whether games read a tag as a number: a number above or its older name, `vocal_scroll_speed`, or any `diff_` tag. */
 export function isNumberTag(key: string): boolean {
 	return key.startsWith('diff_') || numberTags.has(key)
 }

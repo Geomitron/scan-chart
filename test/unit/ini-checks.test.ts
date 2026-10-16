@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
+import { defaultMetadata } from 'src/ini/metadata'
 import { scanSongFolder, type ScanOptions } from 'src/scan-song-folder'
 
 import { expertChart, midi } from './helpers/chart-files'
@@ -40,7 +41,24 @@ describe('song.ini tags', () => {
 			.toEqual([['iniTagOrder', 'In "song.ini", "artist" should come before "charter".']])
 		expect(await iniIssues(['[song]', 'name = Song', 'explicit_lyrics = True', 'playlist = Pack', 'modchart = True'], ['iniTagOrder']))
 			.toEqual([['iniTagOrder', 'In "song.ini", "playlist" should come before "explicit_lyrics".']])
-		expect(await iniIssues(['[song]', 'name = Song', 'rating = 1', 'artist = Band', 'pro_drums = True'], ['iniTagOrder'])).toEqual([])
+		expect(await iniIssues(['[song]', 'name = Song', 'link_name_a = Site', 'artist = Band', 'pro_drums = True'], ['iniTagOrder'])).toEqual([])
+	})
+
+	it('orders the keys only YARG reads after explicit_lyrics and before the deprecated keys', async () => {
+		const ordered = ['[song]', 'name = Song', 'explicit_lyrics = True', 'preview = 1000 31000', 'rating = 1', 'credit_written_by = A', 'charter_guitar = B',
+			'charter_audio = C', 'link_youtube = D', 'tuning_offset_cents = 5', 'delay = 50', 'pro_drums = True', 'link_name_a = Site']
+		expect(await iniIssues(ordered, ['iniTagOrder'])).toEqual([])
+		expect(await iniIssues(['[song]', 'name = Song', 'rating = 1', 'artist = Band'], ['iniTagOrder']))
+			.toEqual([['iniTagOrder', 'In "song.ini", "artist" should come before "rating".']])
+		expect(await iniIssues(['[song]', 'name = Song', 'charter_audio = A', 'charter_guitar = B'], ['iniTagOrder']))
+			.toEqual([['iniTagOrder', 'In "song.ini", "charter_guitar" should come before "charter_audio".']])
+		expect(await iniIssues(['[song]', 'name = Song', 'delay = 50', 'covered_by = Band'], ['iniTagOrder']))
+			.toEqual([['iniTagOrder', 'In "song.ini", "covered_by" should come before "delay".']])
+	})
+
+	it('knows every key it reads as metadata, and its older names', async () => {
+		const lines = ['[song]', ...Object.keys(defaultMetadata).map(key => `${key} = 1`), 'frets = 1', 'track = 1', 'pro_drum = 1', 'star_power_note = 1']
+		expect(await iniIssues(lines, ['unknownIniTag'])).toEqual([])
 	})
 
 	it('reports blank values and quoted values of any tag, even one no game reads', async () => {
@@ -232,6 +250,13 @@ describe('song.ini default values', () => {
 			'In "song.ini", "delay = 0", "modchart = False", "video_start_time = 0" and 2 more change nothing: games read the song the same without them. Remove those lines.',
 		])
 		expect(await unneeded(['delay = 50', 'modchart = True', 'video_start_time = 1000', 'chord_snap_threshold = 2', 'explicit_lyrics = True'])).toEqual([])
+	})
+
+	it('reports the values of the keys only YARG reads that it reads the same without', async () => {
+		expect(await unneeded(['video_loop = False', 'rating = 0', 'clean_vocals = 0', 'tuning_offset_cents = 0'])).toEqual([
+			'In "song.ini", "video_loop = False", "rating = 0", "clean_vocals = 0" and "tuning_offset_cents = 0" change nothing: games read the song the same without them. Remove those lines.',
+		])
+		expect(await unneeded(['video_loop = True', 'rating = 3', 'clean_vocals = True', 'tuning_offset_cents = -20'])).toEqual([])
 	})
 
 	it('reports the tags for older charts that change nothing', async () => {

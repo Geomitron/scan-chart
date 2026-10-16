@@ -11,11 +11,11 @@ import { ObjectCache } from './shared/object-cache'
 import { songIniSpellingIssues } from './spelling-issues'
 
 /**
- * A song's metadata as Clone Hero reads it: song.ini when the song has one, and the `.chart` `[Song]` section only
- * when it doesn't. A value that isn't set is Clone Hero's default ("Unknown Artist", -1 for a difficulty, and so on).
- * Text keeps its style tags, such as `<b>`, which Clone Hero shows as formatting, unless `removeStyleTags` asks for
- * plain text. The keys are song.ini's; without song.ini, the `[Song]` Offset is the delay, and a preview time song.ini
- * leaves unset is read from `[Song]`.
+ * A song's metadata as games read it: song.ini when the song has one, and the `.chart` `[Song]` section only when it
+ * doesn't. A value that isn't set is its default ("Unknown Artist", -1 for a difficulty, and so on). Text keeps its
+ * style tags, such as `<b>`, which games show as formatting, unless `removeStyleTags` asks for plain text. The keys are
+ * song.ini's, including those only YARG reads, which Clone Hero ignores; without song.ini, the `[Song]` Offset is the
+ * delay, and a preview time song.ini leaves unset is read from `[Song]`.
  */
 export type SongMetadata = { readonly [key in keyof typeof defaultMetadata]: (typeof defaultMetadata)[key] } & {
 	/** The `.chart` `[Song]` Offset, converted from seconds to milliseconds as Clone Hero rounds it; 0 when there's none. */
