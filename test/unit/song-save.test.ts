@@ -8,7 +8,8 @@ import { chartSectionLines } from 'src/chart/chart-file-parser'
 import { editSong, parseSongFiles, SongDocument } from 'src/song-document'
 import { resolveChart } from 'src/gameplay-chart'
 import { fileBytes } from 'src/song-files'
-import { saveSong, songHashes, SongNormalization } from 'src/song-save'
+import { songHashes } from 'src/song-hashes'
+import { saveSong, SongNormalization } from 'src/song-save'
 
 import { midiFile, midiNote, midiText, trackTexts } from './helpers/midi-files'
 

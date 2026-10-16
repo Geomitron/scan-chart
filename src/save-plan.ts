@@ -1,6 +1,7 @@
 import { documentFiles, SongDocument, songOrigin } from './song-document'
 import { byteSourceBlob, ByteSource, CHUNK_SIZE, isByteSource, SongFile } from './song-files'
-import { saveEdited, SaveReport, songHashes } from './song-save'
+import { songHashes } from './song-hashes'
+import { saveEdited, SaveReport } from './song-save'
 
 /** Part of a byte source, written without being read until the file is written. */
 export interface ByteRange {

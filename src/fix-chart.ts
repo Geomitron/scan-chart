@@ -17,7 +17,7 @@ import { chooseEdits, FixRecord, hashChanges, hashNames, issueFixTable } from '.
 import type { Issue, IssueCode, MetadataFinding } from './issues'
 import { songContext } from './song-context'
 import { AuthoredElement, continueEdits, editSong, RawSongEditBatch, SongDocument, withSongIni } from './song-document'
-import { songHashes } from './song-save'
+import { songHashes } from './song-hashes'
 import { Difficulty, getInstrumentType, Instrument, instrumentTypes } from './types'
 
 type Track = ParsedChartFile['trackData'][number]
