@@ -6,10 +6,13 @@ type PartCreditKey = Extract<keyof typeof yargOnlyMetadata, `charter_${string}`>
 /** The part credit keys, in the order of the part credits table on the Metadata page. */
 const partCreditKeys = (Object.keys(yargOnlyMetadata) as (keyof typeof yargOnlyMetadata)[])
 	.filter((key): key is PartCreditKey => key.startsWith('charter_'))
-/** A credit's names, split at "&" or ",", each without a part in parentheses after it, such as "(Guitar)". */
-const creditNames = (credit: string) => credit.split(/[&,]/).map(name => name.replace(/\([^)]*\)\s*$/, '').trim()).filter(name => name !== '')
+/** What joins a credit's names other than " & ": the separators `creditSeparator` reports. */
+const otherCreditSeparators = /\s*[,/+;]\s*|\s+and\s+/i
+/** A credit's names, without the parts in parentheses after them, such as "(Guitar & Bass)", split at "&" or another separator. */
+const creditNames = (credit: string) => credit.replace(/\([^)]*\)/g, '').split('&').flatMap(part => part.split(otherCreditSeparators))
+	.map(name => name.trim()).filter(name => name !== '')
 /** A name as two credits are compared: letter case and runs of spaces don't count. */
-const nameKey = (name: string) => name.replace(/\s+/g, ' ').toLowerCase()
+const comparableName = (name: string) => name.replace(/\s+/g, ' ').toLowerCase()
 
 /** Title tag words that tell charts of one song apart, which go after the other title tags. */
 const chartTagWords = /overchart|\b6[- ]?fret|open notes|\b2x (kick|bass pedal)|expert\+|pro drums|\b(full|band|drums?|guitar|bass|keys) (chart|only)\b/i
@@ -36,18 +39,18 @@ export function metadataStyleIssues(metadata: typeof defaultMetadata): MetadataF
 	const isGiven = (key: 'name' | 'artist' | 'album' | 'genre' | 'year' | 'charter') => metadata[key] !== defaultMetadata[key]
 	const { name, artist, album, genre, year, charter } = metadata
 
-	if (isGiven('charter') && /\s*[,/+;]\s*|\s+and\s+/i.test(charter)) {
+	if (isGiven('charter') && otherCreditSeparators.test(charter)) {
 		add('creditSeparator', `The charter value "${charter}" lists several names. Join them with " & ".`)
 	}
 	// charter is the one credit games show, so it names every part's charters (Geo, 2026-10-16). Without charter, the
 	// missing value is already reported.
 	if (isGiven('charter')) {
-		const credited = new Set(creditNames(charter).map(nameKey))
+		const credited = new Set(creditNames(charter).map(comparableName))
 		const uncredited = new Map<string, string>()
 		for (const key of partCreditKeys) {
 			for (const partName of creditNames(metadata[key])) {
-				const found = nameKey(partName)
-				if (!credited.has(found) && !uncredited.has(found)) uncredited.set(found, `"${partName}" (${key})`)
+				const comparable = comparableName(partName)
+				if (!credited.has(comparable) && !uncredited.has(comparable)) uncredited.set(comparable, `"${partName}" (${key})`)
 			}
 		}
 		const names = [...uncredited.values()]
