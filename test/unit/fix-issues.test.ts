@@ -106,6 +106,15 @@ describe('fixIssues: song.ini', () => {
 		expectHashesKept(result)
 	})
 
+	it('renames pro_drum and star_power_note to pro_drums and multiplier_note', async () => {
+		const drums = midi({ 'PART DRUMS': [{ tick: 0, noteNumber: 97 }, { tick: 480, noteNumber: 98 }] })
+		const result = await fix(folder(['[song]', 'name = Song', 'star_power_note = 116', 'pro_drum = True'], drums, 'notes.mid'), { codes: ['deprecatedIniTag'] })
+		expect(result.ini).toBe('[song]\r\nname = Song\r\nmultiplier_note = 116\r\npro_drums = True\r\n')
+		expect(result.report.fixed).toEqual([{ code: 'deprecatedIniTag', file: 'song.ini', description: 'Renamed "pro_drum" to "pro_drums" and "star_power_note" to "multiplier_note".' }])
+		expect(result.codes).not.toContain('deprecatedIniTag')
+		expectHashesKept(result)
+	})
+
 	it('writes the icon\'s name in lowercase, and drops a file extension only with changeHashes, since the SongHash reads it', async () => {
 		const upper = await fix(folder(['[song]', 'name = Song', 'icon = Zancharted']), { codes: ['iconName'] })
 		expect(upper.ini).toContain('icon = zancharted')
@@ -500,6 +509,27 @@ describe('fixIssues: multiplier_note = 103', () => {
 			.toEqual([['starPower', 900, 120], ['starPower', 1900, 100]])
 		expect(drumsTrack.events.filter(event => event.scope === 'instrument').map(event => [event.type, event.tick])).toEqual([['soloSection', 0]])
 		expect(result.codes.filter(code => code === 'deprecatedIniTag' || code === 'badStarPower')).toEqual([])
+		expectHashesKept(result)
+	})
+
+	it('moves the star power of star_power_note = 103, its older name, and removes it', async () => {
+		const mid = midi({ 'PART GUITAR': [...[0, 960, 1920].map(tick => ({ tick, noteNumber: 96 })), { tick: 900, noteNumber: 103, length: 120 }] })
+		const files = folder(['[song]', 'name = Song', 'star_power_note = 103'], mid, 'notes.mid')
+		const original = await parseSong(files)
+		const result = await fix(files, { codes: ['deprecatedIniTag'] })
+		expect(result.ini).toBe('[song]\r\nname = Song\r\n')
+		expect(result.report.fixed).toEqual([{ code: 'deprecatedIniTag', file: 'notes.mid',
+			description: 'Moved 1 star power phrase from note 103 to note 116 and removed "star_power_note".' }])
+		expect(result.report.skipped).toEqual([])
+		expect(phrases(result.song)).toEqual(phrases(original))
+		expectHashesKept(result)
+	})
+
+	it('leaves star_power_note = 116 to the rename, which moves no star power', async () => {
+		const mid = midi({ 'PART GUITAR': [...[0, 960, 1920].map(tick => ({ tick, noteNumber: 96 })), { tick: 900, noteNumber: 103, length: 120 }, { tick: 0, noteNumber: 116, length: 60 }] })
+		const result = await fix(folder(['[song]', 'name = Song', 'star_power_note = 116'], mid, 'notes.mid'), { codes: ['deprecatedIniTag'] })
+		expect(result.ini).toBe('[song]\r\nname = Song\r\nmultiplier_note = 116\r\n')
+		expect(result.report).toMatchObject({ fixed: [{ code: 'deprecatedIniTag', description: 'Renamed "star_power_note" to "multiplier_note".' }], skipped: [] })
 		expectHashesKept(result)
 	})
 })

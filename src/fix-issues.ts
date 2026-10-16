@@ -177,7 +177,8 @@ function fixSongIni(
 	}
 	for (const key of keysOf('deprecatedIniTag')) {
 		const newer = newerTag(key)
-		if (newer !== undefined) fixes.push({ code: 'deprecatedIniTag', subject: key, value: newer, set: [[newer, songSection[key]]], remove: [key] })
+		// A chart fix may have removed it already, as the star power fix removes star_power_note.
+		if (newer !== undefined && songSection[key] !== undefined) fixes.push({ code: 'deprecatedIniTag', subject: key, value: newer, set: [[newer, songSection[key]]], remove: [key] })
 		else if (key === 'delay') record.skip('deprecatedIniTag', ini.fileName, 'Removing "delay" moves every note against the audio: the audio or the notes have to change first.')
 	}
 	for (const code of ['missingSongLength', 'songLengthMismatch'] as const) {

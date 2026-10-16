@@ -14,15 +14,7 @@ type BooleanProperties<O> = { [key in keyof O as TypedSubset<O, key, boolean>]: 
 type Metadata = typeof defaultMetadata
 type MetaStringKey = keyof StringProperties<Metadata>
 type MetaNumberKey = keyof NumberProperties<Metadata>
-type InputMetaBooleanKey = keyof BooleanProperties<InputMetadata>
 type MetaBooleanKey = keyof BooleanProperties<Metadata>
-
-type InputMetadata = Metadata & {
-	frets: string
-	track: number
-	hopofreq: number
-	star_power_note: number
-}
 
 type ScanIniResult = {
 	metadata: Metadata | null
@@ -196,7 +188,7 @@ export function extractSongMetadata(songSection: { readonly [key: string]: strin
 		modchart: getIniBoolean(songSection, 'modchart'),
 		explicit_lyrics: getIniBoolean(songSection, 'explicit_lyrics'),
 		delay: getIniInteger(songSection, 'delay'),
-		// Clone Hero clamps hopo_frequency and reads no legacy alias for it or multiplier_note (SongGameMetadata.ParseFromIni).
+		// Clone Hero clamps hopo_frequency (SongGameMetadata.ParseFromIni).
 		hopo_frequency: Math.min(Math.max(getChartModifierInteger(songSection, 'hopo_frequency'), 0), 65535),
 		eighthnote_hopo: getIniBoolean(songSection, 'eighthnote_hopo'),
 		multiplier_note: getChartModifierInteger(songSection, 'multiplier_note'),
@@ -223,11 +215,12 @@ export function extractSongMetadata(songSection: { readonly [key: string]: strin
 		}
 	}
 	for (const key of chartModifierIntegers) {
-		const value = songSection[key]
+		const read = writtenKey(songSection, key)
+		const value = songSection[read]
 		if (value !== undefined && value !== '' && parseDotnetInt(value) === null) {
 			metadataIssues.push({
 				metadataIssue: 'invalidValue',
-				description: `The "${key}" value in "song.ini" is "${value}", which is not an integer.`,
+				description: `The "${read}" value in "song.ini" is "${value}", which is not an integer.`,
 			})
 		}
 	}
@@ -239,7 +232,7 @@ export function extractSongMetadata(songSection: { readonly [key: string]: strin
 	if (metadata.multiplier_note !== 0 && metadata.multiplier_note !== 103 && metadata.multiplier_note !== 116) {
 		metadataIssues.push({
 			metadataIssue: 'invalidValue',
-			description: `The "multiplier_note" value in "song.ini" is "${metadata.multiplier_note}", which is not a valid value.`,
+			description: `The "${writtenKey(songSection, 'multiplier_note')}" value in "song.ini" is "${metadata.multiplier_note}", which is not a valid value.`,
 		})
 		metadata.multiplier_note = 0
 	}
@@ -262,12 +255,17 @@ export function extractSongMetadata(songSection: { readonly [key: string]: strin
 }
 
 /**
- * The line games read of `key`: its own whenever it's in the file, whatever its value, as Clone Hero and YARG read
- * `charter` over `frets`, and Clone Hero `album_track` over `track`. Its older name is read only when it isn't.
+ * The key of the line games read for `key`: its own whenever it's in the file, whatever its value, as Clone Hero and
+ * YARG read `charter` over `frets`, and Clone Hero `album_track` over `track`. Its older name is read only when it isn't.
  */
-function writtenValue(songSection: { readonly [key: string]: string }, key: string): string | undefined {
+function writtenKey(songSection: { readonly [key: string]: string }, key: string): string {
 	const older = olderTags.get(key)
-	return songSection[key] ?? (older === undefined ? undefined : songSection[older])
+	return songSection[key] === undefined && older !== undefined && songSection[older] !== undefined ? older : key
+}
+
+/** The value of the line games read for `key` (see `writtenKey`), or `undefined` when neither name is in the file. */
+function writtenValue(songSection: { readonly [key: string]: string }, key: string): string | undefined {
+	return songSection[writtenKey(songSection, key)]
 }
 
 /**
@@ -291,10 +289,11 @@ function getIniInteger(songSection: { readonly [key: string]: string }, key: Met
 }
 
 /**
- * @returns the value in `songSection` at `key`, parsed as Clone Hero's `IniFile.GetInt` parses it, or the default.
+ * @returns the value in `songSection` at `key`, or at its older name when `key` isn't in the file, parsed as Clone
+ * Hero's `IniFile.GetInt` parses it, or the default.
  */
 function getChartModifierInteger(songSection: { readonly [key: string]: string }, key: (typeof chartModifierIntegers)[number]) {
-	const value = songSection[key]
+	const value = writtenValue(songSection, key)
 	return (value === undefined ? null : parseDotnetInt(value)) ?? defaultMetadata[key]
 }
 
@@ -312,22 +311,11 @@ export function parseDotnetInt(value: string): number | null {
 }
 
 /**
- * @returns the value in `songSection` at `key`, parsed as a boolean.
- * Falls back to `legacyKey` if not found or invalid.
- * Then falls back to the default value if `legacyKey` is not found or invalid.
+ * @returns the value in `songSection` at `key`, or at its older name when `key` isn't in the file, parsed as a
+ * boolean, or the default value when it isn't one or isn't there.
  */
-function getIniBoolean(songSection: { readonly [key: string]: string }, key: MetaBooleanKey, legacyKey?: Exclude<InputMetaBooleanKey, MetaBooleanKey>) {
-	const parsed = parseBoolean(songSection[key])
-	if (parsed !== null) {
-		return parsed
-	} else if (legacyKey) {
-		const legacyParsed = parseBoolean(songSection[legacyKey])
-		if (legacyParsed !== null) {
-			return legacyParsed
-		}
-	}
-
-	return defaultMetadata[key]
+function getIniBoolean(songSection: { readonly [key: string]: string }, key: MetaBooleanKey) {
+	return parseBoolean(writtenValue(songSection, key)) ?? defaultMetadata[key]
 }
 
 /**

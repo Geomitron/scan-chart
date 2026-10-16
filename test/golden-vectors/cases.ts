@@ -1234,6 +1234,29 @@ function modifierCases(): AuthoredSongCase[] {
 		midiWithIni('song-ini-five-lane-over-pro',
 			'Drums: song.ini five_lane_drums and pro_drums together make the chart five-lane, not pro.',
 			midi([fourPadDrums()]), songIni([...songIniBase, 'pro_drums = True', 'five_lane_drums = 1'])),
+		...olderNameCases(),
+	]
+}
+
+/**
+ * C19: `pro_drum` and `star_power_note` are older names of `pro_drums` and `multiplier_note`. The older name is read,
+ * as its tag would be, only when the tag has no line in the `[song]` section; a line of the tag wins whatever its value
+ * and wherever it is.
+ */
+function olderNameCases(): AuthoredSongCase[] {
+	return [
+		midiWithIni('song-ini-pro-drum-older-name',
+			'C19: without a pro_drums line, PRO_DRUM = true, in any letter case, makes the drums pro; the drums TrackHash equals song-ini-modifiers-booleans\'s, whose pro_drums is -1.',
+			midi([fourPadDrums()]), songIni([...songIniBase, 'PRO_DRUM = true'])),
+		midiWithIni('song-ini-pro-drums-blank-over-pro-drum',
+			'C19: a blank pro_drums line is read, as not set, so pro_drum = True after it is not, and the drums are not pro.',
+			midi([fourPadDrums()]), songIni([...songIniBase, 'pro_drums =', 'pro_drum = True'])),
+		midiWithIni('song-ini-star-power-note-older-name',
+			'C19: without a multiplier_note line, star_power_note = 103 turns the note-103 phrase into star power; the TrackHash equals song-ini-multiplier-note-103\'s.',
+			modifierMidi(103), songIni([...songIniBase, 'star_power_note = 103'])),
+		midiWithIni('song-ini-multiplier-note-over-star-power-note',
+			'C19: multiplier_note = 0 is read, though star_power_note = 103 comes after it, so the single note-103 phrase stays a solo; the TrackHash equals song-ini-multiplier-note-absent\'s.',
+			modifierMidi(103), songIni([...songIniBase, 'multiplier_note = 0', 'star_power_note = 103'])),
 	]
 }
 

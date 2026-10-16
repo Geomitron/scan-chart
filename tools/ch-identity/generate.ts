@@ -243,12 +243,13 @@ async function generateSong(folder: string, inputRoot: string, outputRoot: strin
 		throw new Error(parsed.chartFolderIssues.map(issue => issue.description).join(' ') || 'Chart parser rejected the source')
 	}
 	const historicalDuration = resolveHistoricalDuration(loaded.iniBytes, loaded.fileNames, parseChartFileFrozenLegacyIdentity(
-		parsed.parsedChart.chartBytes, parsed.parsedChart.format, parsed.parsedChart.iniChartModifiers,
+		parsed.parsedChart.chartBytes, parsed.parsedChart.format, parsed.parsedChart.legacyIniChartModifiers,
 	))
 	const legacyMetadata = songMetadata(parsed.parsedChart.metadata)
 	const bundle = songBundle20251010.calculate({
 		source: { format: parsed.parsedChart.format, bytes: parsed.parsedChart.chartBytes },
 		modifiers: parsed.parsedChart.iniChartModifiers,
+		legacyModifiers: parsed.parsedChart.legacyIniChartModifiers,
 		legacyMetadata,
 		canonicalMetadata: parsed.parsedChart.songHashMetadata,
 		...(historicalDuration.kind === 'available' ? { legacyDurationMs: historicalDuration.durationMs } : {}),

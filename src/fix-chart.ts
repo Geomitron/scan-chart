@@ -9,6 +9,7 @@ import { msAtTick, parseChartSource, type ParsedChartFile, tickAtMs } from './ch
 import { parseRules } from './chart/parse-rules'
 import { EventType, eventTypes } from './chart/raw-types'
 import { NoteEvent, noteFlags, noteTypes } from './chart/types'
+import { keyList } from './ini/ini-checks'
 import { asUtf8Ini, rewriteSongIni } from './ini/ini-edit'
 import { chooseEdits, FixRecord, hashChanges, hashNames, issueFixTable } from './issue-fixes'
 import type { Issue, IssueCode, MetadataFinding } from './issues'
@@ -456,15 +457,18 @@ export function fixHopoTags(song: SongDocument, issues: readonly Issue[], findin
 
 /**
  * Moves a `.mid` file's star power from note 103 to note 116 in each guitar and keys track, removes the notes 116 there,
- * which `multiplier_note = 103` makes games ignore, then removes the tag (`deprecatedIniTag`). The drums tracks keep
- * their notes 103, which mark solos whatever the tag.
+ * which `multiplier_note = 103` makes games ignore, then removes the tag, or its older name `star_power_note`
+ * (`deprecatedIniTag`). The drums tracks keep their notes 103, which mark solos whatever the tag.
  */
 export function fixMultiplierNote(song: SongDocument, issues: readonly Issue[], findings: readonly MetadataFinding[], record: FixRecord): SongDocument {
 	const { chart, ini } = song
-	if (!isTagReported(issues, findings, ['multiplier_note']) || chart?.format !== 'mid' || chart.tokens === null || ini === null) return song
+	const { settings, ini: { songSection } } = songContext(song)
+	// The first is the line games read: the tag, or its older name without it. Both go, so neither is left to read.
+	const tags = ['multiplier_note', 'star_power_note'].filter(key => songSection?.[key] !== undefined)
+	if (settings.multiplier_note !== 103 || !isTagReported(issues, findings, tags.slice(0, 1)) || chart?.format !== 'mid' || chart.tokens === null || ini === null) return song
 	const tokens = chart.tokens
 	let [moved, dropped] = [0, 0]
-	const result = withoutTags(song, ['multiplier_note'], batch => {
+	const result = withoutTags(song, tags, batch => {
 		[moved, dropped] = [0, 0]
 		for (const track of midiAuthoredTracks(tokens).filter(track => track.isFirst && isFret(track.instrument))) {
 			for (const event of track.events.filter(event => event.scope === 'instrument')) {
@@ -483,11 +487,11 @@ export function fixMultiplierNote(song: SongDocument, issues: readonly Issue[], 
 		record.skip('deprecatedIniTag', ini.fileName, `Moving the star power to note 116 ${result.problem}.`)
 		return song
 	}
-	const ignored = dropped === 0 ? '' : `, removed ${dropped} ${dropped === 1 ? 'note' : 'notes'} 116 that "multiplier_note = 103" made games ignore,`
+	const ignored = dropped === 0 ? '' : `, removed ${dropped} ${dropped === 1 ? 'note' : 'notes'} 116 that "${tags[0]} = 103" made games ignore,`
 	record.fixed.push({
 		code: 'deprecatedIniTag',
 		file: chart.fileName,
-		description: `Moved ${moved} star power ${moved === 1 ? 'phrase' : 'phrases'} from note 103 to note 116${ignored} and removed "multiplier_note".`,
+		description: `Moved ${moved} star power ${moved === 1 ? 'phrase' : 'phrases'} from note 103 to note 116${ignored} and removed ${keyList(tags)}.`,
 	})
 	return result.song
 }

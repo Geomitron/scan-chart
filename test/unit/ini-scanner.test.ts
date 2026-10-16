@@ -59,10 +59,10 @@ describe('scanIni: unknownIniValues', () => {
 		expect(result.unknownIniValues).toEqual({})
 	})
 
-	it('preserves hopofreq and star_power_note without reading them, as Clone Hero ignores them', () => {
-		const result = scanIni(buildIni(['[Song]', 'hopofreq = 170', 'star_power_note = 103']))
-		expect(result.metadata).toMatchObject({ hopo_frequency: 0, multiplier_note: 0 })
-		expect(result.unknownIniValues).toEqual({ hopofreq: '170', star_power_note: '103' })
+	it('preserves hopofreq without reading it, as Clone Hero ignores it, and reads pro_drum and star_power_note as older names', () => {
+		const result = scanIni(buildIni(['[Song]', 'hopofreq = 170', 'pro_drum = True', 'star_power_note = 103']))
+		expect(result.metadata).toMatchObject({ hopo_frequency: 0, pro_drums: true, multiplier_note: 103 })
+		expect(result.unknownIniValues).toEqual({ hopofreq: '170' })
 	})
 
 	it('preserves common unrecognized keys found in real charts', () => {
