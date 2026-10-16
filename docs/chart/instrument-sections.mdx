@@ -96,6 +96,38 @@ The 6-fret frets are in two rows: three black frets on top and three white frets
 - Notes of different values at one tick form a chord. Each note of a chord keeps its own length, so a chord's sustains can end at different ticks.
 - An open note may be in a chord with fret notes. The player holds the fret notes and strums.
 
+## Range shifts
+
+A range shift tells the player which frets a stretch of one 5-fret difficulty uses, so that their hand can move with the notes. It's an `E` event in the section of that difficulty, on guitar, co-op guitar, bass, rhythm guitar or keys:
+
+```text
+<tick> = E ld_range_shift <difficulty> <position>
+<tick> = E ld_range_shift <difficulty> <position> <size>
+```
+
+| Part | Values |
+|---|---|
+| Difficulty | `0` Easy, `1` Medium, `2` Hard, `3` Expert: the difficulty of the section the event is in |
+| Position | The lowest fret of the range, where the index finger goes: `1` green to `5` orange |
+| Size | The number of frets in the range, from `1` to `5`. Without it, the size is 3 on Easy, 4 on Medium, and 5 on Hard and Expert |
+
+```text
+[EasySingle]
+{
+  0 = E ld_range_shift 0 1 3
+  3072 = E ld_range_shift 0 3
+}
+```
+
+Here Easy guitar uses green, red and yellow from tick 0, and yellow, blue and orange from tick 3072.
+
+- **Required:** a position and size that end at orange or before: the position plus the size is no more than 6.
+- The parts are separated by single spaces, and the numbers are digits, without a sign. The text has no brackets or quotation marks.
+- A range shift lasts from its tick until the next range shift of its section. Before the first one, all five frets are in range.
+- **Recommended:** one range shift at most at a tick.
+
+**Edge case:** of two range shifts at one tick, a scanner uses the later one in the file.
+
 ## Tracks
 
 A section is a track only if it holds at least one note. [How notes resolve](/chart/note-resolution) says how a scanner turns a section's notes into the notes a player plays.
@@ -108,6 +140,10 @@ A section is a track only if it holds at least one note. [How notes resolve](/ch
 - **A section with any other name.** Older games used names such as `ExpertSingleBass` and `ExpertDoubleDrums`.
 
 ## Invalid forms
+
+<Accordion title="A range shift in another form, or with a value out of range">
+A scanner ignores it. That includes another spelling, letter case or spacing, square brackets, a sign before a number, and a size of 0. It also includes a difficulty other than the section's, a position or size outside 1 to 5, a position and size that add up to more than 6, and a range shift outside a 5-fret section. A range shift in quotation marks is read as one without them: see [Syntax](/chart/syntax#invalid-forms). scan-chart keeps the text, and writes it back.
+</Accordion>
 
 <Accordion title="Two notes of one value at one tick">
 Clone Hero and scan-chart use the note with the longer sustain. YARG uses the one written first. On guitar, it counts the two as a chord when it decides strums and HOPOs, so the note is a strum there unless a modifier changes it. When scan-chart saves an edited song, it removes a line written twice, and keeps notes of different lengths as written.

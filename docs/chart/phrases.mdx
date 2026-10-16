@@ -54,6 +54,8 @@ A star power phrase marks notes the player can earn star power from: hitting eve
 768 = S 2 1536
 ```
 
+Neither game adds star power to a chart that has none.
+
 ## Solos
 
 A solo is marked by two text events, `solo` and `soloend`, written without quotation marks. It covers its notes from the `solo` tick through the `soloend` tick, both included:
@@ -70,6 +72,8 @@ Each `solo` has its `soloend` before the next `solo`.
 A drum fill marks a stretch where the drummer can play freely and activate star power by hitting the fill's last note. It includes its end tick. An exporter should put a note on the fill's end tick.
 
 **Edge case: a drum fill without a note on its end tick.** The games choose different notes to activate star power. Clone Hero uses the note closest to the end tick, from the fill's start up to `resolution ÷ 32 + 1` ticks after its end, and the fill activates nothing without a note there. YARG uses the first note at or after the end tick, however far after the fill it is, or the track's last note.
+
+**Edge case: a drums track without drum fills.** The games add their own. Clone Hero adds a star power activation every four measures. YARG adds drum fills when the track has star power.
 
 A drum fill whose tick is at or after the [`coda`](/chart/events#the-coda) is a Big Rock Ending instead: a closing freestyle section with no star power activation.
 
