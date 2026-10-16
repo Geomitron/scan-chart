@@ -172,7 +172,7 @@ Clone Hero and scan-chart read one open note with the longest sustain, and decid
 </Accordion>
 
 <Accordion title="ENHANCED_OPENS after the track's first note">
-Clone Hero and scan-chart apply it only to the notes that start after it, so notes 59, 71, 83 and 95 before it aren't open notes. YARG decides each note's type at its note-off, so there a note that starts before the event and ends after it is an open note. scan-chart's export writes it at tick 0, which keeps the open notes scan-chart read.
+Clone Hero and scan-chart apply it only to the notes that start after it, so notes 59, 71, 83 and 95 before it aren't open notes. YARG decides each note's type at its note-off, so there one of these notes that starts before the event and ends after it is an open note. scan-chart's export writes it at tick 0, which keeps the open notes scan-chart read.
 </Accordion>
 
 <Accordion title="ENHANCED_OPENS spelled another way">
@@ -188,7 +188,7 @@ In a 5-fret or 6-fret track, Clone Hero and YARG stop with an error on a tap or 
 </Accordion>
 
 <Accordion title="A Phase Shift event Clone Hero can't load">
-Clone Hero keeps the Phase Shift SysEx events of each type and difficulty apart, in 100 groups numbered type × 5 + difficulty, with `FF` counted as 4. It fails to load a chart with an event whose number is 100 or more, on any track, with or without an end. So a tap with a difficulty byte of 80 or more fails, and so does an event of type 20 or more. scan-chart refuses such a file too. YARG ignores types other than open and tap.
+Clone Hero keeps the Phase Shift SysEx events of each type and difficulty apart, in 100 groups numbered type × 5 + difficulty, in decimal, with `FF` counted as 4. It fails to load a chart with an event whose number is 100 or more, on any track, with or without an end. So a tap with a difficulty byte from `50` up fails, and so does an event whose type byte is `14` or more. scan-chart refuses such a file too. YARG ignores types other than open and tap.
 </Accordion>
 
 <Accordion title="A SysEx value byte other than 00 or 01">
