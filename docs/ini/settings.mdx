@@ -70,7 +70,9 @@ Removing a key changes how the chart plays, unless the chart changes with it. A 
 ## Invalid forms
 
 <Accordion title="A delay with a decimal point, such as delay = 1.5">
-A scanner reads the value's leading digits as whole milliseconds, as YARG does: `delay = 1.5` is 1 millisecond, and `delay = 0.1` is 0, which means not set. scan-chart reports it as `invalidValue`.
+A scanner reads it as seconds, as Clone Hero does, and drops any fraction of a millisecond: `delay = 1.5` is 1,500 milliseconds, `delay = -0.85` is -850, and `delay = 0.0004` is 0, which means not set. A value with a decimal point that isn't a number, such as `1.2.3`, is 0 too. Charts that hold such a `delay` mean seconds: it's often the `.chart` file's `Offset`, copied over. YARG reads the leading digits as milliseconds, so `delay = 1.5` is 1 millisecond there. scan-chart reports it as `invalidValue`.
+
+Clone Hero multiplies in single precision, so a few values come out 1 millisecond lower there: `delay = 0.251` is 250 milliseconds.
 </Accordion>
 
 <Accordion title="A multiplier_note other than 103 or 116">

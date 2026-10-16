@@ -152,9 +152,9 @@ A scanner uses the last line. scan-chart reports it as `duplicateIniKey`, and sa
 </Accordion>
 
 <Accordion title="A number in another form, such as 1.5 or 12abc">
-Clone Hero reads a number as .NET does: an optional sign, then digits, within the 32-bit range, with spaces allowed around them. It uses the key's default for anything else. YARG reads a number's leading digits, so `12abc` is 12 and `1.5` is 1, and reads 0 when there are none. A scanner reads it as Clone Hero does.
+Clone Hero reads a number as .NET does: an optional sign, then digits, within the 32-bit range, with spaces allowed around them. It uses the key's default for anything else. YARG reads a number's leading digits, so `12abc` is 12 and `1.5` is 1, and reads 0 when there are none. A scanner reads it as Clone Hero does. Clone Hero reads a `delay` with a decimal point as seconds instead: see [Settings](/ini/settings#invalid-forms).
 
-scan-chart reads the leading number of most keys, so `12abc` is 12, and rounds `1.5` to 2 and reports it as `invalidValue`. It reads `hopo_frequency`, `multiplier_note`, `sustain_cutoff_threshold` and `chord_snap_threshold` as Clone Hero does, and reports anything else as `invalidValue`. A scanner reads a `delay` with a decimal point by its leading digits instead: see [Settings](/ini/settings#invalid-forms).
+scan-chart reads the leading number of most keys, so `12abc` is 12, and rounds `1.5` to 2 and reports it as `invalidValue`. It reads `hopo_frequency`, `multiplier_note`, `sustain_cutoff_threshold` and `chord_snap_threshold` as Clone Hero does, and reports anything else as `invalidValue`.
 </Accordion>
 
 <Accordion title="A boolean in another form, such as yes or 2">
