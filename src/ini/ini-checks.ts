@@ -1,7 +1,8 @@
 import { isNameListed, toLowerInvariant, trimDotnet } from '../shared/text'
-import { undelayedSyncAdvice } from '../shared/time'
+import { msToRoughTime, undelayedSyncAdvice } from '../shared/time'
 import { type IssueCode, issueSeverities, type MetadataFinding } from '../issues'
 import { type DrumType, drumTypes, type MetadataIssueType } from '../types'
+import type { ExplicitLyricMatch } from './explicit-lyrics'
 import { defaultMetadata, isNumberTag, olderTags, tagOrder, tagRank } from './metadata'
 import { marksSingle } from './metadata-style'
 import type { IniTokens } from './parse-ini'
@@ -21,7 +22,8 @@ export interface SongIniInput {
 	/**
 	 * The chart's format, drum type and where its last note ends, sustain included, in milliseconds, or `null` when it
 	 * didn't parse. `detectedDrumType` reads it without song.ini's drum flags; `solosReadAsStarPower` says whether a guitar
-	 * or keys track reads its solos as star power without `multiplier_note`.
+	 * or keys track reads its solos as star power without `multiplier_note`; `explicitLyrics` gives the lyric phrases
+	 * that hold a strong word.
 	 */
 	readonly chart: {
 		readonly format: 'chart' | 'mid'
@@ -29,6 +31,7 @@ export interface SongIniInput {
 		readonly lastNoteEndMs: number
 		readonly detectedDrumType: () => DrumType | null
 		readonly solosReadAsStarPower: () => boolean
+		readonly explicitLyrics: () => readonly ExplicitLyricMatch[]
 	} | null
 	/** Tags a caller's game reads. */
 	readonly extraIniKeys: readonly (string | RegExp)[]
@@ -133,8 +136,9 @@ const hasValue = (songSection: SongSection, key: string) => songSection[key] !==
 
 /**
  * The charting recommendations about song.ini's values, and the keys reported missing: song_length unset or shorter
- * than the chart, album_track unset, a difficulty outside 0 to 10, an icon that isn't an icon's name, a tag for older
- * charts that changes how the chart reads, and a drum type flag the chart doesn't need.
+ * than the chart, album_track unset, a difficulty outside 0 to 10, an icon that isn't an icon's name, lyrics with a
+ * strong word but no `explicit_lyrics = True`, a tag for older charts that changes how the chart reads, and a drum
+ * type flag the chart doesn't need.
  */
 function valueIssues({ songSection, metadata, chart, styleNotes }: SongIniInput): { issues: MetadataFinding[]; missing: string[] } {
 	const issues: MetadataFinding[] = []
@@ -164,6 +168,15 @@ function valueIssues({ songSection, metadata, chart, styleNotes }: SongIniInput)
 	const icon = songSection.icon
 	if (hasValue(songSection, 'icon') && !/^[a-z0-9_-]+$/.test(icon)) {
 		add('iconName', `In "song.ini", "icon" is "${icon}". Write the icon's file name without its extension, in lowercase letters, numbers, "-" and "_".`, ['icon'])
+	}
+
+	// A word list can't show that lyrics are clean, so explicit_lyrics = True is never reported.
+	const explicit = chart === null || metadata.explicit_lyrics ? [] : chart.explicitLyrics()
+	if (explicit.length > 0) {
+		// A harmony part repeats the lead vocals' phrases, so phrases at one time count once.
+		const phrases = new Set(explicit.map(match => match.msTime)).size
+		const where = `${phrases === 1 ? 'a word that may be explicit, at' : `words that may be explicit in ${phrases} phrases, the first at`} ${msToRoughTime(explicit[0].msTime)}`
+		add('missingExplicitLyrics', `The lyrics have ${where}: "${explicit[0].text}". If they're explicit, set "explicit_lyrics = True".`, ['explicit_lyrics'])
 	}
 
 	issues.push(...deprecatedTagIssues(songSection, metadata, chart))

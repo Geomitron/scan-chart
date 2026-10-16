@@ -60,6 +60,7 @@ export const issueSeverities: { readonly [code in IssueCode]: IssueSeverity } = 
 	missingAlbumTrack: 'recommendation',
 	difficultyRange: 'recommendation',
 	iconName: 'recommendation',
+	missingExplicitLyrics: 'recommendation',
 	deprecatedIniTag: 'recommendation',
 	redundantDrumType: 'recommendation',
 	defaultIniValue: 'recommendation',
