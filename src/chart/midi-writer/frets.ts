@@ -260,7 +260,7 @@ export function buildFretTrack(
 	if (useEnhancedOpens) {
 		events.push({
 			tick: 0,
-			event: metaTextEvent('[ENHANCED_OPENS]'),
+			event: metaTextEvent('ENHANCED_OPENS'),
 		})
 	}
 

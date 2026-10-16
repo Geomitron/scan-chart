@@ -24,7 +24,7 @@ import { readMidiFile } from 'src/chart/midi-file-parser'
 import { scanVocalTrack } from 'src/chart/lyric-parser'
 import { chartSpellingIssues } from 'src/spelling-issues'
 
-import { midiFile, midiNote, midiText } from './helpers/midi-files'
+import { midiFile, midiNote, midiText, trackTexts } from './helpers/midi-files'
 
 function roundTrip(chart: ParsedChart, iniText?: string): ParsedChart {
 	const files: { fileName: string; data: Uint8Array }[] = [
@@ -270,13 +270,14 @@ describe('writeMidiFile round-trip: drum tracks', () => {
 		expect(fills(asChart, 'hard')).toEqual([[480, 240]])
 	})
 
-	it('preserves the accent of a sustained note at tick 0: [ENABLE_CHART_DYNAMICS] comes before it', () => {
+	it('preserves the accent of a sustained note at tick 0: ENABLE_CHART_DYNAMICS, without brackets, comes before it', () => {
 		const chart = createEmptyChart({ format: 'mid' })
 		const td = emptyDrumTrack('expert')
 		td.noteEventGroups.push([note(0, noteTypes.redDrum, noteFlags.accent, 240)])
 		chart.trackData.push(td)
 		const notes = flatNotes(findTrack(roundTrip(chart), 'drums'))
 		expect(notes[0].flags & noteFlags.accent).toBeTruthy()
+		expect(parseMidi(writeMidiFile(chart)).tracks.flatMap(trackTexts)).toEqual([[0, 'ENABLE_CHART_DYNAMICS']])
 	})
 
 	it('preserves cymbal/tom distinction in fourLanePro', () => {
@@ -346,7 +347,7 @@ describe('writeMidiFile round-trip: drum tracks', () => {
 		expect(reTrack.drumFreestyleSections.map(s => ({ t: s.tick, l: s.length }))).toEqual([{ t: 1920, l: 480 }])
 	})
 
-	it('writes back the mix events it read, with their stem configuration, and adds one where an edit changed a flip', () => {
+	it('writes back the mix events it read, without brackets, with their stem configuration, and adds one where an edit changed a flip', () => {
 		const mix = (tick: number, text: string) => ({ tick, text })
 		const source = trackMidi('PART DRUMS', [
 			mix(0, '[mix 3 drums2]'), mix(0, '[mix 0 drums4]'), mix(480, '[mix 3 drums2d]'), mix(1440, '[mix 3 drums2]'), mix(1920, '[mix 3 drums2easy]'),
@@ -354,11 +355,12 @@ describe('writeMidiFile round-trip: drum tracks', () => {
 		const parsed = parseChartAndIni([{ fileName: 'notes.mid', data: source }]).parsedChart!
 		const mixEvents = (data: Uint8Array) => parseMidi(data).tracks.flatMap(track => {
 			let tick = 0
-			return track.flatMap(event => (tick += event.deltaTime, event.type === 'text' && event.text.startsWith('[mix') ? [[tick, event.text]] : []))
+			return track.flatMap(event => (tick += event.deltaTime, event.type === 'text' && /^\[?mix /.test(event.text) ? [[tick, event.text]] : []))
 		})
 		const discoTicks = (chart: ParsedChart) => flatNotes(findTrack(chart, 'drums')).filter(n => n.flags & noteFlags.disco).map(n => n.tick)
 		const written = writeMidiFile(parsed)
-		expect(mixEvents(written)).toEqual(mixEvents(source))
+		// An easy mix event, which scan-chart doesn't read, is written back as it was.
+		expect(mixEvents(written)).toEqual([[0, 'mix 3 drums2'], [0, 'mix 0 drums4'], [480, 'mix 3 drums2d'], [1440, 'mix 3 drums2'], [1920, '[mix 3 drums2easy]']])
 		const reparsed = parseChartAndIni([{ fileName: 'notes.mid', data: written }]).parsedChart!
 		expect(discoTicks(reparsed)).toEqual([480, 480, 960])
 		expect(findTrack(reparsed, 'drums').drumMixes).toEqual(findTrack(parsed, 'drums').drumMixes)
@@ -366,7 +368,7 @@ describe('writeMidiFile round-trip: drum tracks', () => {
 		// An edit takes the flip off the red note at 960.
 		for (const n of findTrack(parsed, 'drums').noteEventGroups.flat()) if (n.tick === 960) n.flags &= ~noteFlags.disco
 		const edited = writeMidiFile(parsed)
-		expect(mixEvents(edited)).toEqual([[0, '[mix 3 drums2]'], [0, '[mix 0 drums4]'], [480, '[mix 3 drums2d]'], [960, '[mix 3 drums2]'], [1440, '[mix 3 drums2]'], [1920, '[mix 3 drums2easy]']])
+		expect(mixEvents(edited)).toEqual([[0, 'mix 3 drums2'], [0, 'mix 0 drums4'], [480, 'mix 3 drums2d'], [960, 'mix 3 drums2'], [1440, 'mix 3 drums2'], [1920, '[mix 3 drums2easy]']])
 		expect(discoTicks(parseChartAndIni([{ fileName: 'notes.mid', data: edited }]).parsedChart!)).toEqual([480, 480])
 	})
 
@@ -522,13 +524,14 @@ describe('writeMidiFile round-trip: 5-fret tracks', () => {
 		expect(track.soloSections).toEqual([])
 	})
 
-	it('preserves a sustained open in a chord at tick 0: [ENHANCED_OPENS] comes before it', () => {
+	it('preserves a sustained open in a chord at tick 0: ENHANCED_OPENS, without brackets, comes before it', () => {
 		const chart = createEmptyChart({ format: 'mid' })
 		const td = emptyFretTrack('guitar', 'expert')
 		td.noteEventGroups.push([note(0, noteTypes.open, 0, 240), note(0, noteTypes.red, 0, 240)])
 		chart.trackData.push(td)
 		const group = findTrack(roundTrip(chart), 'guitar').noteEventGroups[0]
 		expect(group.map(n => n.type).sort()).toEqual([noteTypes.open, noteTypes.red].sort())
+		expect(parseMidi(writeMidiFile(chart)).tracks.flatMap(trackTexts)).toEqual([[0, 'ENHANCED_OPENS']])
 	})
 
 	it('preserves a forced-hopo flag on a note whose natural state is strum', () => {

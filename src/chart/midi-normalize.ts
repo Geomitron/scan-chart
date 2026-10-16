@@ -56,7 +56,7 @@ export function midiNormalizations(tokens: MidiTokens): MidiNormalization[] {
  */
 function flipOffs(drums: MidiDrumsNoflips): MidiTrackEdit[] {
 	return [...drums.difficulties].flatMap(([difficulty, found]) => found.flatMap(({ offTick, configuration }) => offTick === null ? []
-		: [{ kind: 'insert' as const, tick: offTick, event: midiTextEvent(`[${drumMixText(difficulty, { configuration, flag: '' })}]`) }]))
+		: [{ kind: 'insert' as const, tick: offTick, event: midiTextEvent(drumMixText(difficulty, { configuration, flag: '' })) }]))
 }
 
 /** The track names at tick 0 before the last one, which names the track, or `null` when there's only one. */

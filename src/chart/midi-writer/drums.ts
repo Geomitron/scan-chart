@@ -163,7 +163,7 @@ export function buildDrumTrack(
 	if (hasAccentsOrGhosts) {
 		events.push({
 			tick: 0,
-			event: metaTextEvent('[ENABLE_CHART_DYNAMICS]'),
+			event: metaTextEvent('ENABLE_CHART_DYNAMICS'),
 		})
 	}
 
@@ -254,7 +254,7 @@ function emitDrumNotes(events: AbsoluteEvent[], td: ParsedTrack, context: DrumNo
 	let hasAccentsOrGhosts = false
 	const base = drumsDiffStarts[td.difficulty]
 	for (const event of drumMixEvents(td)) {
-		events.push({ tick: event.tick, event: metaTextEvent(`[${drumMixText(td.difficulty, event)}]`) })
+		events.push({ tick: event.tick, event: metaTextEvent(drumMixText(td.difficulty, event)) })
 	}
 
 	const drumType = chart.drumType
