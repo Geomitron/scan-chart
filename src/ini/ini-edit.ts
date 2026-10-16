@@ -104,9 +104,10 @@ export interface SongIniRewrite {
 
 /**
  * Sets and removes song.ini `[song]` values. With `layout` or `order`, the file is written again: the lines before
- * `[song]`, then one `[song]` section holding each tag as Clone Hero reads it, `key = value`, after the comments
- * before it, then the other sections. Without either, only the changed lines change, as `setSongIniValue` edits them.
- * A new tag goes before the first tag the standard order puts after it. Only a UTF-8 file can be rewritten.
+ * `[song]`, or with `layout` `[song]` first and those lines as comments after it, then one `[song]` section holding
+ * each tag as Clone Hero reads it, `key = value`, after the comments before it, then the other sections. Without
+ * either, only the changed lines change, as `setSongIniValue` edits them. A new tag goes before the first tag the
+ * standard order puts after it. Only a UTF-8 file can be rewritten.
  */
 export function rewriteSongIni(tokens: IniTokens, rewrite: SongIniRewrite): IniTokens {
 	const text = editableText(tokens)
@@ -163,7 +164,8 @@ export function rewriteSongIni(tokens: IniTokens, rewrite: SongIniRewrite): IniT
 	}
 
 	const tagLine = (key: string, value: string) => value === '' ? `${key} =` : `${key} = ${value}`
-	const lines = [...withoutBlankEnd(before), layout || header === null ? '[song]' : header]
+	// YARG ignores a file whose first line that isn't blank isn't a section header, so a layout puts the lines before after it.
+	const lines = layout ? ['[song]', ...before] : [...withoutBlankEnd(before), header ?? '[song]']
 	for (const key of rewrite.order ? standardTagOrder(keys) : keys) {
 		const { value, comments } = tags.get(key)!
 		lines.push(...comments)
