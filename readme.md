@@ -291,7 +291,7 @@ Saving also rewrites the song so that it no longer needs the song.ini tags that 
 - `multiplierNote`: a `.mid` file's star power moves from note 103 to note 116, and `multiplier_note = 103` is removed.
 - `deprecatedTags`: `frets` and `track` are renamed `charter` and `album_track`, and the older tags that change nothing, such as `delay = 0`, are removed.
 
-A `delay` with a value stays, because removing it moves every note against the audio. `multiplier_note = 116` stays where a `.mid` chart's solos would otherwise read as star power. A song.ini that isn't UTF-8 keeps its tags.
+A `delay` with a value stays, because removing it moves every note against the audio. `multiplier_note = 116` stays where a `.mid` chart's solos would otherwise read as star power. `hopo_frequency` and `eighthnote_hopo` stay beside `hopofreq`, which YARG reads without them. A song.ini that isn't UTF-8 keeps its tags.
 
 If you didn't edit the song, its save plan holds every file byte for byte, and nothing is normalized.
 

@@ -22,18 +22,23 @@ export type DeprecatedTagNormalizationKind = 'hopoTags' | 'multiplierNote' | 'de
 /** The deprecated song.ini tags: the settings only older charts need, and the older names of tags. */
 const deprecatedTags: ReadonlySet<string> = new Set(['delay', 'hopo_frequency', 'eighthnote_hopo', 'multiplier_note', ...olderTags.values()])
 
+/** The tags that set the HOPO threshold. */
+const hopoTags = ['hopo_frequency', 'eighthnote_hopo']
+
 /**
  * Every rewrite a song needs to leave the deprecated song.ini tags it can (batch 2 r2 Q5), as `fixIssues` fixes their
  * `deprecatedIniTag` and `defaultIniValue` issues. A chart rewrite is listed only where the song plays the same with it,
  * phrases and every canonical hash included. `delay` with a value stays: removing it moves every note against the audio.
- * So does `multiplier_note = 116` where a `.mid` chart's solos would otherwise read as star power. Only a UTF-8 song.ini
- * is rewritten, so its other bytes stay as written.
+ * So does `multiplier_note = 116` where a `.mid` chart's solos would otherwise read as star power, and so do the HOPO
+ * tags beside `hopofreq`, which YARG reads without them. Only a UTF-8 song.ini is rewritten, so its other bytes stay as
+ * written.
  */
 export function deprecatedTagNormalizations(song: SongDocument): SongNormalization[] {
 	const { ini } = song
 	if (ini === null || ini.fileName.toLowerCase() !== 'song.ini' || !isUtf8(ini.tokens)) return []
 	const written = parseIniTokens(ini.tokens).iniObject.song ?? {}
-	if (!Object.keys(written).some(key => deprecatedTags.has(key))) return []
+	const kept = new Set(written.hopofreq === undefined ? [] : hopoTags)
+	if (!Object.keys(written).some(key => deprecatedTags.has(key) && !kept.has(key))) return []
 
 	const found = songIniFindingsOf(song)
 	const normalizations: SongNormalization[] = []
@@ -43,7 +48,7 @@ export function deprecatedTagNormalizations(song: SongDocument): SongNormalizati
 		normalizations.push({ kind, section: 'song.ini', apply: current => (current === song ? rewritten : rewrite(current, songIniFindingsOf(current))) ?? current })
 	}
 	add('hopoTags', (current, found) => {
-		if (!isReported(found, ['hopo_frequency', 'eighthnote_hopo'])) return null
+		if (kept.size > 0 || !isReported(found, hopoTags)) return null
 		const rewritten = rewriteHopoTags(current)
 		return 'song' in rewritten ? rewritten.song : null
 	})
@@ -54,7 +59,7 @@ export function deprecatedTagNormalizations(song: SongDocument): SongNormalizati
 	})
 	// Renaming a tag, or removing one that changes nothing, reads the song as before, so the rewrite found for the song
 	// applies to it as the other normalizations leave it.
-	const rewrite = tagRewrite(song, found)
+	const rewrite = tagRewrite(song, found, kept)
 	if (rewrite !== null) {
 		normalizations.push({
 			kind: 'deprecatedTags',
@@ -76,8 +81,11 @@ function songIniFindingsOf(song: SongDocument): MetadataFinding[] {
 const isReported = (found: readonly MetadataFinding[], keys: readonly string[]) =>
 	found.some(finding => finding.metadataIssue === 'deprecatedIniTag' && finding.keys?.some(key => keys.includes(key)))
 
-/** The song.ini rewrite that renames each older name of a tag and removes each deprecated tag that changes nothing. */
-function tagRewrite(song: SongDocument, found: readonly MetadataFinding[]): SongIniRewrite | null {
+/**
+ * The song.ini rewrite that renames each older name of a tag and removes each deprecated tag that changes nothing, other
+ * than the tags `kept`.
+ */
+function tagRewrite(song: SongDocument, found: readonly MetadataFinding[], kept: ReadonlySet<string>): SongIniRewrite | null {
 	const songSection = songContext(song).ini.songSection ?? {}
 	const remove = new Set<string>()
 	const set = new Map<string, string>()
@@ -87,7 +95,7 @@ function tagRewrite(song: SongDocument, found: readonly MetadataFinding[]): Song
 			if (finding.metadataIssue === 'deprecatedIniTag' && newer !== undefined) {
 				set.set(newer, songSection[key])
 				remove.add(key)
-			} else if (finding.metadataIssue === 'defaultIniValue' && deprecatedTags.has(key)) {
+			} else if (finding.metadataIssue === 'defaultIniValue' && deprecatedTags.has(key) && !kept.has(key)) {
 				remove.add(key)
 			}
 		}
