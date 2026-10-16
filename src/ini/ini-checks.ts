@@ -218,9 +218,11 @@ function unneededKeys(songSection: SongSection, metadata: typeof defaultMetadata
 	const isZero = (value: string) => parseFloat(value) === 0
 	const isAtMostZero = (value: string) => (parseDotnetInt(value) ?? 1) <= 0
 	check('delay', isZero)
-	check('hopo_frequency', isAtMostZero)
+	// YARG reads hopofreq when song.ini has neither HOPO tag, so beside it they change what YARG reads.
+	const besideHopofreq = songSection.hopofreq !== undefined
+	check('hopo_frequency', value => !besideHopofreq && isAtMostZero(value))
 	// hopo_frequency, when it's set, comes first.
-	check('eighthnote_hopo', value => isFalse(value) || metadata.hopo_frequency > 0)
+	check('eighthnote_hopo', value => !besideHopofreq && (isFalse(value) || metadata.hopo_frequency > 0))
 	// Without 116, Clone Hero reads a .mid guitar or keys track's two or more solos, and no star power, as star power.
 	check('multiplier_note', value => chart !== null && (chart.format === 'chart' || parseDotnetInt(value) === 0 || (parseDotnetInt(value) === 116 && !chart.solosReadAsStarPower())))
 	// Games read a tag over its older name, such as charter over frets, whenever it's in the file.

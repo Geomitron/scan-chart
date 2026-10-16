@@ -533,6 +533,18 @@ describe('fixIssues: multiplier_note = 103', () => {
 		expectHashesKept(result)
 	})
 
+	it('keeps the HOPO tags beside hopofreq, which YARG reads without them', async () => {
+		// At 480 ticks per beat, a .mid's own threshold is 161 ticks: 240 ticks apart is a HOPO only with hopo_frequency = 300.
+		const mid = midi({ 'PART GUITAR': [{ tick: 0, noteNumber: 96 }, { tick: 240, noteNumber: 97 }] })
+		const lines = ['[song]', 'name = Song', 'delay = 0', 'hopo_frequency = 300', 'eighthnote_hopo = False', 'hopofreq = 2']
+		const result = await fix(folder(lines, mid, 'notes.mid'))
+		expect(result.ini).toBe('[song]\r\nname = Song\r\nhopo_frequency = 300\r\neighthnote_hopo = False\r\nhopofreq = 2\r\n')
+		expect(result.report.skipped).toContainEqual({ code: 'deprecatedIniTag', file: 'song.ini',
+			reason: 'YARG reads "hopofreq" when song.ini has neither "hopo_frequency" nor "eighthnote_hopo", so they stay.' })
+		expect(result.report.fixed.map(entry => entry.description)).toEqual(['Removed "delay = 0", which changed nothing.'])
+		expectHashesKept(result)
+	})
+
 	it('moves the star power of star_power_note = 103, its older name, and removes it', async () => {
 		const mid = midi({ 'PART GUITAR': [...[0, 960, 1920].map(tick => ({ tick, noteNumber: 96 })), { tick: 900, noteNumber: 103, length: 120 }] })
 		const files = folder(['[song]', 'name = Song', 'star_power_note = 103'], mid, 'notes.mid')
