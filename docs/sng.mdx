@@ -84,7 +84,7 @@ The metadata is the `[song]` section of a `song.ini` file, as key and value pair
 - Keys and values hold no `;` and no line break, and keys hold no `=`.
 - The older names of `song.ini` keys, `frets`, `track`, `pro_drum` and `star_power_note`, aren't part of a `.sng` file's metadata. Write `charter`, `album_track`, `pro_drums` and `multiplier_note`.
 
-**Edge case: the chart's `[Song]` section.** Clone Hero takes nothing from a `.chart` file's `[Song]` section but `Offset` and `PreviewStart`, and those only when the metadata doesn't set `delay` or `preview_start_time`. So the metadata holds every value the song needs.
+**Edge case: the chart's `[Song]` section.** Clone Hero takes nothing from a `.chart` file's `[Song]` section but `Offset`, `PreviewStart` and `PreviewEnd`, and those only when the metadata doesn't set `delay`, `preview_start_time` or `preview_end_time`. So the metadata holds every value the song needs.
 
 ## Files
 
