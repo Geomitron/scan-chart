@@ -230,9 +230,9 @@ Each key is the difficulty of one instrument:
 
 ### Previews
 
-Clone Hero plays 30 seconds from `preview_start_time`. When it isn't set, Clone Hero starts at 20 seconds, or at 0 when the audio is shorter than that. Clone Hero doesn't read `preview_end_time`.
+Clone Hero and YARG play the preview from `preview_start_time` to `preview_end_time`. With only one of them set, they play 30 seconds from the start, or the 30 seconds before the end. An end at or before the start counts as not set.
 
-YARG plays from `preview_start_time` to `preview_end_time`. With only one of them set, it plays 30 seconds from the start, or the 30 seconds before the end. With neither, it plays from 20 to 50 seconds, or the middle 30 seconds of audio shorter than 50 seconds, or the whole of audio shorter than 30 seconds.
+With neither set, the games differ. Clone Hero plays 30 seconds from 20 seconds in, or from the start when the audio is shorter than 20 seconds. YARG plays from 20 to 50 seconds, or the middle 30 seconds of audio shorter than 50 seconds, or the whole of audio shorter than 30 seconds.
 
 - A `preview_end_time` of 0 means not set: a preview can't end at the start of the song.
 - A `.chart` file's `[Song]` section may repeat both times: see [[Song]](/chart/song).
