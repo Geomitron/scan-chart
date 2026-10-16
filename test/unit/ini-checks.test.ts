@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest'
 
+import { chartStats } from 'src/chart/chart-analysis'
+import { deprecatedTags } from 'src/ini/ini-checks'
 import { defaultMetadata } from 'src/ini/metadata'
-import { scanSongFolder, type ScanOptions } from 'src/scan-song-folder'
+import { scanSongFolder, type ScanOptions, songIniFindings } from 'src/scan-song-folder'
+import { songContext } from 'src/song-context'
+import { parseSongFiles } from 'src/song-document'
 
 import { expertChart, midi } from './helpers/chart-files'
 
@@ -257,6 +261,18 @@ describe('song.ini values', () => {
 		expect(await values(['multiplier_note = 103'], ['deprecatedIniTag'], mid, 'notes.mid')).toEqual([message('multiplier_note')])
 		expect(await values(['star_power_note = 103'], ['deprecatedIniTag'], mid, 'notes.mid')).toEqual([message('star_power_note')])
 		expect(await values(['multiplier_note = 103', 'star_power_note = 116'], ['deprecatedIniTag'], mid, 'notes.mid')).toEqual([message('multiplier_note')])
+	})
+
+	it('reports as deprecatedIniTag every tag deprecatedTags lists, and no other', () => {
+		const reported = (lines: string[]) => {
+			const song = parseSongFiles([{ fileName: 'notes.mid', data: midi({ 'PART GUITAR': [{ tick: 1920, noteNumber: 96 }] }) }, { fileName: 'song.ini', data: encode(['[song]', ...lines].join('\r\n') + '\r\n') }])
+			const context = songContext(song)
+			const stats = context.chart.kind === 'parsed' ? chartStats(context.chart.parsed, context.settings, 'mid') : null
+			return songIniFindings(song, context, stats, {}).filter(finding => finding.metadataIssue === 'deprecatedIniTag').flatMap(finding => finding.keys ?? [])
+		}
+		const keys = [...reported(['delay = 90', 'hopo_frequency = 170', 'frets = Someone', 'track = 3', 'pro_drum = True', 'star_power_note = 103']),
+			...reported(['eighthnote_hopo = True', 'multiplier_note = 103'])]
+		expect(keys.sort()).toEqual([...deprecatedTags].sort())
 	})
 
 	it('reports a drum type flag the chart doesn\'t need', async () => {

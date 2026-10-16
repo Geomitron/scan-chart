@@ -9,7 +9,7 @@ import { msAtTick, parseChartSource, type ParsedChartFile, tickAtMs } from './ch
 import { parseRules } from './chart/parse-rules'
 import { EventType, eventTypes } from './chart/raw-types'
 import { NoteEvent, noteFlags, noteTypes } from './chart/types'
-import { keyList } from './ini/ini-checks'
+import { besideHopofreq, hopoTags, keyList } from './ini/ini-checks'
 import { asUtf8Ini, rewriteSongIni } from './ini/ini-edit'
 import { olderTags } from './ini/metadata'
 import { writtenKey } from './ini/scan-ini'
@@ -411,7 +411,7 @@ export type TagRewrite<Counts> = ({ readonly song: SongDocument; readonly file: 
  */
 export function fixHopoTags(song: SongDocument, issues: readonly Issue[], findings: readonly MetadataFinding[], record: FixRecord): SongDocument {
 	const { ini } = song
-	if (!isTagReported(issues, findings, ['hopo_frequency', 'eighthnote_hopo']) || ini === null) return song
+	if (!isTagReported(issues, findings, hopoTags) || ini === null) return song
 	const rewritten = rewriteHopoTags(song)
 	if ('reason' in rewritten) {
 		record.skip('deprecatedIniTag', ini.fileName, rewritten.reason)
@@ -438,7 +438,7 @@ export function fixHopoTags(song: SongDocument, issues: readonly Issue[], findin
 export function rewriteHopoTags(song: SongDocument): TagRewrite<{ readonly forced: number }> {
 	const context = songContext(song)
 	const { chart } = song
-	if (context.ini.songSection?.hopofreq !== undefined) {
+	if (besideHopofreq(context.ini.songSection ?? {})) {
 		return { reason: 'YARG reads "hopofreq" when song.ini has neither "hopo_frequency" nor "eighthnote_hopo", so they stay.' }
 	}
 	if (chart === null || context.chart.kind !== 'parsed' || (chart.format === 'mid' && chart.tokens === null)) {
