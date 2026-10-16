@@ -164,8 +164,8 @@ describe('song.ini values', () => {
 	it('warns of a song_length shorter than the end of the chart\'s last note, sustain included', async () => {
 		// The note starts at 2000 ms, and its sustain ends at 2500 ms.
 		const chart = expertChart('768 = N 0 192')
-		const short = (songLength: number) => ['shortSongLength',
-			`The "song_length" value is ${songLength}, but the chart's last note ends at 2500 ms. Set it to the length of the longest audio file, in milliseconds.`]
+		const short = (songLength: number, end = 2500) => ['shortSongLength',
+			`The "song_length" value is ${songLength}, but the chart's last note ends ${end} ms into the audio. Set it to the length of the longest audio file, in milliseconds.`]
 		const codes = ['shortSongLength', 'missingSongLength']
 		expect(await values(['song_length = 2499'], codes, chart)).toEqual([short(2499)])
 		expect(await values(['song_length = 2100'], codes, chart)).toEqual([short(2100)])
@@ -173,6 +173,21 @@ describe('song.ini values', () => {
 		expect(await values(['song_length = 0'], codes, chart)).toEqual([['missingSongLength', expect.any(String)]])
 		const scanned = await scanSongFolder([{ fileName: 'notes.chart', data: chart }, { fileName: 'song.ini', data: encode('[song]\r\nsong_length = 2100\r\n') }])
 		expect(scanned.issues.find(issue => issue.code === 'shortSongLength')?.severity).toBe('warning')
+	})
+
+	it('places the chart against the audio by delay, or by the .chart Offset without one, to compare song_length', async () => {
+		const codes = ['shortSongLength']
+		const short = (songLength: number, end: number) => [['shortSongLength',
+			`The "song_length" value is ${songLength}, but the chart's last note ends ${end} ms into the audio. Set it to the length of the longest audio file, in milliseconds.`]]
+		// The sustain ends at 2500 ms of the chart; a positive delay plays it later, and a negative one earlier.
+		const chart = expertChart('768 = N 0 192')
+		expect(await values(['song_length = 2600', 'delay = 200'], codes, chart)).toEqual(short(2600, 2700))
+		expect(await values(['song_length = 2400', 'delay = -200'], codes, chart)).toEqual([])
+		expect(await values(['song_length = 2200', 'delay = -200'], codes, chart)).toEqual(short(2200, 2300))
+		// The note at 2000 ms, with Offset = 0.2 when song.ini has no delay.
+		const offset = chartFile([], ['Offset = 0.2'])
+		expect(await values(['song_length = 2100'], codes, offset)).toEqual(short(2100, 2200))
+		expect(await values(['song_length = 2100', 'delay = -500'], codes, offset)).toEqual([])
 	})
 
 	it('recommends album_track, unless the album is a single', async () => {
