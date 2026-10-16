@@ -3,18 +3,20 @@ import { fileBytes, SongFile } from '../song-files'
 import { MetadataIssueType } from '../types'
 import { hasIniExtension, hasIniName } from '../shared/file-names'
 import { removeStyleTags } from '../shared/text'
-import { defaultMetadata, olderTags } from './metadata'
+import { defaultMetadata, olderTags, type PreviewTimes, yargOnlyMetadata } from './metadata'
 import { parseIni } from './parse-ini'
 
 type TypedSubset<O, K extends keyof O, T> = O[K] extends T ? K : never
 type StringProperties<O> = { [key in keyof O as TypedSubset<O, key, string>]: string }
-type NumberProperties<O> = { [key in keyof O as TypedSubset<O, key, number>]: number }
 type BooleanProperties<O> = { [key in keyof O as TypedSubset<O, key, boolean>]: boolean }
+type IntegerProperties<O> = { [key in keyof O as TypedSubset<O, key, number | null>]: number | null }
 
 type Metadata = typeof defaultMetadata
 type MetaStringKey = keyof StringProperties<Metadata>
-type MetaNumberKey = keyof NumberProperties<Metadata>
 type MetaBooleanKey = keyof BooleanProperties<Metadata>
+/** A key read as a whole number: a number key, or `vocal_scroll_speed`, which is `null` when it isn't set. */
+type MetaIntegerKey = keyof IntegerProperties<Metadata>
+type YargOnlyMetadata = typeof yargOnlyMetadata
 
 type ScanIniResult = {
 	metadata: Metadata | null
@@ -28,43 +30,10 @@ type ScanIniResult = {
 	songSection: { readonly [key: string]: string } | null
 }
 
-const integerProperties: MetaNumberKey[] = [
-	'song_length',
-	'diff_band',
-	'diff_guitar',
-	'diff_guitar_coop',
-	'diff_rhythm',
-	'diff_bass',
-	'diff_drums',
-	'diff_drums_real',
-	'diff_keys',
-	'diff_keys_ghl',
-	'diff_guitarghl',
-	'diff_guitar_coop_ghl',
-	'diff_rhythm_ghl',
-	'diff_bassghl',
-	'diff_vocals',
-	'preview_start_time',
-	'preview_end_time',
-	'album_track',
-	'playlist_track',
-	'video_end_time',
-	'rating',
-	'diff_vocals_harm',
-	'diff_guitar_real',
-	'diff_guitar_real_22',
-	'diff_bass_real',
-	'diff_bass_real_22',
-	'diff_keys_real',
-	'diff_elite_drums',
-	'tuning_offset_cents',
-	'delay',
-	'hopo_frequency',
-	'multiplier_note',
-	'sustain_cutoff_threshold',
-	'chord_snap_threshold',
-	'video_start_time',
-]
+const isTextKey = (key: keyof Metadata): key is MetaStringKey => typeof defaultMetadata[key] === 'string'
+const isBooleanKey = (key: keyof Metadata): key is MetaBooleanKey => typeof defaultMetadata[key] === 'boolean'
+const isIntegerKey = (key: keyof Metadata): key is MetaIntegerKey => typeof defaultMetadata[key] === 'number' || key === 'vocal_scroll_speed'
+const integerProperties = (Object.keys(defaultMetadata) as (keyof Metadata)[]).filter(isIntegerKey)
 const requiredProperties: MetaStringKey[] = ['name', 'artist', 'album', 'genre', 'year', 'charter']
 /** Integer keys that change how notes parse. Clone Hero reads them with `IniFile.GetInt`, so they parse like `int.TryParse`. */
 const chartModifierIntegers = ['hopo_frequency', 'multiplier_note', 'sustain_cutoff_threshold', 'chord_snap_threshold'] as const
@@ -197,69 +166,7 @@ export function extractSongMetadata(songSection: { readonly [key: string]: strin
 		sub_playlist: text('sub_playlist'),
 		modchart: getIniBoolean(songSection, 'modchart'),
 		explicit_lyrics: getIniBoolean(songSection, 'explicit_lyrics'),
-		preview: getIniPreview(songSection),
-		video_end_time: getIniInteger(songSection, 'video_end_time'),
-		video_loop: getIniBoolean(songSection, 'video_loop'),
-		background: text('background'),
-		video: text('video'),
-		cover: text('cover'),
-		rating: getIniInteger(songSection, 'rating'),
-		tags: text('tags'),
-		diff_vocals_harm: getIniInteger(songSection, 'diff_vocals_harm'),
-		diff_guitar_real: getIniInteger(songSection, 'diff_guitar_real'),
-		diff_guitar_real_22: getIniInteger(songSection, 'diff_guitar_real_22'),
-		diff_bass_real: getIniInteger(songSection, 'diff_bass_real'),
-		diff_bass_real_22: getIniInteger(songSection, 'diff_bass_real_22'),
-		diff_keys_real: getIniInteger(songSection, 'diff_keys_real'),
-		diff_elite_drums: getIniInteger(songSection, 'diff_elite_drums'),
-		sub_genre: text('sub_genre'),
-		covered_by: text('covered_by'),
-		date_released: text('date_released'),
-		location: text('location'),
-		credit_album_art_designed_by: text('credit_album_art_designed_by'),
-		credit_arranged_by: text('credit_arranged_by'),
-		credit_background: text('credit_background'),
-		credit_composed_by: text('credit_composed_by'),
-		credit_courtesy_of: text('credit_courtesy_of'),
-		credit_engineered_by: text('credit_engineered_by'),
-		credit_license: text('credit_license'),
-		credit_mastered_by: text('credit_mastered_by'),
-		credit_mixed_by: text('credit_mixed_by'),
-		credit_other: text('credit_other'),
-		credit_performed_by: text('credit_performed_by'),
-		credit_produced_by: text('credit_produced_by'),
-		credit_published_by: text('credit_published_by'),
-		credit_written_by: text('credit_written_by'),
-		charter_guitar: text('charter_guitar'),
-		charter_rhythm: text('charter_rhythm'),
-		charter_bass: text('charter_bass'),
-		charter_drums: text('charter_drums'),
-		charter_elite_drums: text('charter_elite_drums'),
-		charter_keys: text('charter_keys'),
-		charter_pro_guitar: text('charter_pro_guitar'),
-		charter_pro_bass: text('charter_pro_bass'),
-		charter_pro_keys: text('charter_pro_keys'),
-		charter_guitar_6f: text('charter_guitar_6f'),
-		charter_rhythm_6f: text('charter_rhythm_6f'),
-		charter_bass_6f: text('charter_bass_6f'),
-		charter_vocals: text('charter_vocals'),
-		charter_lower_diff: text('charter_lower_diff'),
-		charter_venue: text('charter_venue'),
-		charter_audio: text('charter_audio'),
-		link_bandcamp: text('link_bandcamp'),
-		link_bluesky: text('link_bluesky'),
-		link_facebook: text('link_facebook'),
-		link_instagram: text('link_instagram'),
-		link_spotify: text('link_spotify'),
-		link_twitter: text('link_twitter'),
-		link_other: text('link_other'),
-		link_youtube: text('link_youtube'),
-		vocal_gender: text('vocal_gender'),
-		vocal_scroll_speed: getIniOptionalInteger(songSection, 'vocal_scroll_speed'),
-		clean_vocals: getIniBoolean(songSection, 'clean_vocals'),
-		venue_hint: text('venue_hint'),
-		vocal_character_hint: text('vocal_character_hint'),
-		tuning_offset_cents: getIniInteger(songSection, 'tuning_offset_cents'),
+		...readYargOnlyMetadata(songSection, text),
 		delay: getIniInteger(songSection, 'delay'),
 		// Clone Hero clamps hopo_frequency (SongGameMetadata.ParseFromIni).
 		hopo_frequency: Math.min(Math.max(getChartModifierInteger(songSection, 'hopo_frequency'), 0), 65535),
@@ -278,7 +185,7 @@ export function extractSongMetadata(songSection: { readonly [key: string]: strin
 		// Setting `icon` can be redundant
 		metadata.icon = ''
 	}
-	for (const integerProperty of [...integerProperties, 'vocal_scroll_speed'] as const) {
+	for (const integerProperty of integerProperties) {
 		const value = metadata[integerProperty]
 		if (value !== null && !Number.isInteger(value)) {
 			metadataIssues.push({
@@ -332,7 +239,7 @@ export function extractSongMetadata(songSection: { readonly [key: string]: strin
  * The key of the line games read for `key`: its own whenever it's in the file, whatever its value, as Clone Hero and
  * YARG read `charter` over `frets`, and Clone Hero `album_track` over `track`. Its older name is read only when it isn't.
  */
-function writtenKey(songSection: { readonly [key: string]: string }, key: string): string {
+export function writtenKey(songSection: { readonly [key: string]: string }, key: string): string {
 	const older = olderTags.get(key)
 	return songSection[key] === undefined && older !== undefined && songSection[older] !== undefined ? older : key
 }
@@ -355,26 +262,32 @@ function getIniString(songSection: { readonly [key: string]: string }, key: Meta
 
 /**
  * @returns the value in `songSection` at `key`, or at its older name when `key` isn't in the file, parsed as an
- * integer, or the default value when it's blank, -1, not a number, or not there.
+ * integer, or the default value when it's blank, -1, not a number, or not there: `null` for `vocal_scroll_speed`.
  */
-function getIniInteger(songSection: { readonly [key: string]: string }, key: MetaNumberKey) {
+function getIniInteger<K extends MetaIntegerKey>(songSection: { readonly [key: string]: string }, key: K): Metadata[K] {
 	const value = parseFloat(writtenValue(songSection, key) ?? '')
-	return !isNaN(value) && value !== -1 ? value : defaultMetadata[key]
-}
-
-/** @returns the value in `songSection` at `key` read as `getIniInteger` reads it, or `null` where that gives the default. */
-function getIniOptionalInteger(songSection: { readonly [key: string]: string }, key: 'vocal_scroll_speed') {
-	const value = parseFloat(songSection[key] ?? '')
-	return !isNaN(value) && value !== -1 ? value : null
+	return !isNaN(value) && value !== -1 ? value as Metadata[K] : defaultMetadata[key]
 }
 
 /**
  * @returns `preview`, both preview times in ms, as YARG reads them: the leading whole number, then after spaces or "="
  * the next, or -1, not set, when there's no next. `null` when the value doesn't start with a whole number.
  */
-function getIniPreview(songSection: { readonly [key: string]: string }) {
+function getIniPreview(songSection: { readonly [key: string]: string }): PreviewTimes | null {
 	const match = /^([+-]?\d+)(?:[\s=]+([+-]?\d+))?/.exec(songSection.preview ?? '')
 	return match === null ? null : { start: Number(match[1]), end: match[2] === undefined ? -1 : Number(match[2]) }
+}
+
+/**
+ * @returns the keys only YARG reads, each read as the other keys of its default's type are, but `preview`, which is
+ * read as YARG reads it.
+ */
+function readYargOnlyMetadata(songSection: { readonly [key: string]: string }, text: (key: MetaStringKey) => string): YargOnlyMetadata {
+	const read = (key: keyof YargOnlyMetadata) => key === 'preview' ? getIniPreview(songSection)
+		: isTextKey(key) ? text(key)
+		: isBooleanKey(key) ? getIniBoolean(songSection, key)
+		: getIniInteger(songSection, key)
+	return Object.fromEntries((Object.keys(yargOnlyMetadata) as (keyof YargOnlyMetadata)[]).map(key => [key, read(key)])) as YargOnlyMetadata
 }
 
 /**

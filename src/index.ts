@@ -13,6 +13,7 @@ export { parseSong } from './song-document'
 export type { ChartDocument, IniDocument, SongDocument } from './song-document'
 export { parseSongMetadata, songMetadata } from './song-metadata'
 export type { SongMetadata, SongMetadataOptions } from './song-metadata'
+export type { PreviewTimes } from './ini/metadata'
 
 /** The chart as Clone Hero plays it, its issues and its statistics. */
 export { ChartReadError, defaultChartParseSettings, resolveChart } from './gameplay-chart'

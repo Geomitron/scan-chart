@@ -6,7 +6,7 @@ import type { ExplicitLyricMatch } from './explicit-lyrics'
 import { defaultMetadata, isNumberTag, olderTags, tagOrder, tagRank } from './metadata'
 import { marksSingle } from './metadata-style'
 import type { IniTokens } from './parse-ini'
-import { knownIniKeys, parseBoolean, parseDotnetInt } from './scan-ini'
+import { knownIniKeys, parseBoolean, parseDotnetInt, writtenKey } from './scan-ini'
 
 type SongSection = { readonly [key: string]: string }
 
@@ -265,7 +265,7 @@ function deprecatedTagIssues(songSection: SongSection, metadata: typeof defaultM
 	if (hasValue(songSection, 'hopo_frequency') && hopoFrequency) add('hopo_frequency', changesHopos('hopo_frequency'))
 	if (hasValue(songSection, 'eighthnote_hopo') && metadata.eighthnote_hopo && !hopoFrequency) add('eighthnote_hopo', changesHopos('eighthnote_hopo'))
 	if (chart?.format === 'mid' && metadata.multiplier_note === 103) {
-		const key = songSection.multiplier_note === undefined ? olderTags.get('multiplier_note')! : 'multiplier_note'
+		const key = writtenKey(songSection, 'multiplier_note')
 		add(key, `"song.ini" sets "${key}" to 103, which makes MIDI note 103 the star power note. Move the star power phrases to note 116 first. Then remove the tag.`)
 	}
 	for (const [tag, older] of olderTags) {
