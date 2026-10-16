@@ -66,6 +66,8 @@ A drum note's length has no effect. An exporter should write 0.
 
 **Edge case:** Clone Hero plays `N 32` in `EasyDrums`, `MediumDrums` and `HardDrums` as a double kick, when the double kick modifier is on. YARG never plays it there, and scan-chart reports it as `difficultyForbiddenNote`.
 
+**Edge case: a section whose only notes are double kicks.** An `ExpertDrums` section whose only notes are `N 32` is a track. Clone Hero offers Expert, which plays nothing unless the double kick modifier is on. YARG offers only Expert+, where those notes play.
+
 ## Modifiers
 
 A modifier is an `N` event that changes how the pad notes at its tick are hit, instead of adding a note. It applies only to notes at its own tick. **Required:** the note a modifier applies to, at the modifier's tick.
@@ -148,11 +150,11 @@ Clone Hero merges them into one double kick, and scan-chart keeps the longer, or
 </Accordion>
 
 <Accordion title="A mix event spelled another way">
-Clone Hero reads more than one space or `_` between the parts, and any one character as the configuration, so `mix 3  drums0d`, with two spaces, and `mix 3 drumsxd` are flips there. scan-chart reads them as Clone Hero does, and saving writes them in the standard spelling. YARG reads more than one space or `_` too, but only a digit from `0` to `5` as the configuration, so it doesn't read `mix 3 drumsxd` as a `mix` event.
+A scanner reads other spellings as Clone Hero does, as the `.mid` [Drums](/mid/drums#invalid-forms) page describes. So `mix 3  drums0d`, with two spaces, and `mix 3 drumsxd`, with `x` as the configuration, are flips. Saving with scan-chart keeps the text as written. YARG reads more than one space or `_` too, but only a digit from `0` to `5` as the configuration, so it doesn't read `mix 3 drumsxd` as a `mix` event.
 </Accordion>
 
 <Accordion title="A mix event with another flag, such as drums0x">
-Clone Hero and scan-chart ignore it, and scan-chart writes it back as it is. YARG reads it as an event that turns the flip off.
+A scanner ignores it, as Clone Hero does, and scan-chart writes it back as it is. YARG reads it as an event that turns the flip off.
 </Accordion>
 
 <Accordion title="Two mix events of one difficulty at one tick">
