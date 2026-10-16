@@ -11,7 +11,7 @@ import { fileBytes } from 'src/song-files'
 import { songHashes } from 'src/song-hashes'
 import { saveSong, SongNormalization } from 'src/song-save'
 
-import { midiFile, midiNote, midiText, trackTexts } from './helpers/midi-files'
+import { midiFile, midiNote, midiText, type TimedMidiEvent, trackTexts } from './helpers/midi-files'
 
 const encode = (text: string) => new TextEncoder().encode(text)
 const decode = (bytes: Uint8Array) => new TextDecoder().decode(bytes)
@@ -211,6 +211,72 @@ describe('saving (E7)', () => {
 		const { files, report } = saveSong(original, lengthenExpertNote(original))
 		expect(report.normalized).toEqual([{ kind: 'duplicateKeys', section: 'song.ini' }])
 		expect(decode(fileBytes(files[1]))).toBe('[song]\r\nName = Test\r\nsong_length = 60000\r\n; comment\r\n')
+	})
+
+	it('forces the notes hopo_frequency makes HOPOs or strums, and removes it, keeping every canonical hash', () => {
+		// At 192 ticks per beat, a .chart's own threshold is 65 ticks. 150 ticks apart is a HOPO with 170 and a strum without.
+		const ini = { fileName: 'song.ini', data: encode('[song]\r\nname = Test\r\nhopo_frequency = 170\r\nsong_length = 60000\r\n') }
+		const original = parseSongFiles([{ fileName: 'notes.chart', data: encode([...header, '[ExpertSingle]', '{', '  0 = N 0 0', '  150 = N 1 0', '  192 = N 2 0', '}'].join('\r\n') + '\r\n') }, ini])
+		const edited = lengthenExpertNote(original)
+		const { files, report } = saveSong(original, edited)
+		expect(report.normalized).toEqual([{ kind: 'hopoTags', section: 'song.ini' }])
+		expect(decode(fileBytes(files[0]))).toContain('  0 = N 0 0\r\n  150 = N 1 0\r\n  150 = N 5 0\r\n  192 = N 2 96\r\n')
+		expect(decode(fileBytes(files[1]))).toBe('[song]\r\nname = Test\r\nsong_length = 60000\r\n')
+		const saved = parseSongFiles(files)
+		expect(resolveChart(saved).tracks).toEqual(resolveChart(edited).tracks)
+		expect(songHashes(saved)).toEqual(songHashes(edited))
+	})
+
+	it('moves a .mid file\'s star power from note 103 to 116, and removes multiplier_note = 103, keeping every canonical hash', () => {
+		const ini = { fileName: 'song.ini', data: encode('[song]\r\nname = Test\r\nmultiplier_note = 103\r\nsong_length = 60000\r\n') }
+		const original = parseSongFiles([{ fileName: 'notes.mid', data: midiFile([
+			{ name: 'PART GUITAR', events: [...midiNote(0, 96, 240), ...midiNote(0, 103, 480), ...midiNote(960, 97)] },
+		]) }, ini])
+		const [guitar] = authoredTracks(original.chart!)
+		const edited = editSong(original, batch => batch.setLength(guitar.events.find(event => event.type === 'green')!, 480))
+		const { files, report } = saveSong(original, edited)
+		expect(report.normalized).toEqual([{ kind: 'multiplierNote', section: 'song.ini' }])
+		expect(decode(fileBytes(files[1]))).toBe('[song]\r\nname = Test\r\nsong_length = 60000\r\n')
+		const saved = parseSongFiles(files)
+		expect(authoredTracks(saved.chart!)[0].events.filter(event => event.scope === 'instrument').map(event => [event.type, event.tick, event.length])).toEqual([['starPower', 0, 480]])
+		expect(resolveChart(saved).tracks).toEqual(resolveChart(edited).tracks)
+		expect(songHashes(saved)).toEqual(songHashes(edited))
+	})
+
+	it('renames frets and track, and removes the deprecated tags that change nothing, keeping delay and the other tags', () => {
+		const lines = ['[song]', 'name = Test', 'frets = Someone', 'track = 3', 'delay = 0', 'eighthnote_hopo = False', 'hopo_frequency = 0', 'modchart = False', 'song_length = 60000']
+		const original = parseSongFiles([{ fileName: 'notes.mid', data: midiFile([{ name: 'PART GUITAR', events: midiNote(0, 96, 240) }]) }, { fileName: 'song.ini', data: encode(lines.join('\r\n') + '\r\n') }])
+		const [guitar] = authoredTracks(original.chart!)
+		const edited = editSong(original, batch => batch.setLength(guitar.events[0], 480))
+		const { files, report } = saveSong(original, edited)
+		expect(report.normalized).toEqual([{ kind: 'deprecatedTags', section: 'song.ini' }])
+		expect(decode(fileBytes(files[1]))).toBe('[song]\r\nname = Test\r\ncharter = Someone\r\nalbum_track = 3\r\nmodchart = False\r\nsong_length = 60000\r\n')
+		expect(songHashes(parseSongFiles(files))).toEqual(songHashes(edited))
+
+		const delayed = parseSongFiles([original.files[0], { fileName: 'song.ini', data: encode('[song]\r\nname = Test\r\ndelay = 90\r\n') }])
+		const editedDelay = editSong(delayed, batch => batch.setLength(guitar.events[0], 480))
+		expect(saveSong(delayed, editedDelay).report.normalized).toEqual([])
+	})
+
+	it('removes multiplier_note = 116 only where a .mid chart\'s solos wouldn\'t read as star power without it', () => {
+		const save = (events: TimedMidiEvent[]) => {
+			const original = parseSongFiles([{ fileName: 'notes.mid', data: midiFile([{ name: 'PART GUITAR', events: [...midiNote(0, 96, 240), ...midiNote(960, 97), ...events] }]) },
+				{ fileName: 'song.ini', data: encode('[song]\r\nname = Test\r\nmultiplier_note = 116\r\n') }])
+			const [guitar] = authoredTracks(original.chart!)
+			return decode(fileBytes(saveSong(original, editSong(original, batch => batch.setLength(guitar.events.find(event => event.type === 'green')!, 480))).files[1]))
+		}
+		// Without the tag, Clone Hero reads two solos and no star power as star power.
+		expect(save([...midiNote(0, 103, 100), ...midiNote(960, 103, 100)])).toBe('[song]\r\nname = Test\r\nmultiplier_note = 116\r\n')
+		expect(save([...midiNote(0, 103, 100)])).toBe('[song]\r\nname = Test\r\n')
+	})
+
+	it('leaves the deprecated tags of a song.ini that isn\'t UTF-8, so its other bytes stay as written', () => {
+		const utf16 = new Uint8Array([0xff, 0xfe, ...[...'[song]\r\nname = Tést\r\ndelay = 0\r\n'].flatMap(character => [character.charCodeAt(0), 0])])
+		const original = parseSongFiles([{ fileName: 'notes.mid', data: midiFile([{ name: 'PART GUITAR', events: midiNote(0, 96, 240) }]) }, { fileName: 'song.ini', data: utf16 }])
+		const [guitar] = authoredTracks(original.chart!)
+		const { files, report } = saveSong(original, editSong(original, batch => batch.setLength(guitar.events[0], 480)))
+		expect(report.normalized).toEqual([])
+		expect(fileBytes(files[1])).toEqual(utf16)
 	})
 
 	it('keeps the canonical TrackHashes and SongHash, not the legacy ones', () => {

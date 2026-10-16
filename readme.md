@@ -285,6 +285,14 @@ The report says what saving changed beyond your edits:
 - `withheld` lists the ones it left alone, because rewriting them would change a TrackHash or the SongHash that your edits didn't change. The hashes Clone Hero 1.1 calculated aren't kept: a rewrite may change them.
 - `spentHashes` lists the TrackHashes and SongHash your edits changed.
 
+Saving also rewrites the song so that it no longer needs the song.ini tags that only older charts need, where it plays the same and keeps every TrackHash and the SongHash. `normalized` lists these rewrites too:
+
+- `hopoTags`: the notes whose strum or HOPO `hopo_frequency` or `eighthnote_hopo` changes are forced, and the tags are removed.
+- `multiplierNote`: a `.mid` file's star power moves from note 103 to note 116, and `multiplier_note = 103` is removed.
+- `deprecatedTags`: `frets` and `track` are renamed `charter` and `album_track`, and the older tags that change nothing, such as `delay = 0`, are removed.
+
+A `delay` with a value stays, because removing it moves every note against the audio. `multiplier_note = 116` stays where a `.mid` chart's solos would otherwise read as star power. A song.ini that isn't UTF-8 keeps its tags.
+
 If you didn't edit the song, its save plan holds every file byte for byte, and nothing is normalized.
 
 ### Fix issues
@@ -304,7 +312,7 @@ const plan = serializeSong(fixed)
 
 - `issueFixes` lists the codes `fixIssues` fixes, and what each fix does to the TrackHashes and the SongHash: `keepsHashes` keeps them; `mayChangeHashes` keeps them on some songs, such as unquoting a loading phrase, and changes them on others, such as unquoting a song name, which the SongHash reads; `changesHashes` changes them.
 - By default, it makes only the fixes that keep every hash: each `keepsHashes` fix, and each `mayChangeHashes` fix where it keeps them. Pass `changeHashes: true` to make the others too, such as shortening each sustain that ends too close to the next note, and removing each sustain that's too short. `sustainGapMs` and `minSustainMs` set how close and how short: 60 and 200 milliseconds by default, as the charting guidelines recommend.
-- Some fixes rewrite the chart so it plays the same without an older song.ini tag: the notes `hopo_frequency` or `eighthnote_hopo` change are forced, and `multiplier_note = 103`'s star power moves to note 116. Each fix meant to keep how the song plays is checked by reading the result back: if a note, a phrase or a hash would change, it isn't made.
+- Some fixes rewrite the chart so it plays the same without an older song.ini tag: the notes `hopo_frequency` or `eighthnote_hopo` change are forced, and `multiplier_note = 103`'s star power moves to note 116. Saving an edited song makes these rewrites too. Each fix meant to keep how the song plays is checked by reading the result back: if a note, a phrase or a hash would change, it isn't made.
 - `codes` limits it to some codes. It doesn't fix a code song.ini's `ignored_issues` lists.
 - scan-chart has no image codec, so to resize square album art, pass `resizeImage`: a function that resizes an image to a square of the given side with your app's image library, such as sharp or a canvas, and returns a PNG or JPEG image. `albumArtSizes` gives the sizes it accepts, as for `scanSongFolder`, and art is resized to the first.
 - It reads the media files as `mediaIssues` does: the audio files' headers, which also give the `song_length` it writes, and the album art and background images whole.
