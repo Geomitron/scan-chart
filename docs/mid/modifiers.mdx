@@ -88,13 +88,6 @@ An open note is strummed with no fret held. On 6-fret it's a note. On 5-fret it 
 - It's written `ENHANCED_OPENS`, **Recommended**, or `[ENHANCED_OPENS]`.
 - **Required:** at tick 0, before the track's first note.
 
-{/* review: Q2
-Should the text events of instrument tracks also be written without square brackets? You chose no brackets in the EVENTS track, as in a .chart file. Three text events go in instrument tracks: `ENHANCED_OPENS`, `ENABLE_CHART_DYNAMICS` and the drums `mix` event. Clone Hero, YARG and scan-chart read each of them with or without brackets. The .chart Drums page writes `mix` without them. GuitarGame_ChartFormats "highly recommends" brackets on every text event, Rock Band charts write them, and scan-chart's export writes them.
-- A. No brackets | `ENHANCED_OPENS`, `ENABLE_CHART_DYNAMICS` and `mix 3 drums0d` are recommended, and the bracketed forms stay valid. These pages then recommend no brackets on every text event | scan-chart's export changes for the three events. Differs from GuitarGame_ChartFormats' advice
-- B. Brackets | As these pages said before | The `mix` event is written one way in a .chart file and another way in a .mid file
-Recommendation: A. It applies your answer for EVENTS to every text event that doesn't need brackets, and every scanner reads both forms.
-*/}
-
 An open note may be in a chord with fret notes only after `ENHANCED_OPENS`. Open SysEx events turn a chord into one open note. **Required:** open SysEx events over single notes only.
 
 ### 6-fret
@@ -154,7 +147,7 @@ The deprecated `hopo_frequency` and `eighthnote_hopo` keys change the threshold 
 
 - **Note 104 and SysEx events in a drums track.** On drums, 65, 77, 89 and 101 are 5-lane green notes, not modifiers. See [Drums](/mid/drums).
 - **Notes 59, 71, 83 and 95 without `ENHANCED_OPENS`,** on 5-fret.
-- **Other SysEx events,** such as Phase Shift events of other types. scan-chart writes them back as they are.
+- **Other SysEx events,** such as Phase Shift events of other types. scan-chart writes them back as they are. Some Phase Shift events stop Clone Hero from loading the chart: see [Invalid forms](#invalid-forms).
 
 ## Invalid forms
 
@@ -179,19 +172,23 @@ Clone Hero and scan-chart read one open note with the longest sustain, and decid
 </Accordion>
 
 <Accordion title="ENHANCED_OPENS after the track's first note">
-Every scanner applies it only to the notes after it, so notes 59, 71, 83 and 95 before it aren't open notes. scan-chart's export writes it at tick 0, which keeps the open notes scan-chart read.
+Clone Hero and scan-chart apply it only to the notes that start after it, so notes 59, 71, 83 and 95 before it aren't open notes. YARG decides each note's type at its note-off, so there a note that starts before the event and ends after it is an open note. scan-chart's export writes it at tick 0, which keeps the open notes scan-chart read.
 </Accordion>
 
 <Accordion title="ENHANCED_OPENS spelled another way">
-Clone Hero reads it in any letter case, but not with spaces around it. YARG reads it with spaces around it, and in other types of text event, but only in capitals. scan-chart reads only the two standard spellings, in a text event.
+Clone Hero reads it in any letter case, such as `[enhanced_opens]`, but only in a text event, `FF 01`, and not with spaces around it. scan-chart reads it as Clone Hero does. YARG reads it with spaces around it, and in other types of text event, but only in capitals.
 </Accordion>
 
 <Accordion title="A SysEx event of another length">
-Clone Hero and YARG read only the 8-byte form, and scan-chart reads 7 bytes or more. scan-chart's export writes the 8-byte form. Every scanner skips an event that has another value in place of the `00` that marks a modifier.
+A scanner reads a Phase Shift SysEx event only when it's exactly 8 bytes long, as Clone Hero and YARG do, and ignores one of another length. Saving with scan-chart keeps it as it is. scan-chart reports it, and `fixIssues` can rewrite it in the 8-byte form, which changes the TrackHash. Every scanner skips an event that has another value in place of the `00` that marks a modifier.
 </Accordion>
 
 <Accordion title="A SysEx difficulty byte other than 00 to 03 or FF">
-Clone Hero and YARG stop with an error while reading the file, so neither loads the chart. scan-chart reads the event as Expert, and its export writes `03`.
+In a 5-fret or 6-fret track, Clone Hero and YARG stop with an error on a tap or open start with such a byte that has an end, so neither loads the chart, and scan-chart refuses the file. Clone Hero and scan-chart ignore such an event in a drums track, and a start with no end.
+</Accordion>
+
+<Accordion title="A Phase Shift event Clone Hero can't load">
+Clone Hero keeps the Phase Shift SysEx events of each type and difficulty apart, in 100 groups numbered type × 5 + difficulty, with `FF` counted as 4. It fails to load a chart with an event whose number is 100 or more, on any track, with or without an end. So a tap with a difficulty byte of 80 or more fails, and so does an event of type 20 or more. scan-chart refuses such a file too. YARG ignores types other than open and tap.
 </Accordion>
 
 <Accordion title="A SysEx value byte other than 00 or 01">
@@ -199,5 +196,5 @@ YARG ignores the event, and scan-chart reads it as an end.
 </Accordion>
 
 <Accordion title="A start with no end">
-Every scanner ignores it, as a note-on with no note-off. Clone Hero and YARG end a SysEx start only with an end of the same difficulty byte and type. scan-chart can end a start for every difficulty with an end for one difficulty, and note 104 with a tap SysEx end.
+Every scanner ignores it, as a note-on with no note-off. A scanner ends a SysEx start only with an end of the same difficulty byte and type, and never with a note-off, so an end for one difficulty doesn't end a start for every difficulty, and a tap SysEx end doesn't end note 104.
 </Accordion>

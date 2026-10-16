@@ -63,6 +63,8 @@ A lyric is a text event on a vocal track: the syllable sung on the note at its t
 
 Unlike in a `.chart` file, a lyric has no `lyric` prefix, and it's in a vocal track, not in `EVENTS`.
 
+**Edge case: songs Clone Hero lists as having lyrics.** From its code, Clone Hero's song scan counts the track name as a lyric. So its song list marks a song as having lyrics when its `PART VOCALS` has a phrase, even with no lyrics in it.
+
 ### Lyric symbols
 
 A symbol at the end of a lyric changes how it's sung or shown. YARG reads each one as a property of the lyric's note. Clone Hero only changes how it shows the lyric:
@@ -97,27 +99,11 @@ A phrase is a note 105. It holds the notes and lyrics from its start tick throug
 - **Required:** each phrase has a length, and ends at or before the tick where the next phrase of its part starts.
 - **Recommended:** each phrase ends after its last note starts, or where the next phrase starts.
 
-**Edge case: a note or lyric on a phrase's end tick.** It belongs to that phrase, unless the next phrase starts on that tick: then it belongs to the next phrase. Clone Hero reads lyrics this way, and so do YARG's lyrics. YARG's vocals hold a phrase's notes only up to its end tick. So when no phrase starts on the end tick, YARG doesn't sing the note on it, and moves its lyric to the next phrase, or drops it after the last phrase. From its code, Clone Hero loses a phrase whose only lyric is on its start tick, where the phrase before it ends, and shows that lyric in the phrase before.
+**Edge case: a note or lyric on a phrase's end tick.** It belongs to that phrase, unless the next phrase starts on that tick: then it belongs to the next phrase. Clone Hero reads lyrics this way, and so do YARG's lyrics. YARG's vocals hold a phrase's notes only up to its end tick. So when no phrase starts on the end tick, YARG doesn't sing the note on it, and moves its lyric to the next phrase, or drops it after the last phrase.
 
 Unlike a `.chart` phrase, a `.mid` phrase is one note, so it always has an end.
 
-{/* review: Q3
-Which phrase holds the note and the lyric on a phrase's end tick? You asked what charters meant. Every library .mid file was read: 2,426 lyrics in 464 charts are on a vocal phrase's end tick. Where the next phrase starts on that tick (2,114 lyrics), the lyric starts the next line or word in 1,724 cases, and belongs to the ending phrase in 58, mostly `+` slides; 332 are unclear. Where no phrase starts there (312 lyrics, in 60 charts), the ending phrase usually ends where its last note starts, and the lyric finishes its word or line in 244 cases and starts the next in 14; 54 are unclear. So charters follow the .chart rule: a phrase holds its end tick, unless the next phrase starts there. Clone Hero and YARG's lyrics already read lyrics this way. YARG's vocals and scan-chart hold a phrase's notes and lyrics only up to its end tick.
-- A. The end tick is outside | A phrase holds notes and lyrics up to, but not including, its end tick. A lyric there with no phrase starting is invalid | 60 charts become invalid. In 45 of them, every such lyric finishes the ending phrase, and YARG's vocals and scan-chart put it in the next phrase
-- B. Lyrics follow the .chart rule | A phrase holds lyrics through its end tick, unless the next phrase starts there, and notes only up to its end tick | YARG's vocals and scan-chart split a lyric from its note when no phrase starts there
-- C. Notes and lyrics follow the .chart rule | A phrase holds the notes and lyrics from its start tick through its end tick, unless the next phrase starts on the end tick | scan-chart changes its vocals reading. No canonical hash changes, since vocals aren't hashed. YARG's vocals differ only when no phrase starts on the end tick: they don't sing the note there, and move its lyric to the next phrase. Clone Hero differs only for a phrase whose only lyric is on its start tick, where the phrase before ends (from its code)
-Recommendation: C. It reads both groups as their charters meant, keeps each lyric with its note, and is the .chart rule.
-*/}
-
 **Edge case: lyrics without notes.** A part may hold phrases and lyrics with no notes, for lyrics without pitches. Clone Hero and YARG show its lyrics, and YARG and scan-chart list no vocals part for it.
-
-{/* review: Q4
-Should Clone Hero drop its warning for lyrics without vocal notes? Its song scan lists the folder in badsongs.txt, saying the lyrics have no matching vocal notes and "will not work properly in the future when/if vocals support is pursued". The page described the warning too narrowly. It fires for every `PART VOCALS` that has no note from 36 to 84, and for every `PART VOCALS` that has no phrase, with lyrics or without. From its code, the scan also counts the track name as a lyric, which looks like a bug. The warning has no effect in Clone Hero, whose gameplay doesn't read vocal notes. No .mid file with lyrics and no notes can avoid it, and a .chart file's lyrics never get it.
-- A. Drop it | Clone Hero removes the warning | Two lines in StrikeCore. No hash changes
-- B. Narrow it | Clone Hero warns only for a part with phrases and lyrics but no notes, with a new text, and stops counting the track name as a lyric | Lyrics-only charts still get a warning that changes nothing. Clone Hero's song cache changes, so it scans every song again once
-- C. Keep it | As now | Valid files stay in badsongs.txt, and parts without lyrics get a warning about lyrics
-Recommendation: A. The warning does nothing in Clone Hero, a valid file can't avoid it, and its text is wrong for parts without lyrics.
-*/}
 
 ## Star power
 
@@ -163,6 +149,10 @@ From its code, YARG copies `HARM1`'s phrases into `HARM2` and `HARM3` as it read
 Clone Hero doesn't show such a lyric, and YARG doesn't sing such a note. YARG's vocals and scan-chart join a lyric before a phrase to that phrase, and scan-chart drops a lyric after the last phrase. A part with no phrases at all shows nothing in any scanner, and scan-chart's export writes it empty.
 </Accordion>
 
+<Accordion title="A phrase note-on with no note-off, or a note-off with no note-on">
+Clone Hero, YARG's vocals and scan-chart ignore it, as for any note: see [Note pairing](/mid/note-pairing#invalid-forms). So Clone Hero doesn't show the lyrics of a phrase with no note-off. YARG's lyrics read each 105 or 106 note-on as a phrase start, and each note-off as a phrase end, as in a `.chart` file. There, a phrase with no note-off runs to the next phrase's start, and the last one is dropped, unless nothing in the song-wide events comes after it. A note-off with no note-on starts a phrase, which the next phrase start or end closes.
+</Accordion>
+
 <Accordion title="Overlapping phrases, or a 106 that doesn't match a 105">
 Clone Hero shows a lyric inside two phrases in both. scan-chart gives each note and lyric to the first phrase that holds it. Of a 105 and a 106 that start at one tick, Clone Hero keeps the later in the file, YARG the shorter, and scan-chart the longer, and scan-chart's export writes only that one.
 </Accordion>
@@ -172,7 +162,7 @@ Clone Hero and scan-chart read the lyric on its tick as in it, and scan-chart th
 </Accordion>
 
 <Accordion title="A lyric in another type of text event">
-Clone Hero reads every type of text event as a lyric, except a track name and a copyright notice. YARG reads the instrument name, `FF 04`, the marker, `FF 06`, and the cue point, `FF 07`, as lyrics too. scan-chart reads `FF 06` and `FF 07`, but not `FF 04`. scan-chart's export writes every lyric it reads as `FF 05`.
+Clone Hero and scan-chart read every type of text event as a lyric, except a track name and a copyright notice: `FF 04` and `FF 06` to `FF 09` too. YARG reads the instrument name, `FF 04`, the marker, `FF 06`, and the cue point, `FF 07`, as lyrics too. scan-chart's export writes every lyric it reads as `FF 05`.
 </Accordion>
 
 <Accordion title="A bracket inside a lyric">
