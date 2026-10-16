@@ -111,6 +111,12 @@ describe('writeChartFile round-trip: [Song] metadata', () => {
 		})
 	})
 
+	it('preserves a year that starts with the ", " the reader removes', () => {
+		const chart = createEmptyChart()
+		chart.metadata.year = ', 2002'
+		expect(roundTrip(chart).metadata.year).toBe(', 2002')
+	})
+
 	it('preserves chart_offset', () => {
 		const chart = createEmptyChart()
 		chart.metadata.chart_offset = 250

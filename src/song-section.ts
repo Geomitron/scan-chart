@@ -121,10 +121,10 @@ function editedLineText(pair: (typeof pairs)[number], line: ChartLineToken, iniV
 	return readableLine(pair, `${line.text.slice(0, separator + 1)}${spacing}`, iniValue, written.startsWith('"'), hasSeparator)
 }
 
-/** A new line for the key, written as scan-chart's writer writes `[Song]`: text quoted, and Year with its `, `. */
+/** A new line for the key, written as scan-chart's writer writes `[Song]`: text quoted, and Year without a `, `. */
 function newLineText(pair: (typeof pairs)[number], iniValue: string): string | null {
 	const textual = pair.unit === 'text' || pair.unit === 'year'
-	return readableLine(pair, `${pair.chartKey} = `, iniValue, textual, pair.unit === 'year')
+	return readableLine(pair, `${pair.chartKey} = `, iniValue, textual, false)
 }
 
 /**
@@ -143,13 +143,14 @@ function readableLine(pair: (typeof pairs)[number], prefix: string, iniValue: st
 }
 
 /**
- * The ways to write song.ini's value in `[Song]`, preferred first. Clone Hero reads a time as `ceil(seconds * 1000)`
+ * The ways to write song.ini's value in `[Song]`, preferred first. A year without its line's `, ` also has a value with
+ * one, for a year that starts with `, `, which the reader removes. Clone Hero reads a time as `ceil(seconds * 1000)`
  * in single precision, where -4.095 seconds reads as -4094 ms, so a time also has a value half a millisecond earlier.
  */
 function chartValues(pair: (typeof pairs)[number], iniValue: string, yearSeparator: boolean): string[] {
 	switch (pair.unit) {
 		case 'text': return [iniValue]
-		case 'year': return [yearSeparator ? `, ${iniValue}` : iniValue]
+		case 'year': return yearSeparator ? [`, ${iniValue}`] : [iniValue, `, ${iniValue}`]
 		case 'number': return [iniValue]
 		case 'seconds': {
 			const ms = parseFloat(iniValue)
