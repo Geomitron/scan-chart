@@ -6,11 +6,11 @@ import { scanSongFolder } from 'src/scan-song-folder'
 
 const style = (values: Partial<typeof defaultMetadata>) => metadataStyleIssues({ ...defaultMetadata, ...values }).map(issue => [issue.metadataIssue, issue.description])
 const codes = (values: Partial<typeof defaultMetadata>) => style(values).map(([code]) => code)
+const encode = (text: string) => new TextEncoder().encode(text)
+const chart = encode('[Song]\r\n{\r\n  Resolution = 192\r\n}\r\n[SyncTrack]\r\n{\r\n  0 = B 120000\r\n}\r\n[ExpertSingle]\r\n{\r\n  768 = N 0 0\r\n}\r\n')
 
 describe('metadata style', () => {
 	it('is reported only when metadataStyle asks for it', async () => {
-		const encode = (text: string) => new TextEncoder().encode(text)
-		const chart = encode('[Song]\r\n{\r\n  Resolution = 192\r\n}\r\n[SyncTrack]\r\n{\r\n  0 = B 120000\r\n}\r\n[ExpertSingle]\r\n{\r\n  768 = N 0 0\r\n}\r\n')
 		const files = [{ fileName: 'notes.chart', data: chart }, { fileName: 'song.ini', data: encode('[song]\r\ngenre = Rock/Metal\r\n') }]
 		expect((await scanSongFolder(files)).issues.map(issue => issue.code)).not.toContain('multipleGenres')
 		const scanned = await scanSongFolder(files, { metadataStyle: true })
@@ -26,7 +26,7 @@ describe('metadata style', () => {
 	it('reports a part credit\'s name that charter doesn\'t hold', () => {
 		expect(style({ charter: 'Charter A', charter_drums: 'Charter B' }))
 			.toEqual([['uncreditedPartCharter', 'The charter value "Charter A" doesn\'t name "Charter B" (charter_drums). Name every part\'s charters in charter.']])
-		// Each name once, in the part credits table's order, whatever the order of the keys.
+		// Each name once, in the part credits table's order.
 		expect(style({ charter: 'A', charter_vocals: 'C & B', charter_guitar: 'B', charter_bass: 'A' }).map(([, description]) => description))
 			.toEqual(['The charter value "A" doesn\'t name "B" (charter_guitar) or "C" (charter_vocals). Name every part\'s charters in charter.'])
 	})
@@ -35,11 +35,15 @@ describe('metadata style', () => {
 		const uncredited = (values: Partial<typeof defaultMetadata>) => codes(values).filter(code => code === 'uncreditedPartCharter')
 		expect(uncredited({ charter: 'Charter A (Guitar) & charter  b (Drums)', charter_guitar: 'Charter A', charter_drums: 'Charter B (Pro)' })).toEqual([])
 		expect(uncredited({ charter: 'A & B', charter_vocals: 'A & B', charter_audio: 'B, A' })).toEqual([])
+		expect(uncredited({ charter: 'Charter A (Guitar & Bass) & Charter B (Drums)', charter_guitar: 'Charter A', charter_bass: 'Charter A' })).toEqual([])
+	})
+
+	it('splits a credit at the separators creditSeparator reports, so a name isn\'t reported twice', () => {
+		expect(codes({ charter: 'A / B', charter_drums: 'B' })).toEqual(['creditSeparator'])
+		expect(codes({ charter: 'A and B', charter_drums: 'B' })).toEqual(['creditSeparator'])
 	})
 
 	it('compares part credits from song.ini without their style tags', async () => {
-		const encode = (text: string) => new TextEncoder().encode(text)
-		const chart = encode('[Song]\r\n{\r\n  Resolution = 192\r\n}\r\n[SyncTrack]\r\n{\r\n  0 = B 120000\r\n}\r\n[ExpertSingle]\r\n{\r\n  768 = N 0 0\r\n}\r\n')
 		const ini = encode('[song]\r\ncharter = <color=#ff0000>Charter A</color>\r\ncharter_guitar = <b>Charter A</b>\r\ncharter_drums = <b>Charter B</b>\r\n')
 		const scanned = await scanSongFolder([{ fileName: 'notes.chart', data: chart }, { fileName: 'song.ini', data: ini }], { metadataStyle: true })
 		expect(scanned.issues.filter(issue => issue.code === 'uncreditedPartCharter').map(issue => [issue.severity, issue.file, issue.message]))
