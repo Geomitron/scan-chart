@@ -212,14 +212,6 @@ export const hopoTags: readonly string[] = ['hopo_frequency', 'eighthnote_hopo']
 export const deprecatedTags: ReadonlySet<string> = new Set(['delay', ...hopoTags, 'multiplier_note', ...olderTags.values()])
 
 /**
- * Whether song.ini sets `hopofreq`, which YARG reads when song.ini has neither HOPO tag, so that beside it the HOPO tags
- * change what YARG reads, whatever their values, and stay.
- */
-export function besideHopofreq(songSection: SongSection): boolean {
-	return songSection.hopofreq !== undefined
-}
-
-/**
  * The keys that change nothing: set to what Clone Hero and YARG both read without them, for the chart's format, or tags
  * for older charts that another tag or setting overrides. A value only one game reads the same without, such as
  * `pro_drums = False` in a `.mid` chart, which YARG reads as 4-lane drums, isn't one.
@@ -235,10 +227,9 @@ function unneededKeys(songSection: SongSection, metadata: typeof defaultMetadata
 	const isZero = (value: string) => parseFloat(value) === 0
 	const isAtMostZero = (value: string) => (parseDotnetInt(value) ?? 1) <= 0
 	check('delay', isZero)
-	const hopoTagsStay = besideHopofreq(songSection)
-	check('hopo_frequency', value => !hopoTagsStay && isAtMostZero(value))
+	check('hopo_frequency', isAtMostZero)
 	// hopo_frequency, when it's set, comes first.
-	check('eighthnote_hopo', value => !hopoTagsStay && (isFalse(value) || metadata.hopo_frequency > 0))
+	check('eighthnote_hopo', value => isFalse(value) || metadata.hopo_frequency > 0)
 	// Without 116, Clone Hero reads a .mid guitar or keys track's two or more solos, and no star power, as star power.
 	check('multiplier_note', value => chart !== null && (chart.format === 'chart' || parseDotnetInt(value) === 0 || (parseDotnetInt(value) === 116 && !chart.solosReadAsStarPower())))
 	// Games read a tag over its older name, such as charter over frets, whenever it's in the file.

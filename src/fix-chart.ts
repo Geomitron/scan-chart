@@ -9,7 +9,7 @@ import { msAtTick, parseChartSource, type ParsedChartFile, tickAtMs } from './ch
 import { parseRules } from './chart/parse-rules'
 import { EventType, eventTypes } from './chart/raw-types'
 import { NoteEvent, noteFlags, noteTypes } from './chart/types'
-import { besideHopofreq, hopoTags, keyList } from './ini/ini-checks'
+import { hopoTags, keyList } from './ini/ini-checks'
 import { asUtf8Ini, rewriteSongIni } from './ini/ini-edit'
 import { olderTags } from './ini/metadata'
 import { writtenKey } from './ini/scan-ini'
@@ -436,15 +436,11 @@ export function fixHopoTags(song: SongDocument, issues: readonly Issue[], findin
 /**
  * Forces the notes whose HOPO or strum `hopo_frequency` or `eighthnote_hopo` changes, then removes the tags, so every
  * note plays the same. A `.chart` note's `N 5` line, which swaps HOPO and strum, is added or removed; a `.mid` note gets
- * a one-tick force HOPO or force strum note on its difficulty. Beside `hopofreq`, which YARG reads without them, the
- * tags stay. Counts the notes it forced. The song has a song.ini.
+ * a one-tick force HOPO or force strum note on its difficulty. Counts the notes it forced. The song has a song.ini.
  */
 export function rewriteHopoTags(song: SongDocument): TagRewrite<{ readonly forced: number }> {
 	const context = songContext(song)
 	const { chart } = song
-	if (besideHopofreq(context.ini.songSection ?? {})) {
-		return { reason: 'YARG reads "hopofreq" when song.ini has neither "hopo_frequency" nor "eighthnote_hopo", so they stay.' }
-	}
 	if (chart === null || context.chart.kind !== 'parsed' || (chart.format === 'mid' && chart.tokens === null)) {
 		return { reason: 'The chart can\'t be read, so it can\'t be rewritten to play the same without the HOPO tags.' }
 	}

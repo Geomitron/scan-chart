@@ -31,10 +31,9 @@ export interface DeprecatedTagNormalization {
  * Every rewrite a song needs to leave the deprecated song.ini tags it can (`docs/ini/settings.mdx`), as `fixIssues`
  * fixes their `deprecatedIniTag` and `defaultIniValue` issues. A chart rewrite is listed only where the song plays the
  * same with it, phrases and every canonical hash included. `delay` with a value stays: removing it moves every note
- * against the audio. So does `multiplier_note = 116` where a `.mid` chart's solos would otherwise read as star power,
- * and so do the HOPO tags beside `hopofreq`, which YARG reads without them. Only a UTF-8 song.ini is rewritten, so its
- * other bytes stay as written, and a song.ini that lists `deprecatedIniTag` or `defaultIniValue` in `ignored_issues`
- * keeps those tags.
+ * against the audio. So does `multiplier_note = 116` where a `.mid` chart's solos would otherwise read as star power.
+ * Only a UTF-8 song.ini is rewritten, so its other bytes stay as written, and a song.ini that lists `deprecatedIniTag`
+ * or `defaultIniValue` in `ignored_issues` keeps those tags.
  */
 export function deprecatedTagNormalizations(song: SongDocument): DeprecatedTagNormalization[] {
 	const { ini } = song
