@@ -506,6 +506,19 @@ describe('fixIssues: the HOPO threshold tags', () => {
 		expect(forceNotes).toEqual([['expert', 240, 1], ['hard', 240, 1]])
 		expectHashesKept(result)
 	})
+
+	it('removes the HOPO tags beside hopofreq too, which every game ignores', async () => {
+		// At 480 ticks per beat, a .mid's own threshold is 161 ticks: 240 ticks apart is a HOPO only with hopo_frequency = 300.
+		const mid = midi({ 'PART GUITAR': [{ tick: 0, noteNumber: 96 }, { tick: 240, noteNumber: 97 }] })
+		const lines = ['[song]', 'name = Song', 'delay = 0', 'hopo_frequency = 300', 'eighthnote_hopo = False', 'hopofreq = 2']
+		const result = await fix(folder(lines, mid, 'notes.mid'))
+		expect(result.ini).toBe('[song]\r\nname = Song\r\nhopofreq = 2\r\n')
+		expect(result.report.fixed.map(entry => entry.description)).toEqual([
+			'Forced 1 note to play the same without "hopo_frequency", and removed it.',
+			'Removed "delay = 0" and "eighthnote_hopo = False", which changed nothing.',
+		])
+		expectHashesKept(result)
+	})
 })
 
 describe('fixIssues: multiplier_note = 103', () => {
@@ -531,18 +544,6 @@ describe('fixIssues: multiplier_note = 103', () => {
 			.toEqual([['starPower', 900, 120], ['starPower', 1900, 100]])
 		expect(drumsTrack.events.filter(event => event.scope === 'instrument').map(event => [event.type, event.tick])).toEqual([['soloSection', 0]])
 		expect(result.codes.filter(code => code === 'deprecatedIniTag' || code === 'badStarPower')).toEqual([])
-		expectHashesKept(result)
-	})
-
-	it('keeps the HOPO tags beside hopofreq, which YARG reads without them', async () => {
-		// At 480 ticks per beat, a .mid's own threshold is 161 ticks: 240 ticks apart is a HOPO only with hopo_frequency = 300.
-		const mid = midi({ 'PART GUITAR': [{ tick: 0, noteNumber: 96 }, { tick: 240, noteNumber: 97 }] })
-		const lines = ['[song]', 'name = Song', 'delay = 0', 'hopo_frequency = 300', 'eighthnote_hopo = False', 'hopofreq = 2']
-		const result = await fix(folder(lines, mid, 'notes.mid'))
-		expect(result.ini).toBe('[song]\r\nname = Song\r\nhopo_frequency = 300\r\neighthnote_hopo = False\r\nhopofreq = 2\r\n')
-		expect(result.report.skipped).toContainEqual({ code: 'deprecatedIniTag', file: 'song.ini',
-			reason: 'YARG reads "hopofreq" when song.ini has neither "hopo_frequency" nor "eighthnote_hopo", so they stay.' })
-		expect(result.report.fixed.map(entry => entry.description)).toEqual(['Removed "delay = 0", which changed nothing.'])
 		expectHashesKept(result)
 	})
 

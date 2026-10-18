@@ -323,9 +323,9 @@ describe('song.ini default values', () => {
 		for (const value of ['', '0', '-1']) expect(await keys([`charter = ${value}`.trim(), 'frets = Someone', `album_track = ${value}`.trim(), 'track = 3'])).toEqual([['"frets = ', '"track = ']])
 		expect(await keys(['pro_drums = True', 'pro_drum = False', 'multiplier_note = 116', 'star_power_note = 103'])).toEqual([['"pro_drum = ', '"multiplier_note = ', '"star_power_note = ']])
 		expect(await keys(['hopo_frequency = 0', 'eighthnote_hopo = 0'])).toEqual([['"hopo_frequency = ', '"eighthnote_hopo = ']])
-		// Without either line, YARG reads hopofreq.
-		expect(await unneeded(['hopo_frequency = 0', 'eighthnote_hopo = False', 'hopofreq = 2'])).toEqual([])
-		expect(await unneeded(['hopo_frequency = 170', 'eighthnote_hopo = True', 'hopofreq = 2'])).toEqual([])
+		// Every game ignores hopofreq, so the HOPO tags beside it are reported as anywhere else.
+		expect(await keys(['hopo_frequency = 0', 'eighthnote_hopo = False', 'hopofreq = 2'])).toEqual([['"hopo_frequency = ', '"eighthnote_hopo = ']])
+		expect(await keys(['hopo_frequency = 170', 'eighthnote_hopo = True', 'hopofreq = 2'])).toEqual([['"eighthnote_hopo = ']])
 		expect(await unneeded(['frets = Someone', 'track = 3', 'hopo_frequency = 170', 'delay = 50'])).toEqual([])
 		// hopo_frequency comes before eighthnote_hopo.
 		expect(await keys(['hopo_frequency = 170', 'eighthnote_hopo = True'])).toEqual([['"eighthnote_hopo = ']])

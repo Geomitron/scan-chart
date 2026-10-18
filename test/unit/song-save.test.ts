@@ -291,12 +291,13 @@ describe('saving (E7)', () => {
 		expect(saveEditedMid(midiNote(0, 96, 240), '[song]\r\nname = Test\r\ndelay = 90\r\n').report.normalized).toEqual([])
 	})
 
-	it('keeps the HOPO tags beside hopofreq, which YARG reads without them', () => {
+	it('removes the HOPO tags beside hopofreq too, which every game ignores, keeping every canonical hash', () => {
 		// At 480 ticks per beat, a .mid's own threshold is 161 ticks: 240 ticks apart is a HOPO only with hopo_frequency = 300.
 		const lines = ['[song]', 'name = Test', 'hopo_frequency = 300', 'eighthnote_hopo = False', 'hopofreq = 2', 'delay = 0']
-		const { report, ini } = saveEditedMid([...midiNote(0, 96), ...midiNote(240, 97)], lines.join('\r\n') + '\r\n')
-		expect(report.normalized).toEqual([{ kind: 'deprecatedTags', section: 'song.ini' }])
-		expect(ini).toBe('[song]\r\nname = Test\r\nhopo_frequency = 300\r\neighthnote_hopo = False\r\nhopofreq = 2\r\n')
+		const { edited, files, report, ini } = saveEditedMid([...midiNote(0, 96), ...midiNote(240, 97)], lines.join('\r\n') + '\r\n')
+		expect(report.normalized).toEqual([{ kind: 'hopoTags', section: 'song.ini' }, { kind: 'deprecatedTags', section: 'song.ini' }])
+		expect(ini).toBe('[song]\r\nname = Test\r\nhopofreq = 2\r\n')
+		expect(songHashes(parseSongFiles(files))).toEqual(songHashes(edited))
 	})
 
 	it('removes multiplier_note = 116 only where a .mid chart\'s solos wouldn\'t read as star power without it', () => {
