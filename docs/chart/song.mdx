@@ -37,7 +37,8 @@ Each line names one value, as [Named entries](/chart/syntax#named-entries) descr
 | `Offset` | How far the chart is moved against the audio, in seconds. A higher value makes every note come later. **Recommended:** 0, or no line. See [Deprecated](#deprecated) | `delay`, in milliseconds |
 | `PreviewStart` | Where the song list's preview starts, in seconds | `preview_start_time`, in milliseconds |
 | `PreviewEnd` | Where the preview ends, in seconds | `preview_end_time`, in milliseconds |
-| `Difficulty` | The difficulty of the whole song: a whole number from 0 to 6, or up to 10 for a very hard chart. `diff_band` is recommended only for a chart with more than one instrument part: see [Difficulties](/ini/metadata#difficulties) | `diff_band` |
+| `Length` | The song's length, in seconds. No scanner reads it | `song_length`, in milliseconds |
+| `Difficulty` | The difficulty of the whole song, a whole number. **Recommended:** from 0 to 6, or up to 10 for a very hard chart. `diff_band` is recommended only for a chart with more than one instrument part: see [Difficulties](/ini/metadata#difficulties) | `diff_band` |
 
 - **Text** is written in quotation marks: `Name = "Song Name"`.
 - **Times** are written in seconds, as digits with an optional `-` before them and an optional decimal part, without quotation marks: `PreviewStart = 45.5`. **Recommended:** at most three decimals.
@@ -56,6 +57,7 @@ A scanner reads the metadata from `song.ini`:
 
 - It takes the name, artist, album, genre, year and charter from `song.ini` alone, even when `song.ini` leaves one of them out.
 - It takes `Offset`, `PreviewStart` and `PreviewEnd` from `[Song]` only when `song.ini` doesn't set `delay`, `preview_start_time` or `preview_end_time`. A `delay` of 0 and a `preview_end_time` of 0 count as not set.
+- It may ignore `Difficulty`, as Clone Hero and scan-chart do. YARG takes it as `diff_band` when `song.ini` doesn't set `diff_band`, or sets it to 0.
 
 ## Deprecated
 
@@ -66,7 +68,7 @@ A scanner reads the metadata from `song.ini`:
 A scanner ignores every other key. An exporter may keep them as written. Older chart editors wrote some of them:
 
 - **Audio file names,** such as `MusicStream` and `GuitarStream`. Games find the audio by file name instead. See [Audio](/song-folders#audio). A new chart leaves them out: a chart editor keeps a charter's choice of audio file in its own settings. Moonscraper still finds a `.chart`'s audio only through these keys.
-- **`Player2`, `MediaType`, `Length` and others,** which games no longer use.
+- **`Player2`, `MediaType` and others,** which no game reads.
 
 ## Invalid forms
 
@@ -95,7 +97,7 @@ Clone Hero and scan-chart read an exponent, a `+` and quotation marks around the
 </Accordion>
 
 <Accordion title="No song.ini">
-Clone Hero and scan-chart take all of the metadata from `[Song]`, and YARG doesn't list the song. See [Files in a song folder](/song-folders#invalid-forms).
+A scanner takes the metadata from the keys of the table in `[Song]`, except `Length`, and may ignore `Difficulty`: scan-chart reads it as `diff_band`, and Clone Hero ignores it. YARG doesn't list the song. See [Files in a song folder](/song-folders#invalid-forms).
 </Accordion>
 
 <Accordion title="[Song] and song.ini giving different values">

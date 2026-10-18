@@ -34,9 +34,10 @@ A time signature sets the meter from its tick to the next time signature:
 <tick> = TS <numerator> <exponent>
 ```
 
-- The numerator is the number of beats in a measure: a whole number from 1 to 4294967295.
-- The exponent gives the note value of a beat: the denominator is 2 to the power of the exponent. It's a whole number from 0 to 31. Without an exponent, the denominator is 4.
-- Time signatures only change the beat lines that appear throughout the chart during gameplay. They have no influence on the notes themselves.
+- The numerator is the number of notes in a measure, of the value the denominator gives: a whole number from 1 to 4294967295.
+- The exponent gives the denominator, 2 to the power of the exponent, so `TS 6 3` is 6/8: six eighth notes a measure. It's a whole number from 0 to 31. Without an exponent, the denominator is 4.
+- Time signatures only change the lines that appear throughout the chart during gameplay, at each measure and between them. They have no influence on the notes themselves.
+- A beat is a quarter note whatever the time signature, so a measure of 6/8 is three beats long.
 
 | Written | Time signature |
 |---|---|

@@ -68,7 +68,7 @@ A drum fill marks a stretch where the drummer can play freely and activate star 
 
 A drum fill whose tick is at or after the `coda` is a Big Rock Ending instead: a closing freestyle section with no star power activation. See [The coda](/mid/events#the-coda). On 5-fret guitar, bass and keys, note 120 at or after the `coda` is a Big Rock Ending, and has no meaning before it.
 
-**Edge case: where a Big Rock Ending ends.** YARG counts a note on a Big Rock Ending's end tick as part of it, and Clone Hero doesn't. **Recommended:** end a Big Rock Ending before the note that closes it.
+**Edge case: where a Big Rock Ending ends.** YARG counts a note on a Big Rock Ending's end tick as part of it, and Clone Hero doesn't. **Recommended:** a note after each Big Rock Ending, which closes it, and the Big Rock Ending ending before that note, as in a `.chart` file. See [Drum fills](/chart/phrases#drum-fills).
 
 Rock Band charts write each drum fill and Big Rock Ending as five notes, 120 to 124. Note 120 is the phrase. Notes 121 to 124 may come with it, each starting and ending where 120 does. Clone Hero and scan-chart read only 120. YARG reads each of 120 to 124 as a drum fill on drums, which gives the same fill when they match.
 
@@ -76,7 +76,7 @@ Rock Band charts write each drum fill and Big Rock Ending as five notes, 120 to 
 
 A lane marks a passage too fast to play note for note. Inside it, the player keeps up the motion at their own speed, and each note counts as hit. A lane includes its end tick, and lanes may overlap.
 
-- **On drums,** 126 is a roll on one pad, and 127 a roll that alternates between two pads. The lane takes its pads from the notes it covers, and never includes the kick.
+- **On drums,** 126 is a roll on one pad, and 127 a roll that alternates between two pads. The lane takes its pads from the notes it covers, and never includes the kick. **Recommended:** a roll on one pad starts with a note on one pad, as in a `.chart` file.
 - **On 5-fret guitar, bass and keys,** 126 is a tremolo lane: one fret or chord repeated, at least two notes, strummed freely. 127 is a trill lane: two single frets alternating, at least three notes, played freely between them.
 
 A lane's velocity gives the difficulties it applies to:

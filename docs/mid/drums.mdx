@@ -30,8 +30,6 @@ A drums chart is 4-lane, pro or 5-lane, as [Drum types](/chart/drums#drum-types)
 - A tom marker, 110, 111 or 112, that covers a note makes the chart pro, where a `.chart` file has a cymbal marker. The note may be of any difficulty, and may be a kick.
 - A 5-lane green note, 65, 77, 89 or 101, makes it 5-lane, where a `.chart` file has `N 5`.
 
-**Edge case: a tom marker that covers no note.** It changes no note, and doesn't make the chart pro. YARG reads the chart as pro. scan-chart's export writes the marker back, so the chart stays pro there.
-
 Playing one type on another kit works as in a `.chart` file, with 100 and 101 in place of `N 4` and `N 5`. See [Playing one type on another kit](/chart/drums#playing-one-type-on-another-kit).
 
 **Edge case: 100 and 101 at one tick in a pro chart.** Clone Hero and scan-chart move 101 to a blue tom, and YARG plays both in the green lane, as a green cymbal and a green tom. **Recommended:** 100 and 101 on different ticks in a pro chart.
@@ -48,7 +46,7 @@ Playing one type on another kit works as in a `.chart` file, with 100 and 101 in
 | Green, or orange in 5-lane | 64 | 76 | 88 | 100 | `N 4` |
 | Green tom in a pro chart, or green in 5-lane | 65 | 77 | 89 | 101 | `N 5` |
 
-A drum note's length has no effect.
+A drum note's length doesn't change how it's played, as in a `.chart` file. See [Notes](/chart/drums#notes).
 
 ### Double kicks
 
@@ -61,6 +59,15 @@ Note 95 is a kick that a scanner plays only when the player has the double kick 
 ## Modifiers
 
 A drum modifier is a note that changes how the pad notes it covers are hit. It covers the notes of every difficulty that start at or after its note-on and before its note-off, and one of length 0 covers the notes on its tick. Its velocity and channel have no effect.
+
+- **Required:** at least one note under each modifier.
+
+{/* review: Q-mod
+In a .chart file, a drum modifier on a tick without its note is invalid, and so is a .mid guitar modifier that covers no note. The .mid drums page set no rule for its own modifiers, the tom markers 110 to 112 and the flam 109, and treated a tom marker that covers no note as an edge case, which reads as valid. The reading is decided either way (R8, C9): such a marker changes no note and doesn't make the chart pro, though YARG reads the chart as pro. One library chart has one. Should a .mid drum modifier that covers no note be valid?
+- A. Invalid, like every other modifier, as written now | Modifiers gains "Required: at least one note under each modifier", and the edge case moves to Invalid forms with the same text, which is the scanner rule | The library chart becomes invalid, with no hash change. scan-chart doesn't report the .mid form, as it doesn't for guitar; a check would be optional release work
+- B. Valid | The edge case stays under Drum types, and Modifiers says a drum modifier may cover no note, and then changes nothing | The formats disagree on validity as well as on pro detection
+Recommendation: A. One rule for every modifier in both formats. The only difference left is the decided one: a .chart cymbal marker without its note still makes the chart pro, and a .mid tom marker doesn't.
+*/}
 
 A `.chart` modifier applies only to the notes at its own tick. See [Modifiers](/chart/drums#modifiers).
 
@@ -127,6 +134,10 @@ A `mix` event sets up the drum audio for one difficulty, and its `d` flag turns 
 - **Other drum tracks,** such as `PART DRUMS_2X` and `PART ELITE_DRUMS`. See [Instrument tracks](/mid/instrument-tracks#ignored).
 
 ## Invalid forms
+
+<Accordion title="A modifier that covers no note">
+It changes no note, and a tom marker that covers no note doesn't make the chart pro. YARG reads the chart as pro. scan-chart's export writes such a tom marker back, so the chart stays pro there.
+</Accordion>
 
 <Accordion title="Both five_lane_drums and pro_drums set to True">
 A scanner reads the chart as 5-lane.
