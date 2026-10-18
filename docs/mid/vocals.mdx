@@ -43,7 +43,7 @@ Clone Hero reads only `PART VOCALS`, and only its lyrics and phrases: it shows t
 | 96 | A percussion note, read with no length |
 | 105 | A phrase. See [Phrases](#phrases) |
 | 116 | Star power. See [Star power](#star-power) |
-| 0 | A range shift: YARG works out the pitch range it shows again from this note, for the note's length |
+| 0 | A range shift: YARG fits the pitch range it shows to the notes from this note to the next range shift. The note's length is how long the move takes |
 | 1 | A lyric shift: YARG starts a new line of the lyrics it shows, on `PART VOCALS` and `HARM1` |
 
 - A note's length is how long it's sung. Vocal notes have no sustain cutoff.
@@ -56,7 +56,7 @@ A part has vocals to sing only if it has a note from 36 to 84, or a 96, inside a
 
 A lyric is a text event on a vocal track: the syllable sung on the note at its tick.
 
-- **Recommended:** a lyric event, `FF 05`. A text event, `FF 01`, is a lyric too.
+- **Required:** a lyric event, `FF 05`, or a text event, `FF 01`. **Recommended:** `FF 05`.
 - **Required:** one lyric at most at a tick, and in a part with notes, each lyric on a note's tick.
 - **Recommended:** one lyric on each note. A note that slides from the note before it has the lyric `+`.
 - **Required:** no spaces at a lyric's ends, and no `[` or `]` in it.
@@ -80,12 +80,21 @@ A symbol at the end of a lyric changes how it's sung or shown. YARG reads each o
 | `%` | A range shift, in YARG | Nothing |
 | `/` | A static lyric shift, in YARG | Nothing |
 | `$` | Hidden on harmonies 2 and 3 | Nothing |
-| `§` | Two syllables sung as one | A space |
-| `_` | A space | A space |
 
 - `$` may also come at the start of a lyric.
-- A symbol anywhere else in a lyric has no meaning, but isn't shown.
-- Clone Hero shows the symbols the same way in a `.chart` file's lyrics.
+- `=` shows as `-` anywhere in a lyric, and joins the next syllable only at the end.
+- Two symbols stand for a character anywhere in a lyric: `§` joins two syllables sung as one, and `_` is a space. Clone Hero shows each as a space. YARG's vocals show `§` as `‿`.
+- Any other symbol elsewhere in a lyric has no meaning, and isn't shown.
+- **Required:** `-` and `+` only at the end of a lyric. For a hyphen shown inside a lyric, write `=`.
+
+{/* review: Q9
+YARG and scan-chart take a symbol's meaning only from the end of a lyric, and $ from its start. Clone Hero joins the next syllable to any lyric that holds a - anywhere, and joins a lyric that starts with + to the syllable before it; it removes every - and + it shows. YARG's lyrics remove both and join nothing, and its vocals show the -. So "x-ray" then "sing" shows as "xraysing" in Clone Hero and "xray sing" in YARG's lyrics. The page called such a symbol meaningless. Is a lyric like that valid?
+- A. Invalid, as written now | Required: - and + only at the end of a lyric. For a hyphen shown inside a lyric, write =, which every reader shows as - | No game change. An invalid form lists each reader. Charts with a - inside a lyric become invalid; how many isn't counted
+- B. Valid, with no meaning | As YARG reads it. An edge case says what Clone Hero shows | A valid lyric shows differently in Clone Hero
+- C. Valid, and Clone Hero changes | As B, and a Clone Hero merge request joins only at a final - and doesn't join a lyric that starts with + | A small change to lyric display, with no hash. One more merge request for the Clone Hero developers
+Recommendation: A. It gives charters one form that shows the same in every reader, and needs no game change.
+*/}
+- Clone Hero and YARG show the symbols the same way in a `.chart` file's lyrics.
 
 ### Formatting tags
 
@@ -134,11 +143,11 @@ The three harmony parts share their phrases:
 ## Invalid forms
 
 <Accordion title="A second track for one part">
-Clone Hero reads the first `PART VOCALS`. YARG sings the first `PART VOCALS`, and the last of each harmony track. scan-chart reads the first track of each part, and its export leaves out the others.
+A scanner reads the first track of each part, as scan-chart does, and Clone Hero does for `PART VOCALS`. YARG sings the first `PART VOCALS`, and shows the lyrics of every `PART VOCALS` track. It sings the last of each harmony track. scan-chart's export leaves out the others.
 </Accordion>
 
 <Accordion title="Both HARMn and PART HARMn for one part">
-YARG uses `HARMn`, wherever it is. scan-chart uses whichever comes first in the file, and its export writes it as `HARMn`. Clone Hero reads neither.
+A scanner uses `HARMn`, wherever it is, as YARG and scan-chart do, and scan-chart's export writes only that track. Clone Hero reads neither.
 </Accordion>
 
 <Accordion title="Harmony tracks out of order, or without HARM1">
@@ -153,16 +162,20 @@ Clone Hero doesn't show such a lyric, and YARG doesn't sing such a note. YARG's 
 Clone Hero, YARG's vocals and scan-chart ignore it, as for any note: see [Note pairing](/mid/note-pairing#invalid-forms). So Clone Hero doesn't show the lyrics of a phrase with no note-off. YARG's lyrics read each 105 or 106 note-on as a phrase start, and each note-off as a phrase end, as in a `.chart` file. There, a phrase with no note-off runs to the next phrase's start, and the last one is dropped, unless nothing in the song-wide events comes after it. A note-off with no note-on starts a phrase, which the next phrase start or end closes.
 </Accordion>
 
+<Accordion title="A - or + that isn't at the end of a lyric">
+Clone Hero joins the next syllable to a lyric with a `-` anywhere in it, and joins a lyric that starts with `+` to the one before it. YARG and scan-chart give such a symbol no meaning. Clone Hero and YARG's lyrics don't show it, and YARG's vocals and scan-chart keep a `-`.
+</Accordion>
+
 <Accordion title="Overlapping phrases, or a 106 that doesn't match a 105">
-Clone Hero shows a lyric inside two phrases in both. scan-chart gives each note and lyric to the first phrase that holds it. Of a 105 and a 106 that start at one tick, Clone Hero keeps the later in the file, YARG the shorter, and scan-chart the longer, and scan-chart's export writes only that one.
+Clone Hero shows a lyric inside two phrases in both. scan-chart gives each note and lyric to the first phrase that holds it. Of a 105 and a 106 that start at one tick, Clone Hero keeps the later in the file, YARG the shorter, and scan-chart the longer, and scan-chart's export writes only that one. Clone Hero pairs two overlapping phrase notes of one number as [Note pairing](/mid/note-pairing#invalid-forms) says.
 </Accordion>
 
 <Accordion title="A phrase of length 0">
-Clone Hero and scan-chart read the lyric on its tick as in it, and scan-chart the note on its tick too. YARG's vocals put nothing in it, and give the lyric on its tick to the next phrase. scan-chart's export writes it at length 0.
+A scanner reads the note and lyric on its tick as in it, since a phrase holds its end tick. Clone Hero reads the lyric so, and scan-chart both. YARG's vocals put nothing in it, and give the lyric on its tick to the next phrase. scan-chart's export writes it at length 0.
 </Accordion>
 
 <Accordion title="A lyric in another type of text event">
-Clone Hero and scan-chart read every type of text event as a lyric, except a track name and a copyright notice: `FF 04` and `FF 06` to `FF 09` too. YARG reads the instrument name, `FF 04`, the marker, `FF 06`, and the cue point, `FF 07`, as lyrics too. scan-chart's export writes every lyric it reads as `FF 05`.
+Every scanner reads every type of text event as a lyric, except a track name and a copyright notice: `FF 04` and `FF 06` to `FF 09` too. scan-chart's export writes every lyric it reads as `FF 05`.
 </Accordion>
 
 <Accordion title="A bracket inside a lyric">
@@ -186,5 +199,13 @@ It has no effect in Clone Hero. YARG and scan-chart give its symbols to the next
 </Accordion>
 
 <Accordion title="Overlapping notes of one part">
-For two notes of one pitch, YARG and scan-chart ignore a note-on while the pitch is on, and end the first note at the first note-off. This differs from how notes of an instrument track pair. See [Note pairing](/mid/note-pairing). YARG and scan-chart keep both of two overlapping notes of different pitches.
+For two notes of one pitch, a scanner ignores a note-on while the pitch is on, and ends the first note at the next note-off of that pitch and channel, as YARG does. scan-chart does too, but ignores the channel. This differs from how notes of an instrument track pair. See [Note pairing](/mid/note-pairing). YARG and scan-chart keep both of two overlapping notes of different pitches.
 </Accordion>
+
+{/* review: Q10
+Note pairing said vocal tracks pair as instrument tracks do: a note-off ends the latest open note of its number and channel (batch 3 Q12 A, asked on that page). This page says YARG and scan-chart pair two vocal notes of one pitch differently: they ignore a note-on while the pitch is on, so the first note-off ends the first note, and the later note is lost. Clone Hero reads no vocal notes, only phrases, which it pairs latest first. No hash includes vocal notes, and Q12's evidence was about instrument tracks. The YARG post 01 pull request, not yet sent, would change both, since YARG reads vocal and instrument notes through one function. Which rule do vocal tracks follow?
+- A. Pair as instrument tracks | Latest open note first, then a scanner cuts the earlier note where the later starts, a new rule, since vocal notes have no sustain trimming | scan-chart's vocal reader and YARG's singing change. Some held notes are lost: The Lumineers - Ho Hey has a stray note-on and note-off inside a held note, which this rule pairs together, so the held note never ends and is dropped
+- B. Pair as YARG and scan-chart do, as written now | A note-on of a pitch that's already on is ignored, and the next note-off of that pitch and channel ends the note | Note pairing points here for vocal tracks. scan-chart's vocal reader adds the channel check. The post 01 pull request leaves vocal tracks as they are. Overlapping phrases, already invalid, gain a sentence on Clone Hero's pairing
+- C. Split | Phrases and markers (105, 106, 116, 0, 1) pair as Note pairing says, and notes to sing (36 to 84, 96, 97) as in B | Keeps Clone Hero's reading for all Clone Hero reads, but one track has two rules, and scan-chart's phrase pairing changes
+Recommendation: B. Only YARG sings vocal notes, YARG and scan-chart already agree, no hash depends on it, and it keeps the notes A would drop.
+*/}

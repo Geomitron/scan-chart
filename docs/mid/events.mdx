@@ -30,7 +30,8 @@ A practice section marks where a part of the song starts, such as the intro or a
 <tick>  Text  section <name>
 ```
 
-- A space or `_` separates `section` from the name. **Recommended:** a space.
+- **Required:** a space or `_` between `section` and the name. **Recommended:** a space.
+- **Required:** one practice section at most at a tick.
 - **Recommended:** at least one practice section in a chart.
 
 **Edge case: the names Clone Hero shows.** Clone Hero has a table of Rock Band section names, and shows a name from it when it finds one there, such as `Verse 1` for `verse_1`. It shows any other name with each `_` replaced by a space. It does the same in a `.chart` file.
@@ -98,7 +99,7 @@ Clone Hero ignores them. YARG reads `lyric` events, `phrase_start` and `phrase_e
 </Accordion>
 
 <Accordion title="A coda with one bracket, after a byte order mark, or in another type of text event">
-Clone Hero reads a coda only from a text event, `FF 01`, whose text is `coda` or `[coda]`, with nothing around it but white space. So `[coda` and `coda]` aren't a coda there, nor is a `[coda]` that starts with a byte order mark, U+FEFF, or a `[coda]` written as a lyric, marker or cue point event. scan-chart reads them as Clone Hero does, and keeps them as text. YARG reads neither `[coda` nor `coda]`, but reads a coda after a byte order mark, and in a lyric, marker or cue point event.
+A scanner reads a coda as Clone Hero does: only from a text event, `FF 01`, whose text is `coda` or `[coda]`, with nothing around it but white space. So `[coda` and `coda]` aren't a coda, nor is a `[coda]` that starts with a byte order mark, U+FEFF, or a `[coda]` written as a lyric, marker or cue point event. scan-chart reads them so, and keeps them as text. YARG reads neither `[coda` nor `coda]`, but reads a coda after a byte order mark, and in a lyric, marker or cue point event.
 </Accordion>
 
 <Accordion title="More than one coda or end">

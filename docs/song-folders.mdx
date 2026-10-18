@@ -102,15 +102,8 @@ Games choose differently between them: YARG plays the first of `.opus`, `.ogg`, 
 </Accordion>
 
 <Accordion title="No audio file">
-A folder whose only audio is `preview`, `crowd` or `.aiff` files has no audio. Clone Hero loads the song without sound. From its code, it still plays `crowd` audio if there is one. YARG doesn't load the song, unless the folder has `crowd` audio or a stem in `.aiff`, such as `song.aiff`, which YARG counts as the song's audio. A scanner doesn't load the song. scan-chart reports it as `noAudio`.
+A folder whose only audio is `preview`, `crowd` or `.aiff` files has no audio. Clone Hero loads the song without sound. From its code, it still plays `crowd` audio if there is one. YARG doesn't load the song, unless the folder has `crowd` audio or a stem in `.aiff`, such as `song.aiff`, which YARG counts as the song's audio. scan-chart reports it as `noAudio`.
 </Accordion>
-
-{/* review: Q-noaudio
-Each invalid form should say what a scanner does with it, but No audio file, here and on .sng files, only says what each game does: Clone Hero loads the song without sound, YARG doesn't load it, and scan-chart reports noAudio as an error and marks the song unplayable. Which should a scanner do?
-- A. Not load the song | "A scanner doesn't load the song", as YARG and scan-chart do. Clone Hero's silent load stays as its own reading | A charter sees the song is broken; a Clone Hero player can still play it silent
-- B. Load it without sound | "A scanner loads the song without sound", as Clone Hero does | scan-chart would list such a song as playable, and YARG and scan-chart would both read it against the rule
-Recommendation: A. A song without its audio isn't playable as charted, and two of the three readers already refuse it.
-*/}
 
 <Accordion title="A chart file with another name, such as song.mid">
 Clone Hero and YARG don't read it, so a folder with no `notes.chart` or `notes.mid` isn't a song there. YARG also reads `notes.midi` as a `.mid` chart. scan-chart reads a `.chart` or `.mid` file with another name when the folder has no `notes.chart` or `notes.mid`, and reports `invalidChart`.

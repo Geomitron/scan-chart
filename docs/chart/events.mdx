@@ -53,6 +53,16 @@ A lyric is one syllable or word of the vocals. Vocal phrases group lyrics into t
 
 A `.chart` file holds one set of lyrics, without pitches.
 
+Lyrics use the symbols and formatting tags of `.mid` lyrics, which change how a lyric is shown. See [Lyric symbols](/mid/vocals#lyric-symbols) and [Formatting tags](/mid/vocals#formatting-tags). **Required:** angle brackets only around those tags.
+
+{/* review: Q3
+The .mid Vocals page defines the lyric symbols, such as - to join the next syllable, and the formatting tags Clone Hero allows, and requires angle brackets only around those tags. This section mentioned neither. Clone Hero, YARG and scan-chart already read .chart lyrics through the same code as .mid lyrics, so the symbols and tags work the same in both formats. Should this page say so, and does the angle bracket requirement hold here too?
+- A. Both apply, as written now | The section links to Lyric symbols and Formatting tags, and requires angle brackets only around those tags. The .mid rule against [ and ] in a lyric stays .mid-only, since Clone Hero and scan-chart read a .chart lyric that starts with [ | One paragraph. A .chart lyric with other text in angle brackets becomes invalid; how many exist isn't counted
+- B. Symbols only | The section links to Lyric symbols, and the tags stay unspecified for .chart | One sentence. A .chart charter can't tell which tags work
+- C. Leave it | The page stays silent | A GuitarGame_ChartFormats reader finds no .chart lyric markup here
+Recommendation: A. It states what every reader already does, and gives .chart lyrics the same rule as .mid ones.
+*/}
+
 **Edge case: a lyric on a phrase's last tick.** A lyric on the tick where its phrase ends belongs to that phrase, unless the next phrase starts on that tick: then it belongs to the next phrase.
 
 **Edge case: the same lyric twice at one tick.** Clone Hero shows it twice. YARG and scan-chart keep one.

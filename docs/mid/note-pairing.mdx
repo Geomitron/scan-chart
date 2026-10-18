@@ -22,7 +22,7 @@ A `.chart` file writes each note's length in the note itself. See [Notes](/chart
 
 ## Pairing
 
-These rules apply to every note of an instrument track: notes, modifiers and phrases. Vocal tracks pair the same way.
+These rules apply to every note of an instrument track: notes, modifiers and phrases. Vocal tracks pair two notes of one pitch differently: see [Vocals and harmonies](/mid/vocals#invalid-forms).
 
 - A note-off ends a note of its own number and channel.
 - A note-on with velocity 0 is a note-off. A note-off's velocity has no effect.
@@ -68,7 +68,7 @@ After pairing and the cutoff, a scanner resolves the notes as in a `.chart` file
 ## Invalid forms
 
 <Accordion title="Overlapping notes of one number">
-Clone Hero ends the latest open note of the number first, then trims overlapping sustains, as [How notes resolve](/chart/note-resolution#trim-overlapping-sustains) says. So two overlapping notes read as they would in a `.chart` file. YARG and scan-chart read them as Clone Hero does. scan-chart reports `overlappingMidiNotes`. Saving with scan-chart keeps them as written.
+A scanner ends the latest open note of the number first, then trims overlapping sustains, as [How notes resolve](/chart/note-resolution#trim-overlapping-sustains) says. So two overlapping notes read as they would in a `.chart` file. Clone Hero, YARG and scan-chart read them this way. scan-chart reports `overlappingMidiNotes`. Saving with scan-chart keeps them as written.
 </Accordion>
 
 <Accordion title="Two note-ons of one number at one tick">

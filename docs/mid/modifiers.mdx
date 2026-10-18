@@ -86,7 +86,15 @@ An open note is strummed with no fret held. On 6-fret it's a note. On 5-fret it 
 `ENHANCED_OPENS` is a text event, `FF 01`, in the 5-fret track:
 
 - It's written `ENHANCED_OPENS`, **Recommended**, or `[ENHANCED_OPENS]`.
-- **Required:** at tick 0, before the track's first note.
+- **Required:** before the track's first note. **Recommended:** at tick 0.
+
+{/* review: Q7
+ENHANCED_OPENS and ENABLE_CHART_DYNAMICS each switch on a reading for the notes after them in the track: open notes 59, 71, 83 and 95, or accent and ghost velocities. This page required ENHANCED_OPENS at tick 0, before the track's first note. Drums requires ENABLE_CHART_DYNAMICS only before the track's first note, and recommends tick 0. No reader looks at the tick: Clone Hero and scan-chart apply each event to the notes whose note-on comes after it in the file, and YARG to the notes whose note-off comes after it. So an event at tick 960 before a first note at 1920 reads the same everywhere. Which level should both take?
+- A. The Drums page's levels for both, as written now | Required: before the track's first note. Recommended: at tick 0 | No reader changes. A file with ENHANCED_OPENS after tick 0 but before the first note becomes valid
+- B. This page's level for both | Required: at tick 0, before the track's first note, as GuitarGame_ChartFormats says for ENHANCED_OPENS ("at the start of the track") | Files every reader agrees on become invalid, and ENABLE_CHART_DYNAMICS's recommendation becomes a requirement
+- C. Keep both | Each page as it was | Two switches that work alike have different levels
+Recommendation: A. It requires exactly what readers need, and scan-chart's export writes both at tick 0 anyway.
+*/}
 
 An open note may be in a chord with fret notes only after `ENHANCED_OPENS`. Open SysEx events turn a chord into one open note. **Required:** open SysEx events over single notes only.
 
@@ -114,6 +122,7 @@ F0 08 50 53 00 00 <difficulty> <type> <value> F7
 | `F7` | The end of the SysEx event |
 
 - An end event ends the modifier its start began: the same difficulty byte and type.
+- **Required:** exactly this 8-byte form, with a difficulty byte from the table, a type byte below `14`, and a value byte of `00` or `01`.
 - **Recommended:** a difficulty byte from `00` to `03`, for each difficulty, rather than `FF`.
 
 ## Natural HOPOs
@@ -164,7 +173,7 @@ Every scanner reads the note as a tap. scan-chart keeps both modifiers when savi
 </Accordion>
 
 <Accordion title="Overlapping modifiers of one number">
-Clone Hero and scan-chart read every note under either of them as covered. YARG reads only the first, up to the first note-off. See [Note pairing](/mid/note-pairing#invalid-forms).
+A scanner reads every note under either of them as covered, as Clone Hero and scan-chart do. YARG reads only the first, up to the first note-off. See [Note pairing](/mid/note-pairing#invalid-forms).
 </Accordion>
 
 <Accordion title="Open SysEx events over a chord">
@@ -176,7 +185,7 @@ Clone Hero and scan-chart apply it only to the notes that start after it, so not
 </Accordion>
 
 <Accordion title="ENHANCED_OPENS spelled another way">
-Clone Hero reads it in any letter case, such as `[enhanced_opens]`, but only in a text event, `FF 01`, and not with spaces around it. scan-chart reads it as Clone Hero does. YARG reads it with spaces around it, and in other types of text event, but only in capitals.
+A scanner reads it as Clone Hero does: in any letter case, such as `[enhanced_opens]`, but only in a text event, `FF 01`, and not with spaces around it. scan-chart reads it so. YARG reads it with spaces around it, and in other types of text event, but only in capitals.
 </Accordion>
 
 <Accordion title="A SysEx event of another length">
@@ -188,11 +197,11 @@ In a 5-fret or 6-fret track, Clone Hero and YARG stop with an error on a tap or 
 </Accordion>
 
 <Accordion title="A Phase Shift event Clone Hero can't load">
-Clone Hero keeps the Phase Shift SysEx events of each type and difficulty apart, in 100 groups numbered type × 5 + difficulty, in decimal, with `FF` counted as 4. It fails to load a chart with an event whose number is 100 or more, on any track, with or without an end. So a tap with a difficulty byte from `50` up fails, and so does an event whose type byte is `14` or more. scan-chart refuses such a file too. YARG ignores types other than open and tap.
+Clone Hero keeps the Phase Shift SysEx events of each type and difficulty apart, in 100 groups numbered type × 5 + difficulty, in decimal, with `FF` counted as 4. It fails to load a chart with an event whose number is 100 or more, on any track, with or without an end. So a tap with a difficulty byte from `50` up fails, and so does an event whose type byte is `14` or more. A scanner refuses such a file, as scan-chart does. YARG ignores types other than open and tap.
 </Accordion>
 
 <Accordion title="A SysEx value byte other than 00 or 01">
-YARG ignores the event, and scan-chart reads it as an end.
+In a 5-fret or 6-fret track, Clone Hero fails to load a chart with a tap or open SysEx event of such a value, and a scanner refuses the file, as scan-chart does. YARG ignores the event. Every scanner ignores such an event in a drums track, and one of another type.
 </Accordion>
 
 <Accordion title="A start with no end">
