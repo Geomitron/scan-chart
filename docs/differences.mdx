@@ -3,38 +3,13 @@ title: "Differences from GuitarGame_ChartFormats"
 description: "Where this specification differs from GuitarGame_ChartFormats, and why."
 ---
 
-[GuitarGame_ChartFormats](https://github.com/TheNathannator/GuitarGame_ChartFormats) documents the chart files of many rhythm games, and this specification grew from it. Its authors dedicated it to the public domain. Where the two differ, this specification is the reference.
-
-{/* review: Q2
-The introduction no longer credits GuitarGame_ChartFormats, since you deleted "Where it comes from". Should this page open with the credit above?
-- A. One sentence here, as above | The page a GuitarGame_ChartFormats reader looks for credits it | None
-- B. Back on the introduction | The credit is on the first page | The introduction grows again
-- C. No credit | The page starts at its second paragraph | CC0 doesn't ask for credit, but the specification uses much of its content
-Recommendation: A.
-*/}
-
-The two differ in kind as well as in detail. GuitarGame_ChartFormats describes what games read, and what a program "should" or "may" do. This specification says what a valid file is, with **Required** and **Recommended**, and what a scanner does with each invalid form, so that every file reads the same everywhere. Where Clone Hero and YARG read a file differently, this specification follows one rule, and its pages give each game's reading as an edge case.
+[GuitarGame_ChartFormats](https://github.com/TheNathannator/GuitarGame_ChartFormats) describes what games read, and what a program "should" or "may" do. This specification says what a valid file is, with **Required** and **Recommended**, and what a scanner does with each invalid form, so that every file reads the same everywhere. Where Clone Hero and YARG read a file differently, this specification follows one rule, and its pages give each game's reading as an edge case.
 
 So many of the differences are of three kinds:
 
 - **Rules:** something GuitarGame_ChartFormats allows or recommends is required, recommended, deprecated or invalid here, or the reverse.
 - **Corrections:** GuitarGame_ChartFormats says a game does something it doesn't, or no longer does.
 - **Additions:** this specification covers something GuitarGame_ChartFormats doesn't.
-
-{/* review: Q3
-A correction compares GuitarGame_ChartFormats with what Clone Hero does. Some signed-off pages describe Clone Hero with changes drafted for it that haven't merged: that it plays a preview to preview_end_time, keeps the longer of a kick and a double kick at one tick, and reads pro_drum and star_power_note. Others describe Clone Hero 1.1 and add the coming change, as for a tom marker that covers no note, or leave out what Clone Hero 1.1 does, as for brackets on .mid sections and phrases of length 0. How should the pages name Clone Hero's behavior?
-- A. "Clone Hero 1.1" wherever a drafted change differs | Each such place says what Clone Hero 1.1 does, as the tom marker edge case does. About ten places, in six pages; each edge case comes out when the change is released | Ten small edits to signed-off pages, in the next revision
-- B. One sentence on the introduction | "Clone Hero" means its next release, with the changes agreed with its developers | A Clone Hero 1.1 player can't tell what the game does today; the pages are wrong if a change isn't merged
-- C. Leave them as they are | No edits | The pages say different things about one version
-Recommendation: A.
-*/}
-
-{/* review: Q4
-This page lists the differences that matter to a charter or a developer, by topic, with a link to each page: about 60. The research behind it found 272, as a table for each page of GuitarGame_ChartFormats. Should the page also give that full list?
-- A. The main differences, by topic, as now | A reader sees what changed in a few minutes, and each item links to the page with the rule | A small difference, such as a requirement word on one line, isn't listed
-- B. Add the full tables, by page of GuitarGame_ChartFormats | Every difference, looked up by the page a reader knows | About 270 rows, which go out of date when either side changes
-Recommendation: A. The format pages already state every rule; this page points a GuitarGame_ChartFormats reader to the ones that changed.
-*/}
 
 ## Song folders
 
@@ -61,7 +36,7 @@ Recommendation: A. The format pages already state every rule; this page points a
 - **Ticks never go backwards** in a section. GuitarGame_ChartFormats recommends it; Clone Hero refuses a file that breaks it.
 - **A tempo marker and a time signature at tick 0 are recommended, not required.** Without them, a chart plays at 120 BPM and 4/4 until its first marker, in every game: see [The start of the chart](/chart/sync-track#the-start-of-the-chart).
 - **Text events are written without square brackets** in both formats, such as `E section Intro`, and brackets stay valid: see [`[Events]`](/chart/events).
-- **`end` comes at least a beat after the last note,** and a chart has at most one. Clone Hero 1.1 never reads a `.chart` `end`. See [The end of the song](/chart/events#the-end-of-the-song).
+- **`end` comes at least a beat after the last note,** and a chart has at most one. See [The end of the song](/chart/events#the-end-of-the-song).
 - **`prc_` section names are deprecated:** write `section`.
 - **Ignored:** versus phrases, `S 0` and `S 1`; `H` events; and the `[Song]` keys of older tools.
 - **Additions:** a flam, [`N 109`](/chart/drums#flams), and [range shifts](/chart/instrument-sections#range-shifts), `E ld_range_shift`. Both extend the `.chart` format itself, where GuitarGame_ChartFormats advises a new file extension for any extension.
@@ -80,7 +55,7 @@ Recommendation: A. The format pages already state every rule; this page points a
 
 - **A track has one name,** a track name event as its first event at tick 0, in capitals: see [Track names](/mid/structure#track-names). Clone Hero names a track by its last name at tick 0, not its first. An instrument has at most one track, and with two, the first counts.
 - **Text is `FF 01`, in UTF-8,** in `EVENTS` and instrument tracks. GuitarGame_ChartFormats counts every meta event from `FF 01` to `FF 0F` as text, which no reader does. Lyrics are `FF 05`, or `FF 01`: see [Text](/mid/structure#text).
-- **Square brackets around text events are optional, and the recommended form has none,** which reverses GuitarGame_ChartFormats' advice. A range shift keeps its brackets. Clone Hero 1.1 reads `.mid` practice sections and `end` only with brackets.
+- **Square brackets around text events are optional, and the recommended form has none,** which reverses GuitarGame_ChartFormats' advice. A range shift keeps its brackets. See [EVENTS track](/mid/events).
 - **[Note pairing](/mid/note-pairing)** is new: at a shared tick, the note-off comes first. Overlapping notes of one number are invalid, and read as Clone Hero reads them.
 - **Running status kept across meta and SysEx events is valid,** since every reader keeps it. GuitarGame_ChartFormats calls it a fault.
 - **The header's track count must match the tracks,** and a scanner reads every track anyway. GuitarGame_ChartFormats calls the count metadata only.

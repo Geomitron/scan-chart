@@ -96,9 +96,3 @@ Converting a `.mid` file to `.chart` keeps every TrackHash for almost every char
 
 The [TrackHash](/hashes/btrack#trackhash) rounds each tempo to a thousandth of a BPM, so that every tempo of a `.mid` file, and every `.chart` tempo up to 245.316 BPM, converts with the same TrackHash. The SongHash changes when a TrackHash changes.
 
-{/* review: Q1
-Should the page give measured figures? On the whole library, on 12 October, before the .mid round-trip fixes: .chart to .mid kept every TrackHash in 37,486 of 42,386 songs (88.44%), and .mid to .chart in 21,282 of 21,308 (99.88%). A sample of 2,125 .chart songs after the fixes, on 15 October: 89.46%.
-- A. Words only, as now | "Almost every chart" and "about nine charts in ten" | Less precise, but stays true as converters change
-- B. Figures, measured again at the release | The release thread converts the whole library both ways at the release commit, and the page gives the figures and the date | A number describes the library and scan-chart's converter, not the formats, and goes out of date with each converter fix
-Recommendation: A on this page. The release thread can measure again and give the figures on the scan-chart tab.
-*/}
