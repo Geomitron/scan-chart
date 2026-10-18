@@ -111,6 +111,14 @@ describe('fixIssues: song.ini', () => {
 		expectHashesKept(result)
 	})
 
+	it('removes false drum type tags, which mean the same as no line, even from a .mid chart whose notes give no type', async () => {
+		const mid = midi({ 'PART DRUMS': [{ tick: 0, noteNumber: 96 }, { tick: 960, noteNumber: 97 }] })
+		const result = await fix(folder(['[song]', 'name = Song', 'pro_drums = False', 'five_lane_drums = False'], mid, 'notes.mid'), { codes: ['defaultIniValue'] })
+		expect(result.ini).toBe('[song]\r\nname = Song\r\n')
+		expect(result.report.fixed.map(entry => entry.description)).toEqual(['Removed "pro_drums = False" and "five_lane_drums = False", which changed nothing.'])
+		expectHashesKept(result)
+	})
+
 	it('renames frets and track to charter and album_track, in their place in the standard order', async () => {
 		const result = await fix(folder(['[song]', 'name = Song', 'frets = Someone', 'track = 3', 'delay = 90']), { codes: ['deprecatedIniTag'] })
 		expect(result.ini).toBe('[song]\r\nname = Song\r\ncharter = Someone\r\nalbum_track = 3\r\ndelay = 90\r\n')
@@ -491,6 +499,7 @@ describe('fixIssues: the HOPO threshold tags', () => {
 		const result = await fix(folder(['[song]', 'name = Song', 'hopo_frequency = 170', 'eighthnote_hopo = True'], expertChart('0 = N 0 0', '150 = N 1 0')))
 		expect(result.ini).toBe('[song]\r\nname = Song\r\n')
 		expect(result.report.fixed.map(entry => entry.description)).toEqual(['Forced 1 note to play the same without "hopo_frequency" and "eighthnote_hopo", and removed them.'])
+		expectHashesKept(result)
 	})
 
 	it('leaves the tags when the chart can\'t be read', async () => {
@@ -550,6 +559,15 @@ describe('fixIssues: multiplier_note = 103', () => {
 			.toEqual([['starPower', 900, 120], ['starPower', 1900, 100]])
 		expect(drumsTrack.events.filter(event => event.scope === 'instrument').map(event => [event.type, event.tick])).toEqual([['soloSection', 0]])
 		expect(result.codes.filter(code => code === 'deprecatedIniTag' || code === 'badStarPower')).toEqual([])
+		expectHashesKept(result)
+	})
+
+	it('reports star_power_note once when every code is fixed, though it also changes nothing beside multiplier_note', async () => {
+		const mid = midi({ 'PART GUITAR': [...[0, 960, 1920].map(tick => ({ tick, noteNumber: 96 })), { tick: 900, noteNumber: 103, length: 120 }] })
+		const result = await fix(folder(['[song]', 'name = Song', 'multiplier_note = 103', 'star_power_note = 116'], mid, 'notes.mid'))
+		expect(result.ini).toBe('[song]\r\nname = Song\r\n')
+		expect(result.report.fixed.map(entry => entry.description).filter(description => description.includes('star_power_note'))).toHaveLength(1)
+		expect(result.report.fixed.map(entry => entry.description).join('\n')).not.toContain('undefined')
 		expectHashesKept(result)
 	})
 

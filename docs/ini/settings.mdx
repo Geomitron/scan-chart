@@ -23,7 +23,7 @@ Here the drums are 5-lane, though their notes don't show it, and the background 
 | `five_lane_drums` | `True` when the drums are 5-lane |
 | `pro_drums` | `True` when the drums are pro, with cymbals |
 
-[Drums](/chart/drums#drum-types) gives how a scanner decides the drum type. **Recommended:** leave both keys out when the notes already give the type, and set one only when they don't. `False` means the same as leaving the key out. scan-chart reports a key that sets the type the notes already give as `redundantDrumType`, and `fixIssues` removes it.
+[Drums](/chart/drums#drum-types) gives how a scanner decides the drum type. **Recommended:** leave both keys out when the notes already give the type, and set one only when they don't. `False` means the same as leaving the key out: scan-chart reports `False` as `defaultIniValue` with its `styleNotes` option, and `fixIssues` removes it. scan-chart reports a key that sets the type the notes already give as `redundantDrumType`, and `fixIssues` removes it.
 
 ## Sustains and chords
 
