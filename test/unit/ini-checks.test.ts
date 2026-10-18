@@ -155,6 +155,9 @@ describe('song.ini tags', () => {
 		expect(await iniIssues(lines, ['unknownIniTag'], { extraIniKeys: ['CUSTOM', /^last_/] })).toEqual([])
 		expect(await iniIssues(lines, ['unknownIniTag'], { extraIniKeys: [/^last_/] })).toEqual([['unknownIniTag',
 			'"song.ini" has a tag no game reads: "custom". Remove it, unless your game reads it.']])
+		// Every game ignores hopofreq, a Frets on Fire X tag.
+		expect(await iniIssues(['[song]', 'name = Song', 'hopofreq = 2'], ['unknownIniTag'])).toEqual([['unknownIniTag',
+			'"song.ini" has a tag no game reads: "hopofreq". Remove it, unless your game reads it.']])
 	})
 
 	it('names up to four tags, then counts the rest', async () => {
@@ -338,12 +341,15 @@ describe('song.ini default values', () => {
 		expect(await keys(['multiplier_note = 103'], mid, 'notes.mid')).toEqual([])
 	})
 
-	it('reports a format\'s default only where Clone Hero and YARG agree', async () => {
+	it('reports a format\'s default, and a false drum type tag in either format', async () => {
+		const keys = async (lines: string[], chart?: Uint8Array, fileName?: string) => (await unneeded(lines, chart, fileName)).map(message => message.match(/"\w+ = /g))
 		const mid = midi({ 'PART GUITAR': [{ tick: 1920, noteNumber: 96 }], 'PART DRUMS': [{ tick: 1920, noteNumber: 97 }] })
-		expect(await unneeded(['sustain_cutoff_threshold = 0', 'pro_drums = False'])).toHaveLength(1)
-		expect(await unneeded(['sustain_cutoff_threshold = 0', 'pro_drums = False'], mid, 'notes.mid')).toEqual([])
-		expect(await unneeded(['five_lane_drums = False'], mid, 'notes.mid')).toHaveLength(1)
+		expect(await keys(['sustain_cutoff_threshold = 0', 'pro_drums = False'])).toEqual([['"sustain_cutoff_threshold = ', '"pro_drums = ']])
+		// A .mid chart has a cutoff by default.
+		expect(await keys(['sustain_cutoff_threshold = 0', 'pro_drums = False'], mid, 'notes.mid')).toEqual([['"pro_drums = ']])
+		expect(await keys(['five_lane_drums = False'], mid, 'notes.mid')).toEqual([['"five_lane_drums = ']])
 		const fiveLane = chartFile(['[ExpertDrums]', '{', '  768 = N 5 0', '}'])
-		expect(await unneeded(['five_lane_drums = False'], fiveLane)).toEqual([])
+		expect(await keys(['five_lane_drums = False'], fiveLane)).toEqual([['"five_lane_drums = ']])
+		expect(await keys(['pro_drums = True', 'five_lane_drums = False'], fiveLane)).toEqual([['"five_lane_drums = ']])
 	})
 })

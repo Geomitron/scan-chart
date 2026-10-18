@@ -54,7 +54,7 @@ const standardTags = [
 const gameTags = [
 	'diff_coop', 'diff_coopghl', 'diff_rhythmghl', 'md5_hash', 'banner_link_a', 'banner_link_b', 'bass_type', 'boss_battle', 'cassettecolor', 'count',
 	'credit_album_art_by', 'credit_album_cover', 'dance_type', 'drum_fallback_blue', 'early_hit_window_size', 'eof_midi_import_drum_accent_velocity',
-	'eof_midi_import_drum_ghost_velocity', 'guitar_type', 'hopofreq', 'keys_type', 'kit_type', 'link_name_a', 'link_name_b', 'real_keys_lane_count_left',
+	'eof_midi_import_drum_ghost_velocity', 'guitar_type', 'keys_type', 'kit_type', 'link_name_a', 'link_name_b', 'real_keys_lane_count_left',
 	'real_keys_lane_count_right', 'scores', 'scores_ext', 'sysex_high_hat_ctrl', 'sysex_open_bass', 'sysex_pro_slide', 'sysex_rimshot', 'sysex_slider',
 	'tutorial', 'unlock_completed', 'unlock_id', 'unlock_require', 'unlock_text',
 ]
@@ -213,8 +213,7 @@ export const deprecatedTags: ReadonlySet<string> = new Set(['delay', ...hopoTags
 
 /**
  * The keys that change nothing: set to what Clone Hero and YARG both read without them, for the chart's format, or tags
- * for older charts that another tag or setting overrides. A value only one game reads the same without, such as
- * `pro_drums = False` in a `.mid` chart, which YARG reads as 4-lane drums, isn't one.
+ * for older charts that another tag or setting overrides. A value only one game reads the same without isn't one.
  */
 function unneededKeys(songSection: SongSection, metadata: typeof defaultMetadata, chart: SongIniInput['chart']): string[] {
 	const keys: string[] = []
@@ -247,10 +246,9 @@ function unneededKeys(songSection: SongSection, metadata: typeof defaultMetadata
 	check('rating', isZero)
 	check('clean_vocals', isFalse)
 	check('tuning_offset_cents', isZero)
-	// YARG reads a .mid chart's drums as pro unless pro_drums is false, and five_lane_drums = False as 4-lane drums.
-	check('pro_drums', value => isFalse(value) && chart !== null && (chart.format === 'chart' || chart.drumType === null))
-	check('five_lane_drums', value => isFalse(value) && chart !== null
-		&& (chart.drumType === null || (parseBoolean(songSection.pro_drums) !== true && chart.drumType !== drumTypes.fiveLane)))
+	// A false drum type tag means the same as no line.
+	check('pro_drums', isFalse)
+	check('five_lane_drums', isFalse)
 	return Object.keys(songSection).filter(key => keys.includes(key))
 }
 
