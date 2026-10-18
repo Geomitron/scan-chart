@@ -41,6 +41,16 @@ A game plays any type of chart on any kit:
 
 - **Pro on a 4-lane kit:** cymbals are played as plain pads.
 - **5-lane on a 4-lane or pro kit:** the five pads become red, a yellow cymbal, a blue tom, a green cymbal from `N 4`, and a green tom from `N 5`.
+- **4-lane or pro on a 5-lane kit:** red stays red, a yellow cymbal is yellow, a yellow or blue tom is blue, a blue or green cymbal is orange, and a green tom is green. A yellow tom beside a blue tom becomes red, and a blue cymbal beside a green cymbal becomes yellow. A 4-lane chart's pads are toms.
+
+**Edge case: chords on a 5-lane kit.** Clone Hero also makes a yellow tom red when a blue cymbal shares its tick, and a blue cymbal yellow when a green tom does. YARG doesn't.
+
+{/* review: Q-kit
+This section said a game plays any type of drum chart on any kit, but gave only two conversions: pro on a 4-lane kit, and 5-lane on a 4-lane or pro kit. It left out the third, a 4-lane or pro chart on a 5-lane kit. Clone Hero and YARG both do it with GuitarGame_ChartFormats' table, and Clone Hero also moves notes in two more chord cases. No hash depends on it. Should the spec give it?
+- A. Add it, as written now | A third bullet, and Clone Hero's two extra chord cases as an edge case | Two short paragraphs about gameplay, which the games already agree on
+- B. Leave it out, and narrow the lead-in | "A game can play a chart on another kit. Two conversions decide how a chart reads:" | The page keeps only the conversions that decide a TrackHash. A new game has no mapping to follow
+Recommendation: A. Both games already agree, the lead-in promises every kit, and a reader who knows GuitarGame_ChartFormats will look for it.
+*/}
 
 **Edge case: `N 4` and `N 5` at one tick.** In a 5-lane chart played on a pro kit, Clone Hero and scan-chart give a green cymbal and a blue tom, and YARG a blue cymbal and a green tom. In a pro chart, Clone Hero and scan-chart move the `N 5` to a blue tom, and YARG plays both in the green lane: as two green notes, or with `N 68` as a green cymbal and a green tom. **Recommended:** `N 4` and `N 5` on different ticks in a pro chart.
 
@@ -56,7 +66,7 @@ A game plays any type of chart on any kit:
 | `5` | Green tom, in a pro chart | Green |
 | `32` | Double kick | Double kick |
 
-A drum note's length has no effect. An exporter should write 0.
+A drum note's length doesn't change how it's played: drums have no sustains. An exporter should write 0. A length still counts wherever a note's end does: in [the end of the song](/chart/events#the-end-of-the-song), the song's [duration](/hashes/songhash#duration) and the [TrackHash](/hashes/btrack#notes). Of `N 0` and `N 32` at one tick, a scanner keeps the longer: see [Invalid forms](#invalid-forms).
 
 ### Double kicks
 
@@ -115,7 +125,7 @@ A `mix` event sets up the drum audio for one difficulty, and its `d` flag turns 
 | Part | Values |
 |---|---|
 | Difficulty | `0` Easy, `1` Medium, `2` Hard, `3` Expert |
-| Configuration | `0` to `5`: which drum audio stems the song has |
+| Configuration | `0` to `5`: which drum audio stems the song has. Games find the stems from the audio files, and ignore it |
 | Flag | `d` turns disco flip on, and no flag turns it off. `dnoflip` swaps the snare and the other drum audio, as `d` does on 4-lane drums, without swapping notes |
 
 ```text
@@ -130,6 +140,8 @@ A `mix` event sets up the drum audio for one difficulty, and its `d` flag turns 
 - **Recommended:** disco flip events only in 4-lane and pro charts.
 
 **Edge case:** a scanner also accepts `_` between the parts, and square brackets around the text.
+
+**Edge case: `dnoflip` in Clone Hero.** Clone Hero swaps no audio for `dnoflip`, in a `.chart` or `.mid` file: red still plays the snare, as with no flip. YARG swaps the audio.
 
 **Edge case: disco flip in a 5-lane chart.** Clone Hero and scan-chart mark the red and yellow notes as flipped, and Clone Hero swaps them when the chart is played on a pro kit. YARG ignores `mix` events in a 5-lane chart.
 

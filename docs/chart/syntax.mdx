@@ -92,15 +92,15 @@ Every entry of the `SyncTrack`, `Events`, and instrument sections is an event:
 
 - **Tick:** the position, written in the digits `0` to `9`, without a sign.
 - **Type:** a code of one or two capital letters, such as `N` or `TS`.
-- **Values:** whole numbers in the digits `0` to `9`, or one text value in an `E` event. Each type takes a set number of values, and an event has exactly that number.
+- **Values:** whole numbers in the digits `0` to `9`, or one text value in an `E` event. Each type takes a set number of values, and an event has exactly that number. `TS` alone takes one or two: see [Time signatures](/chart/sync-track#time-signatures).
 - **Spaces:** exactly one space comes before and after the `=`, after the type, and between values.
 
 Each section holds only some types of event:
 
 | Section | Types |
 |---|---|
-| `SyncTrack` | `B` tempo and `TS` time signature |
-| `Events` | `E` text event |
+| `SyncTrack` | `B` tempo, `TS` time signature, and `A` tempo anchor, which is [ignored](#ignored) |
+| `Events` | `E` text event, and `H` from older charts, which is [ignored](#ignored) |
 | Instrument | `N` note, `S` phrase, and `E` text event |
 
 A scanner ignores a note or phrase value that has no meaning on its instrument, and an event of another type in an instrument section.

@@ -29,7 +29,7 @@ A whole song folder can also be packed into one file. See [.sng files](/sng).
 | `background.jpg` | An image shown behind the highway | See [Art and video](#art-and-video) |
 | `video.webm` | A video shown behind the highway | See [Art and video](#art-and-video) |
 
-A song folder should hold only files a game reads. Backups, editor projects and files the operating system adds, such as `desktop.ini`, `Thumbs.db` and `__MACOSX`, make the folder larger and do nothing. Some games read files this page doesn't name, such as YARG's `.aiff` audio and its `_clean` and `_explicit` audio files; those are allowed.
+A song folder should hold only files a game reads. Backups, editor projects and files the operating system adds, such as `desktop.ini`, `Thumbs.db` and `__MACOSX`, make the folder larger and do nothing. Some games read files this page doesn't name, such as YARG's `.aiff` audio, and its `_clean` and `_explicit` versions of some stems, such as `vocals_clean` and `vocals_1_explicit`; those are allowed.
 
 ### File names
 
@@ -72,6 +72,7 @@ A song's audio is one file, or several files called stems that are combined whil
 
 - **Required:** at least one of these files.
 - Each file is one of these names with the extension `.opus`, `.ogg`, `.mp3` or `.wav`. **Recommended:** `.opus`, at about 80 kbps: it's the smallest at the same quality. An `.ogg` file should be between 192 and 320 kbps.
+- YARG also plays these names with the extension `.aiff`. Clone Hero doesn't, so a `.aiff` file isn't one of the song's audio files, though a folder may hold one: see [Files](#files).
 - **Required:** at most one file for each name.
 - A scanner plays every audio file it finds together at the same time. So a folder should not hold `drums` with the numbered `drums_` files, or `vocals` with the numbered `vocals_` files.
 
@@ -101,8 +102,15 @@ Games choose differently between them: YARG plays the first of `.opus`, `.ogg`, 
 </Accordion>
 
 <Accordion title="No audio file">
-A folder whose only audio is `preview` or `crowd` has no audio. Clone Hero loads the song without sound. From its code, it still plays `crowd` audio if there is one. YARG doesn't load the song, unless the folder has `crowd` audio, which YARG counts as the song's audio. scan-chart reports it as `noAudio`.
+A folder whose only audio is `preview`, `crowd` or `.aiff` files has no audio. Clone Hero loads the song without sound. From its code, it still plays `crowd` audio if there is one. YARG doesn't load the song, unless the folder has `crowd` audio or a stem in `.aiff`, such as `song.aiff`, which YARG counts as the song's audio. A scanner doesn't load the song. scan-chart reports it as `noAudio`.
 </Accordion>
+
+{/* review: Q-noaudio
+Each invalid form should say what a scanner does with it, but No audio file, here and on .sng files, only says what each game does: Clone Hero loads the song without sound, YARG doesn't load it, and scan-chart reports noAudio as an error and marks the song unplayable. Which should a scanner do?
+- A. Not load the song | "A scanner doesn't load the song", as YARG and scan-chart do. Clone Hero's silent load stays as its own reading | A charter sees the song is broken; a Clone Hero player can still play it silent
+- B. Load it without sound | "A scanner loads the song without sound", as Clone Hero does | scan-chart would list such a song as playable, and YARG and scan-chart would both read it against the rule
+Recommendation: A. A song without its audio isn't playable as charted, and two of the three readers already refuse it.
+*/}
 
 <Accordion title="A chart file with another name, such as song.mid">
 Clone Hero and YARG don't read it, so a folder with no `notes.chart` or `notes.mid` isn't a song there. YARG also reads `notes.midi` as a `.mid` chart. scan-chart reads a `.chart` or `.mid` file with another name when the folder has no `notes.chart` or `notes.mid`, and reports `invalidChart`.
