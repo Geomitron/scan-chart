@@ -85,8 +85,8 @@ export async function fixIssues(song: SongDocument, options: FixOptions = {}): P
 	fixed = fixEmptyTracks(fixEmptyPhrases(fixed, issues, record), issues, record)
 	const songLength = issues.some(issue => issue.code === 'missingSongLength' || issue.code === 'songLengthMismatch') ? await longestAudio(song.files) : null
 	let rewritten = fixSongIni(fixed, new Set(issues.map(issue => issue.code)), findings, songLength, options, record)
-	// A song.ini fix can leave another line changing nothing, such as five_lane_drums = False once pro_drums is gone,
-	// so song.ini is checked again, twice at most.
+	// A song.ini fix can leave another line changing nothing, such as pro_drum = True renamed on a chart the notes make
+	// pro, so song.ini is checked again, twice at most.
 	for (let round = 0; round < 2 && rewritten !== fixed; round++) {
 		const again = songIniFindings(rewritten, songContext(rewritten), scanned.stats, { styleNotes: true }).filter(finding => makes(finding.metadataIssue))
 		const next = fixSongIni(rewritten, new Set(again.map(finding => finding.metadataIssue)), again, null, options, record)

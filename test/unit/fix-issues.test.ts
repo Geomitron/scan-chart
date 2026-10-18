@@ -100,13 +100,13 @@ describe('fixIssues: song.ini', () => {
 		expectHashesKept(result)
 	})
 
-	it('fixes what a fix leaves changing nothing, such as five_lane_drums = False once pro_drums is gone', async () => {
+	it('fixes what a fix leaves changing nothing, such as pro_drum = True renamed on a chart the notes make pro', async () => {
 		const drums = chartFile(['[ExpertDrums]', '{', '  768 = N 2 0', '  768 = N 66 0', '}'])
-		const result = await fix(folder(['[song]', 'name = Song', 'five_lane_drums = False', 'pro_drums = True'], drums), { codes: ['redundantDrumType', 'defaultIniValue'] })
+		const result = await fix(folder(['[song]', 'name = Song', 'pro_drum = True'], drums), { codes: ['deprecatedIniTag', 'redundantDrumType'] })
 		expect(result.ini).toBe('[song]\r\nname = Song\r\n')
 		expect(result.report.fixed.map(entry => entry.description)).toEqual([
+			'Renamed "pro_drum" to "pro_drums".',
 			'Removed "pro_drums", which games read the drums the same without.',
-			'Removed "five_lane_drums = False", which changed nothing.',
 		])
 		expectHashesKept(result)
 	})
