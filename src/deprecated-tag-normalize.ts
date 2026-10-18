@@ -108,7 +108,7 @@ function renamedOrRemoved(found: readonly MetadataFinding[]): TagFinding[] {
  * tag that changes nothing removed.
  */
 function tagFixes(tags: readonly TagFinding[], songSection: { readonly [key: string]: string }): IniFix[] {
-	return tags.flatMap(({ code, key }) => code === 'deprecatedIniTag' ? renameFix(key, songSection) ?? [] : [removalFix(code, key, songSection)])
+	return tags.flatMap(({ code, key }) => (code === 'deprecatedIniTag' ? renameFix(key, songSection) : removalFix(code, key, songSection)) ?? [])
 }
 
 /** Whether a song.ini is UTF-8, so a rewrite keeps every byte it doesn't change. */

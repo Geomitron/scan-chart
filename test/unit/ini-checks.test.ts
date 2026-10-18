@@ -303,6 +303,8 @@ describe('song.ini default values', () => {
 		const scanned = await scanSongFolder([{ fileName, data: chart }, { fileName: 'song.ini', data: encode(['[song]', ...lines].join('\r\n') + '\r\n') }], { styleNotes: true })
 		return scanned.issues.filter(issue => issue.code === 'defaultIniValue').map(issue => issue.message)
 	}
+	/** The keys of each message, as `"key = `. */
+	const keys = async (lines: string[], chart?: Uint8Array, fileName?: string) => (await unneeded(lines, chart, fileName)).map(message => message.match(/"\w+ = /g))
 
 	it('reports values games read the same without, once', async () => {
 		expect(await unneeded(['delay = 0'])).toEqual(['In "song.ini", "delay = 0" changes nothing: games read the song the same without it. Remove that line.'])
@@ -320,7 +322,6 @@ describe('song.ini default values', () => {
 	})
 
 	it('reports the tags for older charts that change nothing', async () => {
-		const keys = async (lines: string[], chart?: Uint8Array, fileName?: string) => (await unneeded(lines, chart, fileName)).map(message => message.match(/"\w+ = /g))
 		expect(await keys(['charter = Me', 'frets = Someone', 'album_track = 2', 'track = 3', 'end_events = 0'])).toEqual([['"frets = ', '"track = ', '"end_events = ']])
 		// Games read a tag whenever it's in the file, whatever its value.
 		for (const value of ['', '0', '-1']) expect(await keys([`charter = ${value}`.trim(), 'frets = Someone', `album_track = ${value}`.trim(), 'track = 3'])).toEqual([['"frets = ', '"track = ']])
@@ -342,7 +343,6 @@ describe('song.ini default values', () => {
 	})
 
 	it('reports a format\'s default, and a false drum type tag in either format', async () => {
-		const keys = async (lines: string[], chart?: Uint8Array, fileName?: string) => (await unneeded(lines, chart, fileName)).map(message => message.match(/"\w+ = /g))
 		const mid = midi({ 'PART GUITAR': [{ tick: 1920, noteNumber: 96 }], 'PART DRUMS': [{ tick: 1920, noteNumber: 97 }] })
 		expect(await keys(['sustain_cutoff_threshold = 0', 'pro_drums = False'])).toEqual([['"sustain_cutoff_threshold = ', '"pro_drums = ']])
 		// A .mid chart has a cutoff by default.

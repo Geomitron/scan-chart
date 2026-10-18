@@ -124,9 +124,13 @@ export interface IniFix extends IniFixSubject {
 
 type SongSection = { readonly [key: string]: string }
 
-/** The fix that removes `key`'s line for its issue of `code`, named by the line for a tag that changes nothing. */
-export function removalFix(code: IssueCode, key: string, songSection: SongSection): IniFix {
-	return { code, subject: code === 'defaultIniValue' ? `${key} = ${songSection[key]}` : key, remove: [key] }
+/**
+ * The fix that removes `key`'s line for its issue of `code`, named by the line for a tag that changes nothing, or `null`
+ * when song.ini no longer sets `key`. A chart fix may have removed it already, as the HOPO fix removes
+ * `eighthnote_hopo` with `hopo_frequency`.
+ */
+export function removalFix(code: IssueCode, key: string, songSection: SongSection): IniFix | null {
+	return songSection[key] === undefined ? null : { code, subject: code === 'defaultIniValue' ? `${key} = ${songSection[key]}` : key, remove: [key] }
 }
 
 /**
@@ -178,8 +182,10 @@ function fixSongIni(
 	if (codes.has('iniLayout')) fixes.push({ code: 'iniLayout', subject: 'the layout', layout: true })
 	if (codes.has('iniTagOrder')) fixes.push({ code: 'iniTagOrder', subject: 'the tag order', order: true })
 	for (const code of ['blankIniValue', 'blankIniNumber', 'defaultIniValue', 'redundantDrumType'] as const) {
-		// A chart fix may have removed the line already, as the HOPO fix removes eighthnote_hopo with hopo_frequency.
-		for (const key of keysOf(code)) if (songSection[key] !== undefined) fixes.push(removalFix(code, key, songSection))
+		for (const key of keysOf(code)) {
+			const fix = removalFix(code, key, songSection)
+			if (fix !== null) fixes.push(fix)
+		}
 	}
 	// Games read an older name, such as frets, only without a line of its tag, so a blank one goes only with it.
 	for (const [key, older] of olderTags) {
