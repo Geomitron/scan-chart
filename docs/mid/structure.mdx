@@ -89,10 +89,9 @@ Delta times can't be negative, so a track's events are always in tick order.
 A scanner reads a track's events at one tick in the order the file holds them. The order matters for:
 
 - a note-off and a note-on of one pitch. See [Note pairing](/mid/note-pairing#events-at-one-tick);
-- text events that change the notes after them, such as `ENHANCED_OPENS`. See [Note modifiers](/mid/modifiers#open-notes);
-- a vocal phrase's note-on and the lyric at its start tick. From its code, Clone Hero loses a phrase whose only lyric comes before the note-on. See [Phrases](/mid/vocals#phrases).
+- text events that change the notes after them, such as `ENHANCED_OPENS`. See [Note modifiers](/mid/modifiers#open-notes).
 
-**Recommended:** at one tick, the time signature before the tempo, as in a `.chart` file, and a vocal phrase's note-on before its lyric. scan-chart's export writes them in this order.
+**Recommended:** at one tick, the time signature before the tempo, as in a `.chart` file. scan-chart's export writes them in this order.
 
 ## The tempo track
 
@@ -166,7 +165,7 @@ YARG's song scan refuses the file. Clone Hero and scan-chart read the first 6 by
 </Accordion>
 
 <Accordion title="A track count that doesn't match the tracks">
-A scanner reads every track, whatever the header counts, as Clone Hero does. YARG's song scan reads only as many tracks as the header counts, so it doesn't list an instrument in a track after them, though YARG's gameplay reads that track. scan-chart reports the wrong count. Saving with scan-chart keeps the header as it is, and its export writes the right count.
+A scanner reads every track, whatever the header counts, as Clone Hero and YARG do. scan-chart reports the wrong count. Saving with scan-chart keeps the header as it is, and its export writes the right count.
 </Accordion>
 
 <Accordion title="A chunk of another kind among the tracks">
@@ -174,7 +173,7 @@ Clone Hero stops reading at the chunk, and keeps the tracks before it. YARG's so
 </Accordion>
 
 <Accordion title="A delta time longer than 4 bytes">
-Clone Hero misreads it, YARG's song scan refuses the file, and scan-chart reads it. scan-chart's export writes a standard delta time.
+Clone Hero misreads it, and YARG's song scan and scan-chart refuse the file.
 </Accordion>
 
 <Accordion title="Running status before a track's first channel event">

@@ -34,7 +34,7 @@ Its BTrack holds four sections:
 
 Its TrackHash is `JuNMNQmSSnOcJ5loj4W1niOlY9vU7MQZK-RtMemomls`. A `.mid` file with the same note and a tempo of 499,999 microseconds a beat, which is 120.00024 BPM, has the same TrackHash, because the TrackHash rounds each tempo to a thousandth of a BPM: see [TrackHash](#trackhash).
 
-This page specifies version 20260801 of the file. Clone Hero 1.1 hashes an older version: see [BTrack 20240320](/hashes/btrack-20240320). The [SongHash](/hashes/songhash) of a song holds the TrackHashes of all its tracks.
+This page specifies version 20260801 of the file. The legacy TrackHash is the hash of an older version: see [BTrack 20240320](/hashes/btrack-20240320). The [SongHash](/hashes/songhash) of a song holds the TrackHashes of all its tracks.
 
 ## Which tracks have one
 
@@ -213,12 +213,12 @@ A 5-lane chart's notes are those a pro kit plays: see [Playing one type on anoth
 
 ## What the TrackHash holds that games ignore
 
-A BTrack holds every event above, including some that the format pages call ignored, or that no game plays yet. A change to any of them changes the TrackHash, and an exporter that drops one changes it too:
+A BTrack holds every event above, including some that the format pages call ignored, or that no game plays. A change to any of them changes the TrackHash, and an exporter that drops one changes it too:
 
 - a drum fill or Big Rock Ending without a note, and a `.mid` fill on a difficulty where it covers no note;
 - `S 64` on 5-fret before the coda, and note 120 there;
 - `S 64` to `S 66` on 6-fret, and notes 120, 126 and 127 there;
-- lanes and `.chart` Big Rock Endings on 5-fret, which no game plays yet;
+- `.chart` lanes and Big Rock Endings on 5-fret, which no game plays;
 - each drum note's length;
 - a `.chart` cymbal marker on a tick without its note, which still makes the chart pro;
 - double kicks on Easy, Medium and Hard;

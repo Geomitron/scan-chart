@@ -48,7 +48,7 @@ A `.chart` file writes these phrases as `S` events, and solos as text events. Se
 
 Note 116 marks notes the player can earn star power from: hitting every note in it fills a quarter of the star power meter.
 
-Neither game adds star power to a chart that has none, except where Clone Hero reads solos as star power: see [Solos](#solos).
+Neither game adds star power to a chart that has none, except by reading solos as star power: see [Solos](#solos).
 
 ## Solos
 
@@ -56,7 +56,7 @@ Note 103 marks a solo. It covers its notes from its note-on up to, but not inclu
 
 Unlike a `.chart` solo, which covers its `soloend` tick, a `.mid` solo doesn't cover the tick of its note-off. To cover the same notes as a `.chart` solo, its note-off comes one tick after the `soloend` tick.
 
-**Edge case: solos read as star power.** Guitar Hero 1 charts mark star power with note 103, and don't set `multiplier_note`. So in a 5-fret, 6-fret or keys track with two or more solo notes, 103, and no star power note, 116, Clone Hero and scan-chart read the solos as star power. A `multiplier_note` of 103 or 116 in `song.ini` turns this off, and its value gives the star power note instead: see [Deprecated](#deprecated). YARG never does this in a song folder: it reads the notes as solos. An exporter gives such a track star power on note 116, or writes `multiplier_note = 116`. See [Settings](/ini/settings#deprecated).
+**Edge case: solos read as star power.** Guitar Hero 1 charts mark star power with note 103, and don't set `multiplier_note`. So in a 5-fret, 6-fret or keys track with two or more solo notes, 103, and no star power note, 116, Clone Hero, YARG and scan-chart read the solos as star power. A `multiplier_note` of 103 or 116 in `song.ini` turns this off, and its value gives the star power note instead: see [Deprecated](#deprecated). An exporter gives such a track star power on note 116, or writes `multiplier_note = 116`. See [Settings](/ini/settings#deprecated).
 
 ## Drum fills
 
@@ -90,7 +90,7 @@ A lane's velocity gives the difficulties it applies to:
 
 A lane should cover at least two notes, and only notes that fit its pattern, as in a `.chart` file. See [Lanes](/chart/phrases#lanes).
 
-**Edge case: lanes on 5-fret today.** YARG plays tremolo and trill lanes on 5-fret, and Clone Hero plays lanes only on drums. On 5-fret, YARG gives a note that two lanes cover to the earlier lane only.
+**Edge case: lanes on 5-fret.** YARG plays tremolo and trill lanes on 5-fret, and Clone Hero plays lanes only on drums. On 5-fret, YARG gives a note that two lanes cover to the earlier lane only.
 
 ## Deprecated
 

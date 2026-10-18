@@ -84,11 +84,16 @@ A converted chart reads the same only with some `song.ini` keys, because the two
 - **`delay`, `preview_start_time` and `preview_end_time`,** from `[Song]`'s `Offset`, `PreviewStart` and `PreviewEnd`, when `song.ini` doesn't set them, since a `.mid` file has no `[Song]`.
 - **A `song.ini` file,** when the song has none, with the values of `[Song]`.
 
-**Recommended:** in a `.mid` file, a note with no sustain is either length 0, or shorter than every scanner's cutoff, so that every game reads it with no sustain: shorter than `sustain_cutoff_threshold`, or without it, shorter than the resolution divided by 3, rounded down. YARG cuts only a sustain shorter than the cutoff, and its default cutoff is a tick less than Clone Hero's.
+{/* review: Q1
+Three rules on these pages exist only because of how YARG reads files today, and a YARG post asks YARG to change each one. Here, a note with no sustain in a .mid file was recommended shorter than every scanner's cutoff, since YARG's default cutoff is a tick lower and YARG keeps a sustain equal to it (post 5; a YARG user replied that YARG's cutoff follows GuitarGame_ChartFormats, and your answer to them is still to post). On both Drums pages, an exporter wrote the mix flags easy and easynokick only while no flip is on, since YARG ends a flip at them (post 4). On song.ini Settings, scan-chart keeps hopo_frequency and eighthnote_hopo beside hopofreq, since YARG would read hopofreq without them (post 5). With your answer to batch 4's Q3, should they go?
+- A. Drop all three | The pages describe YARG as the posts propose. scan-chart's fixIssues also removes the HOPO keys beside hopofreq, a small change with a test | A file that follows the pages can play differently in YARG until YARG changes. 9.0.0 waits for YARG's answer anyway
+- B. Keep the three rules | Such files play the same in YARG today | The pages give rules whose only reason, YARG's reading today, they no longer state
+Recommendation: A, as the pages are written now. If YARG keeps a reading, its rule comes back with the edge case.
+*/}
 
 When it converts to `.chart`, an exporter writes `[Song]` from `song.ini`, as [`[Song]`](/chart/song#metadata) says, and `song.ini` stays as it is.
 
-**Edge case: keys that don't need writing.** `hopo_frequency` and `eighthnote_hopo` change the threshold the same way in both formats, so the forced notes still cover them. `pro_drums` and `five_lane_drums` aren't needed when the notes give the drum type: in a `.mid` file, a tom marker that covers a note makes the chart pro, and a 5-lane green note makes it 5-lane. See [Drum types](/mid/drums#drum-types), which also says how YARG reads a `.mid` drums chart that has neither.
+**Edge case: keys that don't need writing.** `hopo_frequency` and `eighthnote_hopo` change the threshold the same way in both formats, so the forced notes still cover them. `pro_drums` and `five_lane_drums` aren't needed when the notes give the drum type: in a `.mid` file, a tom marker that covers a note makes the chart pro, and a 5-lane green note makes it 5-lane. See [Drum types](/mid/drums#drum-types).
 
 ## How often TrackHashes stay
 

@@ -21,8 +21,6 @@ With `sustain_cutoff_threshold = 65`, a note of length 65 has no sustain, and a 
 
 **Recommended:** leave `sustain_cutoff_threshold` out of a new chart, and write each sustain at the length it should play. Charts that set it stay valid.
 
-**Edge case:** YARG cuts only a sustain shorter than the cutoff, so with `sustain_cutoff_threshold = 65`, a note of length 65 keeps its sustain there.
-
 ## Decide strums and HOPOs
 
 The player plays each guitar note one of two ways. A **strum** must be strummed. A **HOPO**, a hammer-on or pull-off, can be played by pressing the fret alone, without strumming. The chart doesn't say which a note is: a scanner decides from where the note is, as below, and then the note's [modifiers](/chart/modifiers) can change the result.
@@ -73,8 +71,6 @@ So every note of a chord has one type, in every scanner that snaps.
 
 **Edge case: what still comes from the ticks as written.** Snapping decides no strum, HOPO or tap again. The notes that don't move keep the type they have at their written ticks, so a chord that snapping makes is a HOPO or tap chord when the note it joins is a single HOPO or tap note. A chord written at one tick is a strum unless a modifier changes it. The next note's natural HOPO is still measured from the tick where the moved note was written.
 
-**Edge case:** YARG doesn't read `chord_snap_threshold`, so it reads every note at its written tick.
-
 ## Remove duplicate notes
 
 After snapping, a track holds at most one note of each fret at a tick. When snapping makes two notes of one fret meet, a scanner keeps the longer one.
@@ -92,7 +88,7 @@ A sustain that ends on the tick where the next note of its fret starts doesn't o
 
 **Recommended:** end each sustain at or before the next note on its fret.
 
-**Edge case:** YARG doesn't trim overlapping sustains: it keeps each note's length as written.
+**Edge case:** in a `.chart` file, YARG doesn't trim overlapping sustains: it keeps each note's length as written.
 
 ## Deprecated
 

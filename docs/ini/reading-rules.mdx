@@ -100,7 +100,7 @@ In a text key, `0` and `-1` are text: `charter = 0` shows the charter as "0".
 ## Invalid forms
 
 <Accordion title="Lines before [song]">
-Clone Hero and scan-chart ignore them, and read the `[song]` section after them. YARG skips blank lines, but when the first line that isn't blank is a comment or a key line, it misses `[song]` and ignores the whole file. It also misses a `[song]` that comes right after another section's header. scan-chart reports any line that isn't blank before `[song]` as `iniLayout`, comments included, and `fixIssues` writes `[song]` on the first line, with the earlier lines kept as comments after it.
+Clone Hero, YARG and scan-chart ignore them, and read the `[song]` section after them. scan-chart reports any line that isn't blank before `[song]` as `iniLayout`, comments included, and `fixIssues` writes `[song]` on the first line, with the earlier lines kept as comments after it.
 </Accordion>
 
 <Accordion title="No [song] section">
@@ -140,7 +140,7 @@ Clone Hero can't read the file, so it reads the folder as if it had no `song.ini
 </Accordion>
 
 <Accordion title="A value that starts or ends with other white space, such as a no-break space">
-Clone Hero and scan-chart remove every kind of white space from both ends of a value. YARG removes only spaces and other characters up to U+0020, so a no-break space at either end stays part of the value there. A scanner removes it, as Clone Hero does. scan-chart doesn't write a value that starts or ends with white space.
+A scanner removes every kind of white space from both ends of a value, as Clone Hero, YARG and scan-chart do. scan-chart doesn't write a value that starts or ends with white space.
 </Accordion>
 
 <Accordion title="Quotation marks around a value">
@@ -162,9 +162,9 @@ Clone Hero and scan-chart read any whole number other than 0 as true, and anythi
 </Accordion>
 
 <Accordion title="A blank value">
-Clone Hero reads a blank number or boolean as not set, and blank text as empty. scan-chart reads every blank value as not set. Clone Hero doesn't list a song whose `name` is blank. When it creates a `song.ini`, Clone Hero writes a blank `icon`.
+Clone Hero reads a blank number or boolean as not set, and blank text as empty. scan-chart reads every blank value as not set. Clone Hero doesn't list a song whose `name` is blank.
 
-YARG reads a blank number as 0 and a blank boolean as false, and counts the key as set: a blank `preview_start_time` starts the preview at 0:00, a blank `album_track` sorts the song first, a blank difficulty shows 0 instead of no rating, a blank `sustain_cutoff_threshold` turns off the cutoff of a `.mid` file, and a blank `five_lane_drums` rules out 5-lane drums. It fills a blank text value from the `.chart` file's `[Song]` section.
+YARG reads a blank number as 0 and a blank boolean as false, and counts the key as set: a blank `preview_start_time` starts the preview at 0:00, a blank `album_track` sorts the song first, a blank difficulty shows 0 instead of no rating, and a blank `sustain_cutoff_threshold` turns off the cutoff of a `.mid` file.
 
 A scanner reads a blank value as not set, as if the key weren't in the file. A blank `charter` or `album_track` still counts as written, so a scanner doesn't read `frets` or `track` instead: see [Metadata](/ini/metadata#invalid-forms). scan-chart reports a blank number as `blankIniNumber`, and blank text as `blankIniValue` with its `styleNotes` option. `fixIssues` removes the line.
 </Accordion>

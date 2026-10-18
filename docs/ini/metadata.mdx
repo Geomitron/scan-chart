@@ -64,7 +64,7 @@ Clone Hero and YARG show the tags as formatting wherever they show the value:
 - Every tag works, including tags that change size and position, such as `<size>`, `<voffset>` and `<br>`, which can push text out of its space in the song list. In `loading_phrase`, YARG keeps only `<b>`, `<i>`, `<u>`, `<s>`, `<sub>`, `<sup>`, `<color>`, `<alpha>`, `<lowercase>`, `<uppercase>`, `<smallcaps>` and `<br>`.
 - **Recommended:** colors as `#RRGGBB`. The games also read 22 color names, such as `lime`, except Clone Hero in `loading_phrase`, where only `black`, `blue`, `green`, `orange`, `purple`, `red`, `white` and `yellow` work.
 - Tags in `charter` stop Clone Hero from finding an icon named after the charter: set [`icon`](#icon) instead.
-- Clone Hero removes the tags from text it sends out of the game, such as its Discord status. YARG sends them to Discord as written.
+- Clone Hero and YARG remove the tags from text they send out of the game, such as their Discord status.
 - scan-chart keeps the tags, unless its `removeStyleTags` option is `true`. The [SongHash](/hashes/songhash#style-tags) ignores them.
 - Both games ignore tags and letter case to sort and search. Clone Hero ignores any text between `<` and `>`, even when it isn't a tag, and both games show such text as written: `Song <Live>` shows its `<Live>`, but sorts as "Song", and a search for "live" doesn't find it in Clone Hero.
 
@@ -298,7 +298,7 @@ scan-chart's `fixIssues`, and its saving of an edited song, rename `frets` to `c
 ## Invalid forms
 
 <Accordion title="No name, or a blank one">
-Clone Hero doesn't list the song. YARG takes the name from the `.chart` file's `[Song]` section when it has one. Otherwise, it shows a blank `name` as "Unknown Name", and doesn't list a song with no `name` line. scan-chart shows "Unknown Name", and reports it as `missingValue`.
+Clone Hero doesn't list the song. YARG shows a blank `name` as "Unknown Name", and doesn't list a song with no `name` line. scan-chart shows "Unknown Name", and reports it as `missingValue`.
 </Accordion>
 
 <Accordion title="A blank charter or album_track, or album_track = -1, with frets or track">

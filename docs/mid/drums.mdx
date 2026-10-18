@@ -30,9 +30,7 @@ A drums chart is 4-lane, pro or 5-lane, as [Drum types](/chart/drums#drum-types)
 - A tom marker, 110, 111 or 112, that covers a note makes the chart pro, where a `.chart` file has a cymbal marker. The note may be of any difficulty, and may be a kick.
 - A 5-lane green note, 65, 77, 89 or 101, makes it 5-lane, where a `.chart` file has `N 5`.
 
-**Edge case: a tom marker that covers no note.** It changes no note, and doesn't make the chart pro. Released Clone Hero 1.1 and YARG still read the chart as pro. scan-chart's export writes the marker back, so the chart stays pro in those games.
-
-**Edge case: YARG's default type.** YARG reads a `.mid` drums chart that has no tom marker and no 5-lane green note as pro, unless `song.ini` has `pro_drums = False`. Every yellow, blue and green note is then a cymbal in YARG. Clone Hero and scan-chart read such a chart as 4-lane.
+**Edge case: a tom marker that covers no note.** It changes no note, and doesn't make the chart pro. YARG reads the chart as pro. scan-chart's export writes the marker back, so the chart stays pro there.
 
 Playing one type on another kit works as in a `.chart` file, with 100 and 101 in place of `N 4` and `N 5`. See [Playing one type on another kit](/chart/drums#playing-one-type-on-another-kit).
 
@@ -94,15 +92,11 @@ An accent is a note hit harder than the ones around it, and a ghost is one hit s
 - Without it, velocity has no effect.
 - Every pad note may be an accent or a ghost, 101 included. Kicks have no accents or ghosts. **Recommended:** after the event, kicks at a velocity other than 127 and 1.
 
-**Edge case: kick velocities.** Released Clone Hero reads a kick or double kick at velocity 127 or 1, after the event, as an accent or a ghost. YARG and scan-chart don't.
-
 In a `.chart` file, accents and ghosts are markers, `N 34` to `N 44`, and need no event. See [Accents and ghosts](/chart/drums#accents-and-ghosts).
 
 ### Flams
 
 Note 109 makes every drum note it covers a flam: two hits of the pad in quick succession. It's the `.mid` form of `N 109`, and covers a range instead of one tick. See [Flams](/chart/drums#flams).
-
-**Edge case:** YARG doesn't read note 109 in a drums track.
 
 ### Disco flip
 
@@ -126,7 +120,7 @@ A `mix` event sets up the drum audio for one difficulty, and its `d` flag turns 
 
 ## Ignored
 
-- **The `mix` flags `easy` and `easynokick`.** Clone Hero and scan-chart ignore them. YARG reads one as the end of a flip, so an exporter writes them only while no flip is on.
+- **The `mix` flags `easy` and `easynokick`.** Clone Hero, YARG and scan-chart ignore them.
 - **`ENABLE_CHART_DYNAMICS` in another track.**
 - **Notes 24 to 51,** which Rock Band charts use for animations, and YARG reads.
 - **Phase Shift SysEx events,** which have no meaning in a drums track.
@@ -143,7 +137,7 @@ Clone Hero and scan-chart read a tom. YARG switches a note between cymbal and to
 </Accordion>
 
 <Accordion title="95 and 96 at one tick">
-Clone Hero and scan-chart keep the longer, or the double kick when they're the same length. YARG keeps the one whose note-off comes first. scan-chart's export writes one of them.
+Clone Hero, YARG and scan-chart keep the longer, or the double kick when they're the same length. scan-chart's export writes one of them.
 </Accordion>
 
 <Accordion title="ENABLE_CHART_DYNAMICS after the track's first note">
@@ -163,5 +157,5 @@ Clone Hero and scan-chart use an event that turns the flip off, then `d`, then `
 </Accordion>
 
 <Accordion title="A dnoflip while a d flip is on">
-Released Clone Hero keeps the flip on until an event turns it off. YARG and scan-chart start no-flip at the `dnoflip`. scan-chart reports the pair as `discoNoflipDuringFlip`. Saving writes an event that turns the flip off on the tick before the `dnoflip`, unless a red or yellow note, or the `d` event, is on that tick.
+Clone Hero, YARG and scan-chart start no-flip at the `dnoflip`. scan-chart reports the pair as `discoNoflipDuringFlip`. Saving writes an event that turns the flip off on the tick before the `dnoflip`, unless a red or yellow note, or the `d` event, is on that tick.
 </Accordion>

@@ -99,7 +99,7 @@ A phrase is a note 105. It holds the notes and lyrics from its start tick throug
 - **Required:** each phrase has a length, and ends at or before the tick where the next phrase of its part starts.
 - **Recommended:** each phrase ends after its last note starts, or where the next phrase starts.
 
-**Edge case: a note or lyric on a phrase's end tick.** It belongs to that phrase, unless the next phrase starts on that tick: then it belongs to the next phrase. Clone Hero reads lyrics this way, and so do YARG's lyrics. YARG's vocals hold a phrase's notes only up to its end tick. So when no phrase starts on the end tick, YARG doesn't sing the note on it, and moves its lyric to the next phrase, or drops it after the last phrase.
+**Edge case: a note or lyric on a phrase's end tick.** It belongs to that phrase, unless the next phrase starts on that tick: then it belongs to the next phrase. Clone Hero and YARG read notes and lyrics this way.
 
 Unlike a `.chart` phrase, a `.mid` phrase is one note, so it always has an end.
 

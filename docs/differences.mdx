@@ -23,7 +23,7 @@ So many of the differences are of three kinds:
 
 ## song.ini
 
-- **`[Song]` doesn't fill gaps in `song.ini`.** When `song.ini` loads, a scanner takes the song's text metadata from it alone, even for a key it leaves out. `[Song]`'s `Offset`, `PreviewStart` and `PreviewEnd` are read only when `song.ini` doesn't set `delay`, `preview_start_time` or `preview_end_time`, and the two files must agree: see [`[Song]`](/chart/song). GuitarGame_ChartFormats prefers `song.ini` key by key, as YARG does.
+- **`[Song]` doesn't fill gaps in `song.ini`.** When `song.ini` loads, a scanner takes the song's text metadata from it alone, even for a key it leaves out. `[Song]`'s `Offset`, `PreviewStart` and `PreviewEnd` are read only when `song.ini` doesn't set `delay`, `preview_start_time` or `preview_end_time`, and the two files must agree: see [`[Song]`](/chart/song). GuitarGame_ChartFormats prefers `song.ini` key by key.
 - **Deprecated keys:** `delay`, `hopo_frequency`, `eighthnote_hopo`, `multiplier_note`, `frets` and `track`. `end_events` and `hopofreq` are ignored. `pro_drum` and `star_power_note` are older names, read only when the main key has no line. `sustain_cutoff_threshold` stays standard, though a new chart should leave it out. See [Settings](/ini/settings#deprecated) and [Metadata](/ini/metadata).
 - **Values are stricter:** see [Syntax](/ini/reading-rules#values). A blank value and `-1` are invalid, and read as a missing key: to leave a value unset, leave its key out. A comment starts with `;`, and `#` is invalid. No key takes a decimal number. **Recommended:** `True` and `False` for booleans, which are the only booleans in a `.sng` file.
 - **`delay` with a decimal point** is invalid, and read as seconds, as Clone Hero reads it: `delay = 1.5` is 1500 milliseconds. See [Settings](/ini/settings).
@@ -48,7 +48,7 @@ So many of the differences are of three kinds:
 - **A lane covers its end tick,** and lanes may overlap.
 - **A `.mid` lane has four velocity tiers:** 21 to 30 on every difficulty, 31 to 40 on Medium and up, 41 to 50 on Hard and up, and any other velocity on Expert alone. See [Lanes](/mid/phrases#lanes).
 - **A Big Rock Ending needs only note 120.** Notes 121 to 124 are optional, and span the same ticks as 120. See [Drum fills](/mid/phrases#drum-fills).
-- **Solos read as star power** in Clone Hero only in a track with two or more solos and no star power note, on 6-fret too, and never in YARG for a song folder. `multiplier_note` is deprecated: see [Solos](/mid/phrases#solos).
+- **Solos read as star power** only in a track with two or more solos and no star power note, on 6-fret too. `multiplier_note` is deprecated: see [Solos](/mid/phrases#solos).
 - **Additions:** every phrase covers a note, and one of length 0 covers the notes on its tick; what scanners do with overlapping phrases, nested solos and empty ones.
 
 ## .mid files
@@ -60,7 +60,7 @@ So many of the differences are of three kinds:
 - **Running status kept across meta and SysEx events is valid,** since every reader keeps it. GuitarGame_ChartFormats calls it a fault.
 - **The header's track count must match the tracks,** and a scanner reads every track anyway. GuitarGame_ChartFormats calls the count metadata only.
 - **A Phase Shift SysEx event counts only at exactly 8 bytes:** see [The Phase Shift SysEx event](/mid/modifiers#the-phase-shift-sysex-event).
-- **A tap covers its end tick,** as GuitarGame_ChartFormats says. Released Clone Hero and YARG don't tap a note there, so an exporter keeps notes off that tick: see [Taps](/mid/modifiers#taps).
+- **A tap covers its end tick,** as GuitarGame_ChartFormats says. YARG doesn't tap a note there, so an exporter keeps notes off that tick: see [Taps](/mid/modifiers#taps).
 - **`T1 GEMS` and `PART DRUM` are deprecated,** and the `BEAT` track is ignored.
 
 ## Drums
