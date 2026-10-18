@@ -135,7 +135,7 @@ A difficulty is a track only if it holds at least one note. [How notes resolve](
 ## Deprecated
 
 - **`T1 GEMS`,** the lead guitar track of Guitar Hero 1 charts. Clone Hero, YARG and scan-chart read it as `PART GUITAR`. Write `PART GUITAR` instead.
-- **`PART DRUM`,** a drums track name from FoFiX. Clone Hero and scan-chart read it as `PART DRUMS`, and YARG doesn't read it. Write `PART DRUMS` instead.
+- **`PART DRUM`,** a drums track name from FoFiX. Clone Hero, YARG and scan-chart read it as `PART DRUMS`. Write `PART DRUMS` instead.
 
 scan-chart's export writes both under their new names.
 
@@ -158,7 +158,7 @@ A scanner ignores it, as it ignores the forms that [Instrument sections](/chart/
 </Accordion>
 
 <Accordion title="Two notes of one number at one tick">
-Clone Hero and scan-chart keep the one with the longer sustain, as in a `.chart` file. YARG keeps the one that the first note-off ends. See [Note pairing](/mid/note-pairing#invalid-forms).
+Clone Hero, YARG and scan-chart keep the one with the longer sustain, as in a `.chart` file. See [Note pairing](/mid/note-pairing#invalid-forms).
 </Accordion>
 
 <Accordion title="Modifiers in a difficulty without notes">

@@ -72,7 +72,7 @@ A `.mid` file holds its lyrics, and the phrases that group them, in its vocal tr
 ## Invalid forms
 
 <Accordion title="Spaces around the text, or just inside the brackets">
-Clone Hero and YARG read ` section Intro ` and ` [section Intro] `, with spaces around the text, as a practice section, and scan-chart doesn't. Only YARG reads `[ section Intro]`. scan-chart keeps such text as it is.
+Clone Hero, YARG and scan-chart read ` section Intro ` and ` [section Intro] `, with spaces around the text, as a practice section. Only YARG reads `[ section Intro]`. scan-chart keeps such text as it is.
 </Accordion>
 
 <Accordion title="A practice section name with spaces at its ends">
@@ -86,11 +86,11 @@ Clone Hero skips the character after `section`, so `[sectionIntro]` is a section
 <Accordion title="A practice section with no name">
 Clone Hero and scan-chart read `[section ]` and `[prc_]` as a section named "", and YARG ignores them.
 
-Clone Hero also reads `[section]` as a section named "". It fails to load a chart that has `[prc]`, and doesn't list the song. YARG and scan-chart ignore both. scan-chart keeps the text, so a chart it saves with `[prc]` still fails in Clone Hero.
+Clone Hero also reads `[section]` and `[prc]` as a section named "". YARG and scan-chart ignore both. scan-chart keeps the text.
 </Accordion>
 
 <Accordion title="Two practice sections at one tick">
-Clone Hero uses the later one. YARG keeps both, sorted by name. scan-chart keeps both, and writes both.
+Clone Hero, YARG and scan-chart use the later one.
 </Accordion>
 
 <Accordion title="Lyrics or phrase events in EVENTS">

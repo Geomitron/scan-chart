@@ -136,7 +136,7 @@ A `mix` event sets up the drum audio for one difficulty, and its `d` flag turns 
 ## Ignored
 
 - **A `mix` event that names another difficulty** than its section's.
-- **The `mix` flags `easy` and `easynokick`,** which have no effect on the notes. YARG reads one as the end of a flip, so an exporter writes them only while no flip is on.
+- **The `mix` flags `easy` and `easynokick`,** which have no effect on the notes.
 - **`N 33` and `N 39`,** which some charts write for kick accents and ghosts. No scanner gives them a meaning.
 
 ## Invalid forms
@@ -154,7 +154,7 @@ A scanner reads other spellings as Clone Hero does, as the `.mid` [Drums](/mid/d
 </Accordion>
 
 <Accordion title="A mix event with another flag, such as drums0x">
-A scanner ignores it, as Clone Hero does, and scan-chart writes it back as it is. YARG reads it as an event that turns the flip off.
+A scanner ignores it, as Clone Hero and YARG do, and scan-chart writes it back as it is.
 </Accordion>
 
 <Accordion title="Two mix events of one difficulty at one tick">
@@ -162,7 +162,7 @@ Clone Hero and scan-chart use an event that turns the flip off, then `d`, then `
 </Accordion>
 
 <Accordion title="A dnoflip while a d flip is on">
-Released Clone Hero keeps the flip on until an event turns it off. YARG and scan-chart start no-flip at the `dnoflip`. scan-chart reports the pair as `discoNoflipDuringFlip`. Saving writes an event that turns the flip off on the tick before the `dnoflip`, unless a red or yellow note, or the `d` event, is on that tick.
+Clone Hero, YARG and scan-chart start no-flip at the `dnoflip`. scan-chart reports the pair as `discoNoflipDuringFlip`. Saving writes an event that turns the flip off on the tick before the `dnoflip`, unless a red or yellow note, or the `d` event, is on that tick.
 </Accordion>
 
 <Accordion title="A modifier on a tick without its note">

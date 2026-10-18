@@ -33,7 +33,6 @@ Here the drums are 5-lane, though their notes don't show it, and the background 
 | `chord_snap_threshold` | In ticks. Notes closer together than this are merged into chords |
 
 - [How notes resolve](/chart/note-resolution) gives what each one does. Without `sustain_cutoff_threshold`, a `.chart` file has no cutoff, and a `.mid` file has a default cutoff of about a third of a beat.
-- YARG doesn't read `chord_snap_threshold`.
 - **Recommended:** leave both out of a new chart, and write each sustain and each chord as it should play. Charts that set them stay valid.
 - scan-chart's converter writes `sustain_cutoff_threshold` when it converts a `.chart` file to `.mid`, so that sustains the `.mid` default would cut keep their length.
 
@@ -52,7 +51,7 @@ Older charts use these keys, and a scanner still reads them, so that those chart
 Removing a key changes how the chart plays, unless the chart changes with it. A [TrackHash](/hashes/btrack) holds the track as a scanner reads it, not these keys: see [What the TrackHash holds that games ignore](/hashes/btrack#what-the-trackhash-holds-that-games-ignore). So a chart rewritten to read the same without a key keeps its TrackHashes and its SongHash. Removing a key without rewriting the chart changes a TrackHash only where the track then reads differently, such as `multiplier_note = 103` in a track with star power.
 
 - **`delay`**, in whole milliseconds: Clone Hero moves every note this much later against the audio, or earlier when it's negative. YARG reads it too. A `delay` of 0 means not set, and a `.chart` file's `Offset` applies instead: see [[Song]](/chart/song). Line the notes up with the tempo map and the audio's leading silence instead. Removing `delay` moves every note in time, so the chart or the audio has to change with it. Clone Hero's song settings menu writes `delay` when a player changes the song's offset.
-- **`hopo_frequency`** and **`eighthnote_hopo`** change the HOPO threshold: see [How notes resolve](/chart/note-resolution#deprecated). A `hopo_frequency` of 0 or less means not set. Force the notes that should be strums or HOPOs instead. scan-chart's `fixIssues`, and its saving of an edited song, force each note whose strum or HOPO the keys change, and remove the keys. Every TrackHash and the SongHash stay the same. When song.ini also holds YARG's `hopofreq`, scan-chart keeps both keys, since YARG would read `hopofreq` without them.
+- **`hopo_frequency`** and **`eighthnote_hopo`** change the HOPO threshold: see [How notes resolve](/chart/note-resolution#deprecated). A `hopo_frequency` of 0 or less means not set. Force the notes that should be strums or HOPOs instead. scan-chart's `fixIssues`, and its saving of an edited song, force each note whose strum or HOPO the keys change, and remove the keys. Every TrackHash and the SongHash stay the same.
 - **`multiplier_note`**, `103` or `116`: the MIDI note that marks star power in a `.mid` file's 5-fret, 6-fret and keys tracks, and in YARG also in its drums track. A `.chart` file ignores it.
   - With `103`, a scanner reads note 103 as star power in those tracks, and ignores note 116 there. Move the star power phrases to note 116 instead, and remove the key. scan-chart's `fixIssues`, and its saving of an edited song, do so.
   - With `116`, a scanner reads note 116 as star power and note 103 as solos in those tracks. Without the key, it does the same, except in the tracks the edge case below describes.
@@ -60,17 +59,17 @@ Removing a key changes how the chart plays, unless the chart changes with it. A 
 - **`pro_drum`** and **`star_power_note`**, older names for `pro_drums` and `multiplier_note`. A scanner reads one only when the main key isn't in the file. YARG reads them as the main keys too, but when a file holds both names, it uses whichever line comes later. Write `pro_drums` instead of `pro_drum`, and treat `star_power_note` as `multiplier_note` above. scan-chart's `fixIssues`, and its saving of an edited song, rename them.
 - **`frets`** and **`track`**, older names for `charter` and `album_track`: see [Metadata](/ini/metadata#deprecated).
 
-**Edge case: `multiplier_note = 116`.** Note 103 also marks solos, and Guitar Hero 1 charts mark star power with it without setting the key. So in a `.mid` 5-fret, 6-fret or keys track with two or more solo notes and no star power, a scanner reads the solos as star power, unless `song.ini` sets `multiplier_note`. YARG reads them as solos. `multiplier_note = 116` keeps such a track's solos as solos: an exporter writes it only for a song with such a track. scan-chart's converter writes it in that case.
+**Edge case: `multiplier_note = 116`.** Note 103 also marks solos, and Guitar Hero 1 charts mark star power with it without setting the key. So in a `.mid` 5-fret, 6-fret or keys track with two or more solo notes and no star power, a scanner reads the solos as star power, unless `song.ini` sets `multiplier_note`. `multiplier_note = 116` keeps such a track's solos as solos: an exporter writes it only for a song with such a track. scan-chart's converter writes it in that case.
 
 ## Ignored
 
 - **`end_events`.** No game reads it. A chart's end events work the same either way: see [The end of the song](/chart/events#the-end-of-the-song). Leave it out. scan-chart reports it as `defaultIniValue` with its `styleNotes` option, and `fixIssues` removes it.
-- **`hopofreq`**, a Frets on Fire X key. Clone Hero and scan-chart ignore it. YARG reads `0` to `5` as a HOPO threshold when there's no `hopo_frequency` or `eighthnote_hopo` line, and lists a song with any other value as broken.
+- **`hopofreq`**, a Frets on Fire X key. Clone Hero, YARG and scan-chart ignore it.
 
 ## Invalid forms
 
 <Accordion title="A delay with a decimal point, such as delay = 1.5">
-A scanner reads it as seconds, as Clone Hero does, and drops any fraction of a millisecond: `delay = 1.5` is 1,500 milliseconds, `delay = -0.85` is -850, and `delay = 0.0004` is 0, which means not set. A value with a decimal point that isn't a number, such as `1.2.3`, is 0 too. Charts that hold such a `delay` mean seconds: it's often the `.chart` file's `Offset`, copied over. YARG reads the leading digits as milliseconds, so `delay = 1.5` is 1 millisecond there. scan-chart reports it as `invalidValue`.
+A scanner reads it as seconds, as Clone Hero and YARG do, and drops any fraction of a millisecond: `delay = 1.5` is 1,500 milliseconds, `delay = -0.85` is -850, and `delay = 0.0004` is 0, which means not set. A value with a decimal point that isn't a number, such as `1.2.3`, is 0 too. Charts that hold such a `delay` mean seconds: it's often the `.chart` file's `Offset`, copied over. scan-chart reports it as `invalidValue`.
 
 Clone Hero multiplies in single precision, so a few values come out 1 millisecond lower there: `delay = 0.251` is 250 milliseconds.
 </Accordion>

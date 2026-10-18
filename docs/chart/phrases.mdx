@@ -81,7 +81,7 @@ On 5-fret guitar, bass and keys, an `S 64` at or after the `coda` is a Big Rock 
 
 **Edge case: where a Big Rock Ending ends.** A drum fill covers its end tick, but Clone Hero's Big Rock Ending doesn't: a note on its end tick comes after it. **Recommended:** end a Big Rock Ending before the note that closes it.
 
-**Edge case: Big Rock Endings from a `.chart` file today.** YARG reads no Big Rock Ending from a `.chart` file, and Clone Hero plays one only on drums, so no game yet plays one on 5-fret guitar, bass or keys from a `.chart` file.
+**Edge case: Big Rock Endings on 5-fret.** Clone Hero and YARG play a `.chart` Big Rock Ending only on drums, so no game plays one on 5-fret guitar, bass or keys from a `.chart` file.
 
 ## Lanes
 
@@ -94,7 +94,7 @@ A lane should cover at least two notes, and only notes that fit its pattern: YAR
 
 **Edge case: lanes Clone Hero skips.** Clone Hero doesn't play a drum lane that covers only one pad note, or whose first pad note comes more than a sixteenth of a beat after its start: 12 ticks at a resolution of 192.
 
-**Edge case: lanes on 5-fret today.** YARG plays tremolo and trill lanes only from a `.mid` file, and Clone Hero plays lanes only on drums, so no game yet plays them from a `.chart` file. On 6-fret, `S 64` to `S 66` have no meaning.
+**Edge case: lanes on 5-fret.** YARG plays tremolo and trill lanes only from a `.mid` file, and Clone Hero plays lanes only on drums, so no game plays them from a `.chart` file. On 6-fret, `S 64` to `S 66` have no meaning.
 
 ## Ignored
 
