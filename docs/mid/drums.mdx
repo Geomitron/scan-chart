@@ -52,7 +52,7 @@ A drum note's length doesn't change how it's played, as in a `.chart` file. See 
 
 Note 95 is a kick that a scanner plays only when the player has the double kick modifier enabled, as `N 32` is in a `.chart` file. See [Double kicks](/chart/drums#double-kicks).
 
-**Recommended:** double kicks only on Expert, as note 95.
+**Recommended:** double kicks only on Expert, as note 95. **Required:** 95 and 96 not at one tick.
 
 **Edge case:** Clone Hero plays 59, 71 and 83 as double kicks on Easy, Medium and Hard, when the double kick modifier is on. YARG's song list doesn't count them, and scan-chart reports them as `difficultyForbiddenNote`.
 
@@ -62,7 +62,7 @@ A drum modifier is a note that changes how the pad notes it covers are hit. It c
 
 - **Required:** at least one note under each modifier.
 
-{/* review: Q-mod
+{/* review: Q8
 In a .chart file, a drum modifier on a tick without its note is invalid, and so is a .mid guitar modifier that covers no note. The .mid drums page set no rule for its own modifiers, the tom markers 110 to 112 and the flam 109, and treated a tom marker that covers no note as an edge case, which reads as valid. The reading is decided either way (R8, C9): such a marker changes no note and doesn't make the chart pro, though YARG reads the chart as pro. One library chart has one. Should a .mid drum modifier that covers no note be valid?
 - A. Invalid, like every other modifier, as written now | Modifiers gains "Required: at least one note under each modifier", and the edge case moves to Invalid forms with the same text, which is the scanner rule | The library chart becomes invalid, with no hash change. scan-chart doesn't report the .mid form, as it doesn't for guitar; a check would be optional release work
 - B. Valid | The edge case stays under Drum types, and Modifiers says a drum modifier may cover no note, and then changes nothing | The formats disagree on validity as well as on pro detection
@@ -83,6 +83,7 @@ In a pro chart, a yellow, blue or green note is a cymbal, unless a tom marker co
 
 - Red is always the snare, and 101 is always a tom.
 - In a 5-lane chart, tom markers have no effect: each pad is a tom or a cymbal by its lane.
+- **Required:** tom markers of one color don't overlap.
 
 ### Accents and ghosts
 
@@ -152,7 +153,7 @@ Clone Hero, YARG and scan-chart keep the longer, or the double kick when they're
 </Accordion>
 
 <Accordion title="ENABLE_CHART_DYNAMICS after the track's first note">
-Clone Hero and scan-chart give accents and ghosts only to the notes after it. YARG gives them to every note whose note-off comes after it, so a note that starts before the event and ends after it can be an accent there. scan-chart's export writes the event at tick 0, with velocity 127 or 1 only on the notes that had an accent or ghost.
+A scanner gives accents and ghosts only to the notes after it in the track, as Clone Hero and scan-chart do. YARG gives them to every note whose note-off comes after it, so a note that starts before the event and ends after it can be an accent there. scan-chart's export writes the event at tick 0, with velocity 127 or 1 only on the notes that had an accent or ghost.
 </Accordion>
 
 <Accordion title="ENABLE_CHART_DYNAMICS spelled another way">
@@ -164,7 +165,7 @@ A scanner reads other spellings as Clone Hero does. It reads more than one space
 </Accordion>
 
 <Accordion title="Two mix events of one difficulty at one tick">
-Clone Hero and scan-chart use an event that turns the flip off, then `d`, then `dnoflip`, as in a `.chart` file. YARG sorts the events at one tick by their text, so it uses `dnoflip`, then `d`, then an event that turns the flip off. scan-chart's export writes one event.
+A scanner uses an event that turns the flip off, then `d`, then `dnoflip`, as Clone Hero and scan-chart do, and as in a `.chart` file. YARG sorts the events at one tick by their text, so it uses `dnoflip`, then `d`, then an event that turns the flip off. scan-chart's export writes one event.
 </Accordion>
 
 <Accordion title="A dnoflip while a d flip is on">

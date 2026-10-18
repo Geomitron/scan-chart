@@ -45,7 +45,7 @@ A game plays any type of chart on any kit:
 
 **Edge case: chords on a 5-lane kit.** Clone Hero also makes a yellow tom red when a blue cymbal shares its tick, and a blue cymbal yellow when a green tom does. YARG doesn't.
 
-{/* review: Q-kit
+{/* review: Q6
 This section said a game plays any type of drum chart on any kit, but gave only two conversions: pro on a 4-lane kit, and 5-lane on a 4-lane or pro kit. It left out the third, a 4-lane or pro chart on a 5-lane kit. Clone Hero and YARG both do it with GuitarGame_ChartFormats' table, and Clone Hero also moves notes in two more chord cases. No hash depends on it. Should the spec give it?
 - A. Add it, as written now | A third bullet, and Clone Hero's two extra chord cases as an edge case | Two short paragraphs about gameplay, which the games already agree on
 - B. Leave it out, and narrow the lead-in | "A game can play a chart on another kit. Two conversions decide how a chart reads:" | The page keeps only the conversions that decide a TrackHash. A new game has no mapping to follow
@@ -72,7 +72,7 @@ A drum note's length doesn't change how it's played: drums have no sustains. An 
 
 `N 32` is a kick that a scanner plays only when the player has the double kick modifier enabled, because these kicks realistically need a double kick pedal to play properly. Charters alternate `N 0` and `N 32` in fast kick passages.
 
-**Recommended:** `N 32` only in `ExpertDrums`.
+**Recommended:** `N 32` only in `ExpertDrums`. **Required:** `N 0` and `N 32` not at one tick.
 
 **Edge case:** Clone Hero plays `N 32` in `EasyDrums`, `MediumDrums` and `HardDrums` as a double kick, when the double kick modifier is on. YARG never plays it there, and scan-chart reports it as `difficultyForbiddenNote`.
 
@@ -158,7 +158,7 @@ A scanner reads the chart as 5-lane.
 </Accordion>
 
 <Accordion title="N 0 and N 32 at one tick">
-Clone Hero and scan-chart keep the longer, or the double kick when they're the same length. YARG keeps both: one kick on Expert, and two on Expert+.
+A scanner keeps the longer, or the double kick when they're the same length, as Clone Hero and scan-chart do. YARG keeps both: one kick on Expert, and two on Expert+.
 </Accordion>
 
 <Accordion title="A mix event spelled another way">

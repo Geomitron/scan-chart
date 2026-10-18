@@ -19,9 +19,17 @@ Two words carry the requirements:
 
 For each requirement a file can break, the page says what a scanner does with the file, so that even invalid files read the same everywhere.
 
+{/* review: Q1
+This paragraph promises that for each requirement a file can break, the page says what a scanner does with the file. Many invalid forms only list what Clone Hero, YARG and scan-chart do, where they differ and no decision sets a reading: 30 of 77 on the .mid pages, and more on the .chart, song.ini, .sng and Files in a song folder pages, such as No audio file. The register settled most of them as "accept and document", which lists each game's reading but names none for a scanner. The 18 .mid forms a decision does settle now state it as the rule, as do two .chart and .mid forms the batch fixed. How should the pages keep the promise? The pages don't change for this yet: B's sentences come in the next revision.
+- A. A rule for every form, by one default | Where Clone Hero loads the file, a scanner reads it as Clone Hero does; where Clone Hero fails, a scanner refuses it; where Clone Hero reads nothing, such as vocal notes and harmonies, as YARG does | About 30 sentences on the .mid pages and more elsewhere, reviewed as one list. Some defaults would make an accidental reading the rule, such as [sectionIntro] read as a section named "ntro"
+- B. Rules where a hash depends on the form | A scanner rule for the forms that can change a TrackHash or SongHash, where Clone Hero and scan-chart already agree, or for a damaged container, read as Clone Hero does or refused. Elsewhere the page lists each reader, and this paragraph says so | About 13 sentences on the .mid pages, none of them new design. Forms that only change what's shown, such as section names, lyrics and a song without audio, keep reading differently
+- C. Narrow the promise | This paragraph says the page lists what each scanner does, and what a scanner does where the standard sets it | One sentence. No invalid form gains a rule
+Recommendation: B. Reading alike matters most where a hash depends on it, and there Clone Hero and scan-chart already agree, so each rule states what both do. It avoids making accidental readings the rule. A display-only form can get a rule later, where a game change is worth proposing. This paragraph would read: "For each requirement a file can break, the page says what each scanner does with the file. Where a hash depends on it, the page also says what a scanner does, so that even an invalid file hashes the same everywhere."
+*/}
+
 ## Terms
 
-These words have one meaning throughout the specification:
+These words have one meaning throughout the specification, except where the table gives a second:
 
 | Term | Meaning |
 |---|---|
@@ -29,5 +37,13 @@ These words have one meaning throughout the specification:
 | Exporter | Code that exports song folders, such as a chart editor or a converter. |
 | Tick | The unit of position in a chart. A chart's events are placed at whole ticks. |
 | Resolution | The number of ticks in a beat, which is a quarter note. |
-| Track | One instrument at one difficulty, such as Expert guitar. A `.chart` file writes each track as a section. A `.mid` file writes all of an instrument's difficulties in one MIDI track. |
+| Track | One instrument at one difficulty, such as Expert guitar. A `.chart` file writes each track as a section. A `.mid` file writes all of an instrument's difficulties in one MIDI track. The `.mid` pages call a MIDI track a track, as the MIDI standard does. |
 | Event | One line of a `.chart` section, or one MIDI event: a note, a modifier, a phrase, a tempo marker, or a text event. |
+
+{/* review: Q2
+The Terms table defines a track as one instrument at one difficulty, the thing a TrackHash names, and said each term has one meaning throughout. The .mid pages use "track" more than 200 times for a MIDI track, which holds all of an instrument's difficulties: the MIDI standard's own word (track chunk, track name, end of track). They never say "MIDI track". One .mid sentence uses the defined sense: "A difficulty is a track only if it holds at least one note." How should the term read?
+- A. Say "MIDI track" on the .mid pages | Every MIDI sense becomes "MIDI track", including titles such as "Instrument tracks" and "EVENTS track" | Dozens of edits, and heavier reading. MIDI's own names, such as "track name" and "end of track", stay as they are
+- B. Give the term its .mid sense in the table, as written now | The table says the .mid pages call a MIDI track a track, as the MIDI standard does, and the one sentence that means an instrument at one difficulty says so | Three small edits. "One meaning" gets one stated exception
+- C. Leave it | No change | The table's promise stays broken on eight pages
+Recommendation: B. The .mid pages follow the MIDI standard's word, readers coming from MIDI expect it, and the defined sense stays the one TrackHash uses.
+*/}

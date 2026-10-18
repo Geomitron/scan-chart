@@ -130,7 +130,7 @@ A range shift tells the player which frets a stretch of one 5-fret difficulty us
 
 ## Difficulties
 
-A difficulty is a track only if it holds at least one note. [How notes resolve](/chart/note-resolution) says how a scanner turns its notes into the notes a player plays, with the `.mid` differences on [Note pairing](/mid/note-pairing#the-sustain-cutoff) and [Note modifiers](/mid/modifiers#natural-hopos).
+A difficulty is a track, one instrument at one difficulty, only if it holds at least one note. [How notes resolve](/chart/note-resolution) says how a scanner turns its notes into the notes a player plays, with the `.mid` differences on [Note pairing](/mid/note-pairing#the-sustain-cutoff) and [Note modifiers](/mid/modifiers#natural-hopos).
 
 ## Deprecated
 
@@ -148,7 +148,7 @@ scan-chart's export writes both under their new names.
 ## Invalid forms
 
 <Accordion title="Two tracks for one instrument">
-Clone Hero reads the first, even when it has no notes. `T1 GEMS` and `PART GUITAR` are one instrument there, and so are `PART DRUM` and `PART DRUMS`. YARG's song list uses the first track that has a note. YARG's gameplay uses the last `PART GUITAR` or `PART DRUMS`, and otherwise the first track that holds anything, so the song list and the notes played can differ.
+A scanner reads the first, even when it has no notes, as Clone Hero does. `T1 GEMS` and `PART GUITAR` are one instrument, and so are `PART DRUM` and `PART DRUMS`. YARG's song list uses the first track that has a note. YARG's gameplay uses the last `PART GUITAR` or `PART DRUMS`, and otherwise the first track that holds anything, so the song list and the notes played can differ.
 
 scan-chart reports `multipleMidiTracks`. It reads every track, and its TrackHash uses the first. Saving with scan-chart keeps every track. scan-chart's export writes only the first, under its standard name.
 </Accordion>

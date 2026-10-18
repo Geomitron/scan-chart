@@ -35,7 +35,8 @@ These pages list each track under its name, with one event per line after its ti
 ## The file
 
 - **Required:** MIDI format 1, in which every track has its own timeline.
-- The file starts with a header chunk, `MThd`, whose body is 6 bytes long. It holds the format, the number of tracks and the resolution.
+- The file starts with a header chunk, `MThd`. It holds the format, the number of tracks and the resolution.
+- **Required:** a header body 6 bytes long.
 - **Required:** after the header, only `MTrk` chunks, one for each track the header counts.
 
 ## Resolution
@@ -77,7 +78,7 @@ A track holds three kinds of event:
 
 Rules for every track:
 
-- A delta time is at most 4 bytes long.
+- **Required:** each delta time at most 4 bytes long.
 - **Required:** an end of track event, `FF 2F`, as the track's last event.
 
 Delta times can't be negative, so a track's events are always in tick order.
@@ -173,7 +174,7 @@ Clone Hero stops reading at the chunk, and keeps the tracks before it. YARG's so
 </Accordion>
 
 <Accordion title="A delta time longer than 4 bytes">
-Clone Hero misreads it, and YARG's song scan and scan-chart refuse the file.
+A scanner refuses the file, as YARG's song scan and scan-chart do. Clone Hero misreads it.
 </Accordion>
 
 <Accordion title="Running status before a track's first channel event">
@@ -199,11 +200,11 @@ Clone Hero and scan-chart refuse the file. YARG's song scan refuses a resolution
 </Accordion>
 
 <Accordion title="More than one track name at tick 0, or an event before the name">
-Clone Hero and scan-chart use the last name at tick 0, and YARG uses the first name it recognizes. YARG skips the first event of the EVENTS, BEAT, VENUE and vocal tracks, taking it to be the name. It reads every tempo and time signature late when the tempo track's first event isn't at tick 0. scan-chart reports `multipleMidiTrackNames` for a track with more than one name at tick 0, and saving with scan-chart removes every name at tick 0 but the last.
+A scanner uses the last name at tick 0, wherever it is among the events at tick 0, as Clone Hero and scan-chart do. YARG uses the first name it recognizes. YARG skips the first event of the EVENTS, BEAT, VENUE and vocal tracks, taking it to be the name. It reads every tempo and time signature late when the tempo track's first event isn't at tick 0. scan-chart reports `multipleMidiTrackNames` for a track with more than one name at tick 0, and saving with scan-chart removes every name at tick 0 but the last.
 </Accordion>
 
 <Accordion title="A name in another letter case">
-Clone Hero and scan-chart read it, so `part guitar` is lead guitar. YARG ignores the track. scan-chart's export writes the name in capitals.
+A scanner reads it in any letter case, as Clone Hero and scan-chart do, so `part guitar` is lead guitar. YARG ignores the track. scan-chart's export writes the name in capitals.
 </Accordion>
 
 <Accordion title="A name with spaces at its ends, or no name at tick 0">
