@@ -487,6 +487,12 @@ describe('fixIssues: the HOPO threshold tags', () => {
 		expectHashesKept(both)
 	})
 
+	it('reports eighthnote_hopo once when every code is fixed, though it also changes nothing beside hopo_frequency', async () => {
+		const result = await fix(folder(['[song]', 'name = Song', 'hopo_frequency = 170', 'eighthnote_hopo = True'], expertChart('0 = N 0 0', '150 = N 1 0')))
+		expect(result.ini).toBe('[song]\r\nname = Song\r\n')
+		expect(result.report.fixed.map(entry => entry.description)).toEqual(['Forced 1 note to play the same without "hopo_frequency" and "eighthnote_hopo", and removed them.'])
+	})
+
 	it('leaves the tags when the chart can\'t be read', async () => {
 		const unreadable = new TextEncoder().encode('[Song]\r\n{\r\n  Resolution = 0\r\n}\r\n[ExpertSingle]\r\n{\r\n  0 = N 0 0\r\n}\r\n')
 		const result = await fix(folder(['[song]', 'name = Song', 'hopo_frequency = 170'], unreadable), { codes: ['deprecatedIniTag'] })

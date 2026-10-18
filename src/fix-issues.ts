@@ -178,7 +178,8 @@ function fixSongIni(
 	if (codes.has('iniLayout')) fixes.push({ code: 'iniLayout', subject: 'the layout', layout: true })
 	if (codes.has('iniTagOrder')) fixes.push({ code: 'iniTagOrder', subject: 'the tag order', order: true })
 	for (const code of ['blankIniValue', 'blankIniNumber', 'defaultIniValue', 'redundantDrumType'] as const) {
-		for (const key of keysOf(code)) fixes.push(removalFix(code, key, songSection))
+		// A chart fix may have removed the line already, as the HOPO fix removes eighthnote_hopo with hopo_frequency.
+		for (const key of keysOf(code)) if (songSection[key] !== undefined) fixes.push(removalFix(code, key, songSection))
 	}
 	// Games read an older name, such as frets, only without a line of its tag, so a blank one goes only with it.
 	for (const [key, older] of olderTags) {
