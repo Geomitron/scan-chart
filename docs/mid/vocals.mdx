@@ -88,10 +88,10 @@ A symbol at the end of a lyric changes how it's sung or shown. YARG reads each o
 - **Required:** `-` and `+` only at the end of a lyric. For a hyphen shown inside a lyric, write `=`.
 
 {/* review: Q9
-YARG and scan-chart take a symbol's meaning only from the end of a lyric, and $ from its start. Clone Hero joins the next syllable to any lyric that holds a - anywhere, and joins a lyric that starts with + to the syllable before it; it removes every - and + it shows. YARG's lyrics remove both and join nothing, and its vocals show the -. So "x-ray" then "sing" shows as "xraysing" in Clone Hero and "xray sing" in YARG's lyrics. The page called such a symbol meaningless. Is a lyric like that valid?
-- A. Invalid, as written now | Required: - and + only at the end of a lyric. For a hyphen shown inside a lyric, write =, which every reader shows as - | No game change. An invalid form lists each reader. Charts with a - inside a lyric become invalid; how many isn't counted
+YARG and scan-chart take a symbol's meaning only from the end of a lyric, and `$` from its start. Clone Hero joins the next syllable to any lyric that holds a `-` anywhere, and joins a lyric that starts with `+` to the syllable before it; it removes every `-` and `+` it shows. YARG's lyrics remove both and join nothing, and its vocals show the `-`. So `x-ray` then `sing` shows as "xraysing" in Clone Hero and "xray sing" in YARG's lyrics. The page called such a symbol meaningless. Is a lyric like that valid?
+- A. Invalid, as written now | Required: `-` and `+` only at the end of a lyric. For a hyphen shown inside a lyric, write `=`, which every reader shows as `-` | No game change. An invalid form lists each reader. Charts with a `-` inside a lyric become invalid; how many isn't counted
 - B. Valid, with no meaning | As YARG reads it. An edge case says what Clone Hero shows | A valid lyric shows differently in Clone Hero
-- C. Valid, and Clone Hero changes | As B, and a Clone Hero merge request joins only at a final - and doesn't join a lyric that starts with + | A small change to lyric display, with no hash. One more merge request for the Clone Hero developers
+- C. Valid, and Clone Hero changes | As B, and a Clone Hero merge request joins only at a final `-` and doesn't join a lyric that starts with `+` | A small change to lyric display, with no hash. One more merge request for the Clone Hero developers
 Recommendation: A. It gives charters one form that shows the same in every reader, and needs no game change.
 */}
 - Clone Hero and YARG show the symbols the same way in a `.chart` file's lyrics.
