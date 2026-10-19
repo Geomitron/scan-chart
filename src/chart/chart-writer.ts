@@ -9,7 +9,7 @@
 import type { DrumType, Instrument } from '../types'
 import { drumTypes, getInstrumentType, instrumentTypes } from '../types'
 import { drumMixText } from './disco-flip'
-import { codaTicksFromFreestyle, drumMixEvents, unwrapEventBrackets } from './writer-shared'
+import { chartTextForMidiEventsText, codaTicksFromFreestyle, drumMixEvents } from './writer-shared'
 import { computeHopoThresholdTicks, isNaturalHopo } from './natural-hopo'
 import type { NoteEvent, NoteType } from './types'
 import { noteFlags, noteTypes } from './types'
@@ -210,8 +210,10 @@ function serializeEventsSection(chart: ParsedChart): string[] {
 	let hasCodaInGlobalEvents = false
 	for (const ge of chart.unrecognized.eventsTrackTextEvents) {
 		// `.mid`-sourced events arrive bracket-wrapped; `.chart` E-events are
-		// written unwrapped.
-		const text = sourceIsMidi ? unwrapEventBrackets(ge.text) : ge.text
+		// written unwrapped, and left out where `.chart` would read them as an
+		// event the `.mid` file doesn't have.
+		const text = sourceIsMidi ? chartTextForMidiEventsText(ge.text) : ge.text
+		if (text === null) continue
 		// endEvents are already emitted above; skip duplicates here.
 		if (text.trim() === 'end') continue
 		events.push({ tick: ge.tick, text })

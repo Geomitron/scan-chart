@@ -1025,32 +1025,40 @@ function scanEventsSection(eventLines: string[]): ChartEventsScanResult {
 		const match = /^(\d+) = E "([^\r\n]*?)"$/.exec(line)
 		if (!match) continue
 		const tick = Number(match[1])
-		const text = chartEventText(match[2])
+		const event = readChartEventsText(match[2])
 
-		// `section NAME` or `prc NAME`, with a space or `_` before the name, which is trimmed; a trailing `]` that the
-		// text didn't open with stays in the name (`section <b>…</b> [credits]`). An empty name isn't a section. A tick
-		// holds one section, so a later one replaces it, as Clone Hero reads them (`Song.cs:487-503`).
-		const name = /^(?:section|prc)[ _](.*)$/.exec(text)?.[1].trim()
-		if (name) {
+		// A tick holds one section, so a later one replaces it, as Clone Hero reads them (`Song.cs:487-503`).
+		if (event?.type === 'section') {
 			const index = sectionIndexes.get(tick)
-			if (index === undefined) sectionIndexes.set(tick, result.sections.push({ tick, name }) - 1)
-			else result.sections[index] = { tick, name }
-			continue
-		}
-		if (text === 'end') {
+			if (index === undefined) sectionIndexes.set(tick, result.sections.push({ tick, name: event.name }) - 1)
+			else result.sections[index] = { tick, name: event.name }
+		} else if (event?.type === 'end') {
 			result.endEvents.push({ tick })
-			continue
-		}
-		if (text === 'coda') {
+		} else if (event?.type === 'coda') {
 			result.codaEvents.push({ tick })
-			continue
+		} else if (event === null) {
+			result.unrecognizedTextEvents.push({ tick, text: match[2] })
 		}
-		// Lyrics and phrase markers are extracted by the vocal parsing path — skip here
-		if (text === 'lyric' || text.startsWith('lyric ')) continue
-		if (text === 'phrase_start' || text === 'phrase_end') continue
-
-		result.unrecognizedTextEvents.push({ tick, text: match[2] })
+		// Lyrics and phrase markers are extracted by the vocal parsing path.
 	}
 	return result
+}
+
+/** An event a reader acts on in a `.chart` file's `[Events]` section. */
+export type ChartEventsText = { type: 'section'; name: string } | { type: 'end' | 'coda' | 'lyric' | 'phrase' }
+
+/**
+ * The event the text of a `.chart` `[Events]` line is, or `null` for text no reader acts on. A section is `section NAME`
+ * or `prc NAME`, with a space or `_` before the name, which is trimmed; a trailing `]` that the text didn't open with
+ * stays in the name (`section <b>…</b> [credits]`). An empty name isn't a section.
+ */
+export function readChartEventsText(rawText: string): ChartEventsText | null {
+	const text = chartEventText(rawText)
+	const name = /^(?:section|prc)[ _](.*)$/.exec(text)?.[1].trim()
+	if (name) return { type: 'section', name }
+	if (text === 'end' || text === 'coda') return { type: text }
+	if (text === 'lyric' || text.startsWith('lyric ')) return { type: 'lyric' }
+	if (text === 'phrase_start' || text === 'phrase_end') return { type: 'phrase' }
+	return null
 }
 
