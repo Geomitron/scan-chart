@@ -9,7 +9,7 @@ import { documentFiles, parseSongFiles, SongDocument } from 'src/song-document'
 import { fileBytes } from 'src/song-files'
 import { chartSpellingIssues } from 'src/spelling-issues'
 
-import { trackTexts } from './helpers/midi-files'
+import { midiFile, midiNote, midiText, trackTexts } from './helpers/midi-files'
 
 const encode = (text: string) => new TextEncoder().encode(text)
 const decode = (bytes: Uint8Array) => new TextDecoder().decode(bytes)
@@ -162,6 +162,19 @@ describe('convertChart', () => {
 		expect(report.dropped).toEqual([{ content: 'MIDI track VENUE', count: 1 }])
 		expect(decode(fileBytes(documentFiles(converted)[0])).split('}')[0]).toBe('[Song]\r\n{\r\n  Resolution = 480\r\n  Name = "Midi Song"\r\n')
 		expect(iniText(converted)).toBe('[song]\r\nname = Midi Song\r\n')
+	})
+
+	it('reports EVENTS text that [Events] would read as a coda, and a coda in a lyric event, as dropped from .chart', () => {
+		const midi = midiFile([
+			{ name: 'EVENTS', events: [midiText(0, '[coda'), midiText(0, '[coda]', 'lyrics'), midiText(0, '[crowd_clap]')] },
+			{ name: 'PART GUITAR', events: midiNote(0, 96) },
+		])
+		const { song: converted, report } = convertChart(parseSongFiles([{ fileName: 'notes.mid', data: midi }]), 'chart')
+		expect(report.dropped).toEqual([
+			{ content: 'events track MIDI events', count: 1 },
+			{ content: 'events track text that [Events] would read as an event', count: 1 },
+		])
+		expect(decode(fileBytes(documentFiles(converted)[0]))).toContain('[Events]\r\n{\r\n  0 = E "crowd_clap"\r\n}')
 	})
 
 	it('keeps a lyric on a vocal phrase\'s end tick in that phrase both ways', () => {

@@ -161,6 +161,31 @@ describe('writeMidiFile round-trip: EVENTS track', () => {
 		expect(trackTexts(eventsTrack)).toEqual([[0, '[section Intro]'], [1920, '[coda]'], [3840, '[end]']])
 	})
 
+	it('reads the coda only from a text event of coda or [coda], and writes the other forms back without making them one', () => {
+		const source = midiFile([
+			{ name: 'EVENTS', events: [midiText(0, '[coda'), midiText(0, 'coda]'), midiText(0, '[coda]', 'lyrics'), midiText(1920, ' [coda] ')] },
+			{ name: 'PART DRUMS', events: [...midiNote(960, 120, 240), ...midiNote(960, 97), ...midiNote(2400, 120, 240), ...midiNote(2400, 97)] },
+		])
+		const fills = (chart: ParsedChart) => chart.trackData.find(track => track.instrument === 'drums' && track.difficulty === 'expert')!
+			.drumFreestyleSections.map(fill => [fill.tick, fill.isCoda])
+		const parsed = parseChartAndIni([{ fileName: 'notes.mid', data: source }]).parsedChart!
+		expect(fills(parsed)).toEqual([[960, false], [2400, true]])
+
+		// The .mid export keeps the lyric a lyric and the one-bracket text as text, and writes the coda where the Big Rock
+		// Ending starts.
+		const written = writeMidiFile(parsed)
+		const eventsTrack = parseMidi(written).tracks.find(track => track.some(event => event.type === 'trackName' && event.text === 'EVENTS'))!
+		expect(trackTexts(eventsTrack)).toEqual([[0, '[coda'], [0, 'coda]'], [2400, '[coda]']])
+		expect(eventsTrack.filter(event => event.type === 'lyrics').map(event => event.text)).toEqual(['[coda]'])
+		expect(fills(parseChartAndIni([{ fileName: 'notes.mid', data: written }]).parsedChart!)).toEqual([[960, false], [2400, true]])
+
+		// [Events] would read `[coda` as a coda, so the .chart export leaves it out; it keeps `coda]`, which isn't one.
+		const chartText = writeChartFile(parsed)
+		expect(chartText).not.toContain('"[coda"')
+		expect(chartText).toContain('0 = E "coda]"')
+		expect(fills(parseChartAndIni([{ fileName: 'notes.chart', data: new TextEncoder().encode(chartText) }]).parsedChart!)).toEqual([[960, false], [2400, true]])
+	})
+
 	it('preserves unrecognized EVENTS events on .mid source', () => {
 		const chart = createEmptyChart({ format: 'mid' })
 		chart.unrecognized.eventsTrackTextEvents.push({ tick: 480, text: 'crowd_noclap', msTime: 0, msLength: 0 })

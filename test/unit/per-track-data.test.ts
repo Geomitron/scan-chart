@@ -852,6 +852,27 @@ describe('MIDI: global events', () => {
 		expect(result.unrecognizedEventsTrackTextEvents).toEqual([])
 	})
 
+	it('reads a section or end with white space around the text', () => {
+		const events: MidiData['tracks'][number] = [
+			{ deltaTime: 0, type: 'trackName', text: 'EVENTS' },
+			{ deltaTime: 0, type: 'text', text: '[section intro] ' },
+			{ deltaTime: 480, type: 'text', text: ' section verse_1\t' },
+			{ deltaTime: 480, type: 'text', text: '[section  chorus_1 ] ' },
+			{ deltaTime: 480, type: 'text', text: '[end] ' },
+			{ deltaTime: 0, type: 'endOfTrack' },
+		]
+
+		const midi = buildMidi(480, [tempoTrack(), events])
+		const result = parseNotesFromMidi(midi, defaultMetadata)
+		expect(result.sections).toEqual([
+			{ tick: 0, name: 'intro' },
+			{ tick: 480, name: 'verse_1' },
+			{ tick: 960, name: ' chorus_1 ' },
+		])
+		expect(result.endEvents).toEqual([{ tick: 1440 }])
+		expect(result.unrecognizedEventsTrackTextEvents).toEqual([])
+	})
+
 	it('returns empty array when no EVENTS track', () => {
 		const midi = buildMidi(480, [tempoTrack()])
 		const result = parseNotesFromMidi(midi, defaultMetadata)
