@@ -2,6 +2,10 @@
 	"$schema": "https://mintlify.com/docs.json",
 	"theme": "mint",
 	"name": "Chart specification",
+	"banner": {
+		"content": "**Draft for review.** This specification isn't authoritative until the Clone Hero and YARG developers have approved it, and scan-chart 9.0.0 isn't released yet.",
+		"dismissible": false
+	},
 	"colors": {
 		"primary": "#2F5597"
 	},
