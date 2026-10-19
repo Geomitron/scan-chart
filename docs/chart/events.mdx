@@ -28,8 +28,9 @@ A practice section marks where a part of the song starts, such as the intro or a
 <tick> = E "section <name>"
 ```
 
-- A space or `_` separates `section` from the name. **Recommended:** a space.
+- **Required:** a space or `_` between `section` and a name, and no spaces at the name's ends. **Recommended:** a space.
 - **Recommended:** at least one practice section in a chart.
+- **Required:** one practice section at most at a tick.
 
 **Edge case: the names Clone Hero shows.** Clone Hero has a table of Rock Band section names, and shows a name from it when it finds one there, such as `Verse 1` for `verse_1`. It shows any other name with each `_` replaced by a space. It does the same in a `.mid` file.
 
@@ -47,9 +48,11 @@ A lyric is one syllable or word of the vocals. Vocal phrases group lyrics into t
 
 - **A lyric** is `lyric`, a space, and the text.
 - **A phrase** runs from a `phrase_start` to the next `phrase_start` or `phrase_end`. It holds the lyrics from its start tick through its end tick.
-- **Every lyric** is inside a phrase.
-- **The last phrase** ends with a `phrase_end`.
-- **On a tick where one phrase ends and the next starts,** a `phrase_end` is optional. If there is one, it comes before the `phrase_start`.
+- **Required:** every lyric inside a phrase.
+- **Required:** a `phrase_end` at the end of the last phrase.
+- **On a tick where one phrase ends and the next starts,** a `phrase_end` is optional. **Required:** if there is one, it comes before the `phrase_start`.
+- **Required:** a `phrase_end` only where a phrase is open.
+- **Required:** no other text that starts with `phrase_start` or `phrase_end`.
 
 A `.chart` file holds one set of lyrics, without pitches.
 
@@ -84,7 +87,7 @@ Lyrics use the symbols and formatting tags of `.mid` lyrics, which change how a 
 
 ## Ignored
 
-- **Any other text.** YARG acts on a few more events, such as `crowd_clap`; other scanners ignore them.
+- **Any other text,** except text that starts with `phrase_start` or `phrase_end`. YARG acts on a few more events, such as `crowd_clap`; other scanners ignore them.
 - **A lyric with no text,** such as `E "lyric "`.
 
 ## Invalid forms
@@ -102,7 +105,7 @@ YARG and scan-chart remove them. Clone Hero removes the spaces at the end of the
 </Accordion>
 
 <Accordion title="A practice section with no name">
-YARG and scan-chart ignore `E "section"` and `E "section "`. Clone Hero reads them as a section named "", and fails to load a chart that has `E "prc"` alone.
+YARG and scan-chart ignore `E "section"` and `E "section "`. Clone Hero reads them as a section named "", and fails to load a chart that has `E "prc"` alone. A scanner that reads such a chart reads no section there, as YARG and scan-chart do.
 </Accordion>
 
 <Accordion title="A lyric outside every phrase">
@@ -126,7 +129,7 @@ Clone Hero reads any text that starts with `phrase_start`, such as `phrase_start
 </Accordion>
 
 <Accordion title="More than one coda or end">
-Clone Hero and scan-chart use the first `coda` and the first `end`. YARG looks for `end` among the song's last 10 song-wide events, and uses the last one it finds there. scan-chart reports `badEndEvent` for each `end` after the first, and saves them as written.
+A scanner uses the first `coda`, as Clone Hero and scan-chart do. Clone Hero and scan-chart also use the first `end`. YARG looks for `end` among the song's last 10 song-wide events, and uses the last one it finds there. scan-chart reports `badEndEvent` for each `end` after the first, and saves them as written.
 </Accordion>
 
 <Accordion title="An end less than a beat after the last note ends">

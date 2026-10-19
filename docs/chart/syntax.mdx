@@ -44,6 +44,8 @@ A scanner decodes a file by its byte order mark. It checks the marks in this ord
 
 **Required:** after a byte order mark, text that is valid in that encoding.
 
+**Required:** no other byte order mark, such as UTF-7's, `2B 2F 76`.
+
 **Edge case:** ISO-8859-1 reads each byte as the character with the same number. Bytes `80` to `9F` are control characters, not the characters Windows-1252 gives them, such as `€`.
 
 ## Sections
@@ -72,7 +74,7 @@ A section is a name in square brackets on its own line, then a body between curl
 | An instrument and difficulty, such as `ExpertSingle` | One track's notes and phrases. See [Instrument sections](/chart/instrument-sections) | |
 
 - `Events` and the instrument sections follow `SyncTrack`, in any order.
-- Each section name appears once.
+- **Required:** each section name once.
 
 ## Lines
 
@@ -94,6 +96,7 @@ Every entry of the `SyncTrack`, `Events`, and instrument sections is an event:
 - **Type:** a code of one or two capital letters, such as `N` or `TS`.
 - **Values:** whole numbers in the digits `0` to `9`, or one text value in an `E` event. Each type takes a set number of values, and an event has exactly that number. `TS` alone takes one or two: see [Time signatures](/chart/sync-track#time-signatures).
 - **Spaces:** exactly one space comes before and after the `=`, after the type, and between values.
+- **Required:** every event in exactly this form.
 
 Each section holds only some types of event:
 
@@ -103,11 +106,13 @@ Each section holds only some types of event:
 | `Events` | `E` text event, and `H` from older charts, which is [ignored](#ignored) |
 | Instrument | `N` note, `S` phrase, and `E` text event |
 
+**Required:** in `SyncTrack` and `Events`, only the types the table gives them.
+
 A scanner ignores a note or phrase value that has no meaning on its instrument, and an event of another type in an instrument section.
 
 ### Tick order
 
-Within a section, each event's tick is the same as the previous event's or later:
+**Required:** within a section, each event's tick the same as the previous event's or later:
 
 ```text
 [ExpertSingle]
@@ -129,8 +134,9 @@ Each entry of the `Song` section names a value:
 ```
 
 - The key is followed by exactly one space, `=`, and one space.
-- Each key appears once in the section.
+- **Required:** each key once in the section.
 - Text values are written in quotation marks: `Name = "Song Name"`. Numbers are written without them: `Resolution = 192`.
+- **Required:** every entry in exactly this form.
 
 [[Song]](/chart/song) lists the keys.
 
@@ -145,6 +151,8 @@ Text events are written differently in the two kinds of section:
 
 A `.chart` file has no escape characters. Text can't hold a line break, and a quotation mark inside the text is part of it.
 
+**Required:** no quotation marks around the text in an instrument section.
+
 **Edge case: brackets in `Events`.** A scanner removes spaces around the text, then one `[` at its start and one `]` at its end, so `0 = E "[section Intro]"` means the same as `0 = E "section Intro"`. Older charts write the brackets. An exporter writes the text without them. A bracket anywhere else is part of the text, as in `E "section Verse [2]"`.
 
 ## Ignored
@@ -155,16 +163,23 @@ A `.chart` file has no escape characters. Text can't hold a line break, and a qu
 
 ## Invalid forms
 
+{/* review: Q2
+Files Clone Hero refuses and scan-chart reads. About this specification promises a scanner rule wherever a hash depends on an invalid form. For some invalid `.chart` files, Clone Hero refuses the file or never finds the chart, so it calculates no hash, while scan-chart reads what the file probably means and calculates hashes. You decided that on 2026-10-14, and canonical rule C15 allows it. The forms are: on Syntax, bytes not valid in the encoding of the byte order mark, the UTF-7 mark, events out of tick order, an event of another type in `SyncTrack` or `Events`, and other spellings, such as a missing `=`; on `[Events]`, `E "prc"` alone; and on Files in a song folder, a chart file with another name, such as `song.mid`, or with an uppercase extension, such as `notes.MID`. Refusing them as Clone Hero does, as the `.mid` page does for a file cut inside an event, would reverse the 2026-10-14 decision, so it isn't offered here. The choice is what the Invalid forms accordions of these forms say a scanner does.
+- A. State scan-chart's reading for a scanner that reads the file, as written now | Each accordion keeps Clone Hero's refusal and adds one sentence, such as "A scanner that reads it reads each section's events in tick order, as scan-chart does" | Eight sentences. A third scanner that hashes these files, such as YARG's hasher, must then read them as scan-chart does
+- B. No rule | The accordions keep listing each reader, and the Requirements section of About this specification adds "or that Clone Hero refuses the file" | One sentence. Clone Hero and scan-chart can't hash such a file differently, since Clone Hero has no hash, but a third scanner can read it any way
+Recommendation: A. It keeps the 2026-10-14 decision and C15, every hash that exists agrees, and each reading takes one sentence.
+*/}
+
 <Accordion title="Bytes that aren't valid in the encoding of the byte order mark">
-Clone Hero refuses the file. scan-chart reads each byte sequence that isn't valid as the replacement character, U+FFFD, and keeps the bytes as they are when saving.
+Clone Hero refuses the file. A scanner that reads it reads each byte sequence that isn't valid as the replacement character, U+FFFD, and takes no metadata from `[Song]`, as scan-chart does. scan-chart keeps the bytes as they are when saving.
 </Accordion>
 
 <Accordion title="2B 2F 76, the mark of UTF-7, at the start of the file">
-Clone Hero refuses the file. scan-chart doesn't check for the mark, and reads the file as one without a byte order mark.
+Clone Hero refuses the file. A scanner that reads it reads it as a file without a byte order mark, and takes no metadata from `[Song]`, as scan-chart does.
 </Accordion>
 
 <Accordion title="Events out of tick order">
-Clone Hero refuses a file whose events go back in time in any section. YARG's song list refuses the file too. YARG's chart loader sorts the instrument sections, and drops each `SyncTrack` or `Events` line that goes back in time. scan-chart reports `unsortedChartLines`, and saving puts the lines in tick order.
+Clone Hero refuses a file whose events go back in time in any section, and YARG's song list refuses the file too. A scanner that reads it reads each section's events in tick order, keeping the file's order at one tick, as scan-chart does. YARG's chart loader sorts the instrument sections, and drops each `SyncTrack` or `Events` line that goes back in time. scan-chart reports `unsortedChartLines`, and saving puts the lines in tick order.
 </Accordion>
 
 <Accordion title="Two tempo markers, or two time signatures, at one tick in SyncTrack">
@@ -172,23 +187,31 @@ Both games use the later one, and so does scan-chart. Saving removes the earlier
 </Accordion>
 
 <Accordion title="A section name that appears twice">
-Clone Hero reads the first instrument section with that name. It joins every `[Song]`, `[SyncTrack]` and `[Events]` section into one, and the last `Resolution` counts. YARG's chart loader reads the first `[Song]` and `[SyncTrack]`, and joins the `[Events]` sections and the instrument sections of one name. scan-chart reads the first section with each name, and ignores the rest. Saving removes the others.
+A scanner reads the first section with each name, and ignores the rest, as scan-chart does. Clone Hero reads the first instrument section with that name, but joins every `[Song]`, `[SyncTrack]` and `[Events]` section into one, and the last `Resolution` counts. YARG's chart loader reads the first `[Song]` and `[SyncTrack]`, and joins the `[Events]` sections and the instrument sections of one name. Saving with scan-chart removes the others.
 </Accordion>
+
+{/* review: Q3
+A repeated `[Song]`, `[SyncTrack]` or `[Events]` section. You decided on 2026-10-14 that a file must not repeat a section name, and that a reader of one that does uses the first, as scan-chart does. Clone Hero loads such a file but joins the sections: the last `Resolution` counts, every tempo and time signature counts, and so does a coda in the second `[Events]`. So Clone Hero and scan-chart give one file different TrackHashes, which canonical rule C15 doesn't allow for a file both accept. No library chart has the form (register R50). The accordion "A section name that appears twice" states the decided rule either way; the choice is what to do about Clone Hero.
+- A. Propose the first-section reading to Clone Hero, as written now | A Clone Hero change, gated by its parse fixes, reads only the first `[Song]`, `[SyncTrack]` and `[Events]`, as it already does for instrument sections | One more merge request. No library chart's hash changes
+- B. scan-chart calculates no hash for such a file | scan-chart keeps reading the first section for its checks and saving, and refuses only the hashes, as it does for a time signature too large for a BTrack | No game change. The accordion's rule becomes "a scanner calculates no hash for such a file", a narrower reading of the 2026-10-14 decision
+- C. Accept the difference | The accordion says Clone Hero joins them, so it hashes such a file differently | The only form on these pages where Clone Hero and scan-chart both hash a file, with different results, by design
+Recommendation: A. It keeps the decided reading and the promise that an invalid file hashes alike, and it changes no library chart. B is the fallback if the Clone Hero developers don't want the change.
+*/}
 
 <Accordion title="No Song section">
 A scanner reads the file with a resolution of 192, as it reads a `[Song]` section without `Resolution`. scan-chart's saving adds a `[Song]` section with `Resolution = 192`.
 </Accordion>
 
 <Accordion title="No SyncTrack section">
-From its code, Clone Hero plays the chart at 120 BPM in 4/4. YARG's chart loader and scan-chart refuse the file.
+A scanner refuses the file, as YARG's chart loader and scan-chart do. From its code, Clone Hero plays the chart at 120 BPM in 4/4.
 </Accordion>
 
 <Accordion title="Song not first, or SyncTrack not second">
-Clone Hero takes the song's metadata from the file's first section, whatever its name, and finds `Resolution` in `[Song]` wherever it is. YARG's chart loader refuses the file, and its song list reads `[Song]` only when the file starts with it. scan-chart reads `[Song]` and `[SyncTrack]` wherever they are, and takes the metadata from the first section, as Clone Hero does. Saving puts them first.
+A scanner reads `[Song]` and `[SyncTrack]` wherever they are, and takes the song's metadata from the file's first section, whatever its name, as Clone Hero and scan-chart do. YARG's chart loader refuses the file, and its song list reads `[Song]` only when the file starts with it. Saving with scan-chart puts them first.
 </Accordion>
 
 <Accordion title="An event of another type in SyncTrack or Events">
-Clone Hero refuses a file with one in `SyncTrack` or `Events`, and YARG skips it. scan-chart keeps it, and writes it back as it is.
+Clone Hero refuses a file with one in `SyncTrack` or `Events`. A scanner that reads it ignores the event, as YARG and scan-chart do. scan-chart keeps it, and writes it back as it is.
 </Accordion>
 
 <Accordion title="A quoted text event in an instrument section">
@@ -196,5 +219,5 @@ Clone Hero, YARG and scan-chart read `768 = E "solo"` as a solo. The same holds 
 </Accordion>
 
 <Accordion title="Other spellings, such as a missing = or extra spaces">
-Games read these differently, or not at all. scan-chart reads each line by its probable meaning, and saving writes the standard spelling. [Nonstandard files](/scan-chart/nonstandard-files) lists them.
+Games read these differently, or not at all. A scanner reads such a line as Clone Hero does where Clone Hero loads the file, and otherwise by its probable meaning, as scan-chart does. [Nonstandard files](/scan-chart/nonstandard-files) lists them. Saving with scan-chart writes the standard spelling.
 </Accordion>

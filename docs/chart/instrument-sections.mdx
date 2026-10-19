@@ -95,6 +95,7 @@ The 6-fret frets are in two rows: three black frets on top and three white frets
 
 - Notes of different values at one tick form a chord. Each note of a chord keeps its own length, so a chord's sustains can end at different ticks.
 - An open note may be in a chord with fret notes. The player holds the fret notes and strums.
+- **Required:** one note of each value at most at a tick.
 
 ## Range shifts
 
@@ -122,7 +123,7 @@ A range shift tells the player which frets a stretch of one 5-fret difficulty us
 Here Easy guitar uses green, red and yellow from tick 0, and yellow, blue and orange from tick 3072.
 
 - **Required:** a position and size that end at orange or before: the position plus the size is no more than 6.
-- The parts are separated by single spaces, and the numbers are digits, without a sign. The text has no brackets or quotation marks.
+- **Required:** the parts separated by single spaces, and the numbers in digits without a sign, with no brackets or quotation marks around the text. The difficulty is the section's, and the position and size are each from 1 to 5. Range shifts go only in 5-fret sections.
 - A range shift lasts from its tick until the next range shift of its section. Before the first one, all five frets are in range.
 - **Recommended:** one range shift at most at a tick.
 
@@ -146,5 +147,5 @@ A scanner ignores it. That includes another spelling, letter case or spacing, sq
 </Accordion>
 
 <Accordion title="Two notes of one value at one tick">
-Clone Hero and scan-chart use the note with the longer sustain. YARG uses the one written first. On guitar, it counts the two as a chord when it decides strums and HOPOs, so the note is a strum there unless a modifier changes it. When scan-chart saves an edited song, it removes a line written twice, and keeps notes of different lengths as written.
+A scanner uses the note with the longer sustain, as Clone Hero and scan-chart do. YARG uses the one written first. On guitar, it counts the two as a chord when it decides strums and HOPOs, so the note is a strum there unless a modifier changes it. When scan-chart saves an edited song, it removes a line written twice, and keeps notes of different lengths as written.
 </Accordion>

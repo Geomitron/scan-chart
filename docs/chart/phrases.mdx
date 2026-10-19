@@ -42,6 +42,7 @@ A [solo](#solos) is written as two text events instead, and covers both of its t
 ## Rules for every phrase
 
 - **Required:** at least one note in each phrase.
+- **Required:** one phrase of each type at most at a tick, and no phrase that starts before another of its type ends, except lanes.
 - **Recommended:** a length of at least one tick for each phrase.
 
 **Edge case: a phrase of length 0.** It covers the notes on its tick.
@@ -65,7 +66,9 @@ A solo is marked by two text events, `solo` and `soloend`, written without quota
 6144 = E soloend
 ```
 
-Each `solo` has its `soloend` before the next `solo`.
+**Required:** each `solo` has its `soloend` before the next `solo`, and each `soloend` has a `solo` before it.
+
+**Required:** `solo` and `soloend` without brackets.
 
 ## Drum fills
 
@@ -104,11 +107,11 @@ A lane should cover at least two notes, and only notes that fit its pattern: YAR
 ## Invalid forms
 
 <Accordion title="Two phrases of one type at one tick">
-Clone Hero and scan-chart use the longer phrase, and YARG the one written later. scan-chart keeps both when saving.
+Of two star power phrases, solos or lanes of one type at one tick, a scanner uses the longer, as Clone Hero and scan-chart do, and YARG the one written later. Both drum fills go into the TrackHash as written: see [Drum fills](/hashes/btrack#drum-fills). scan-chart keeps both when saving.
 </Accordion>
 
 <Accordion title="Overlapping phrases of one type, other than lanes">
-Clone Hero and scan-chart cut the earlier phrase where the later starts, and extend the later one to whichever ends last. YARG gives each note to the latest phrase that started at or before it, so the rest of a longer earlier phrase is lost. scan-chart keeps the phrases as written when saving.
+A scanner cuts the earlier star power phrase or solo where the later starts, and extends the later one to whichever ends last, as Clone Hero and scan-chart do. Drum fills go into the TrackHash as written. YARG gives each note to the latest phrase that started at or before it, so the rest of a longer earlier phrase is lost. scan-chart keeps the phrases as written when saving.
 </Accordion>
 
 <Accordion title="Nested solos">
@@ -116,7 +119,7 @@ At each `soloend`, every scanner ends the most recent `solo` that hasn't ended. 
 </Accordion>
 
 <Accordion title="A phrase that covers no notes">
-A scanner ignores it. scan-chart reports an empty star power phrase, solo or lane, and `fixIssues` removes it.
+A scanner ignores it. A drum fill without a note still goes into the TrackHash: see [What the TrackHash holds that games ignore](/hashes/btrack#what-the-trackhash-holds-that-games-ignore). scan-chart reports an empty star power phrase, solo or lane, and `fixIssues` removes it.
 </Accordion>
 
 <Accordion title="A soloend with no open solo, or a solo that never ends">
@@ -124,5 +127,5 @@ A scanner ignores it.
 </Accordion>
 
 <Accordion title="A solo in square brackets, such as E [solo]">
-Clone Hero and scan-chart don't read `E [solo]` and `E [soloend]` as a solo, and YARG does. scan-chart keeps them as text, and writes them back.
+A scanner doesn't read `E [solo]` and `E [soloend]` as a solo, as Clone Hero and scan-chart don't. YARG does. scan-chart keeps them as text, and writes them back.
 </Accordion>

@@ -20,7 +20,7 @@ Each line names one value, as [Named entries](/chart/syntax#named-entries) descr
 
 ## Resolution
 
-`Resolution` is the number of ticks in a beat. **Required:** a whole number from 1 up, written in digits without quotation marks.
+`Resolution` is the number of ticks in a beat. **Required:** one `Resolution` line, whose value is a whole number from 1 up, written in digits without quotation marks.
 
 ## Metadata
 
@@ -41,7 +41,8 @@ Each line names one value, as [Named entries](/chart/syntax#named-entries) descr
 | `Difficulty` | The difficulty of the whole song, a whole number. **Recommended:** from 0 to 6, or up to 10 for a very hard chart. `diff_band` is recommended only for a chart with more than one instrument part: see [Difficulties](/ini/metadata#difficulties) | `diff_band` |
 
 - **Text** is written in quotation marks: `Name = "Song Name"`.
-- **Times** are written in seconds, as digits with an optional `-` before them and an optional decimal part, without quotation marks: `PreviewStart = 45.5`. **Recommended:** at most three decimals.
+- **Times** are written in seconds, as digits with an optional `-` before them and an optional decimal part, without quotation marks: `PreviewStart = 45.5`. **Required:** this form. **Recommended:** at most three decimals.
+- **Required:** a `Name` that is the song's title, not `TEMPO TRACK` or `midi_export`, which some converters wrote in its place.
 
 **Edge case: times in milliseconds.** Scanners change a time to milliseconds differently, so it can differ by 1 millisecond between them. Clone Hero and scan-chart round up, and YARG rounds down. A decimal time isn't stored exactly, so `PreviewStart = 1.001` is 1,002 milliseconds in Clone Hero and 1,000 in YARG. The `song.ini` keys hold milliseconds, so they're exact.
 
@@ -85,7 +86,7 @@ A scanner removes the quotation marks, so `Resolution = "480"` reads as 480. YAR
 </Accordion>
 
 <Accordion title="Resolution written more than once">
-Clone Hero, scan-chart and YARG's song list use the last one, and YARG's chart loader the first.
+A scanner uses the last one, as Clone Hero, scan-chart and YARG's song list do. YARG's chart loader uses the first.
 </Accordion>
 
 <Accordion title="A key written more than once">
@@ -105,5 +106,5 @@ A scanner uses `song.ini`, as described above. When scan-chart saves an edited s
 </Accordion>
 
 <Accordion title='Name = "TEMPO TRACK" or Name = "midi_export"'>
-Some converters wrote these instead of the song's name. Clone Hero and scan-chart ignore that line and every metadata line after it, and Clone Hero doesn't list such a song when its folder has no `song.ini`. YARG reads the line as the song's name. scan-chart saves the section as it is.
+Some converters wrote these instead of the song's name. A scanner ignores that line and every metadata line after it, as Clone Hero and scan-chart do. Clone Hero doesn't list such a song when its folder has no `song.ini`. YARG reads the line as the song's name. scan-chart saves the section as it is.
 </Accordion>

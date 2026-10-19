@@ -128,8 +128,10 @@ A `mix` event sets up the drum audio for one difficulty, and its `d` flag turns 
 
 - A flip lasts from its tick, notes on it included, until the event that turns it off, or the end of the track.
 - **Required:** a `d` flip turned off before a `dnoflip` event of its difficulty.
+- **Required:** one `mix` event of a difficulty at most at a tick.
 - On pro drums, a scanner swaps red and yellow back: red becomes a yellow cymbal, and yellow becomes red. On 4-lane drums the notes don't change. The snare and the other drum audio swap instead, so yellow plays the snare.
-- Parts are separated by single spaces.
+- **Required:** single spaces between the parts, and a configuration from `0` to `5`.
+- **Required:** a flag from the table, or `easy` or `easynokick`.
 - **Recommended:** disco flip events only in 4-lane and pro charts.
 
 **Edge case:** a scanner also accepts `_` between the parts, and square brackets around the text.
@@ -163,7 +165,7 @@ A scanner ignores it, as Clone Hero and YARG do, and scan-chart writes it back a
 </Accordion>
 
 <Accordion title="Two mix events of one difficulty at one tick">
-Clone Hero and scan-chart use an event that turns the flip off, then `d`, then `dnoflip`. YARG uses the one written last.
+A scanner uses an event that turns the flip off, then `d`, then `dnoflip`, as Clone Hero and scan-chart do. YARG uses the one written last.
 </Accordion>
 
 <Accordion title="A dnoflip while a d flip is on">

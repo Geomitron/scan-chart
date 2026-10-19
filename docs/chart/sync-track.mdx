@@ -24,7 +24,8 @@ A tempo marker sets the tempo from its tick to the next tempo marker:
 ```
 
 - The tempo is in thousandths of a beat per minute: `B 120000` is 120 BPM, and `B 150325` is 150.325 BPM.
-- The tempo is a whole number from 1 to 4294967295.
+- **Required:** a tempo that is a whole number from 1 to 4294967295.
+- **Required:** one tempo marker at most at a tick.
 
 ## Time signatures
 
@@ -36,8 +37,10 @@ A time signature sets the meter from its tick to the next time signature:
 
 - The numerator is the number of notes in a measure, of the value the denominator gives: a whole number from 1 to 4294967295.
 - The exponent gives the denominator, 2 to the power of the exponent, so `TS 6 3` is 6/8: six eighth notes a measure. It's a whole number from 0 to 31. Without an exponent, the denominator is 4.
+- **Required:** a numerator from 1 to 4294967295, and an exponent from 0 to 31.
 - Time signatures only change the lines that appear throughout the chart during gameplay, at each measure and between them. They have no influence on the notes themselves.
 - A beat is a quarter note whatever the time signature, so a measure of 6/8 is three beats long.
+- **Required:** one time signature at most at a tick.
 
 | Written | Time signature |
 |---|---|
@@ -65,11 +68,11 @@ An anchor should share its tick with a tempo marker. Games ignore anchors, and a
 ## Invalid forms
 
 <Accordion title="A tempo of 0, or a numerator of 0">
-Clone Hero and scan-chart refuse the file. YARG reads a tempo of 0, which makes its times infinite, and drops the time signatures after a numerator of 0.
+A scanner refuses the file, as Clone Hero and scan-chart do. YARG reads a tempo of 0, which makes its times infinite, and drops the time signatures after a numerator of 0.
 </Accordion>
 
 <Accordion title="A tempo, numerator or exponent too large">
-Scanners read a value past the limits above differently. YARG reads a tempo of 2³² or more modulo 2³². Clone Hero reads an exponent of 32 or more modulo 32. Clone Hero and YARG read a numerator of 2³² or more modulo 2³². scan-chart reads each value exactly.
+A scanner reads a tempo of 2³² or more exactly, as Clone Hero and scan-chart do. It calculates no hash for a file with an exponent of 32 or more, or a numerator of 2³² or more, as scan-chart does, since a [BTrack](/hashes/btrack#sections) can't hold such a time signature. Clone Hero reads such an exponent modulo 32, and Clone Hero and YARG read such a numerator modulo 2³². YARG reads a tempo of 2³² or more modulo 2³².
 </Accordion>
 
 <Accordion title="Two tempo markers, or two time signatures, at one tick">

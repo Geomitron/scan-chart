@@ -205,6 +205,7 @@ Each key is the difficulty of one instrument:
 
 ### song_length
 
+- **Required:** when set, the length of the longest audio file other than `crowd` and `preview`, in milliseconds, rounded up.
 - Clone Hero and YARG show `song_length` in the song list, and sort by it. Clone Hero also adds it up for a setlist and for its play-time statistic, writes it into a replay, and sends it to the leaderboard as the song's duration.
 - Neither game uses it to decide when the song ends: a song plays until its audio and its last note have ended, or until a valid `end` event. See [The end of the song](/chart/events#the-end-of-the-song).
 - When `song_length` is missing or 0, Clone Hero measures the audio, without `crowd`. When it can't, it takes the end of the last note, plus one beat. It writes the value it found into `song.ini`, except for a `.sng` file or an encrypted song, which it doesn't write to. YARG measures the audio when the value is 0 or less, and doesn't write it.
@@ -275,7 +276,17 @@ YARG reads more keys, which other games ignore. A song may hold them, and an exp
 | `link_bandcamp`, `link_bluesky`, `link_facebook`, `link_instagram`, `link_spotify`, `link_twitter`, `link_other` and `link_youtube` | Links |
 | `vocal_gender`, `vocal_scroll_speed`, `clean_vocals`, `venue_hint`, `vocal_character_hint` and `tuning_offset_cents` | The vocals and the venue |
 
-scan-chart reads these keys too, as fields of its metadata beside the keys above, by the rules of [Syntax](/ini/reading-rules).
+YARG also reads `credit_album_art_by` and `credit_album_cover` as `credit_album_art_designed_by`, and uses whichever of the three lines comes last. **Recommended:** `credit_album_art_designed_by`.
+
+scan-chart reads these keys too, as fields of its metadata beside the keys above, by the rules of [Syntax](/ini/reading-rules), and reads the two other names of `credit_album_art_designed_by` as YARG does.
+
+{/* review: Q4
+YARG's other names for the album art credit. YARG reads `credit_album_art_by` and `credit_album_cover` as `credit_album_art_designed_by`, the album art credit in the Read by YARG only table, and the later of the three lines counts. Its credits menu shows that credit for songs from YARG's own sources. Clone Hero reads none of them. scan-chart doesn't report the two other names as unknown keys, but doesn't read them either, so its album art credit is empty for a song that uses them. Read by YARG only didn't name either of them.
+- A. Name them, and scan-chart reads them as YARG does, as written now | Read by YARG only gains one sentence. scan-chart reads either name into `credit_album_art_designed_by`, the later line counting | A small scan-chart change, not made yet, for a credit that only YARG shows
+- B. Name them only | Read by YARG only gains one sentence, and says scan-chart doesn't read them | scan-chart's credit stays empty for those songs
+- C. Leave them unnamed | No change | A charter can't find them on the page. They still work in YARG
+Recommendation: A. One key, one credit, read the same by every reader that reads it, at the cost of one sentence and an alias in scan-chart.
+*/}
 
 ## Read by tools
 
@@ -295,11 +306,13 @@ scan-chart's `fixIssues`, and its saving of an edited song, rename `frets` to `c
 ## Ignored
 
 - **Keys of older games and tools** that no scanner acts on, such as `lyrics`, `version`, `count`, `tutorial`, `unlock_` keys, `cassettecolor`, `boss_battle`, `scores`, `scores_ext`, `early_hit_window_size`, `link_name_a`, `banner_link_a`, `sysex_` keys, `drum_fallback_blue`, `_type` keys such as `guitar_type`, `diff_drums_real_ps`, `diff_keys_real_ps`, `diff_dance`, `real_keys_lane_count_left`, `real_keys_lane_count_right`, the tunings `real_guitar_tuning`, `real_guitar_22_tuning`, `real_bass_tuning` and `real_bass_22_tuning`, and Editor on Fire's `eof_midi_import_` keys. YARG reads some of them, but nothing uses them. An exporter may keep them.
+- **`diff_coop`, `diff_coopghl` and `diff_rhythmghl`,** names from one Clone Hero test build. No game reads them: write `diff_guitar_coop`, `diff_guitar_coop_ghl` and `diff_rhythm_ghl` instead.
+- **`md5_hash`,** which only a Clone Hero tool reads, when it builds Clone Hero's encrypted song packs. It has no effect in a song folder.
 
 ## Invalid forms
 
 <Accordion title="No name, or a blank one">
-Clone Hero doesn't list the song. YARG shows a blank `name` as "Unknown Name", and doesn't list a song with no `name` line. scan-chart shows "Unknown Name", and reports it as `missingValue`.
+Clone Hero doesn't list the song. YARG shows a blank `name` as "Unknown Name", and doesn't list a song with no `name` line. scan-chart shows "Unknown Name", and reports it as `missingValue`. A scanner's SongHash holds `Unknown Name`, as Clone Hero's HashScanTool and scan-chart calculate it: see [SongHash](/hashes/songhash#metadata).
 </Accordion>
 
 <Accordion title="A blank charter or album_track, or album_track = -1, with frets or track">
