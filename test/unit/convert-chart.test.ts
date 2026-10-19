@@ -166,15 +166,16 @@ describe('convertChart', () => {
 
 	it('reports EVENTS text that [Events] would read as a coda, and a coda in a lyric event, as dropped from .chart', () => {
 		const midi = midiFile([
-			{ name: 'EVENTS', events: [midiText(0, '[coda'), midiText(0, '[coda]', 'lyrics'), midiText(0, '[crowd_clap]')] },
+			{ name: 'EVENTS', events: [midiText(0, '[coda'), midiText(0, '[coda]', 'lyrics'), midiText(0, '[ coda]'), midiText(0, '[crowd_clap]')] },
 			{ name: 'PART GUITAR', events: midiNote(0, 96) },
 		])
 		const { song: converted, report } = convertChart(parseSongFiles([{ fileName: 'notes.mid', data: midi }]), 'chart')
 		expect(report.dropped).toEqual([
 			{ content: 'events track MIDI events', count: 1 },
-			{ content: 'events track text that [Events] would read as an event', count: 1 },
+			{ content: 'events track text that [Events] would read as the coda', count: 1 },
 		])
-		expect(decode(fileBytes(documentFiles(converted)[0]))).toContain('[Events]\r\n{\r\n  0 = E "crowd_clap"\r\n}')
+		// Without its brackets, `[ coda]` would be ` coda`, which [Events] reads as the coda, so it keeps them.
+		expect(decode(fileBytes(documentFiles(converted)[0]))).toContain('[Events]\r\n{\r\n  0 = E "[ coda]"\r\n  0 = E "crowd_clap"\r\n}')
 	})
 
 	it('keeps a lyric on a vocal phrase\'s end tick in that phrase both ways', () => {

@@ -1333,8 +1333,9 @@ interface EventsScanResult {
 	 *  `RawChartData.unrecognizedEventsTrackTextEvents`. */
 	unrecognizedTextEvents: { tick: number; text: string }[]
 	/** Non-text-like MIDI events on the EVENTS track (e.g. RB practice-assist
-	 *  notes 24/25/26, or stray channel/sysex/meta events). Stored verbatim for
-	 *  round-trip. Becomes `RawChartData.unrecognizedEventsTrackMidiEvents`. */
+	 *  notes 24/25/26, or stray channel/sysex/meta events), and lyric, marker or
+	 *  cue point events that hold the coda. Stored verbatim for round-trip.
+	 *  Becomes `RawChartData.unrecognizedEventsTrackMidiEvents`. */
 	unrecognizedMidiEvents: MidiEvent[]
 	/** Issues raised while classifying EVENTS track text events (e.g. stray lyric/phrase
 	 *  events that belong on PART VOCALS, not EVENTS). */
@@ -1367,8 +1368,8 @@ function scanEventsTrack(tracks: MidiSourceTrack[]): EventsScanResult {
 		}
 		const text = event.text
 		const tick = event.deltaTime
-		// Sections, the end and the coda read from the text without white space around it, as Clone Hero trims it
-		// (`MidReader.ReadEvents`), so `[section intro] ` is a section.
+		// Events read from the text without white space around it, as Clone Hero trims it (`MidReader.ReadEvents`), so
+		// `[section intro] ` is a section.
 		const trimmed = trimDotnet(text)
 
 		// Accept either `[section NAME]` (bracketed form — outer brackets are
@@ -1400,11 +1401,11 @@ function scanEventsTrack(tracks: MidiSourceTrack[]): EventsScanResult {
 		// here. Record a parse issue so consumers can surface the misplacement,
 		// then fall through to the text-events bucket so the value round-trips
 		// back out — users can move it to PART VOCALS manually.
-		if (eventsLyricRegex.test(text)) {
+		if (eventsLyricRegex.test(trimmed)) {
 			result.parseIssues.push({ instrument: null, difficulty: null, noteIssue: 'invalidLyric' })
-		} else if (eventsPhraseStartRegex.test(text)) {
+		} else if (eventsPhraseStartRegex.test(trimmed)) {
 			result.parseIssues.push({ instrument: null, difficulty: null, noteIssue: 'invalidPhraseStart' })
-		} else if (eventsPhraseEndRegex.test(text)) {
+		} else if (eventsPhraseEndRegex.test(trimmed)) {
 			result.parseIssues.push({ instrument: null, difficulty: null, noteIssue: 'invalidPhraseEnd' })
 		}
 
