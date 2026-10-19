@@ -296,13 +296,6 @@ scan-chart's `fixIssues`, and its saving of an edited song, rename `frets` to `c
 
 - **Keys of older games and tools** that no scanner acts on, such as `lyrics`, `version`, `count`, `tutorial`, `unlock_` keys, `cassettecolor`, `boss_battle`, `scores`, `scores_ext`, `early_hit_window_size`, `link_name_a`, `banner_link_a`, `sysex_` keys, `drum_fallback_blue`, `_type` keys such as `guitar_type`, `diff_drums_real_ps`, `diff_keys_real_ps`, `diff_dance`, `real_keys_lane_count_left`, `real_keys_lane_count_right`, the tunings `real_guitar_tuning`, `real_guitar_22_tuning`, `real_bass_tuning` and `real_bass_22_tuning`, and Editor on Fire's `eof_midi_import_` keys. YARG reads some of them, but nothing uses them. An exporter may keep them.
 
-{/* review: Q11
-GuitarGame_ChartFormats names song.ini keys from Phase Shift, Rock Band 3's pro instruments, Frets on Fire X and Editor on Fire that the pages didn't: diff_drums_real_ps, diff_keys_real_ps, diff_dance, four real_ tuning keys, real_keys_lane_count_left and _right, early_hit_window_size, scores_ext, and two eof_midi_import_ keys. No game uses any of them: Clone Hero doesn't read them, and YARG parses some and never uses their values. scan-chart counts them as known keys, so it doesn't report them as unknownIniTag. GuitarGame_ChartFormats also names the stems vocals_explicit_1 and vocals_explicit_2, which no game plays: YARG's names are vocals_1_explicit and vocals_2_explicit, and scan-chart reports the other spelling as invalidAudio. Should the pages name them?
-- A. Name them, as written now | Metadata's Ignored list names the keys, and Files in a song folder names YARG's explicit stems, such as vocals_1_explicit | A longer list. A reader coming from GuitarGame_ChartFormats finds each key, and sees that no game uses it
-- B. Leave them to the general rule | Syntax's "Keys a scanner doesn't read" covers them | No change. A reader can't tell these keys from a misspelled one, which scan-chart reports
-Recommendation: A. The Ignored list is where a reader looks for a key, and it already names keys of the same kind.
-*/}
-
 ## Invalid forms
 
 <Accordion title="No name, or a blank one">
