@@ -169,11 +169,11 @@ A scanner reads every note under either of them as covered, as Clone Hero and sc
 </Accordion>
 
 <Accordion title="Open SysEx events over a chord">
-Clone Hero and scan-chart read one open note with the longest sustain, and decide whether it's a HOPO as for a single note. YARG reads it as a chord, so as a strum unless it's forced.
+A scanner reads one open note with the longest sustain, and decides whether it's a HOPO as for a single note, as Clone Hero and scan-chart do. YARG reads it as a chord, so as a strum unless it's forced.
 </Accordion>
 
 <Accordion title="ENHANCED_OPENS after the track's first note">
-Clone Hero and scan-chart apply it only to the notes that start after it, so notes 59, 71, 83 and 95 before it aren't open notes. YARG decides each note's type at its note-off, so there one of these notes that starts before the event and ends after it is an open note. scan-chart's export writes it at tick 0, which keeps the open notes scan-chart read.
+A scanner applies it only to the notes that start after it, as Clone Hero and scan-chart do, so notes 59, 71, 83 and 95 before it aren't open notes. YARG decides each note's type at its note-off, so there one of these notes that starts before the event and ends after it is an open note. scan-chart's export writes it at tick 0, which keeps the open notes scan-chart read.
 </Accordion>
 
 <Accordion title="ENHANCED_OPENS spelled another way">
