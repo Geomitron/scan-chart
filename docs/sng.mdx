@@ -30,7 +30,7 @@ Matthew Sitton and Geo designed the format. Its [specification](https://github.c
 
 ## Where a .sng file goes
 
-- A `.sng` file goes where a song folder would, among the song folders, not inside one.
+- **Required:** a `.sng` file goes where a song folder would, among the song folders, not inside one.
 - **Required:** the extension `.sng`, in lowercase. SngCli names the file after the song folder.
 
 ## Layout
@@ -77,12 +77,12 @@ The metadata is the `[song]` section of a `song.ini` file, as key and value pair
 
 - `name` is **Required**.
 - **Required:** keys in lowercase. Both games match keys exactly.
-- Each key appears once.
+- **Required:** each key once.
 - **Required:** a value of at least one character in every pair. To leave a value unset, leave its key out.
 - **Required:** a boolean written as `True` or `False`.
-- A number is digits, with an optional `-` before them, and no spaces.
-- Keys and values hold no `;` and no line break, and keys hold no `=`.
-- The older names of `song.ini` keys, `frets`, `track`, `pro_drum` and `star_power_note`, aren't part of a `.sng` file's metadata. Write `charter`, `album_track`, `pro_drums` and `multiplier_note`.
+- **Required:** a number written as digits, with an optional `-` before them, and no spaces.
+- **Required:** no `;` and no line break in keys and values, and no `=` in keys.
+- **Required:** none of the older names of `song.ini` keys, `frets`, `track`, `pro_drum` and `star_power_note`. Write `charter`, `album_track`, `pro_drums` and `multiplier_note`.
 
 **Edge case: the chart's `[Song]` section.** Clone Hero takes nothing from a `.chart` file's `[Song]` section but `Offset`, `PreviewStart` and `PreviewEnd`, and those only when the metadata doesn't set `delay`, `preview_start_time` or `preview_end_time`. So the metadata holds every value the song needs.
 
@@ -91,9 +91,9 @@ The metadata is the `[song]` section of a `song.ini` file, as key and value pair
 Each file in the index is a file of the song folder. [Files in a song folder](/song-folders) gives their names and rules: one chart, at least one audio file, and one file for each audio name.
 
 - **Required:** names in lowercase. Clone Hero matches names exactly.
-- Each name appears once, and no two names differ only in letter case.
+- **Required:** each name once, and no two names that differ only in letter case.
 - A name is at most 255 bytes of UTF-8, folders included.
-- No `song.ini` is stored: the metadata takes its place.
+- **Required:** no `song.ini` stored: the metadata takes its place.
 - **Recommended:** no folders in the names. The format allows a name such as `extras/photo.png`, but games don't read files in folders.
 
 **Edge case: background images in folders.** Clone Hero shows any image whose name contains `background`, folders included, and YARG any whose name starts with `background`. So an image named `backgrounds/1.png` can still appear behind the highway.
@@ -137,11 +137,11 @@ Neither game loads a file with another identifier or another version, and Clone 
 </Accordion>
 
 <Accordion title="Lengths that don't match the bytes used">
-Scanners trust different fields. SngCli and parse-sng read the pairs and entries by their counts. Clone Hero and YARG read each part by its length, then the pairs or entries inside it by their count. A file whose lengths and counts disagree reads differently in each, or not at all.
+A scanner refuses the file. Readers trust different fields: SngCli and parse-sng read the pairs and entries by their counts, and Clone Hero and YARG read each part by its length, then the pairs or entries inside it by their count. So such a file reads differently in each, or not at all.
 </Accordion>
 
 <Accordion title="File data out of order, with gaps, or with bytes after it">
-Clone Hero, YARG and SngCli find each file by its offset. parse-sng ignores the offsets, and reads the files one after another from the end of the file data length, so it reads the wrong bytes. Clone Hero doesn't load a `.sng` file with a file that runs past its end, and YARG fails when it reads that file.
+A scanner finds each file by its offset, as Clone Hero, YARG and SngCli do, and refuses a `.sng` file with a file that runs past its end, as Clone Hero does. parse-sng ignores the offsets, and reads the files one after another from the end of the file data length, so it reads the wrong bytes. YARG fails when it reads a file that runs past the end.
 </Accordion>
 
 <Accordion title="One name used twice, or two names that differ only in letter case">
@@ -149,7 +149,7 @@ Clone Hero and YARG don't load a `.sng` file that holds one name twice. YARG mak
 </Accordion>
 
 <Accordion title="A file name not in lowercase, such as Notes.chart">
-Clone Hero doesn't find the file. YARG does.
+A scanner matches names exactly, so it doesn't find the file, as Clone Hero does. YARG does.
 </Accordion>
 
 <Accordion title="A metadata key not in lowercase, such as Name">
@@ -157,15 +157,15 @@ Neither game finds the key, so the song reads as if it weren't there. Without `n
 </Accordion>
 
 <Accordion title="A boolean written as 1 or 0">
-Clone Hero reads only `True` and `False`, in any letter case, and reads anything else as false. So a `.sng` file with `pro_drums = 1` plays without pro drums in Clone Hero, while a song folder with the same `song.ini` plays with them. YARG reads `1` as true.
+A scanner reads only `True` and `False`, in any letter case, and anything else as not set, as Clone Hero does. So a `.sng` file with `pro_drums = 1` plays without pro drums, while a song folder with the same `song.ini` plays with them. YARG reads `1` as true.
 </Accordion>
 
 <Accordion title="A number in another form, such as one with spaces">
-Clone Hero allows spaces around a number. YARG reads a number from the value's first character, and reads 0 when it isn't a sign or a digit.
+A scanner reads it as Clone Hero does: an optional sign, then digits, within the 32-bit range, with spaces allowed around them, and the key's default for anything else. YARG reads a number from the value's first character, and reads 0 when it isn't a sign or a digit.
 </Accordion>
 
 <Accordion title="No name">
-Clone Hero doesn't list the song, even when the `.chart` file's `[Song]` section has a `Name`. YARG uses that `Name`.
+Clone Hero doesn't list the song, even when the `.chart` file's `[Song]` section has a `Name`. YARG uses that `Name`. A scanner takes the name from the metadata alone, never from `[Song]`, as Clone Hero does: see [SongHash](/hashes/songhash#metadata).
 </Accordion>
 
 <Accordion title="An empty value">

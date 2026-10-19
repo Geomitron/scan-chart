@@ -31,11 +31,12 @@ A scanner decodes `song.ini` as it decodes a `.chart` file: see [Encoding](/char
 ## The [song] section
 
 - **Required:** one `[song]` section, on the file's first line. Every key is inside it.
+- **Required:** `[song]` alone on its line, with no spaces inside the brackets.
 - A scanner matches the section's name in any letter case, as written between the brackets. **Recommended:** `[song]`, in lowercase.
 
 ## Lines
 
-Each line after `[song]` is a key line, a comment, or a blank line.
+**Required:** each line after `[song]` a key line, a comment, or a blank line.
 
 - A line ends at a line feed, or at a carriage return followed by a line feed. A carriage return alone doesn't end a line. **Recommended:** a carriage return and a line feed.
 - A scanner ignores blank lines, and white space at the start and the end of each line.
@@ -49,16 +50,21 @@ Each line after `[song]` is a key line, a comment, or a blank line.
 
 A comment is a line whose first character, after any spaces, is `;`. It takes the whole line. A scanner ignores it.
 
+**Required:** a comment on a line of its own.
+
 ### Key lines
 
 ```text
 <key> = <value>
 ```
 
-- **The key** is the text before the first `=`. A scanner matches keys in any letter case. **Recommended:** in lowercase, as these pages write them. A key has no spaces.
-- **The value** is the text after the `=`, without the white space at its start and end. It has no quotation marks around it.
+- **The key** is the text before the first `=`. A scanner matches keys in any letter case. **Recommended:** in lowercase, as these pages write them. **Required:** a key without spaces, and a value that doesn't start with `=`.
+- **The value** is the text after the `=`, without the white space at its start and end.
+- **Required:** no quotation marks around a value.
+- **Required:** no white space other than spaces and tabs at either end of a value.
 - **Recommended:** one space on each side of the `=`.
-- Each key appears once in a file.
+- **Required:** each key once in a file.
+- **Required:** keys and section names of at most 1,024 characters.
 
 ### Key order
 
@@ -85,10 +91,11 @@ Each key takes one type of value:
 - No key takes a decimal number.
 - Times are in milliseconds.
 - A scanner also reads `true` and `false` in any other letter case, and `1` and `0`, as booleans. They mean the same as `True` and `False`.
+- **Required:** each value in the form of its key's type.
 
 ### Values that mean not set
 
-A key that isn't in the file isn't set, and a scanner uses its default. [Metadata](/ini/metadata) and [Settings](/ini/settings) give each key's default. To leave a value unset, leave its key out.
+A key that isn't in the file isn't set, and a scanner uses its default. [Metadata](/ini/metadata) and [Settings](/ini/settings) give each key's default. **Required:** a value in every key line, and no `-1` in a number key. To leave a value unset, leave its key out.
 
 In a text key, `0` and `-1` are text: `charter = 0` shows the charter as "0".
 
@@ -144,7 +151,7 @@ A scanner removes every kind of white space from both ends of a value, as Clone 
 </Accordion>
 
 <Accordion title="Quotation marks around a value">
-Unlike in a `.chart` file, a scanner keeps them as part of the value, so a text value shows them. A number in quotation marks isn't a number: Clone Hero and scan-chart use the key's default, and YARG reads 0. scan-chart reports quotation marks as `quotedIniValue`, and a quoted difficulty, such as `diff_guitar = "4"`, also as `missingValue`. `fixIssues` removes the quotation marks around text, and leaves a quoted number or boolean for the charter to write as meant.
+Unlike in a `.chart` file, a scanner keeps them as part of the value, so a text value shows them. A scanner reads a number or boolean in quotation marks as not set, as Clone Hero and scan-chart do, and YARG reads 0. scan-chart reports quotation marks as `quotedIniValue`, and a quoted difficulty, such as `diff_guitar = "4"`, also as `missingValue`. `fixIssues` removes the quotation marks around text, and leaves a quoted number or boolean for the charter to write as meant.
 </Accordion>
 
 <Accordion title="A key written more than once">
