@@ -261,7 +261,7 @@ e0 01 00 00                                  resolution 480
 
 Its TrackHash is `JuNMNQmSSnOcJ5loj4W1niOlY9vU7MQZK-RtMemomls`, for the `.chart` file and the `.mid` file alike. The two BTrack files are 164 bytes each, and differ only in the 8 bytes of the tempo.
 
-[scan-chart's golden vectors](https://github.com/Geomitron/scan-chart/tree/master/test/golden-vectors) test an implementation: charts with their BTracks and TrackHashes, song folders with their SongHashes, and BTrack files that a reader accepts or rejects. scan-chart passes all of them, and so does Clone Hero's implementation of this version.
+[scan-chart's golden vectors](https://github.com/Geomitron/scan-chart/tree/v9/test/golden-vectors) test an implementation: charts with their BTracks and TrackHashes, song folders with their SongHashes, and BTrack files that a reader accepts or rejects. scan-chart passes all of them, and so does Clone Hero's implementation of this version.
 
 **Edge case: other hashes of a BTrack.** Clone Hero's HashScanTool `scan` lists a BLAKE3 hash of the whole BTrack file for each track, which isn't the TrackHash. Clone Hero's leaderboards also record a hash of the song's exact tempos and time signatures. The legacy TrackHash of Clone Hero 1.1 is on [BTrack 20240320](/hashes/btrack-20240320).
 
