@@ -163,13 +163,6 @@ A `.chart` file has no escape characters. Text can't hold a line break, and a qu
 
 ## Invalid forms
 
-{/* review: Q2
-Files Clone Hero refuses and scan-chart reads. About this specification promises a scanner rule wherever a hash depends on an invalid form. For some invalid `.chart` files, Clone Hero refuses the file or never finds the chart, so it calculates no hash, while scan-chart reads what the file probably means and calculates hashes. You decided that on 2026-10-14, and canonical rule C15 allows it. The forms are: on Syntax, bytes not valid in the encoding of the byte order mark, the UTF-7 mark, events out of tick order, an event of another type in `SyncTrack` or `Events`, and other spellings, such as a missing `=`; on `[Events]`, `E "prc"` alone; and on Files in a song folder, a chart file with another name, such as `song.mid`, or with an uppercase extension, such as `notes.MID`. Refusing them as Clone Hero does, as the `.mid` page does for a file cut inside an event, would reverse the 2026-10-14 decision, so it isn't offered here. The choice is what the Invalid forms accordions of these forms say a scanner does.
-- A. State scan-chart's reading for a scanner that reads the file, as written now | Each accordion keeps Clone Hero's refusal and adds one sentence, such as "A scanner that reads it reads each section's events in tick order, as scan-chart does" | Eight sentences. A third scanner that hashes these files, such as YARG's hasher, must then read them as scan-chart does
-- B. No rule | The accordions keep listing each reader, and the Requirements section of About this specification adds "or that Clone Hero refuses the file" | One sentence. Clone Hero and scan-chart can't hash such a file differently, since Clone Hero has no hash, but a third scanner can read it any way
-Recommendation: A. It keeps the 2026-10-14 decision and C15, every hash that exists agrees, and each reading takes one sentence.
-*/}
-
 <Accordion title="Bytes that aren't valid in the encoding of the byte order mark">
 Clone Hero refuses the file. A scanner that reads it reads each byte sequence that isn't valid as the replacement character, U+FFFD, and takes no metadata from `[Song]`, as scan-chart does. scan-chart keeps the bytes as they are when saving.
 </Accordion>
@@ -189,14 +182,6 @@ Both games use the later one, and so does scan-chart. Saving removes the earlier
 <Accordion title="A section name that appears twice">
 A scanner reads the first section with each name, and ignores the rest, as scan-chart does. Clone Hero reads the first instrument section with that name, but joins every `[Song]`, `[SyncTrack]` and `[Events]` section into one, and the last `Resolution` counts. YARG's chart loader reads the first `[Song]` and `[SyncTrack]`, and joins the `[Events]` sections and the instrument sections of one name. Saving with scan-chart removes the others.
 </Accordion>
-
-{/* review: Q3
-A repeated `[Song]`, `[SyncTrack]` or `[Events]` section. You decided on 2026-10-14 that a file must not repeat a section name, and that a reader of one that does uses the first, as scan-chart does. Clone Hero loads such a file but joins the sections: the last `Resolution` counts, every tempo and time signature counts, and so does a coda in the second `[Events]`. So Clone Hero and scan-chart give one file different TrackHashes, which canonical rule C15 doesn't allow for a file both accept. No library chart has the form (register R50). The accordion "A section name that appears twice" states the decided rule either way; the choice is what to do about Clone Hero.
-- A. Propose the first-section reading to Clone Hero, as written now | A Clone Hero change, gated by its parse fixes, reads only the first `[Song]`, `[SyncTrack]` and `[Events]`, as it already does for instrument sections | One more merge request. No library chart's hash changes
-- B. scan-chart calculates no hash for such a file | scan-chart keeps reading the first section for its checks and saving, and refuses only the hashes, as it does for a time signature too large for a BTrack | No game change. The accordion's rule becomes "a scanner calculates no hash for such a file", a narrower reading of the 2026-10-14 decision
-- C. Accept the difference | The accordion says Clone Hero joins them, so it hashes such a file differently | The only form on these pages where Clone Hero and scan-chart both hash a file, with different results, by design
-Recommendation: A. It keeps the decided reading and the promise that an invalid file hashes alike, and it changes no library chart. B is the fallback if the Clone Hero developers don't want the change.
-*/}
 
 <Accordion title="No Song section">
 A scanner reads the file with a resolution of 192, as it reads a `[Song]` section without `Resolution`. scan-chart's saving adds a `[Song]` section with `Resolution = 192`.

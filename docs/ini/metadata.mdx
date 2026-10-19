@@ -280,14 +280,6 @@ YARG also reads `credit_album_art_by` and `credit_album_cover` as `credit_album_
 
 scan-chart reads these keys too, as fields of its metadata beside the keys above, by the rules of [Syntax](/ini/reading-rules), and reads the two other names of `credit_album_art_designed_by` as YARG does.
 
-{/* review: Q4
-YARG's other names for the album art credit. YARG reads `credit_album_art_by` and `credit_album_cover` as `credit_album_art_designed_by`, the album art credit in the Read by YARG only table, and the later of the three lines counts. Its credits menu shows that credit for songs from YARG's own sources. Clone Hero reads none of them. scan-chart doesn't report the two other names as unknown keys, but doesn't read them either, so its album art credit is empty for a song that uses them. Read by YARG only didn't name either of them.
-- A. Name them, and scan-chart reads them as YARG does, as written now | Read by YARG only gains one sentence. scan-chart reads either name into `credit_album_art_designed_by`, the later line counting | A small scan-chart change, not made yet, for a credit that only YARG shows
-- B. Name them only | Read by YARG only gains one sentence, and says scan-chart doesn't read them | scan-chart's credit stays empty for those songs
-- C. Leave them unnamed | No change | A charter can't find them on the page. They still work in YARG
-Recommendation: A. One key, one credit, read the same by every reader that reads it, at the cost of one sentence and an alias in scan-chart.
-*/}
-
 ## Read by tools
 
 | Key | What it holds |
