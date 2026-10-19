@@ -50,7 +50,13 @@ const standardTags = [
 	'hopo_frequency', 'eighthnote_hopo', 'multiplier_note', 'star_power_note', 'icon', 'background', 'video', 'video_loop', 'video_start_time',
 	'video_end_time', 'cover',
 ]
-/** The tags Clone Hero (SongEntry) or YARG (SongIniHandler) reads that the standard and scan-chart don't. */
+/**
+ * Tags of other games and tools that scan-chart knows but doesn't read, so it doesn't report them as unknown. A game
+ * acts only on credit_album_art_by and credit_album_cover, which YARG reads as credit_album_art_designed_by. YARG's
+ * SongIniHandler parses some of the others without using them, and lists others commented out. Clone Hero's game reads
+ * none of them: diff_coop, diff_coopghl and diff_rhythmghl are names from one of its test builds, and only its tool
+ * that builds encrypted song packs reads md5_hash.
+ */
 const gameTags = [
 	'diff_coop', 'diff_coopghl', 'diff_rhythmghl', 'md5_hash', 'banner_link_a', 'banner_link_b', 'bass_type', 'boss_battle', 'cassettecolor', 'count',
 	'credit_album_art_by', 'credit_album_cover', 'dance_type', 'drum_fallback_blue', 'early_hit_window_size', 'eof_midi_import_drum_accent_velocity',
@@ -60,7 +66,7 @@ const gameTags = [
 ]
 /** scan-chart's own tag: the issue codes a chart means to have. */
 const ignoredIssuesTag = 'ignored_issues'
-/** The tags some game reads, or the standard or scan-chart documents. */
+/** The tags scan-chart doesn't report as unknown: the standard's, the ones it reads, other games' and tools', and its own. */
 const knownTags = new Set([...standardTags, ...knownIniKeys, ...gameTags, ignoredIssuesTag])
 
 /**
