@@ -5,7 +5,6 @@
  * re-implemented them independently.
  */
 
-import { readChartEventsText } from './chart-file-parser'
 import { noflipsDuringFlips } from './disco-flip'
 import type { ParsedChart } from './parse-chart-and-ini'
 import type { DrumMixEvent } from './raw-types'
@@ -45,20 +44,9 @@ export function wrapEventBrackets(text: string): string {
  * convention (E-event payloads are stored unwrapped). A `.mid`-sourced
  * `[crowd_noclap]` becomes `crowd_noclap`.
  */
-function unwrapEventBrackets(text: string): string {
+export function unwrapEventBrackets(text: string): string {
 	const trimmed = text.trimEnd()
 	return trimmed.startsWith('[') && trimmed.endsWith(']') ? trimmed.slice(1, -1) : text
-}
-
-/**
- * Other text of a `.mid` file's `EVENTS` track, as the `.chart` export writes it: without brackets around the whole
- * text, or with them where `.chart` would read the text without them as an event. `null` when `.chart` reads both as an
- * event the `.mid` file doesn't have, such as `[coda`: `.chart` drops a lone leading `[`, and `.mid` doesn't.
- */
-export function chartTextForMidiEventsText(text: string): string | null {
-	const unwrapped = unwrapEventBrackets(text)
-	if (readChartEventsText(unwrapped) === null) return unwrapped
-	return readChartEventsText(text) === null ? text : null
 }
 
 /**

@@ -162,8 +162,15 @@ describe('writeMidiFile round-trip: EVENTS track', () => {
 	})
 
 	it('reads the coda only from a text event of coda or [coda], and writes the other forms back without making them one', () => {
+		const metaText = (type: 'marker' | 'cuePoint', text: string) => ({ tick: 0, event: { type, text } as Omit<MidiEvent, 'deltaTime'> })
 		const source = midiFile([
-			{ name: 'EVENTS', events: [midiText(0, '[coda'), midiText(0, 'coda]'), midiText(0, '[coda]', 'lyrics'), midiText(1920, ' [coda] ')] },
+			{
+				name: 'EVENTS',
+				events: [
+					midiText(0, '[coda'), midiText(0, 'coda]'), midiText(0, '[coda]', 'lyrics'), metaText('marker', '[coda]'), metaText('cuePoint', 'coda'),
+					midiText(1920, ' [coda] '),
+				],
+			},
 			{ name: 'PART DRUMS', events: [...midiNote(960, 120, 240), ...midiNote(960, 97), ...midiNote(2400, 120, 240), ...midiNote(2400, 97)] },
 		])
 		const fills = (chart: ParsedChart) => chart.trackData.find(track => track.instrument === 'drums' && track.difficulty === 'expert')!
@@ -171,12 +178,13 @@ describe('writeMidiFile round-trip: EVENTS track', () => {
 		const parsed = parseChartAndIni([{ fileName: 'notes.mid', data: source }]).parsedChart!
 		expect(fills(parsed)).toEqual([[960, false], [2400, true]])
 
-		// The .mid export keeps the lyric a lyric and the one-bracket text as text, and writes the coda where the Big Rock
-		// Ending starts.
+		// The .mid export keeps the lyric, marker and cue point events as they were and the one-bracket text as text, and
+		// writes the coda where the Big Rock Ending starts.
 		const written = writeMidiFile(parsed)
 		const eventsTrack = parseMidi(written).tracks.find(track => track.some(event => event.type === 'trackName' && event.text === 'EVENTS'))!
 		expect(trackTexts(eventsTrack)).toEqual([[0, '[coda'], [0, 'coda]'], [2400, '[coda]']])
-		expect(eventsTrack.filter(event => event.type === 'lyrics').map(event => event.text)).toEqual(['[coda]'])
+		const otherTexts = eventsTrack.flatMap(event => (event.type === 'lyrics' || event.type === 'marker' || event.type === 'cuePoint' ? [[event.type, event.text]] : []))
+		expect(otherTexts).toEqual([['lyrics', '[coda]'], ['marker', '[coda]'], ['cuePoint', 'coda']])
 		expect(fills(parseChartAndIni([{ fileName: 'notes.mid', data: written }]).parsedChart!)).toEqual([[960, false], [2400, true]])
 
 		// [Events] would read `[coda` as a coda, so the .chart export leaves it out; it keeps `coda]`, which isn't one.

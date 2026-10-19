@@ -99,7 +99,7 @@ Clone Hero ignores them. YARG reads `lyric` events, `phrase_start` and `phrase_e
 </Accordion>
 
 <Accordion title="A coda with one bracket, after a byte order mark, or in another type of text event">
-A scanner reads a coda as Clone Hero does: only from a text event, `FF 01`, whose text is `coda` or `[coda]`, with nothing around it but white space. So `[coda` and `coda]` aren't a coda, nor is a `[coda]` that starts with a byte order mark, U+FEFF, or a `[coda]` written as a lyric, marker or cue point event. scan-chart reads them so, and keeps each as it was written, except the byte order mark: it drops the mark when it decodes the text, so it reads a coda there. YARG reads neither `[coda` nor `coda]`, but reads a coda after a byte order mark, and in a lyric, marker or cue point event.
+A scanner reads a coda as Clone Hero does: only from a text event, `FF 01`, whose text is `coda` or `[coda]`, with nothing around it but white space. So `[coda` and `coda]` aren't a coda, nor is a `[coda]` that starts with a byte order mark, U+FEFF, or a `[coda]` written as a lyric, marker or cue point event. scan-chart reads them so, except the byte order mark: it drops the mark when it decodes the text, so it reads a coda there. Its `.mid` export writes the others back as they were, and its `.chart` export leaves out `[coda`, which `[Events]` would read as a coda. YARG reads neither `[coda` nor `coda]`, but reads a coda after a byte order mark, and in a lyric, marker or cue point event.
 </Accordion>
 
 <Accordion title="More than one coda or end">
