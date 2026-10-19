@@ -158,11 +158,11 @@ In `EVENTS` and instrument tracks, square brackets around the whole text are opt
 scan-chart saves an edited `.mid` song by keeping every event you didn't edit as the file wrote it, apart from extra track names. When it exports a `.mid` file anew, as converting does, it writes every track in the standard form. Where the two differ, the forms below say so.
 
 <Accordion title="A format other than 1">
-Clone Hero and YARG don't check the format. A format 0 file holds a single track, which Clone Hero reads as the tempo track, so it finds no instrument and doesn't list the song. scan-chart refuses a file of any format but 1.
+A scanner refuses the file, as scan-chart does. Clone Hero and YARG don't check the format. A format 0 file holds a single track, which Clone Hero reads as the tempo track, so it finds no instrument and doesn't list the song.
 </Accordion>
 
 <Accordion title="A header that isn't 6 bytes long">
-YARG's song scan refuses the file. Clone Hero and scan-chart read the first 6 bytes. scan-chart's export writes a 6-byte header.
+A scanner reads the first 6 bytes, as Clone Hero and scan-chart do. YARG's song scan refuses the file. scan-chart's export writes a 6-byte header.
 </Accordion>
 
 <Accordion title="A track count that doesn't match the tracks">
@@ -170,7 +170,7 @@ A scanner reads every track, whatever the header counts, as Clone Hero and YARG 
 </Accordion>
 
 <Accordion title="A chunk of another kind among the tracks">
-Clone Hero stops reading at the chunk, and keeps the tracks before it. YARG's song scan refuses the file. scan-chart refuses it too, unless the chunk comes after the last track the header counts.
+A scanner refuses the file, as scan-chart does, unless the chunk comes after the last track the header counts. Clone Hero stops reading at the chunk, and keeps the tracks before it. YARG's song scan refuses the file.
 </Accordion>
 
 <Accordion title="A delta time longer than 4 bytes">
@@ -182,17 +182,17 @@ Every scanner refuses the file.
 </Accordion>
 
 <Accordion title="A system common or real-time byte inside a track">
-Clone Hero and scan-chart refuse a file whose track holds a status byte from F1 to F6, or from F8 to FE. YARG's song scan skips it.
+A scanner refuses a file whose track holds a status byte from F1 to F6, or from F8 to FE, as Clone Hero and scan-chart do. YARG's song scan skips it.
 </Accordion>
 
 <Accordion title="No end of track, or events after it">
-Clone Hero and scan-chart read a track without an end of track to the end of its chunk. YARG's song scan can fail on it, and then doesn't list the song. scan-chart's export adds an end of track.
+A scanner reads a track without an end of track to the end of its chunk, as Clone Hero and scan-chart do. YARG's song scan can fail on it, and then doesn't list the song. scan-chart's export adds an end of track.
 
 A scanner ignores the events after the end of track, as Clone Hero and YARG do. So it also ignores a note whose note-off comes after it. Saving with scan-chart keeps them as they are. scan-chart reports them, and `fixIssues` can move the end of track after them, which changes the TrackHash.
 </Accordion>
 
 <Accordion title="A damaged file">
-Clone Hero reads a file cut short between two events, and fails to load one cut inside an event. scan-chart reads every complete event before the cut. Clone Hero reads the fixed fields of a tempo or time signature of the wrong length, and scan-chart refuses the file.
+A scanner reads a file cut short between two events up to the cut, as Clone Hero and scan-chart do. It refuses a file cut inside an event, as Clone Hero does, and a tempo or time signature of the wrong length, as scan-chart does. scan-chart reads every complete event before a cut inside an event. Clone Hero reads the fixed fields of a tempo or time signature of the wrong length.
 </Accordion>
 
 <Accordion title="A resolution of 0, or in SMPTE frames">
@@ -212,7 +212,7 @@ Every scanner ignores the track. scan-chart keeps it, and writes it back as it i
 </Accordion>
 
 <Accordion title="A first track named EVENTS, or named as an instrument">
-Clone Hero and scan-chart read a first track named `EVENTS` as the EVENTS track, as well as the tempo track. YARG doesn't. Clone Hero, YARG's gameplay and scan-chart don't read notes from the first track, though YARG's song scan lists an instrument named there. scan-chart's export writes a separate tempo track.
+A scanner reads a first track named `EVENTS` as the EVENTS track, as well as the tempo track, and reads no notes from the first track, as Clone Hero and scan-chart do. YARG doesn't read it as the EVENTS track. YARG's gameplay reads no notes from it either, though YARG's song scan lists an instrument named there. scan-chart's export writes a separate tempo track.
 </Accordion>
 
 <Accordion title="A tempo of 0, or a numerator of 0">
@@ -224,11 +224,11 @@ Clone Hero and YARG use the later one. scan-chart times the notes with the later
 </Accordion>
 
 <Accordion title="An exponent of 8 or more">
-Clone Hero and YARG store the denominator in one byte, which can't hold 256 or more. scan-chart reads 2 to the power of the exponent, which is exact up to an exponent of 30.
+A scanner refuses the file. Clone Hero and YARG store the denominator in one byte, which can't hold 256 or more, and from their code neither loads the chart. scan-chart reads 2 to the power of the exponent, which is exact up to an exponent of 30.
 </Accordion>
 
 <Accordion title="Text of another type in EVENTS or an instrument track">
-Clone Hero ignores it. YARG reads the types `FF 04` to `FF 09`, and scan-chart reads `FF 05`, `FF 06` and `FF 07`, so a section written as a marker event, `FF 06`, is a section there but not in Clone Hero. A coda is the exception: scan-chart reads it only from a text event, as Clone Hero does. See [EVENTS track](/mid/events#invalid-forms). scan-chart's export writes such text as `FF 01`.
+A scanner reads the text a hash depends on, the coda, mix events, `ENHANCED_OPENS` and `ENABLE_CHART_DYNAMICS`, only from a text event, `FF 01`, as Clone Hero and scan-chart do. Other text of another type Clone Hero ignores. YARG reads the types `FF 04` to `FF 09`, and scan-chart reads `FF 05`, `FF 06` and `FF 07`, so a section written as a marker event, `FF 06`, is a section there but not in Clone Hero. See [EVENTS track](/mid/events#invalid-forms). scan-chart's export writes such text as `FF 01`.
 </Accordion>
 
 <Accordion title="Text that isn't UTF-8">
