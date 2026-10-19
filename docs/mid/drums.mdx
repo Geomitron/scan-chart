@@ -62,13 +62,6 @@ A drum modifier is a note that changes how the pad notes it covers are hit. It c
 
 - **Required:** at least one note under each modifier.
 
-{/* review: Q8
-In a .chart file, a drum modifier on a tick without its note is invalid, and so is a .mid guitar modifier that covers no note. The .mid drums page set no rule for its own modifiers, the tom markers 110 to 112 and the flam 109, and treated a tom marker that covers no note as an edge case, which reads as valid. The reading is decided either way (R8, C9): such a marker changes no note and doesn't make the chart pro, though YARG reads the chart as pro. One library chart has one. Should a .mid drum modifier that covers no note be valid?
-- A. Invalid, like every other modifier, as written now | Modifiers gains "Required: at least one note under each modifier", and the edge case moves to Invalid forms with the same text, which is the scanner rule | The library chart becomes invalid, with no hash change. scan-chart doesn't report the .mid form, as it doesn't for guitar; a check would be optional release work
-- B. Valid | The edge case stays under Drum types, and Modifiers says a drum modifier may cover no note, and then changes nothing | The formats disagree on validity as well as on pro detection
-Recommendation: A. One rule for every modifier in both formats. The only difference left is the decided one: a .chart cymbal marker without its note still makes the chart pro, and a .mid tom marker doesn't.
-*/}
-
 A `.chart` modifier applies only to the notes at its own tick. See [Modifiers](/chart/drums#modifiers).
 
 ### Toms

@@ -81,14 +81,6 @@ On 5-fret guitar, bass and keys, an `S 64` at or after the `coda` is a Big Rock 
 
 **Edge case: where a Big Rock Ending ends.** A drum fill covers its end tick, but Clone Hero's Big Rock Ending doesn't: a note on its end tick comes after it. **Recommended:** a note after each Big Rock Ending, which closes it, and the Big Rock Ending ending before that note. From its code, YARG gives a Big Rock Ending's bonus only when the player hits the note that closes it.
 
-{/* review: Q4
-A Big Rock Ending is a closing freestyle section. From its code, YARG collects a bonus during it and banks the bonus only when the player hits the note after it, so without one there's no bonus. Clone Hero gives no Big Rock Ending bonus, and needs no note after it. GuitarGame_ChartFormats requires at least one note after it. The page only recommended ending a Big Rock Ending before the note that closes it, which assumes there is one. Must a note follow a Big Rock Ending?
-- A. Required | "Required: a note after each Big Rock Ending." An invalid form says that without one YARG gives no bonus | A new invalid form for a score bonus in one game, and a scan-chart check for it
-- B. Recommended, as written now | The recommendation asks for the closing note, and says why | One sentence changes on each Phrases page. A chart without the note stays valid, and loses only YARG's bonus
-- C. Leave the recommendation as it was | No change | A reader may miss that YARG's bonus needs the note
-Recommendation: B. The only effect is YARG's bonus, and the page already treats the closing note as a recommendation.
-*/}
-
 **Edge case: Big Rock Endings on 5-fret.** Clone Hero and YARG play a `.chart` Big Rock Ending only on drums, so no game plays one on 5-fret guitar, bass or keys from a `.chart` file.
 
 ## Lanes
@@ -99,14 +91,6 @@ A lane marks a passage too fast to play note for note. Inside it, the player kee
 - **On 5-fret guitar, bass and keys,** `S 65` is a tremolo lane: one fret or chord repeated, at least two notes, strummed freely. `S 66` is a trill lane: two single frets alternating, at least three notes, played freely between them. These are what `.mid` notes 126 and 127 mean.
 
 A lane should cover at least two notes, and only notes that fit its pattern: YARG cancels a lane whose notes don't.
-
-{/* review: Q5
-A roll on one pad (S 65, .mid 126) takes its pad from the notes it covers. When its first note is a chord, the games pick different pads: Clone Hero the chord's lowest pad, and YARG the pad of the chord's first note. GuitarGame_ChartFormats says to use the next single note's pad, which neither game does. No hash depends on it. Should the spec say anything?
-- A. Leave it out | No text | A roll that starts on a chord can show on different pads in each game
-- B. A recommendation for charters, as written now | Start a roll on one pad with a note on one pad, apart from a kick | One sentence on each Phrases page. No game changes, and charts that don't follow it stay valid
-- C. GuitarGame_ChartFormats' rule as the standard | The next single note's pad, proposed to both games | Two game changes for a rare chart, and a rule a game must look ahead to apply
-Recommendation: B. It keeps charts away from the case where the games disagree, without asking either game to change.
-*/}
 
 **Edge case: lanes Clone Hero skips.** Clone Hero doesn't play a drum lane that covers only one pad note, or whose first pad note comes more than a sixteenth of a beat after its start: 12 ticks at a resolution of 192.
 
