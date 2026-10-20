@@ -58,7 +58,7 @@ A scanner reads the metadata from `song.ini`:
 
 - It takes the name, artist, album, genre, year and charter from `song.ini` alone, even when `song.ini` leaves one of them out.
 - It takes `Offset`, `PreviewStart` and `PreviewEnd` from `[Song]` only when `song.ini` doesn't set `delay`, `preview_start_time` or `preview_end_time`. A `delay` of 0 and a `preview_end_time` of 0 count as not set.
-- It may ignore `Difficulty`, as Clone Hero and scan-chart do. YARG takes it as `diff_band` when `song.ini` doesn't set `diff_band`, or sets it to 0.
+- It may ignore `Difficulty`, as Clone Hero and scan-chart do. YARG takes a `Difficulty` other than 0 as `diff_band` when `song.ini` doesn't set `diff_band`, or sets it to 0. A `Difficulty` of 0 counts as not set: Moonscraper writes `Difficulty = 0` in every chart.
 
 ## Deprecated
 
