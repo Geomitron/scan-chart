@@ -166,11 +166,11 @@ A scanner reads the first 6 bytes, as Clone Hero and scan-chart do. YARG's song 
 </Accordion>
 
 <Accordion title="A track count that doesn't match the tracks">
-A scanner reads every track, whatever the header counts, as Clone Hero and YARG do. scan-chart reports the wrong count. Saving with scan-chart keeps the header as it is, and its export writes the right count.
+A scanner reads every track, whatever the header counts, up to a chunk of another kind after the counted tracks, as Clone Hero and YARG do. scan-chart reports the wrong count. Saving with scan-chart keeps the header as it is, and its export writes the right count.
 </Accordion>
 
 <Accordion title="A chunk of another kind among the tracks">
-A scanner refuses the file, as scan-chart does, unless the chunk comes after the last track the header counts. Clone Hero stops reading at the chunk, and keeps the tracks before it. YARG's song scan refuses the file.
+A scanner refuses the file, as scan-chart does, unless the chunk comes after the last track the header counts. There, a scanner stops reading at the chunk and keeps the tracks before it. Clone Hero does that wherever the chunk is. YARG's song scan refuses the file.
 </Accordion>
 
 <Accordion title="A delta time longer than 4 bytes">
