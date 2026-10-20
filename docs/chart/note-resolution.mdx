@@ -62,8 +62,9 @@ Two deprecated `song.ini` keys change the threshold in older charts. See [Deprec
 
 `chord_snap_threshold` in `song.ini` merges notes that are very close together into chords. It's in ticks, and it's off when it's 0 or missing.
 
-- A note less than the threshold after an earlier note moves to that note's tick and joins its chord. It takes the strum, HOPO or tap of the notes already at that tick, and keeps its own length. The forced and tap modifiers on its written tick have no effect.
+- A note less than the threshold after an earlier note moves to that note's tick and joins its chord. It takes the strum, HOPO or tap of the notes already at that tick, and keeps its own length, so a chord's sustains can end at different ticks. The forced and tap modifiers on its written tick have no effect.
 - The earlier note is the first one not yet moved. Moving a note doesn't move the next one along: with a threshold of 10, notes at 100, 105 and 109 all move to 100, and a note at 112 stays.
+- A moved note is in a star power phrase or solo when its new tick is. A phrase that covers no notes after snapping is ignored, as one written that way is: see [Phrases](/chart/phrases#invalid-forms).
 
 So every note of a chord has one type, in every scanner that snaps.
 
@@ -73,7 +74,7 @@ So every note of a chord has one type, in every scanner that snaps.
 
 ## Remove duplicate notes
 
-After snapping, a track holds at most one note of each fret at a tick. When snapping makes two notes of one fret meet, a scanner keeps the longer one.
+After snapping, a track holds at most one note of each fret at a tick. When snapping makes two notes of one fret meet, a scanner keeps the longer one, with the chord's strum, HOPO or tap.
 
 ## Trim overlapping sustains
 
