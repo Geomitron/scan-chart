@@ -17,7 +17,7 @@ So many of the differences are of three kinds:
 - **Only `notes.chart` and `notes.mid` are charts,** in lowercase. A custom name, a `[Y]` or `[F]` suffix and `.midi` are invalid, since no game reads them. A folder with both charts uses `notes.mid`: see [The chart](/song-folders#the-chart).
 - **Games find audio by its file name alone.** `[Song]`'s `MusicStream`, `GuitarStream` and the other stream keys are ignored, and no game falls back on them: see [Audio](/song-folders#audio).
 - **Every stem plays.** A folder with `drums` and `drums_1` plays both in Clone Hero and YARG; GuitarGame_ChartFormats says `drums` is ignored. A folder should hold only one of them.
-- **`preview` and `crowd` audio are deprecated,** and a folder holds one file for each audio name: see [Deprecated](/song-folders#deprecated).
+- **`preview` audio is deprecated,** and a folder holds one file for each audio name: see [Deprecated](/song-folders#deprecated).
 - **Album art is recommended as `album.png`, at 512 by 512 pixels.** Several background images are allowed, and a game shows one at random. `video.webm` is the recommended video. The `cover`, `background` and `video` keys of `song.ini` are read by YARG alone. See [Art and video](/song-folders#art-and-video).
 - **Additions:** the [`.sng` format](/sng), and the [charting guidelines](/charting-guidelines).
 
