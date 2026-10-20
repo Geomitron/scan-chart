@@ -206,7 +206,20 @@ function checkMidiFileTokens(tokens: MidiTokens): MidiTokens {
 		throw 'Invalid .mid file: no tracks detected'
 	}
 
+	if (hasLongDeltaTime(tokens)) {
+		throw 'Invalid .mid file: a delta time is longer than 4 bytes'
+	}
+
 	return tokens
+}
+
+/**
+ * Whether an event's delta time takes more than 4 bytes, which the MIDI format doesn't allow. Clone Hero reads 4 bytes
+ * and takes the fifth as the next event's status, so it fails to load or misreads such a file.
+ */
+function hasLongDeltaTime({ data, chunks }: MidiTokens): boolean {
+	return chunks.some(chunk => chunk.kind === 'track'
+		&& chunk.events.some(({ start }) => (data[start] & data[start + 1] & data[start + 2] & data[start + 3] & 0x80) !== 0))
 }
 
 /** A `.mid` file's tracks and events, classified without a rule profile. */
