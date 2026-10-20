@@ -99,8 +99,8 @@ Clone Hero, YARG and scan-chart use the later one.
 Clone Hero ignores them. YARG reads `lyric` events, `phrase_start` and `phrase_end` as lyrics, mixed with the lyrics of `PART VOCALS`. scan-chart reports `invalidLyric`, `invalidPhraseStart` and `invalidPhraseEnd`, and keeps them. Its `.chart` export leaves them out, since `[Events]` would play them, and its conversion report lists them.
 </Accordion>
 
-<Accordion title="Text outside the brackets, such as [prc_intro] - Intro">
-A scanner reads the event inside the brackets, by the [bracket rule](/chart/syntax#text), so this is the section `intro`. Clone Hero reads it as the section `intro] - Intr`, and YARG as the section `intro`. scan-chart reads it as a scanner does. Saving with scan-chart keeps the text as written, and its export writes `[section intro]`.
+<Accordion title='Text outside the brackets, such as [prc_intro] "Intro"'>
+A scanner reads the event inside the brackets, by the [bracket rule](/chart/syntax#text), so this is the section `intro`. Some charts write their sections so, such as Chaotrope's Rock Band Network songs. Clone Hero reads it as the section `intro] "Intro`, and YARG as the section `intro`. scan-chart reads it as a scanner does. Saving with scan-chart keeps the text as written, and its export writes `[section intro]`.
 </Accordion>
 
 <Accordion title="A song-wide event in a lyric, marker or cue point event">
