@@ -120,7 +120,7 @@ describe('.chart [Song] unknown-key preservation (metadata.extraChartSongFields)
 		expect(r.metadata.extraChartSongFields).toBeUndefined()
 	})
 
-	it('reads [Events] text as Clone Hero does: trimmed, then without one pair of brackets', () => {
+	it('reads [Events] text by the bracket rule: trimmed and as written, else inside its first bracket pair', () => {
 		const chart = buildChart({
 			Song: ['Resolution = 192'],
 			SyncTrack: ['0 = B 120000', '0 = TS 4'],
@@ -135,16 +135,21 @@ describe('.chart [Song] unknown-key preservation (metadata.extraChartSongFields)
 				'960 = E "[coda]"',
 				'1152 = E "[end"',
 				'1344 = E "crowd_clap "',
+				'1536 = E "[prc_verse_1] - Verse 1"',
 			],
 			ExpertDrums: ['0 = N 0 0', '960 = S 64 192'],
 		})
 		const r = parseNotesFromChart(chart)
 		// A tick holds one section, so the later one replaces the earlier one. An empty name isn't a section.
-		expect(r.sections.map(({ tick, name }) => [tick, name])).toEqual([[0, 'Intro'], [192, 'Verse_1'], [384, 'Chorus'], [576, '<b>Solo</b> [credits]']])
-		expect(r.endEvents.map(event => event.tick)).toEqual([1152])
+		expect(r.sections.map(({ tick, name }) => [tick, name])).toEqual([
+			[0, 'Intro'], [192, 'Verse_1'], [384, 'Chorus'], [576, '<b>Solo</b> [credits]'], [1536, 'verse_1'],
+		])
 		expect(r.trackData.find(track => track.instrument === 'drums')?.drumFreestyleSections).toEqual([{ tick: 960, length: 192, isCoda: true }])
-		// Text that isn't an event a reader knows is kept as written.
-		expect(r.unrecognizedEventsTrackTextEvents).toEqual([{ tick: 768, text: 'section ' }, { tick: 768, text: 'sectionX' }, { tick: 1344, text: 'crowd_clap ' }])
+		// No `]` closes the `[` of `[end`, so it holds no event. Text that holds no event is kept as written.
+		expect(r.endEvents).toEqual([])
+		expect(r.unrecognizedEventsTrackTextEvents).toEqual([
+			{ tick: 768, text: 'section ' }, { tick: 768, text: 'sectionX' }, { tick: 1152, text: '[end' }, { tick: 1344, text: 'crowd_clap ' },
+		])
 	})
 
 	it('.mid does not populate extraChartSongFields (field is .chart-only)', () => {

@@ -92,6 +92,14 @@ Lyrics use the symbols and formatting tags of `.mid` lyrics, which change how a 
 
 ## Invalid forms
 
+<Accordion title="Text outside the brackets, such as [prc_intro] - Intro">
+A scanner reads the event inside the brackets, by the [bracket rule](/chart/syntax#text), so this is the section `intro`, and `E "[coda] - Big Rock Ending"` is the coda. Clone Hero reads the first as the section `intro] - Intro`, and the second as no event. YARG reads them as a scanner does. scan-chart reads them so, and keeps the text when saving.
+</Accordion>
+
+<Accordion title="A [ that no ] closes, such as [coda">
+A scanner reads the text as written, so it holds no event: `E "[coda"` isn't the coda, and `E "[end"` isn't the end. Clone Hero drops a `[` at the start of the text, so it reads them as the coda and the end. YARG reads them as a scanner does. scan-chart reads them so.
+</Accordion>
+
 <Accordion title="Two practice sections at one tick">
 Clone Hero, YARG and scan-chart use the later one.
 </Accordion>

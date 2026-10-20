@@ -1,3 +1,5 @@
+import { chartEventsEventText } from './song-events'
+
 /** Minimal MIDI event shape for lyric/text extraction. */
 export interface MidiTextLikeEvent {
 	type: string
@@ -21,41 +23,31 @@ export type MidiLyricEvent = MidiTextLikeEvent & MidiNoteLikeEvent
 // ---------------------------------------------------------------------------
 
 /**
- * The text of a `.chart` [Events] event as Clone Hero reads it, before matching: trimmed, then without a leading `[`
- * and, when there is one, a trailing `]`. So `E "[lyric x]"` is the lyric `x`, and `E "section Verse [2]"` keeps its
- * brackets. Clone Hero doesn't trim again inside the brackets (`ChartReader.Events.cs:93-112`).
- */
-export function chartEventText(text: string): string {
-	const trimmed = text.trim()
-	if (!trimmed.startsWith('[')) return trimmed
-	return trimmed.length > 1 && trimmed.endsWith(']') ? trimmed.slice(1, -1) : trimmed.slice(1)
-}
-
-/**
  * Parse a single .chart [Events] line for a lyric event.
  * Returns { tick, text } if the line is a lyric event, null otherwise.
  *
- * .chart lyric format: `TICK = E "lyric TEXT"`, read as `chartEventText` reads it. A lyric with no text is read with
- * the text "", and grouping drops it.
+ * .chart lyric format: `TICK = E "lyric TEXT"`, read by the bracket rule (`chartEventsEventText`), so `E "[lyric x]"`
+ * is the lyric `x`. A lyric with no text is read with the text "", and grouping drops it.
  */
 export function parseChartLyricLine(line: string): { tick: number; text: string } | null {
 	// Use [^\n] instead of . to handle embedded \r characters. A line missing its closing quote is read to its end, as
 	// YARG reads it.
 	const match = /^(\d+) = E "([^\n]*?)"$/.exec(line) ?? /^(\d+) = E "([^\n]*)$/.exec(line)
 	if (!match) return null
-	const text = chartEventText(match[2])
+	const text = chartEventsEventText(match[2])
+	if (text === null) return null
 	if (text === 'lyric') return { tick: Number(match[1]), text: '' }
 	return text.startsWith('lyric ') ? { tick: Number(match[1]), text: text.slice('lyric '.length) } : null
 }
 
 /**
- * Parse a single .chart [Events] line for a vocal phrase start/end event, read as `chartEventText` reads it.
- * Returns { tick, type: 'start' | 'end' } or null.
+ * Parse a single .chart [Events] line for a vocal phrase start/end event, read by the bracket rule
+ * (`chartEventsEventText`). Returns { tick, type: 'start' | 'end' } or null.
  */
 export function parseChartVocalPhraseLine(line: string): { tick: number; type: 'start' | 'end' } | null {
 	const match = /^(\d+) = E "([^\r\n]*?)"$/.exec(line)
 	if (!match) return null
-	const text = chartEventText(match[2])
+	const text = chartEventsEventText(match[2])
 	if (text === 'phrase_start') return { tick: Number(match[1]), type: 'start' }
 	if (text === 'phrase_end') return { tick: Number(match[1]), type: 'end' }
 	return null

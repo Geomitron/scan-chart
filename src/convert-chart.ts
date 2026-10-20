@@ -4,6 +4,8 @@ import { chartTextForMidiEventsText, writeChartFile } from './chart/chart-writer
 import { roundBpm } from './chart/identity/btrack-20260801'
 import { canonicalChartFromParse } from './chart/identity/canonical-source'
 import { midiSustainCutoff, writeMidiFile } from './chart/midi-writer'
+import { midiTextForChartEventsText } from './chart/midi-writer/events'
+import { readMidiEventsText } from './chart/song-events'
 import { ParsedChart, parseSongChartAndIni } from './chart/parse-chart-and-ini'
 import { calculateCompetitiveHashes } from './competitive'
 import { ChartFormat, ChartReadError } from './gameplay-chart'
@@ -235,10 +237,14 @@ function droppedContent(chart: ParsedChart, format: ChartFormat): ConversionRepo
 		add('instrument track MIDI events', chart.trackData.reduce((count, track) => count + track.unrecognizedMidiEvents.length, 0))
 		add('events track MIDI events', chart.unrecognized.eventsTrackMidiEvents.length)
 		const texts = chart.format === 'mid' ? chart.unrecognized.eventsTrackTextEvents : []
-		add('events track text that [Events] would read as the coda', texts.filter(event => chartTextForMidiEventsText(event.text) === null).length)
+		add('events track vocal events', texts.filter(event => readMidiEventsText(event.text) !== null).length)
+		const unwritable = texts.filter(event => readMidiEventsText(event.text) === null && chartTextForMidiEventsText(event.text) === null)
+		add('events track text that [Events] would read as an event', unwritable.length)
 	} else {
 		for (const section of chart.unrecognized.chartSections) add(`[${section.name}] lines`, section.lines.length)
 		add('[SyncTrack] lines', chart.unrecognized.syncTrackEvents.length)
+		const texts = chart.format === 'chart' ? chart.unrecognized.eventsTrackTextEvents : []
+		add('[Events] text that the events track would read as an event', texts.filter(event => midiTextForChartEventsText(event.text) === null).length)
 	}
 	return dropped
 }

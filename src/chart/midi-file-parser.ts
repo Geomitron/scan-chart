@@ -7,7 +7,8 @@ import { DrumMixEvent, EventType, eventTypes, RawChartData, VocalTrackData } fro
 import { IniChartModifiers } from './types'
 import { parseRules, ParseRules } from './parse-rules'
 import { scanVocalTrack } from './lyric-parser'
-import { toLowerInvariant, trimDotnet } from '../shared/text'
+import { readMidiEventsText } from './song-events'
+import { toLowerInvariant } from '../shared/text'
 
 // Union two phrase lists, dedup by tick (keep longest length), sort by tick.
 function mergePhraseLists(a: { tick: number; length: number }[], b: { tick: number; length: number }[]): { tick: number; length: number }[] {
@@ -117,12 +118,6 @@ const fiveFretDiffStarts = { easy: 59, medium: 71, hard: 83, expert: 95 }
 const sixFretDiffStarts = { easy: 58, medium: 70, hard: 82, expert: 94 }
 const drumsDiffStarts = { easy: 60, medium: 72, hard: 84, expert: 96 }
 export const midiDiscoFlipRegex = /^\s*\[?mix[ _]([0-3])[ _]drums([0-5])(d|dnoflip|easy|easynokick|)\]?\s*$/
-const eventsBracketedSectionRegex = /^\[(?:section|prc)[ _](.*)\]$/
-const eventsPlainSectionRegex = /^(?:section|prc)[ _](.*)$/
-const eventsEndRegex = /^\[?end\]?$/
-const eventsLyricRegex = /^\[?\s*lyric[ \t]/
-const eventsPhraseStartRegex = /^\[?phrase_start\]?$/
-const eventsPhraseEndRegex = /^\[?phrase_end\]?$/
 
 export interface TrackEventEnd {
 	tick: number
@@ -1332,9 +1327,9 @@ interface EventsScanResult {
 	 *  sections/endEvents/coda/lyrics/phrases. Becomes
 	 *  `RawChartData.unrecognizedEventsTrackTextEvents`. */
 	unrecognizedTextEvents: { tick: number; text: string }[]
-	/** Non-text-like MIDI events on the EVENTS track (e.g. RB practice-assist
-	 *  notes 24/25/26, or stray channel/sysex/meta events), and lyric, marker or
-	 *  cue point events that hold the coda. Stored verbatim for round-trip.
+	/** MIDI events on the EVENTS track other than text events (e.g. RB
+	 *  practice-assist notes 24/25/26, stray channel/sysex/meta events, and
+	 *  lyric, marker or cue point events). Stored verbatim for round-trip.
 	 *  Becomes `RawChartData.unrecognizedEventsTrackMidiEvents`. */
 	unrecognizedMidiEvents: MidiEvent[]
 	/** Issues raised while classifying EVENTS track text events (e.g. stray lyric/phrase
@@ -1366,50 +1361,36 @@ function scanEventsTrack(tracks: MidiSourceTrack[]): EventsScanResult {
 			}
 			continue
 		}
+		// Only a text event, `FF 01`, holds a song-wide event, as Clone Hero reads them. A lyric, marker or cue point event
+		// is kept as a MIDI event, which keeps its type when written back: as a text event, it could become one.
+		if (event.type !== 'text') {
+			result.unrecognizedMidiEvents.push(event)
+			continue
+		}
 		const text = event.text
 		const tick = event.deltaTime
-		// Events read from the text without white space around it, as Clone Hero trims it (`MidReader.ReadEvents`), so
-		// `[section intro] ` is a section.
-		const trimmed = trimDotnet(text)
-
-		// Accept either `[section NAME]` (bracketed form — outer brackets are
-		// stripped) or `section NAME` (plain form — everything after the prefix
-		// is the name). Brackets must match as a pair: a trailing `]` is not
-		// stripped unless the text also started with `[`. This preserves section
-		// names that legitimately end in `]` (e.g. `section <b>…</b> [credits]`).
-		const bracketedSection = eventsBracketedSectionRegex.exec(trimmed)
-		const plainSection = !bracketedSection && eventsPlainSectionRegex.exec(trimmed)
-		if (bracketedSection || plainSection) {
-			const name = (bracketedSection ?? plainSection as RegExpExecArray)[1]
-			result.sections.push({ tick, name })
-			continue
-		}
-		if (eventsEndRegex.test(trimmed)) {
+		const songEvent = readMidiEventsText(text)
+		if (songEvent?.type === 'section') {
+			result.sections.push({ tick, name: songEvent.name })
+		} else if (songEvent?.type === 'end') {
 			result.endEvents.push({ tick })
-			continue
+		} else if (songEvent?.type === 'coda') {
+			result.codaEvents.push({ tick })
+		} else {
+			// Lyrics and phrase markers belong on PART VOCALS in .mid charts, not on
+			// the EVENTS track. Game engines silently drop them when they show up
+			// here. Record a parse issue so consumers can surface the misplacement,
+			// then keep the text so the value round-trips back out — users can move
+			// it to PART VOCALS manually.
+			if (songEvent?.type === 'lyric') {
+				result.parseIssues.push({ instrument: null, difficulty: null, noteIssue: 'invalidLyric' })
+			} else if (songEvent?.type === 'phraseStart') {
+				result.parseIssues.push({ instrument: null, difficulty: null, noteIssue: 'invalidPhraseStart' })
+			} else if (songEvent?.type === 'phraseEnd') {
+				result.parseIssues.push({ instrument: null, difficulty: null, noteIssue: 'invalidPhraseEnd' })
+			}
+			result.unrecognizedTextEvents.push({ tick, text })
 		}
-		// The coda reads only from a text event, `FF 01`, whose trimmed text is `coda` or `[coda]`, as Clone Hero reads it,
-		// so `[coda` isn't one. A lyric, marker or cue point event that holds it is kept as a MIDI event, which keeps its
-		// type when written back: as a text event, it would become a coda.
-		if (trimmed === 'coda' || trimmed === '[coda]') {
-			if (event.type === 'text') result.codaEvents.push({ tick })
-			else result.unrecognizedMidiEvents.push(event)
-			continue
-		}
-		// Lyrics and phrase markers belong on PART VOCALS in .mid charts, not on
-		// the EVENTS track. Game engines silently drop them when they show up
-		// here. Record a parse issue so consumers can surface the misplacement,
-		// then fall through to the text-events bucket so the value round-trips
-		// back out — users can move it to PART VOCALS manually.
-		if (eventsLyricRegex.test(trimmed)) {
-			result.parseIssues.push({ instrument: null, difficulty: null, noteIssue: 'invalidLyric' })
-		} else if (eventsPhraseStartRegex.test(trimmed)) {
-			result.parseIssues.push({ instrument: null, difficulty: null, noteIssue: 'invalidPhraseStart' })
-		} else if (eventsPhraseEndRegex.test(trimmed)) {
-			result.parseIssues.push({ instrument: null, difficulty: null, noteIssue: 'invalidPhraseEnd' })
-		}
-
-		result.unrecognizedTextEvents.push({ tick, text })
 	}
 	return result
 }

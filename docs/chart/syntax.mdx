@@ -153,7 +153,12 @@ A `.chart` file has no escape characters. Text can't hold a line break, and a qu
 
 **Required:** no quotation marks around the text in an instrument section.
 
-**Edge case: brackets in `Events`.** A scanner removes spaces around the text, then one `[` at its start and one `]` at its end, so `0 = E "[section Intro]"` means the same as `0 = E "section Intro"`. Older charts write the brackets. An exporter writes the text without them. A bracket anywhere else is part of the text, as in `E "section Verse [2]"`.
+**Brackets in `Events`.** A scanner reads the text of an `Events` line in two steps:
+
+1. It removes spaces around the text and reads the text as written. If that's an event, it's done: `E "section Verse [2]"` is the section `Verse [2]`.
+2. Otherwise, it reads the text between the first `[` and the `]` that closes it, counting nested pairs, and drops the brackets and everything outside them, without removing spaces again. So `0 = E "[section Intro]"` means the same as `0 = E "section Intro"`, and `E "[section Verse [2]]"` is the section `Verse [2]`.
+
+Older charts write the brackets. An exporter writes the text without them. **Required:** the event is the whole text, in brackets or not. Text outside the brackets, and a `[` that no `]` closes, are [invalid forms](/chart/events#invalid-forms).
 
 ## Ignored
 
