@@ -102,3 +102,5 @@ Two `song.ini` keys change the HOPO threshold. Older charts used them before the
 | 192 | 97 |
 | 480 | 241 |
 | 960 | 481 |
+
+**Edge case: YARG's `eighthnote_hopo`.** In a `.chart` file, YARG adds the resolution divided by 192, rounded down, in place of the 1. So its threshold is 242 at resolution 480 and 485 at 960, and 1 lower than a scanner's below resolution 192. It's the same from 192 to 383.
