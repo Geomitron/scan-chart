@@ -70,7 +70,7 @@ A drum fill whose tick is at or after the `coda` is a Big Rock Ending instead: a
 
 **Edge case: where a Big Rock Ending ends.** YARG counts a note on a Big Rock Ending's end tick as part of it, and Clone Hero doesn't. **Recommended:** a note after each Big Rock Ending, which closes it, and the Big Rock Ending ending before that note, as in a `.chart` file. See [Drum fills](/chart/phrases#drum-fills).
 
-Rock Band charts write each drum fill and Big Rock Ending as five notes, 120 to 124. Note 120 is the phrase. Notes 121 to 124 may come with it. **Required:** each starts and ends where a 120 does. Clone Hero and scan-chart read only 120. YARG reads each of 120 to 124 as a drum fill on drums, which gives the same fill when they match.
+Rock Band charts write each drum fill and Big Rock Ending as five notes, 120 to 124. Note 120 is the phrase. Notes 121 to 124 may come with it. **Required:** each starts and ends where a 120 does. Clone Hero, YARG and scan-chart read only 120.
 
 ## Lanes
 
@@ -119,5 +119,5 @@ A scanner ignores it. scan-chart reports an empty star power phrase, solo or lan
 </Accordion>
 
 <Accordion title="Notes 121 to 124 without a matching 120">
-Clone Hero and scan-chart ignore them, and YARG reads each as a drum fill on drums. scan-chart writes them back as they are.
+A scanner ignores them, as Clone Hero, YARG and scan-chart do. scan-chart writes them back as they are.
 </Accordion>
