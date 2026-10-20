@@ -68,6 +68,8 @@ Two deprecated `song.ini` keys change the threshold in older charts. See [Deprec
 
 So every note of a chord has one type, in every scanner that snaps.
 
+**On drums,** a pad is its color, so a yellow tom and a yellow cymbal are one pad. A moved note on a pad the chord already has takes that note's tom or cymbal, accent or ghost, flam, double kick and disco, and the longer length stays: see [Remove duplicate notes](#remove-duplicate-notes). A moved note on another pad keeps its own flags, except that a red or yellow note takes the disco or disco no-flip of the chord's red or yellow note, when there is one. Clone Hero and scan-chart snap drums so.
+
 **Recommended:** leave `chord_snap_threshold` out of a new chart, and write the notes of each chord at one tick. Charts that set it stay valid.
 
 **Edge case: what still comes from the ticks as written.** Snapping decides no strum, HOPO or tap again. The notes that don't move keep the type they have at their written ticks, so a chord that snapping makes is a HOPO or tap chord when the note it joins is a single HOPO or tap note. A chord written at one tick is a strum unless a modifier changes it. The next note's natural HOPO is still measured from the tick where the moved note was written.
