@@ -228,7 +228,7 @@ A scanner refuses the file. Clone Hero and YARG store the denominator in one byt
 </Accordion>
 
 <Accordion title="Text of another type in EVENTS or an instrument track">
-A scanner reads the text a hash depends on, the coda, mix events, `ENHANCED_OPENS` and `ENABLE_CHART_DYNAMICS`, only from a text event, `FF 01`, as Clone Hero and scan-chart do. Other text of another type Clone Hero ignores. YARG reads the types `FF 04` to `FF 09`, and scan-chart reads `FF 05`, `FF 06` and `FF 07`, so a section written as a marker event, `FF 06`, is a section there but not in Clone Hero. See [EVENTS track](/mid/events#invalid-forms). scan-chart's export writes such text as `FF 01`.
+A scanner reads the text a hash depends on, the coda, mix events, `ENHANCED_OPENS` and `ENABLE_CHART_DYNAMICS`, and the other song-wide events of the [EVENTS track](/mid/events#invalid-forms), only from a text event, `FF 01`, as Clone Hero and scan-chart do. So a section written as a marker event, `FF 06`, isn't a section. YARG reads the types `FF 04` to `FF 09`, so it's a section there. scan-chart keeps text of another type with its type, except a lyric, marker or cue point event in `EVENTS` whose text would hold no song-wide event in a text event: its export writes that as `FF 01`.
 </Accordion>
 
 <Accordion title="Text that isn't UTF-8">

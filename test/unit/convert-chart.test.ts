@@ -170,7 +170,7 @@ describe('convertChart', () => {
 				name: 'EVENTS',
 				events: [
 					midiText(0, '[coda'), midiText(0, '[coda]', 'lyrics'), midiText(0, '[ coda]'), midiText(0, '[foo [section B] bar]'),
-					midiText(0, '[lyric hello]'), midiText(0, '[crowd_clap]'),
+					midiText(0, '[lyric hello]'), midiText(0, 'lyric'), midiText(0, '[crowd_clap]'),
 				],
 			},
 			{ name: 'PART GUITAR', events: midiNote(0, 96) },
@@ -179,13 +179,28 @@ describe('convertChart', () => {
 		expect(report.dropped).toEqual([
 			{ content: 'events track MIDI events', count: 1 },
 			{ content: 'events track vocal events', count: 1 },
+			{ content: 'events track text that [Events] would read as an event', count: 1 },
 		])
-		const events = decode(fileBytes(documentFiles(converted)[0])).split('[Events]')[1].split('}')[0]
 		// `[coda` holds no event in either format. Without their brackets, ` coda` would be the coda and
-		// `foo [section B] bar` the section `B`, so they keep them.
-		for (const line of ['0 = E "[coda"', '0 = E "[ coda]"', '0 = E "[foo [section B] bar]"', '0 = E "crowd_clap"']) expect(events).toContain(line)
-		expect(events).not.toContain('lyric')
+		// `foo [section B] bar` the section `B`, so they keep them. `lyric` alone is a lyric only in `[Events]`.
+		const events = decode(fileBytes(documentFiles(converted)[0])).split('[Events]\r\n{\r\n')[1].split('}')[0]
+		expect(events).toBe('  0 = E "[coda"\r\n  0 = E "[ coda]"\r\n  0 = E "[foo [section B] bar]"\r\n  0 = E "crowd_clap"\r\n')
 		expect(resolveChart(converted).sections).toEqual([])
+	})
+
+	it('writes [Events] text into EVENTS so it holds no event it didn\'t', () => {
+		const events = ['0 = E "section Intro"', '0 = E "crowd_clap"', '0 = E "coda] [x"', '0 = E "lyric\tx"']
+		const song = parseSongFiles([{ fileName: 'notes.chart', data: encode([
+			'[Song]', '{', '  Resolution = 192', '}', '[SyncTrack]', '{', '  0 = B 120000', '}',
+			'[Events]', '{', ...events.map(line => `  ${line}`), '}', ...expert(['0 = N 0 0']),
+		].join('\r\n') + '\r\n') }])
+		const { song: converted, report } = convertChart(song, 'mid')
+		expect(report.dropped).toEqual([{ content: '[Events] text that the events track would read as an event', count: 1 }])
+		const eventsTrack = parseMidi(fileBytes(documentFiles(converted).find(file => file.fileName === 'notes.mid')!)).tracks
+			.find(track => track.some(event => event.type === 'trackName' && event.text === 'EVENTS'))!
+		// In brackets, `coda] [x` would be the coda, so it's written plain. `lyric` and a tab is a lyric in EVENTS either way.
+		expect(trackTexts(eventsTrack)).toEqual([[0, '[section Intro]'], [0, '[crowd_clap]'], [0, 'coda] [x']])
+		expect(resolveChart(converted).sections.map(section => section.name)).toEqual(['Intro'])
 	})
 
 	it('keeps a lyric on a vocal phrase\'s end tick in that phrase both ways', () => {

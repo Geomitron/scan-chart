@@ -1,8 +1,7 @@
 /**
  * Helpers shared between the `.chart` writer (`chart-writer.ts`) and the
- * `.mid` writer (`midi-writer/`). Both formats surface the same global-event
- * concepts (coda markers, bracket-wrapped text events) and previously
- * re-implemented them independently.
+ * `.mid` writer (`midi-writer/`), for the global-event concepts both formats
+ * hold: coda markers and bracket-wrapped text events.
  */
 
 import { noflipsDuringFlips } from './disco-flip'
@@ -47,6 +46,14 @@ export function wrapEventBrackets(text: string): string {
 export function unwrapEventBrackets(text: string): string {
 	const trimmed = text.trimEnd()
 	return trimmed.startsWith('[') && trimmed.endsWith(']') ? trimmed.slice(1, -1) : text
+}
+
+/**
+ * The first of `forms` that holds no song-wide event, as `read` reads it, or `null` when each one holds one. A writer
+ * offers the conventional form first, so text it converts can't become an event the source didn't have.
+ */
+export function firstFormHoldingNoEvent(forms: readonly string[], read: (text: string) => object | null): string | null {
+	return forms.find(form => read(form) === null) ?? null
 }
 
 /**

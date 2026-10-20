@@ -20,6 +20,8 @@ import { buildFretTrack, fiveFretInstruments, sixFretInstruments } from './frets
 import type { MidiWriteOptions, ParsedTrack } from './shared'
 import { buildVocalPartTrack } from './vocals'
 
+export { midiTextForChartEventsText } from './events'
+
 
 // ---------------------------------------------------------------------------
 // Public API

@@ -7,7 +7,7 @@ import { DrumMixEvent, EventType, eventTypes, RawChartData, VocalTrackData } fro
 import { IniChartModifiers } from './types'
 import { parseRules, ParseRules } from './parse-rules'
 import { scanVocalTrack } from './lyric-parser'
-import { readMidiEventsText } from './song-events'
+import { MidiEventsEvent, readMidiEventsText } from './song-events'
 import { toLowerInvariant } from '../shared/text'
 
 // Union two phrase lists, dedup by tick (keep longest length), sort by tick.
@@ -1315,21 +1315,23 @@ function filterFlexLaneVelocity(arr: MidiTrackEvent[], maxVelocity: number): voi
 
 
 /**
- * YARG/MoonSong reads text-like events from multiple MIDI meta event types:
- * text (FF 01), lyrics (FF 05), marker (FF 06), cuePoint (FF 07).
- * trackName (FF 03) and instrumentName (FF 04) are excluded.
+ * The EVENTS track as read. Only a text event (FF 01) holds a song-wide
+ * event, as Clone Hero reads them; YARG also reads lyrics (FF 05), markers
+ * (FF 06) and cue points (FF 07).
  */
 interface EventsScanResult {
 	sections: { tick: number; name: string }[]
 	endEvents: { tick: number }[]
 	codaEvents: { tick: number }[]
-	/** Text-like events on the EVENTS track not recognized as
-	 *  sections/endEvents/coda/lyrics/phrases. Becomes
+	/** Text-like events on the EVENTS track whose text would hold no section,
+	 *  end or coda in a text event: other text, and misplaced lyric and phrase
+	 *  events (also reported in `parseIssues`). Becomes
 	 *  `RawChartData.unrecognizedEventsTrackTextEvents`. */
 	unrecognizedTextEvents: { tick: number; text: string }[]
-	/** MIDI events on the EVENTS track other than text events (e.g. RB
-	 *  practice-assist notes 24/25/26, stray channel/sysex/meta events, and
-	 *  lyric, marker or cue point events). Stored verbatim for round-trip.
+	/** MIDI events on the EVENTS track other than text-like events (e.g. RB
+	 *  practice-assist notes 24/25/26, stray channel/sysex/meta events), and
+	 *  lyric, marker or cue point events whose text would hold a song-wide
+	 *  event in a text event. Stored verbatim for round-trip.
 	 *  Becomes `RawChartData.unrecognizedEventsTrackMidiEvents`. */
 	unrecognizedMidiEvents: MidiEvent[]
 	/** Issues raised while classifying EVENTS track text events (e.g. stray lyric/phrase
@@ -1361,37 +1363,40 @@ function scanEventsTrack(tracks: MidiSourceTrack[]): EventsScanResult {
 			}
 			continue
 		}
-		// Only a text event, `FF 01`, holds a song-wide event, as Clone Hero reads them. A lyric, marker or cue point event
-		// is kept as a MIDI event, which keeps its type when written back: as a text event, it could become one.
-		if (event.type !== 'text') {
-			result.unrecognizedMidiEvents.push(event)
-			continue
-		}
 		const text = event.text
 		const tick = event.deltaTime
 		const songEvent = readMidiEventsText(text)
-		if (songEvent?.type === 'section') {
+		// Lyrics and phrase markers belong on PART VOCALS in .mid charts, not on
+		// the EVENTS track. Game engines silently drop them when they show up
+		// here. Record a parse issue so consumers can surface the misplacement,
+		// then keep the event so the value round-trips back out — users can move
+		// it to PART VOCALS manually.
+		const misplacedVocalIssue = songEvent === null ? undefined : misplacedVocalIssues[songEvent.type]
+		if (misplacedVocalIssue) result.parseIssues.push({ instrument: null, difficulty: null, noteIssue: misplacedVocalIssue })
+
+		if (event.type !== 'text') {
+			// Only a text event, `FF 01`, holds a song-wide event, as Clone Hero reads them. A lyric, marker or cue point
+			// event whose text would hold a section, end or coda in a text event is kept as a MIDI event, which keeps its
+			// type when written back; other text, misplaced lyric and phrase events included, is kept as text.
+			if (songEvent === null || misplacedVocalIssue) result.unrecognizedTextEvents.push({ tick, text })
+			else result.unrecognizedMidiEvents.push(event)
+		} else if (songEvent?.type === 'section') {
 			result.sections.push({ tick, name: songEvent.name })
 		} else if (songEvent?.type === 'end') {
 			result.endEvents.push({ tick })
 		} else if (songEvent?.type === 'coda') {
 			result.codaEvents.push({ tick })
 		} else {
-			// Lyrics and phrase markers belong on PART VOCALS in .mid charts, not on
-			// the EVENTS track. Game engines silently drop them when they show up
-			// here. Record a parse issue so consumers can surface the misplacement,
-			// then keep the text so the value round-trips back out — users can move
-			// it to PART VOCALS manually.
-			if (songEvent?.type === 'lyric') {
-				result.parseIssues.push({ instrument: null, difficulty: null, noteIssue: 'invalidLyric' })
-			} else if (songEvent?.type === 'phraseStart') {
-				result.parseIssues.push({ instrument: null, difficulty: null, noteIssue: 'invalidPhraseStart' })
-			} else if (songEvent?.type === 'phraseEnd') {
-				result.parseIssues.push({ instrument: null, difficulty: null, noteIssue: 'invalidPhraseEnd' })
-			}
 			result.unrecognizedTextEvents.push({ tick, text })
 		}
 	}
 	return result
+}
+
+/** The parse issue for each lyric or phrase event misplaced on the EVENTS track. */
+const misplacedVocalIssues: Partial<Record<MidiEventsEvent['type'], 'invalidLyric' | 'invalidPhraseStart' | 'invalidPhraseEnd'>> = {
+	lyric: 'invalidLyric',
+	phraseStart: 'invalidPhraseStart',
+	phraseEnd: 'invalidPhraseEnd',
 }
 
