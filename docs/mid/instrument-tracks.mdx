@@ -143,7 +143,7 @@ scan-chart's export writes both under their new names.
 
 - **A note number the tables don't list,** such as 67 to 69, between Easy and Medium. Rock Band charts use notes 40 to 59 on 5-fret tracks, and 24 to 51 on drums, for animations, which YARG reads. Without `ENHANCED_OPENS`, 59 is one of them.
 - **A note's channel and velocity,** except where a page gives them a meaning: drum accents and ghosts, and a lane's difficulties.
-- **Tracks for instruments of other games:** Pro keys (`PART REAL_KEYS_X`, `PART REAL_KEYS_H`, `PART REAL_KEYS_M` and `PART REAL_KEYS_E`), Pro guitar and bass (`PART REAL_GUITAR`, `PART REAL_GUITAR_22`, `PART REAL_BASS` and `PART REAL_BASS_22`), `PART REAL_GUITAR_BONUS`, `PART ELITE_DRUMS`, `PART REAL_DRUMS_PS`, `PART DRUMS_2X`, and animation tracks such as `PART KEYS_ANIM_LH`. Clone Hero reads none of them. YARG reads Pro keys, Pro guitar and Elite drums. An exporter should keep them when rewriting a file, and scan-chart writes them back as they are.
+- **Tracks for instruments of other games:** Pro keys (`PART REAL_KEYS_X`, `PART REAL_KEYS_H`, `PART REAL_KEYS_M` and `PART REAL_KEYS_E`), Pro guitar and bass (`PART REAL_GUITAR`, `PART REAL_GUITAR_22`, `PART REAL_BASS` and `PART REAL_BASS_22`), `PART REAL_GUITAR_BONUS`, `PART ELITE_DRUMS`, `PART REAL_DRUMS_PS`, `PART DRUMS_2X`, and animation tracks such as `PART KEYS_ANIM_LH`. Clone Hero reads none of them. YARG reads Pro keys, Pro guitar and Elite drums, and plays `PART REAL_DRUMS_PS` as drums when the file has no `PART DRUMS`. An exporter should keep them when rewriting a file, and scan-chart writes them back as they are.
 
 ## Invalid forms
 
@@ -154,7 +154,7 @@ scan-chart reports `multipleMidiTracks`. It reads every track, and its TrackHash
 </Accordion>
 
 <Accordion title="A range shift in another form, or with a value out of range">
-A scanner ignores it, as it ignores the forms that [Instrument sections](/chart/instrument-sections#invalid-forms) lists for a `.chart` file. In a `.mid` file, that also includes a range shift without square brackets, one in another type of text event, and one outside a 5-fret track. A scanner still reads one with white space around the whole text, such as ` [ld_range_shift 0 1] `. scan-chart keeps the text, and writes it back.
+A scanner ignores it, as it ignores the forms that [Instrument sections](/chart/instrument-sections#invalid-forms) lists for a `.chart` file. In a `.mid` file, that also includes a range shift without square brackets, one in another type of text event, and one outside a 5-fret track. A scanner still reads one with white space around the whole text, such as ` [ld_range_shift 0 1] `, but not one with a space just inside its brackets, such as `[ ld_range_shift 0 1]`. scan-chart keeps the text, and writes it back.
 </Accordion>
 
 <Accordion title="Two notes of one number at one tick">
