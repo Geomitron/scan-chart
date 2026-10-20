@@ -113,7 +113,7 @@ F0 08 50 53 00 00 <difficulty> <type> <value> F7
 | Value | `01` starts the modifier, `00` ends it |
 | `F7` | The end of the SysEx event |
 
-- An end event ends the modifier its start began: the same difficulty byte and type.
+- An end event ends the latest open start of its difficulty byte and type, as a note-off does.
 - **Required:** exactly this 8-byte form, with a difficulty byte from the table, a type byte below `14`, and a value byte of `00` or `01`.
 - **Recommended:** a difficulty byte from `00` to `03`, for each difficulty, rather than `FF`.
 
@@ -196,6 +196,10 @@ Clone Hero keeps the Phase Shift SysEx events of each type and difficulty apart,
 In a 5-fret or 6-fret track, Clone Hero fails to load a chart with a tap or open SysEx event of such a value, and a scanner refuses the file, as scan-chart does. YARG ignores the event. Every scanner ignores such an event in a drums track, and one of another type.
 </Accordion>
 
+<Accordion title="A SysEx start while another of its difficulty and type is open">
+The next end ends the later start, as the [SysEx event](#the-phase-shift-sysex-event) says, and the earlier one runs to the end after it. Some Guitar Hero conversions write one open modifier's start before the previous one's end, at the tick where they meet: the end then ends the new start at once, and the notes covered are the ones the charter meant. Clone Hero and scan-chart read them so. YARG ignores a start while another of its difficulty and type is open, so the next end ends the earlier one, and the note on that tick isn't open or tapped there.
+</Accordion>
+
 <Accordion title="A start with no end">
-Every scanner ignores it, as a note-on with no note-off. A scanner ends a SysEx start only with an end of the same difficulty byte and type, and never with a note-off, so an end for one difficulty doesn't end a start for every difficulty, and a tap SysEx end doesn't end note 104.
+A scanner ignores it, as a note-on with no note-off, as Clone Hero and scan-chart do. YARG ends it at the next end when a later start comes first, as "A SysEx start while another of its difficulty and type is open" says. A scanner ends a SysEx start only with an end of the same difficulty byte and type, and never with a note-off, so an end for one difficulty doesn't end a start for every difficulty, and a tap SysEx end doesn't end note 104.
 </Accordion>
