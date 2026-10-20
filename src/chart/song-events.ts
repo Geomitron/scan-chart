@@ -11,7 +11,7 @@ import { trimDotnet } from '../shared/text'
  * counting nested pairs, without trimming it again, when `isEvent` takes that. `null` for text that holds no event, so
  * `section Verse [2]` holds `section Verse [2]`, `[prc_intro] - Intro` holds `prc_intro`, and `[coda` holds none.
  */
-export function songEventText(rawText: string, isEvent: (text: string) => boolean): string | null {
+function songEventText(rawText: string, isEvent: (text: string) => boolean): string | null {
 	const text = trimDotnet(rawText)
 	if (isEvent(text)) return text
 	const inner = textInFirstBrackets(text)

@@ -10,7 +10,7 @@ import type { DrumType, Instrument } from '../types'
 import { drumTypes, getInstrumentType, instrumentTypes } from '../types'
 import { readChartEventsText, readMidiEventsText } from './song-events'
 import { drumMixText } from './disco-flip'
-import { codaTicksFromFreestyle, drumMixEvents, unwrapEventBrackets } from './writer-shared'
+import { codaTicksFromFreestyle, drumMixEvents, firstFormHoldingNoEvent, unwrapEventBrackets } from './writer-shared'
 import { computeHopoThresholdTicks, isNaturalHopo } from './natural-hopo'
 import type { NoteEvent, NoteType } from './types'
 import { noteFlags, noteTypes } from './types'
@@ -191,17 +191,19 @@ function serializeSyncTrack(chart: ParsedChart): string[] {
 // [Events] section
 // ---------------------------------------------------------------------------
 
+/** How the `.chart` export writes a `.mid` file's other `EVENTS` text, or why it leaves it out. */
+export type ChartTextForMidiEventsText = { text: string } | { leftOut: 'vocal event' | 'event' }
+
 /**
- * Other text of a `.mid` file's `EVENTS` text events, as the `.chart` export writes it: without brackets around the
- * whole text, or with them where `[Events]` would read the text without them as an event, such as
- * `[foo [section B] bar]`. `null` for a misplaced lyric or vocal phrase event, which `[Events]` would play, and for text
- * `[Events]` reads as an event either way: the export leaves them out, and the conversion report lists them.
+ * Other text of a `.mid` file's `EVENTS` track, as the `.chart` export writes it: without brackets around the whole
+ * text, or with them where `[Events]` would read the text without them as an event, such as `[foo [section B] bar]`.
+ * It leaves out a misplaced lyric or vocal phrase event, which `[Events]` would play, and text `[Events]` reads as an
+ * event either way, such as `lyric` alone; the conversion report lists them.
  */
-export function chartTextForMidiEventsText(text: string): string | null {
-	if (readMidiEventsText(text) !== null) return null
-	const unwrapped = unwrapEventBrackets(text)
-	if (readChartEventsText(unwrapped) === null) return unwrapped
-	return readChartEventsText(text) === null ? text : null
+export function chartTextForMidiEventsText(text: string): ChartTextForMidiEventsText {
+	if (readMidiEventsText(text) !== null) return { leftOut: 'vocal event' }
+	const written = firstFormHoldingNoEvent([unwrapEventBrackets(text), text], readChartEventsText)
+	return written === null ? { leftOut: 'event' } : { text: written }
 }
 
 function serializeEventsSection(chart: ParsedChart): string[] {
@@ -224,9 +226,11 @@ function serializeEventsSection(chart: ParsedChart): string[] {
 	for (const ge of chart.unrecognized.eventsTrackTextEvents) {
 		// `.mid`-sourced events arrive bracket-wrapped; `.chart` E-events are
 		// written unwrapped where that reads as no event, and left out when
-		// they're misplaced vocal events (`chartTextForMidiEventsText`).
-		const text = sourceIsMidi ? chartTextForMidiEventsText(ge.text) : ge.text
-		if (text === null) continue
+		// they're misplaced vocal events or text `[Events]` reads as an event
+		// either way (`chartTextForMidiEventsText`).
+		const written = sourceIsMidi ? chartTextForMidiEventsText(ge.text) : { text: ge.text }
+		if (!('text' in written)) continue
+		const text = written.text
 		// endEvents are already emitted above; skip duplicates here.
 		if (text.trim() === 'end') continue
 		events.push({ tick: ge.tick, text })

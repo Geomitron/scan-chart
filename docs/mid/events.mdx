@@ -21,7 +21,7 @@ It's the `.mid` form of a `.chart` file's [[Events]](/chart/events) section. One
 - A scanner matches every event below in the letter case shown.
 - A scanner reads the text by the [bracket rule](/chart/syntax#text) of a `.chart` file: as written first, then inside its first pair of square brackets. So `[section Intro]` means the same as `section Intro`. **Recommended:** no brackets.
 - **Required:** the event is the whole text, with no spaces around it or just inside its brackets.
-- Only a text event, `FF 01`, holds these events. A lyric, marker or cue point event holds none.
+- Only a text event, `FF 01`, holds these events: a lyric, marker or cue point event holds none of them.
 
 ## Practice sections
 
@@ -100,15 +100,15 @@ Clone Hero ignores them. YARG reads `lyric` events, `phrase_start` and `phrase_e
 </Accordion>
 
 <Accordion title="Text outside the brackets, such as [prc_intro] - Intro">
-A scanner reads the event inside the brackets, by the [bracket rule](/chart/syntax#text), so this is the section `intro`. Clone Hero reads it as the section `intro] - Intr`, and YARG as the section `intro`. scan-chart reads it as a scanner does, and keeps the text when saving.
+A scanner reads the event inside the brackets, by the [bracket rule](/chart/syntax#text), so this is the section `intro`. Clone Hero reads it as the section `intro] - Intr`, and YARG as the section `intro`. scan-chart reads it as a scanner does. Saving with scan-chart keeps the text as written, and its export writes `[section intro]`.
 </Accordion>
 
 <Accordion title="A song-wide event in a lyric, marker or cue point event">
-A scanner ignores it, as Clone Hero does. Some charts write `[end]` or their practice sections as lyric events, which YARG reads. scan-chart keeps them as they are, and writes them back. Its `.chart` export leaves them out.
+A scanner ignores it, as Clone Hero does. Some charts write `[end]` or their practice sections as lyric events, which YARG reads. scan-chart keeps such an event with its type, and its `.mid` export writes it back so. Its `.chart` export leaves it out, and its conversion report lists it.
 </Accordion>
 
 <Accordion title="A coda with one bracket or text around it, after a byte order mark, or in another type of text event">
-A scanner reads the coda by the bracket rule, and only from a text event, `FF 01`. So `[coda] - Big Rock Ending` is the coda, and `[coda` and `coda]` aren't, nor is a `[coda]` that starts with a byte order mark, U+FEFF, or one written as a lyric, marker or cue point event. scan-chart reads them so, except the byte order mark: it drops the mark when it decodes the text, so it reads a coda there. Its export writes the others back as they were. Clone Hero reads a coda only from `coda` or `[coda]` with nothing around it but white space. YARG reads `[coda] - Big Rock Ending` as the coda but neither `[coda` nor `coda]`, and reads a coda after a byte order mark, and in a lyric, marker or cue point event.
+A scanner reads the coda by the bracket rule, and only from a text event, `FF 01`. So `[coda] - Big Rock Ending` is the coda, and so is a `[coda]` after a byte order mark, U+FEFF: the mark isn't white space, but the coda is inside the first pair of brackets. `[coda` and `coda]` aren't the coda, nor is `coda` after a byte order mark, or a coda written as a lyric, marker or cue point event. scan-chart reads them so, except `coda` after a byte order mark: it drops the mark when it decodes the text, so it reads a coda there. Its export writes `[coda` and `coda]` back as they were, and its `.chart` export leaves out a coda in a lyric, marker or cue point event. Clone Hero reads a coda only from `coda` or `[coda]` with nothing around it but white space. YARG reads `[coda] - Big Rock Ending` and a coda after a byte order mark as the coda, but neither `[coda` nor `coda]`, and also reads a coda in a lyric, marker or cue point event.
 </Accordion>
 
 <Accordion title="More than one coda or end">

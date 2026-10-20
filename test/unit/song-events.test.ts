@@ -12,7 +12,7 @@ describe('song-wide events: the bracket rule', () => {
 		expect(textInFirstBrackets('no brackets')).toBeNull()
 	})
 
-	// The definition's examples (inbox request 55 revision 3), in both formats.
+	// The bracket rule's examples from its definition, in both formats.
 	const examples: [string, string | null][] = [
 		['section Chorus [2]', 'section:Chorus [2]'],
 		['section asdf[section Chorus [2]]asdf', 'section:asdf[section Chorus [2]]asdf'],

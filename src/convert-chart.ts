@@ -3,9 +3,7 @@ import { readChartSongEntries } from './chart/chart-file-parser'
 import { chartTextForMidiEventsText, writeChartFile } from './chart/chart-writer'
 import { roundBpm } from './chart/identity/btrack-20260801'
 import { canonicalChartFromParse } from './chart/identity/canonical-source'
-import { midiSustainCutoff, writeMidiFile } from './chart/midi-writer'
-import { midiTextForChartEventsText } from './chart/midi-writer/events'
-import { readMidiEventsText } from './chart/song-events'
+import { midiSustainCutoff, midiTextForChartEventsText, writeMidiFile } from './chart/midi-writer'
 import { ParsedChart, parseSongChartAndIni } from './chart/parse-chart-and-ini'
 import { calculateCompetitiveHashes } from './competitive'
 import { ChartFormat, ChartReadError } from './gameplay-chart'
@@ -237,9 +235,9 @@ function droppedContent(chart: ParsedChart, format: ChartFormat): ConversionRepo
 		add('instrument track MIDI events', chart.trackData.reduce((count, track) => count + track.unrecognizedMidiEvents.length, 0))
 		add('events track MIDI events', chart.unrecognized.eventsTrackMidiEvents.length)
 		const texts = chart.format === 'mid' ? chart.unrecognized.eventsTrackTextEvents : []
-		add('events track vocal events', texts.filter(event => readMidiEventsText(event.text) !== null).length)
-		const unwritable = texts.filter(event => readMidiEventsText(event.text) === null && chartTextForMidiEventsText(event.text) === null)
-		add('events track text that [Events] would read as an event', unwritable.length)
+		const leftOut = texts.map(event => chartTextForMidiEventsText(event.text)).flatMap(written => 'leftOut' in written ? [written.leftOut] : [])
+		add('events track vocal events', leftOut.filter(reason => reason === 'vocal event').length)
+		add('events track text that [Events] would read as an event', leftOut.filter(reason => reason === 'event').length)
 	} else {
 		for (const section of chart.unrecognized.chartSections) add(`[${section.name}] lines`, section.lines.length)
 		add('[SyncTrack] lines', chart.unrecognized.syncTrackEvents.length)
