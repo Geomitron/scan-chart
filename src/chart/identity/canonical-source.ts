@@ -3,6 +3,7 @@ import { calculateCanonicalChartDuration, CanonicalChartDuration } from '../char
 import { ChartSource, parseChartFileCanonicalIdentity, parseChartSource } from '../parse-chart-file'
 import { parseRules } from '../parse-rules'
 import { ObjectCache } from '../../shared/object-cache'
+import { trimDotnet } from '../../shared/text'
 import type { IniChartModifiers } from '../types'
 import type { SourceParseError, SourceParseRequest } from './public'
 import { CanonicalTrackSemantics, createFiveFretRange } from './btrack-20260801'
@@ -139,7 +140,10 @@ function collectRangeShifts(
 	for (const track of sourceTracks) {
 		for (let eventIndex = 0; eventIndex < track.textEvents.length; eventIndex++) {
 			const event = track.textEvents[eventIndex]
-			if (!looksLikeMarker(format, event.text)) continue
+			// A `.mid` range shift reads from the text without white space around it, as Clone Hero trims it
+			// (`RangeShiftTextParser.TryParse`), so ` [ld_range_shift 0 1] ` is one.
+			const text = format === 'mid' ? trimDotnet(event.text) : event.text
+			if (!looksLikeMarker(format, text)) continue
 			const sourceDetails: RangeShiftSourceDetails = {
 				instrument: track.instrument,
 				eventIndex,
@@ -149,7 +153,7 @@ function collectRangeShifts(
 			const source: RangeShiftSourceLocation = format === 'chart'
 				? { ...sourceDetails, format: 'chart', containingDifficulty: track.difficulty }
 				: { ...sourceDetails, format: 'mid', containingDifficulty: null }
-			const values = parseMarkerText(format, event.text)
+			const values = parseMarkerText(format, text)
 			if (!values || values.some(value => value !== undefined && !Number.isSafeInteger(value))) {
 				notices.push({ code: 'rangeShiftMalformed', source })
 				continue

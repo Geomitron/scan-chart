@@ -146,6 +146,38 @@ describe('canonical source identity', () => {
 		expect(containsBytes(identity.projection.bytes, roundedTempo)).toBe(true)
 	})
 
+	it('reads a MIDI range shift with white space around the text, but not one with a space inside its brackets', () => {
+		const conductor: MidiData['tracks'][number] = [
+			{ deltaTime: 0, type: 'trackName', text: '' },
+			{ deltaTime: 0, type: 'setTempo', microsecondsPerBeat: 500000 },
+			{ deltaTime: 0, type: 'endOfTrack' },
+		]
+		const guitarEvents: { tick: number; event: MidiEvent }[] = [
+			{ tick: 0, event: { deltaTime: 0, type: 'text', text: ' [ld_range_shift 3 1 5] ' } },
+			{ tick: 100, event: { deltaTime: 0, type: 'text', text: '[ ld_range_shift 3 3 3]' } },
+			{ tick: 200, event: { deltaTime: 0, type: 'text', text: '[ld_range_shift 3 2 4]\t' } },
+		]
+		for (const tick of [0, 100, 200]) {
+			guitarEvents.push(
+				{ tick, event: { deltaTime: 0, type: 'noteOn', channel: 0, noteNumber: 96, velocity: 100 } },
+				{ tick: tick + 1, event: { deltaTime: 0, type: 'noteOff', channel: 0, noteNumber: 96, velocity: 0 } },
+			)
+		}
+		const source = new Uint8Array(writeMidi({
+			header: { format: 1, numTracks: 2, ticksPerBeat: 480 },
+			tracks: [conductor, midiTrack('PART GUITAR', guitarEvents)],
+		}))
+		const parsed = canonical20260801.parseSource({ source: { format: 'mid', bytes: source }, modifiers: defaultMetadata })
+
+		expect(parsed.kind).toBe('accepted')
+		if (parsed.kind !== 'accepted') return
+		const expert = parsed.chart.tracks.find(track => track.key.instrument === 'guitar' && track.key.difficulty === 'expert')!
+		expect(expert.semantics.rangeShifts).toEqual([
+			{ tick: 0n, position: 1, size: 5 },
+			{ tick: 200n, position: 2, size: 4 },
+		])
+	})
+
 	it('uses exclusive star-power and solo ends and inclusive flex and freestyle ends', () => {
 		const source = chart({
 			Song: ['Resolution = 192'],
