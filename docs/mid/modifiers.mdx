@@ -70,7 +70,7 @@ A tap makes every note it covers a tap, which the player can play without strumm
 - **Required:** a note is tapped or forced, not both.
 - Unlike other modifiers, a tap covers the notes on its end tick too.
 
-**Edge case: a note on a tap's end tick.** YARG doesn't tap a note on the end tick. **Recommended:** end a tap after its last tapped note, and before the next note.
+**Edge case: a note on a tap's end tick.** YARG taps it under tap SysEx events, but not under note 104. **Recommended:** end a tap after its last tapped note, and before the next note.
 
 ## Open notes
 
