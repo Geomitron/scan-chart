@@ -73,8 +73,8 @@ export function buildEventsTrack(chart: ParsedChart): MidiEvent[] {
 	// convention: released Moonscraper and Clone Hero match the literal prefix
 	// `[section ` and drop sections written as plain `section name`. A name
 	// that wouldn't read back from the brackets, one with a `]` that no `[`
-	// before it opens, such as `Jumpin' bridge]`, is written plain, which the
-	// bracket rule reads as written.
+	// before it opens, such as `Jumpin' bridge]`, or a `[` that no `]` closes,
+	// such as `a[b`, is written plain, which the bracket rule reads as written.
 	for (const section of chart.sections) {
 		const bracketed = `[section ${section.name}]`
 		const readBack = readMidiEventsText(bracketed)

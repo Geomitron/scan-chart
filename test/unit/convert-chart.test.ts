@@ -170,7 +170,7 @@ describe('convertChart', () => {
 				name: 'EVENTS',
 				events: [
 					midiText(0, 'x [coda'), midiText(0, '[coda]', 'lyrics'), midiText(0, '[ coda]'), midiText(0, '[foo [section B] bar]'),
-					midiText(0, '[lyric hello]'), midiText(0, 'lyric'), midiText(0, '[crowd_clap]'),
+					midiText(0, '[lyric hello]'), midiText(0, 'lyric'), midiText(0, '[crowd_clap]'), midiText(0, '[[coda]'),
 				],
 			},
 			{ name: 'PART GUITAR', events: midiNote(0, 96) },
@@ -181,10 +181,11 @@ describe('convertChart', () => {
 			{ content: 'events track vocal events', count: 1 },
 			{ content: 'events track text that [Events] would read as an event', count: 1 },
 		])
-		// `x [coda` holds no event in either format. Without their brackets, ` coda` would be the coda and
-		// `foo [section B] bar` the section `B`, so they keep them. `lyric` alone is a lyric only in `[Events]`.
+		// `x [coda` holds no event in either format. Without their brackets, ` coda` would be the coda,
+		// `foo [section B] bar` the section `B` and `[coda` the coda, so they keep them. `lyric` alone is a lyric only
+		// in `[Events]`.
 		const events = decode(fileBytes(documentFiles(converted)[0])).split('[Events]\r\n{\r\n')[1].split('}')[0]
-		expect(events).toBe('  0 = E "x [coda"\r\n  0 = E "[ coda]"\r\n  0 = E "[foo [section B] bar]"\r\n  0 = E "crowd_clap"\r\n')
+		expect(events).toBe('  0 = E "x [coda"\r\n  0 = E "[ coda]"\r\n  0 = E "[foo [section B] bar]"\r\n  0 = E "crowd_clap"\r\n  0 = E "[[coda]"\r\n')
 		expect(resolveChart(converted).sections).toEqual([])
 	})
 
@@ -195,7 +196,7 @@ describe('convertChart', () => {
 			'[Events]', '{', ...events.map(line => `  ${line}`), '}', ...expert(['0 = N 0 0']),
 		].join('\r\n') + '\r\n') }])
 		const { song: converted, report } = convertChart(song, 'mid')
-		expect(report.dropped).toEqual([{ content: '[Events] text that the events track would read as an event', count: 1 }])
+		expect(report.dropped).toEqual([{ content: '[Events] text that the events track would read as an event or a misplaced vocal event', count: 1 }])
 		const eventsTrack = parseMidi(fileBytes(documentFiles(converted).find(file => file.fileName === 'notes.mid')!)).tracks
 			.find(track => track.some(event => event.type === 'trackName' && event.text === 'EVENTS'))!
 		// In brackets, `coda] [x` would be the coda, so it's written plain. `lyric` and a tab is a lyric in EVENTS either way.

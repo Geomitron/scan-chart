@@ -1367,8 +1367,8 @@ function scanEventsTrack(tracks: MidiSourceTrack[]): EventsScanResult {
 		const tick = event.deltaTime
 		const songEvent = readMidiEventsText(text)
 		// Lyrics and phrase markers belong on PART VOCALS in .mid charts, not on
-		// the EVENTS track. Game engines silently drop them when they show up
-		// here. Record a parse issue so consumers can surface the misplacement,
+		// the EVENTS track: Clone Hero ignores them there, and YARG reads them as
+		// lyrics. Record a parse issue so consumers can surface the misplacement,
 		// then keep the event so the value round-trips back out — users can move
 		// it to PART VOCALS manually.
 		const vocalEvent = songEvent === null ? readMidiEventsVocalText(text) : null

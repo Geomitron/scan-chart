@@ -242,7 +242,7 @@ function droppedContent(chart: ParsedChart, format: ChartFormat): ConversionRepo
 		for (const section of chart.unrecognized.chartSections) add(`[${section.name}] lines`, section.lines.length)
 		add('[SyncTrack] lines', chart.unrecognized.syncTrackEvents.length)
 		const texts = chart.format === 'chart' ? chart.unrecognized.eventsTrackTextEvents : []
-		add('[Events] text that the events track would read as an event', texts.filter(event => midiTextForChartEventsText(event.text) === null).length)
+		add('[Events] text that the events track would read as an event or a misplaced vocal event', texts.filter(event => midiTextForChartEventsText(event.text) === null).length)
 	}
 	return dropped
 }

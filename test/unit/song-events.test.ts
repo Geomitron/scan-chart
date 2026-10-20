@@ -30,6 +30,12 @@ describe('song-wide events: the bracket rule', () => {
 		[' [end] ', 'end'],
 		['[ section Intro]', null],
 		['[ coda', null],
+		// The text after an unclosed `[` is read as written, without the rule again.
+		['[[coda]', null],
+		['[section a[b]', 'section:a[b]'],
+		['[', null],
+		['[]', null],
+		['', null],
 	]
 	const reading = (event: { type: string; name?: string } | null) => event === null ? null : event.type === 'section' ? `section:${event.name}` : event.type
 
@@ -51,6 +57,10 @@ describe('song-wide events: the bracket rule', () => {
 		// EVENTS holds no lyrics, so a lyric there is no event for the rule, and the coda in its brackets is read.
 		expect(readMidiEventsText('lyric x [coda]')).toEqual({ type: 'coda' })
 		expect(readMidiEventsText('lyric [section X]')).toEqual({ type: 'section', name: 'X' })
+		// Inside brackets, the text is read as written: a lyric there, whose own brackets hold the coda.
+		expect(readChartEventsText('[lyric x [coda]]')).toEqual({ type: 'vocals' })
+		expect(readMidiEventsText('[lyric x [coda]]')).toBeNull()
+		expect(readMidiEventsVocalText('[lyric x [coda]]')).toEqual({ type: 'lyric' })
 	})
 
 	it('reads a misplaced lyric or phrase event in EVENTS by the same steps, where the text holds no song-wide event', () => {
