@@ -38,7 +38,7 @@ A practice section marks where a part of the song starts, such as the intro or a
 
 **Edge case: the names Clone Hero shows.** Clone Hero has a table of Rock Band section names, and shows a name from it when it finds one there, such as `Verse 1` for `verse_1`. It shows any other name with each `_` replaced by a space. It does the same in a `.chart` file.
 
-**Edge case: a chart with no practice sections.** When a song with no practice sections is played, Clone Hero makes ten, named `0% - 10%` to `90% - 100%`. They start at tenths of the chart's length, which ends a beat after the last note. It does the same in a `.chart` file. YARG makes none. scan-chart reports `noSections`.
+**Edge case: a chart with no practice sections.** When a song with no practice sections is played, Clone Hero makes ten, named `0% - 10%` to `90% - 100%`. They start at tenths of the chart's length, which ends a beat after the last note. It does the same in a `.chart` file. YARG makes the same ten, at tenths of the chart's last tick. scan-chart reports `noSections`.
 
 ## Lyrics
 
