@@ -851,11 +851,12 @@ describe('MIDI: global events', () => {
 		expect(result.unrecognizedEventsTrackTextEvents).toEqual([{ tick: 1440, text: '[phrase_end] ' }])
 	})
 
-	it('reads the text after a [ that no ] closes, and the event in a lyric\'s brackets, since EVENTS holds no lyrics', () => {
+	it('reads the text after a [ at the start that no ] closes, and the event in a lyric\'s brackets, since EVENTS holds no lyrics', () => {
 		const events: MidiData['tracks'][number] = [
 			{ deltaTime: 0, type: 'trackName', text: 'EVENTS' },
 			{ deltaTime: 0, type: 'text', text: '[section Chorus 2' },
 			{ deltaTime: 480, type: 'text', text: 'lyric x [end]' },
+			{ deltaTime: 480, type: 'marker', text: 'lyric x [end]' },
 			{ deltaTime: 0, type: 'endOfTrack' },
 		]
 
@@ -863,8 +864,10 @@ describe('MIDI: global events', () => {
 		const result = parseNotesFromMidi(midi, defaultMetadata)
 		expect(result.sections).toEqual([{ tick: 0, name: 'Chorus 2' }])
 		expect(result.endEvents).toEqual([{ tick: 480 }])
+		// The marker's text would hold the end in a text event, so it's kept as a MIDI event, not a misplaced lyric.
 		expect(result.parseIssues).toEqual([])
 		expect(result.unrecognizedEventsTrackTextEvents).toEqual([])
+		expect(result.unrecognizedEventsTrackMidiEvents.map(event => event.type)).toEqual(['marker'])
 	})
 
 	it('returns empty array when no EVENTS track', () => {

@@ -101,6 +101,9 @@ describe('parseChartLyricLine', () => {
 		expect(parseChartLyricLine('480 = E "lyric [Everyone liked that]"')).toEqual({ tick: 480, text: '[Everyone liked that]' })
 		expect(parseChartLyricLine('480 = E "lyric "')).toEqual({ tick: 480, text: '' })
 		expect(parseChartLyricLine('480 = E "lyrics"')).toBeNull()
+		// A `[` at the start that no `]` closes gives the text after it.
+		expect(parseChartLyricLine('480 = E "[lyric hey"')).toEqual({ tick: 480, text: 'hey' })
+		expect(parseChartLyricLine('480 = E "x [lyric hey"')).toBeNull()
 	})
 
 	it('parses lyric with leading space before "lyric" keyword', () => {
@@ -127,6 +130,10 @@ describe('parseChartVocalPhraseLine', () => {
 
 	it('returns null for lyric events', () => {
 		expect(parseChartVocalPhraseLine('480 = E "lyric Hello"')).toBeNull()
+	})
+
+	it('reads a phrase event after a [ at the start that no ] closes', () => {
+		expect(parseChartVocalPhraseLine('480 = E "[phrase_start"')).toEqual({ tick: 480, type: 'start' })
 	})
 
 	it('returns null for section events', () => {

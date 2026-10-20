@@ -96,8 +96,8 @@ Lyrics use the symbols and formatting tags of `.mid` lyrics, which change how a 
 A scanner reads the event inside the brackets, by the [bracket rule](/chart/syntax#text), so this is the section `intro`, and `E "[coda] - Big Rock Ending"` is the coda. Clone Hero reads the first as the section `intro] - Intro`, and the second as no event. YARG reads them as a scanner does. scan-chart reads them so. Saving with scan-chart keeps the text as written, and its export writes `section intro` and a `coda` at the start of the Big Rock Ending.
 </Accordion>
 
-<Accordion title="A [ that no ] closes, such as [coda">
-A scanner reads the text after the `[`, by the [bracket rule](/chart/syntax#text), so `E "[coda"` is the coda, `E "[end"` the end, and `E "[section Chorus 2"` the section `Chorus 2`. Clone Hero drops a `[` at the start of the text, so it reads them so too. YARG reads them as no event. scan-chart reads them as a scanner does.
+<Accordion title="A [ at the start that no ] closes, such as [coda">
+A scanner reads the text after that `[`, by the [bracket rule](/chart/syntax#text), so `E "[coda"` is the coda, `E "[end"` the end, and `E "[section Chorus 2"` the section `Chorus 2`. A `[` later in the text doesn't count: `E "x [coda"` holds no event. Clone Hero drops a `[` at the start of the text, so it reads them so too. YARG reads them as no event. scan-chart reads them as a scanner does.
 </Accordion>
 
 <Accordion title="Two practice sections at one tick">
