@@ -69,8 +69,9 @@ A song's audio is one file, or several files called stems that are combined whil
 | `vocals` | All of the vocals |
 | `vocals_1` | The lead vocals |
 | `vocals_2` | The second vocals |
+| `crowd` | Crowd noise and singing |
 
-- **Required:** at least one of these files.
+- **Required:** at least one of these files other than `crowd`.
 - Each file is one of these names with the extension `.opus`, `.ogg`, `.mp3` or `.wav`. **Recommended:** `.opus`, at about 80 kbps: it's the smallest at the same quality. An `.ogg` file should be between 192 and 320 kbps.
 - YARG also plays these names with the extension `.aiff`. Clone Hero doesn't, so a `.aiff` file isn't one of the song's audio files, though a folder may hold one: see [Files](#files).
 - **Required:** at most one file for each name.
@@ -92,7 +93,6 @@ A song's audio is one file, or several files called stems that are combined whil
 
 ## Deprecated
 
-- **`crowd` audio:** crowd noise and singing. Games supply their own crowd.
 - **`preview` audio:** the excerpt the song list plays, which a scanner plays whole. Set `preview_start_time` and `preview_end_time` in `song.ini` instead.
 
 ## Invalid forms
