@@ -192,7 +192,7 @@ A scanner ignores the events after the end of track, as Clone Hero and YARG do. 
 </Accordion>
 
 <Accordion title="A damaged file">
-A scanner reads a file cut short between two events up to the cut, as Clone Hero and scan-chart do. It refuses a file cut inside an event, as Clone Hero does, and a tempo or time signature of the wrong length, as scan-chart does. scan-chart reads every complete event before a cut inside an event. Clone Hero reads the fixed fields of a tempo or time signature of the wrong length.
+A scanner reads a file cut short between two events up to the cut, as Clone Hero and scan-chart do. It refuses a file cut inside an event, as Clone Hero does, and a tempo or time signature of the wrong length, as scan-chart does. scan-chart reads every complete event before a cut inside an event. Clone Hero reads the fixed fields of a tempo or time signature of the wrong length. YARG's song scan doesn't read a cut-short track up to the cut, since it doesn't check a track's length against the file.
 </Accordion>
 
 <Accordion title="A resolution of 0, or in SMPTE frames">

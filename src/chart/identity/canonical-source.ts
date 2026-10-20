@@ -108,9 +108,10 @@ function defaultRangeSize(difficulty: Difficulty): number {
 }
 
 function parseMarkerText(format: 'chart' | 'mid', text: string): readonly [number, number, number | undefined] | null {
+	// Numbers are digits without a sign, as Clone Hero parses them (`NumberStyles.None`)
 	const expression = format === 'chart'
-		? /^ld_range_shift ([+-]?\d+) ([+-]?\d+)(?: ([+-]?\d+))?$/
-		: /^\[ld_range_shift ([+-]?\d+) ([+-]?\d+)(?: ([+-]?\d+))?\]$/
+		? /^ld_range_shift (\d+) (\d+)(?: (\d+))?$/
+		: /^\[ld_range_shift (\d+) (\d+)(?: (\d+))?\]$/
 	const match = expression.exec(text)
 	if (!match) return null
 	return [Number(match[1]), Number(match[2]), match[3] === undefined ? undefined : Number(match[3])]
@@ -142,8 +143,8 @@ function collectRangeShifts(
 			const event = track.textEvents[eventIndex]
 			// A `.mid` range shift reads from the text without white space around it, as Clone Hero trims it
 			// (`RangeShiftTextParser.TryParse`), so ` [ld_range_shift 0 1] ` is one.
-			const text = format === 'mid' ? trimDotnet(event.text) : event.text
-			if (!looksLikeMarker(format, text)) continue
+			const markerText = format === 'mid' ? trimDotnet(event.text) : event.text
+			if (!looksLikeMarker(format, markerText)) continue
 			const sourceDetails: RangeShiftSourceDetails = {
 				instrument: track.instrument,
 				eventIndex,
@@ -153,7 +154,7 @@ function collectRangeShifts(
 			const source: RangeShiftSourceLocation = format === 'chart'
 				? { ...sourceDetails, format: 'chart', containingDifficulty: track.difficulty }
 				: { ...sourceDetails, format: 'mid', containingDifficulty: null }
-			const values = parseMarkerText(format, text)
+			const values = parseMarkerText(format, markerText)
 			if (!values || values.some(value => value !== undefined && !Number.isSafeInteger(value))) {
 				notices.push({ code: 'rangeShiftMalformed', source })
 				continue
