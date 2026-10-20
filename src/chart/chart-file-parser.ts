@@ -5,7 +5,8 @@ import { ChartEncoding, decodeChartText, detectChartEncoding } from './chart-enc
 import { ChartEventSection, chartLineSpelling, readableChartLines } from './chart-line-spelling'
 import type { ParseRules } from './parse-rules'
 import { DrumMixEvent, EventType, eventTypes, RawChartData } from './raw-types'
-import { chartEventText, extractChartLyrics, extractChartVocalPhrases } from './lyric-parser'
+import { extractChartLyrics, extractChartVocalPhrases } from './lyric-parser'
+import { readChartEventsText } from './song-events'
 
 /* eslint-disable @typescript-eslint/naming-convention */
 type TrackName = keyof typeof trackNameMap
@@ -1043,22 +1044,5 @@ function scanEventsSection(eventLines: string[]): ChartEventsScanResult {
 		}
 	}
 	return result
-}
-
-/** An event a reader acts on in a `.chart` file's `[Events]` section: `vocals` is a lyric or a vocal phrase event. */
-export type ChartEventsEvent = { type: 'section'; name: string } | { type: 'end' | 'coda' | 'vocals' }
-
-/**
- * The event the text of a `.chart` `[Events]` line is, or `null` for text no reader acts on. A section is `section NAME`
- * or `prc NAME`, with a space or `_` before the name, which is trimmed; a trailing `]` that the text didn't open with
- * stays in the name (`section <b>…</b> [credits]`). An empty name isn't a section.
- */
-export function readChartEventsText(rawText: string): ChartEventsEvent | null {
-	const text = chartEventText(rawText)
-	const name = /^(?:section|prc)[ _](.*)$/.exec(text)?.[1].trim()
-	if (name) return { type: 'section', name }
-	if (text === 'end' || text === 'coda') return { type: text }
-	if (text === 'lyric' || text.startsWith('lyric ') || text === 'phrase_start' || text === 'phrase_end') return { type: 'vocals' }
-	return null
 }
 

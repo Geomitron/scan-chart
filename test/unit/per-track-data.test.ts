@@ -802,54 +802,28 @@ describe('MIDI: global events', () => {
 		])
 	})
 
-	it('reads from lyrics, marker, and cuePoint event types (not just text)', () => {
+	it('keeps lyric, marker and cue point events as MIDI events, which hold no song-wide event', () => {
 		const events: MidiData['tracks'][number] = [
 			{ deltaTime: 0, type: 'trackName', text: 'EVENTS' },
 			{ deltaTime: 0, type: 'text', text: '[crowd_normal]' },
-			{ deltaTime: 480, type: 'lyrics', text: '[music_start]' },
+			{ deltaTime: 480, type: 'lyrics', text: '[section intro]' },
 			{ deltaTime: 480, type: 'marker', text: '[crowd_clap]' },
 			{ deltaTime: 480, type: 'cuePoint', text: '[music_end]' },
+			{ deltaTime: 480, type: 'lyrics', text: '[end]' },
 			{ deltaTime: 0, type: 'endOfTrack' },
 		]
 
 		const midi = buildMidi(480, [tempoTrack(), events])
 		const result = parseNotesFromMidi(midi, defaultMetadata)
-		expect(result.unrecognizedEventsTrackTextEvents).toEqual([
-			{ tick: 0, text: '[crowd_normal]' },
-			{ tick: 480, text: '[music_start]' },
-			{ tick: 960, text: '[crowd_clap]' },
-			{ tick: 1440, text: '[music_end]' },
+		expect(result.sections).toEqual([])
+		expect(result.endEvents).toEqual([])
+		expect(result.unrecognizedEventsTrackTextEvents).toEqual([{ tick: 0, text: '[crowd_normal]' }])
+		expect(result.unrecognizedEventsTrackMidiEvents.map(event => [event.deltaTime, event.type, (event as { text: string }).text])).toEqual([
+			[480, 'lyrics', '[section intro]'],
+			[960, 'marker', '[crowd_clap]'],
+			[1440, 'cuePoint', '[music_end]'],
+			[1920, 'lyrics', '[end]'],
 		])
-	})
-
-	it('reads sections from lyrics/marker event types', () => {
-		const events: MidiData['tracks'][number] = [
-			{ deltaTime: 0, type: 'trackName', text: 'EVENTS' },
-			{ deltaTime: 0, type: 'lyrics', text: '[section intro]' },
-			{ deltaTime: 480, type: 'marker', text: '[section verse]' },
-			{ deltaTime: 0, type: 'endOfTrack' },
-		]
-
-		const midi = buildMidi(480, [tempoTrack(), events])
-		const result = parseNotesFromMidi(midi, defaultMetadata)
-		expect(result.sections).toEqual([
-			{ tick: 0, name: 'intro' },
-			{ tick: 480, name: 'verse' },
-		])
-		expect(result.unrecognizedEventsTrackTextEvents).toEqual([])
-	})
-
-	it('reads end events from lyrics event type', () => {
-		const events: MidiData['tracks'][number] = [
-			{ deltaTime: 0, type: 'trackName', text: 'EVENTS' },
-			{ deltaTime: 960, type: 'lyrics', text: '[end]' },
-			{ deltaTime: 0, type: 'endOfTrack' },
-		]
-
-		const midi = buildMidi(480, [tempoTrack(), events])
-		const result = parseNotesFromMidi(midi, defaultMetadata)
-		expect(result.endEvents).toEqual([{ tick: 960 }])
-		expect(result.unrecognizedEventsTrackTextEvents).toEqual([])
 	})
 
 	it('reads a section, end or misplaced phrase event with white space around the text', () => {
@@ -924,22 +898,6 @@ describe('MIDI: global events', () => {
 		expect(bucket[0].deltaTime).toBe(480)
 	})
 
-	it('does NOT include text-like events in unrecognizedEventsTrackMidiEvents', () => {
-		// text/lyrics/marker/cuePoint are routed into sections/endEvents/unrecognizedEventsTrackTextEvents
-		// (the {tick,text}[] bucket). They must not also leak into the MIDI-events bucket, unless a lyric, marker
-		// or cue point event holds the coda.
-		const events: MidiData['tracks'][number] = [
-			{ deltaTime: 0, type: 'trackName', text: 'EVENTS' },
-			{ deltaTime: 0, type: 'text', text: '[crowd_normal]' },
-			{ deltaTime: 480, type: 'lyrics', text: '[music_start]' },
-			{ deltaTime: 480, type: 'marker', text: '[section verse]' },
-			{ deltaTime: 480, type: 'cuePoint', text: '[music_end]' },
-			{ deltaTime: 0, type: 'endOfTrack' },
-		]
-		const midi = buildMidi(480, [tempoTrack(), events])
-		const result = parseNotesFromMidi(midi, defaultMetadata)
-		expect(result.unrecognizedEventsTrackMidiEvents).toEqual([])
-	})
 
 	it('excludes structural trackName/endOfTrack from unrecognizedEventsTrackMidiEvents', () => {
 		// Writers re-emit trackName/endOfTrack independently; they shouldn't
@@ -1182,7 +1140,7 @@ describe('MIDI: invalid lyric/phrase events on EVENTS track', () => {
 		expect(result.parseIssues).toEqual([])
 	})
 
-	it('reads invalid events from lyrics/marker/cuePoint event types too', () => {
+	it('reports no vocal event in a lyric, marker or cue point event, which holds no song-wide event', () => {
 		const events: MidiData['tracks'][number] = [
 			{ deltaTime: 0, type: 'trackName', text: 'EVENTS' },
 			{ deltaTime: 480, type: 'lyrics', text: '[lyric foo]' },
@@ -1192,7 +1150,7 @@ describe('MIDI: invalid lyric/phrase events on EVENTS track', () => {
 		]
 		const midi = buildMidi(480, [tempoTrack(), events])
 		const result = parseNotesFromMidi(midi, defaultMetadata)
-		const types = result.parseIssues.map(i => i.noteIssue).sort()
-		expect(types).toEqual(['invalidLyric', 'invalidPhraseEnd', 'invalidPhraseStart'])
+		expect(result.parseIssues).toEqual([])
+		expect(result.unrecognizedEventsTrackMidiEvents).toHaveLength(3)
 	})
 })

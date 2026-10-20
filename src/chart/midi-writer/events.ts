@@ -4,6 +4,7 @@
 import type { MidiEvent } from '@geomitron/midi-file'
 
 import type { ParsedChart } from '../parse-chart-and-ini'
+import { readMidiEventsText } from '../song-events'
 import { codaTicksFromFreestyle, wrapEventBrackets } from '../writer-shared'
 import { addVerbatimEvents, finalizeMidiTrack, metaTextEvent, trackNameEvent } from './shared'
 import type { AbsoluteEvent } from './shared'
@@ -51,6 +52,17 @@ export function buildTempoTrack(chart: ParsedChart): MidiEvent[] {
 	return finalizeMidiTrack(events)
 }
 
+/**
+ * Other text of a `.chart` file's `[Events]` section, as the `.mid` export writes it: in brackets, the `.mid`
+ * convention, or without them where `EVENTS` would read the bracketed text as an event. `null` for text `EVENTS` reads
+ * as an event either way, which the export leaves out and the conversion report lists.
+ */
+export function midiTextForChartEventsText(text: string): string | null {
+	const wrapped = wrapEventBrackets(text)
+	if (readMidiEventsText(wrapped) === null) return wrapped
+	return readMidiEventsText(text) === null ? text : null
+}
+
 export function buildEventsTrack(chart: ParsedChart): MidiEvent[] {
 	const events: AbsoluteEvent[] = []
 
@@ -59,17 +71,19 @@ export function buildEventsTrack(chart: ParsedChart): MidiEvent[] {
 		event: trackNameEvent('EVENTS'),
 	})
 
-	// Sections emit WRAPPED as `[section name]` to match the .chart writer and
-	// the RBN/Rock Band MIDI convention. Moonscraper/Clone Hero require the
-	// bracketed form (their reader matches the literal prefix `[section `) and
-	// silently drop sections written as plain `section name`. YARG accepts both
-	// forms via NormalizeTextEvent + TryParseSectionEvent. Names containing `]`
-	// are still lossy under YARG normalization, but that's a rare edge case
-	// compared to losing every section in CH for ordinary charts.
+	// Sections emit WRAPPED as `[section name]`, the RBN/Rock Band MIDI
+	// convention: released Moonscraper and Clone Hero match the literal prefix
+	// `[section ` and drop sections written as plain `section name`. A name
+	// that wouldn't read back from the brackets, one with a `]` that no `[`
+	// before it opens, such as `Jumpin' bridge]`, is written plain, which the
+	// bracket rule reads as written.
 	for (const section of chart.sections) {
+		const bracketed = `[section ${section.name}]`
+		const readBack = readMidiEventsText(bracketed)
+		const text = readBack?.type === 'section' && readBack.name === section.name ? bracketed : `section ${section.name}`
 		events.push({
 			tick: section.tick,
-			event: metaTextEvent(`[section ${section.name}]`),
+			event: metaTextEvent(text),
 		})
 	}
 
@@ -80,13 +94,14 @@ export function buildEventsTrack(chart: ParsedChart): MidiEvent[] {
 		})
 	}
 
-	// Global events (crowd events, music_start/end, coda, etc.). `.chart`
-	// stores them unwrapped; `.mid` stores them bracket-wrapped. When the
-	// source was `.chart`, wrap on output so the MIDI output follows convention.
+	// Global events (crowd events, music_start/end, etc.). `.chart` stores them
+	// unwrapped; `.mid` stores them bracket-wrapped. When the source was
+	// `.chart`, wrap on output so the MIDI output follows convention, where
+	// that reads as no event (`midiTextForChartEventsText`).
 	const sourceIsMidi = chart.format === 'mid'
 	for (const ge of chart.unrecognized.eventsTrackTextEvents) {
-		// `.chart`-sourced events are stored unwrapped; emit them bracket-wrapped.
-		const text = sourceIsMidi ? ge.text : wrapEventBrackets(ge.text)
+		const text = sourceIsMidi ? ge.text : midiTextForChartEventsText(ge.text)
+		if (text === null) continue
 		events.push({
 			tick: ge.tick,
 			event: metaTextEvent(text),

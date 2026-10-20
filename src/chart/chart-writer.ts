@@ -8,7 +8,7 @@
 
 import type { DrumType, Instrument } from '../types'
 import { drumTypes, getInstrumentType, instrumentTypes } from '../types'
-import { readChartEventsText } from './chart-file-parser'
+import { readChartEventsText, readMidiEventsText } from './song-events'
 import { drumMixText } from './disco-flip'
 import { codaTicksFromFreestyle, drumMixEvents, unwrapEventBrackets } from './writer-shared'
 import { computeHopoThresholdTicks, isNaturalHopo } from './natural-hopo'
@@ -192,25 +192,24 @@ function serializeSyncTrack(chart: ParsedChart): string[] {
 // ---------------------------------------------------------------------------
 
 /**
- * Other text of a `.mid` file's `EVENTS` track, as the `.chart` export writes it: without brackets around the whole
- * text, or with them where `[Events]` would read the text without them as the coda, such as `[ coda]`. `null` when
- * `[Events]` reads both as the coda, such as `[coda`: `.chart` drops a lone leading `[`, and `.mid` doesn't. The coda
- * decides Big Rock Endings, which the TrackHash holds, so the export doesn't add one.
+ * Other text of a `.mid` file's `EVENTS` text events, as the `.chart` export writes it: without brackets around the
+ * whole text, or with them where `[Events]` would read the text without them as an event, such as
+ * `[foo [section B] bar]`. `null` for a misplaced lyric or vocal phrase event, which `[Events]` would play, and for text
+ * `[Events]` reads as an event either way: the export leaves them out, and the conversion report lists them.
  */
 export function chartTextForMidiEventsText(text: string): string | null {
-	const isCoda = (candidate: string) => readChartEventsText(candidate)?.type === 'coda'
+	if (readMidiEventsText(text) !== null) return null
 	const unwrapped = unwrapEventBrackets(text)
-	if (!isCoda(unwrapped)) return unwrapped
-	return isCoda(text) ? null : text
+	if (readChartEventsText(unwrapped) === null) return unwrapped
+	return readChartEventsText(text) === null ? text : null
 }
 
 function serializeEventsSection(chart: ParsedChart): string[] {
 	const lines: string[] = ['[Events]', '{']
 
 	// Typed events: sections, written as `section name` without brackets, the
-	// standard form, and endEvents. Readers remove one pair of brackets only
-	// when the text starts with `[`, so a name ending in `]`, such as
-	// `section <b>...</b> [credits]`, reads back as written.
+	// standard form, and endEvents. Read as written first, so a name with
+	// brackets, such as `section <b>...</b> [credits]`, reads back as written.
 	const events: { tick: number; text: string }[] = []
 	for (const s of chart.sections) events.push({ tick: s.tick, text: `section ${s.name}` })
 	for (const e of chart.endEvents) events.push({ tick: e.tick, text: 'end' })
@@ -224,8 +223,8 @@ function serializeEventsSection(chart: ParsedChart): string[] {
 	let hasCodaInGlobalEvents = false
 	for (const ge of chart.unrecognized.eventsTrackTextEvents) {
 		// `.mid`-sourced events arrive bracket-wrapped; `.chart` E-events are
-		// written unwrapped, and left out where `.chart` would read them as a
-		// coda the `.mid` file doesn't have.
+		// written unwrapped where that reads as no event, and left out when
+		// they're misplaced vocal events (`chartTextForMidiEventsText`).
 		const text = sourceIsMidi ? chartTextForMidiEventsText(ge.text) : ge.text
 		if (text === null) continue
 		// endEvents are already emitted above; skip duplicates here.

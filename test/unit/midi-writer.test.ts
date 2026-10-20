@@ -187,11 +187,31 @@ describe('writeMidiFile round-trip: EVENTS track', () => {
 		expect(otherTexts).toEqual([['lyrics', '[coda]'], ['marker', '[coda]'], ['cuePoint', 'coda']])
 		expect(fills(parseChartAndIni([{ fileName: 'notes.mid', data: written }]).parsedChart!)).toEqual([[960, false], [2400, true]])
 
-		// [Events] would read `[coda` as a coda, so the .chart export leaves it out; it keeps `coda]`, which isn't one.
+		// The .chart export keeps `[coda` and `coda]`, which [Events] reads as no event either: no `]` closes the `[`.
 		const chartText = writeChartFile(parsed)
-		expect(chartText).not.toContain('"[coda"')
+		expect(chartText).toContain('0 = E "[coda"')
 		expect(chartText).toContain('0 = E "coda]"')
 		expect(fills(parseChartAndIni([{ fileName: 'notes.chart', data: new TextEncoder().encode(chartText) }]).parsedChart!)).toEqual([[960, false], [2400, true]])
+	})
+
+	it('reads EVENTS text by the bracket rule, and writes every section name so it reads back', () => {
+		const source = midiFile([
+			{ name: 'EVENTS', events: [midiText(0, '[prc_intro] - Intro'), midiText(480, 'section Jumpin\' bridge]'), midiText(960, '[section Verse [2]]'), midiText(1920, '[coda] - Big Rock Ending')] },
+			{ name: 'PART DRUMS', events: [...midiNote(1440, 120, 240), ...midiNote(1440, 97), ...midiNote(2400, 120, 240), ...midiNote(2400, 97)] },
+		])
+		const parsed = parseChartAndIni([{ fileName: 'notes.mid', data: source }]).parsedChart!
+		expect(parsed.sections.map(section => section.name)).toEqual(['intro', 'Jumpin\' bridge]', 'Verse [2]'])
+		// Text after `[coda]` still makes it the coda, so the fill after it is a Big Rock Ending.
+		const fills = parsed.trackData.find(track => track.instrument === 'drums' && track.difficulty === 'expert')!.drumFreestyleSections
+		expect(fills.map(fill => [fill.tick, fill.isCoda])).toEqual([[1440, false], [2400, true]])
+
+		// `[section Jumpin' bridge]]` would read as `Jumpin' bridge`, so that name is written without brackets.
+		const written = writeMidiFile(parsed)
+		const eventsTrack = parseMidi(written).tracks.find(track => track.some(event => event.type === 'trackName' && event.text === 'EVENTS'))!
+		expect(trackTexts(eventsTrack).filter(([, text]) => text.includes('section'))).toEqual([
+			[0, '[section intro]'], [480, 'section Jumpin\' bridge]'], [960, '[section Verse [2]]'],
+		])
+		expect(roundTrip(parsed).sections.map(section => section.name)).toEqual(['intro', 'Jumpin\' bridge]', 'Verse [2]'])
 	})
 
 	it('preserves unrecognized EVENTS events on .mid source', () => {
