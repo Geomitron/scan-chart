@@ -174,7 +174,7 @@ A scanner refuses the file, as scan-chart does, unless the chunk comes after the
 </Accordion>
 
 <Accordion title="A delta time longer than 4 bytes">
-A scanner refuses the file, as YARG's song scan and scan-chart do. Clone Hero misreads it.
+A scanner refuses the file, as scan-chart does. Clone Hero reads 4 bytes and takes the fifth as the next event, so it misreads the track, and fails to load the file when no channel event comes before it in the track. YARG lists such a song, and fails to load it when it's played.
 </Accordion>
 
 <Accordion title="Running status before a track's first channel event">

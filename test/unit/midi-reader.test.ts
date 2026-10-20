@@ -31,6 +31,15 @@ describe('the .mid reader refuses what Clone Hero refuses', () => {
 		for (const parse of Object.values(parsers)) expect(() => parse(data, 'mid')).toThrow('Tempo at tick 480 was zero')
 	})
 
+	it('refuses a delta time longer than 4 bytes in every profile, and reads one of 4 bytes', () => {
+		// The last green note ends at tick 301, so the next note's delta time is `delta`: 2^28 takes 5 bytes.
+		const withDelta = (delta: number) => guitarMidi([...greens, ...note(301 + delta, 96)])
+		for (const parse of Object.values(parsers)) {
+			expect(() => parse(withDelta(0x10000000), 'mid')).toThrow('a delta time is longer than 4 bytes')
+			expect(() => parse(withDelta(0x0fffffff), 'mid')).not.toThrow()
+		}
+	})
+
 	it('refuses a 5- or 6-fret tap or open SysEx phrase whose difficulty byte is not 0 to 3 or 255', () => {
 		for (const trackName of ['PART GUITAR', 'PART GUITAR GHL']) {
 			const data = guitarMidi([...greens, sysEx(100, 5, 4, true), sysEx(300, 5, 4, false)], trackName)
