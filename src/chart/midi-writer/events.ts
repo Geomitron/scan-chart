@@ -4,7 +4,7 @@
 import type { MidiEvent } from '@geomitron/midi-file'
 
 import type { ParsedChart } from '../parse-chart-and-ini'
-import { readMidiEventsText } from '../song-events'
+import { readMidiEventsText, readMidiEventsVocalText } from '../song-events'
 import { codaTicksFromFreestyle, firstFormHoldingNoEvent, wrapEventBrackets } from '../writer-shared'
 import { addVerbatimEvents, finalizeMidiTrack, metaTextEvent, trackNameEvent } from './shared'
 import type { AbsoluteEvent } from './shared'
@@ -54,11 +54,11 @@ export function buildTempoTrack(chart: ParsedChart): MidiEvent[] {
 
 /**
  * Other text of a `.chart` file's `[Events]` section, as the `.mid` export writes it: in brackets, the `.mid`
- * convention, or without them where `EVENTS` would read the bracketed text as an event. `null` for text `EVENTS` reads
- * as an event either way, which the export leaves out and the conversion report lists.
+ * convention, or without them where `EVENTS` would read the bracketed text as an event or a misplaced lyric or phrase
+ * event. `null` for text `EVENTS` reads so either way, which the export leaves out and the conversion report lists.
  */
 export function midiTextForChartEventsText(text: string): string | null {
-	return firstFormHoldingNoEvent([wrapEventBrackets(text), text], readMidiEventsText)
+	return firstFormHoldingNoEvent([wrapEventBrackets(text), text], form => readMidiEventsText(form) ?? readMidiEventsVocalText(form))
 }
 
 export function buildEventsTrack(chart: ParsedChart): MidiEvent[] {

@@ -145,10 +145,11 @@ describe('.chart [Song] unknown-key preservation (metadata.extraChartSongFields)
 			[0, 'Intro'], [192, 'Verse_1'], [384, 'Chorus'], [576, '<b>Solo</b> [credits]'], [1536, 'verse_1'],
 		])
 		expect(r.trackData.find(track => track.instrument === 'drums')?.drumFreestyleSections).toEqual([{ tick: 960, length: 192, isCoda: true }])
-		// No `]` closes the `[` of `[end`, so it holds no event. Text that holds no event is kept as written.
-		expect(r.endEvents).toEqual([])
+		// No `]` closes the `[` that starts `[end`, so the text after it is read: the end. Text that holds no event is kept
+		// as written.
+		expect(r.endEvents.map(({ tick }) => tick)).toEqual([1152])
 		expect(r.unrecognizedEventsTrackTextEvents).toEqual([
-			{ tick: 768, text: 'section ' }, { tick: 768, text: 'sectionX' }, { tick: 1152, text: '[end' }, { tick: 1344, text: 'crowd_clap ' },
+			{ tick: 768, text: 'section ' }, { tick: 768, text: 'sectionX' }, { tick: 1344, text: 'crowd_clap ' },
 		])
 	})
 

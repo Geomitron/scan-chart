@@ -169,7 +169,7 @@ describe('convertChart', () => {
 			{
 				name: 'EVENTS',
 				events: [
-					midiText(0, '[coda'), midiText(0, '[coda]', 'lyrics'), midiText(0, '[ coda]'), midiText(0, '[foo [section B] bar]'),
+					midiText(0, 'x [coda'), midiText(0, '[coda]', 'lyrics'), midiText(0, '[ coda]'), midiText(0, '[foo [section B] bar]'),
 					midiText(0, '[lyric hello]'), midiText(0, 'lyric'), midiText(0, '[crowd_clap]'),
 				],
 			},
@@ -181,10 +181,10 @@ describe('convertChart', () => {
 			{ content: 'events track vocal events', count: 1 },
 			{ content: 'events track text that [Events] would read as an event', count: 1 },
 		])
-		// `[coda` holds no event in either format. Without their brackets, ` coda` would be the coda and
+		// `x [coda` holds no event in either format. Without their brackets, ` coda` would be the coda and
 		// `foo [section B] bar` the section `B`, so they keep them. `lyric` alone is a lyric only in `[Events]`.
 		const events = decode(fileBytes(documentFiles(converted)[0])).split('[Events]\r\n{\r\n')[1].split('}')[0]
-		expect(events).toBe('  0 = E "[coda"\r\n  0 = E "[ coda]"\r\n  0 = E "[foo [section B] bar]"\r\n  0 = E "crowd_clap"\r\n')
+		expect(events).toBe('  0 = E "x [coda"\r\n  0 = E "[ coda]"\r\n  0 = E "[foo [section B] bar]"\r\n  0 = E "crowd_clap"\r\n')
 		expect(resolveChart(converted).sections).toEqual([])
 	})
 

@@ -7,7 +7,7 @@ import { DrumMixEvent, EventType, eventTypes, RawChartData, VocalTrackData } fro
 import { IniChartModifiers } from './types'
 import { parseRules, ParseRules } from './parse-rules'
 import { scanVocalTrack } from './lyric-parser'
-import { MidiEventsEvent, readMidiEventsText } from './song-events'
+import { MidiEventsVocalEvent, readMidiEventsText, readMidiEventsVocalText } from './song-events'
 import { toLowerInvariant } from '../shared/text'
 
 // Union two phrase lists, dedup by tick (keep longest length), sort by tick.
@@ -1371,14 +1371,14 @@ function scanEventsTrack(tracks: MidiSourceTrack[]): EventsScanResult {
 		// here. Record a parse issue so consumers can surface the misplacement,
 		// then keep the event so the value round-trips back out — users can move
 		// it to PART VOCALS manually.
-		const misplacedVocalIssue = songEvent === null ? undefined : misplacedVocalIssues[songEvent.type]
-		if (misplacedVocalIssue) result.parseIssues.push({ instrument: null, difficulty: null, noteIssue: misplacedVocalIssue })
+		const vocalEvent = songEvent === null ? readMidiEventsVocalText(text) : null
+		if (vocalEvent) result.parseIssues.push({ instrument: null, difficulty: null, noteIssue: misplacedVocalIssues[vocalEvent.type] })
 
 		if (event.type !== 'text') {
 			// Only a text event, `FF 01`, holds a song-wide event, as Clone Hero reads them. A lyric, marker or cue point
 			// event whose text would hold a section, end or coda in a text event is kept as a MIDI event, which keeps its
 			// type when written back; other text, misplaced lyric and phrase events included, is kept as text.
-			if (songEvent === null || misplacedVocalIssue) result.unrecognizedTextEvents.push({ tick, text })
+			if (songEvent === null) result.unrecognizedTextEvents.push({ tick, text })
 			else result.unrecognizedMidiEvents.push(event)
 		} else if (songEvent?.type === 'section') {
 			result.sections.push({ tick, name: songEvent.name })
@@ -1394,7 +1394,7 @@ function scanEventsTrack(tracks: MidiSourceTrack[]): EventsScanResult {
 }
 
 /** The parse issue for each lyric or phrase event misplaced on the EVENTS track. */
-const misplacedVocalIssues: Partial<Record<MidiEventsEvent['type'], 'invalidLyric' | 'invalidPhraseStart' | 'invalidPhraseEnd'>> = {
+const misplacedVocalIssues: Record<MidiEventsVocalEvent['type'], 'invalidLyric' | 'invalidPhraseStart' | 'invalidPhraseEnd'> = {
 	lyric: 'invalidLyric',
 	phraseStart: 'invalidPhraseStart',
 	phraseEnd: 'invalidPhraseEnd',

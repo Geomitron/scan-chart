@@ -851,6 +851,22 @@ describe('MIDI: global events', () => {
 		expect(result.unrecognizedEventsTrackTextEvents).toEqual([{ tick: 1440, text: '[phrase_end] ' }])
 	})
 
+	it('reads the text after a [ that no ] closes, and the event in a lyric\'s brackets, since EVENTS holds no lyrics', () => {
+		const events: MidiData['tracks'][number] = [
+			{ deltaTime: 0, type: 'trackName', text: 'EVENTS' },
+			{ deltaTime: 0, type: 'text', text: '[section Chorus 2' },
+			{ deltaTime: 480, type: 'text', text: 'lyric x [end]' },
+			{ deltaTime: 0, type: 'endOfTrack' },
+		]
+
+		const midi = buildMidi(480, [tempoTrack(), events])
+		const result = parseNotesFromMidi(midi, defaultMetadata)
+		expect(result.sections).toEqual([{ tick: 0, name: 'Chorus 2' }])
+		expect(result.endEvents).toEqual([{ tick: 480 }])
+		expect(result.parseIssues).toEqual([])
+		expect(result.unrecognizedEventsTrackTextEvents).toEqual([])
+	})
+
 	it('returns empty array when no EVENTS track', () => {
 		const midi = buildMidi(480, [tempoTrack()])
 		const result = parseNotesFromMidi(midi, defaultMetadata)

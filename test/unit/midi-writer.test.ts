@@ -161,14 +161,14 @@ describe('writeMidiFile round-trip: EVENTS track', () => {
 		expect(trackTexts(eventsTrack)).toEqual([[0, '[section Intro]'], [1920, '[coda]'], [3840, '[end]']])
 	})
 
-	it('reads the coda only from a text event of coda or [coda], and writes the other forms back without making them one', () => {
+	it('reads the coda by the bracket rule only from a text event, and writes the other forms back without making them one', () => {
 		const metaText = (type: 'marker' | 'cuePoint', text: string) => ({ tick: 0, event: { type, text } as Omit<MidiEvent, 'deltaTime'> })
 		const source = midiFile([
 			{
 				name: 'EVENTS',
 				events: [
-					midiText(0, '[coda'), midiText(0, 'coda]'), midiText(0, '[coda]', 'lyrics'), metaText('marker', '[coda]'), metaText('cuePoint', 'coda'),
-					midiText(1920, ' [coda] '),
+					midiText(0, 'x [coda'), midiText(0, 'coda]'), midiText(0, '[coda]', 'lyrics'), metaText('marker', '[coda]'), metaText('cuePoint', 'coda'),
+					midiText(1920, ' [coda '),
 				],
 			},
 			{ name: 'PART DRUMS', events: [...midiNote(960, 120, 240), ...midiNote(960, 97), ...midiNote(2400, 120, 240), ...midiNote(2400, 97)] },
@@ -178,18 +178,18 @@ describe('writeMidiFile round-trip: EVENTS track', () => {
 		const parsed = parseChartAndIni([{ fileName: 'notes.mid', data: source }]).parsedChart!
 		expect(fills(parsed)).toEqual([[960, false], [2400, true]])
 
-		// The .mid export keeps the lyric, marker and cue point events as they were and the one-bracket text as text, and
-		// writes the coda where the Big Rock Ending starts.
+		// The .mid export keeps the lyric, marker and cue point events as they were and the other text as text, and writes
+		// the coda where the Big Rock Ending starts.
 		const written = writeMidiFile(parsed)
 		const eventsTrack = parseMidi(written).tracks.find(track => track.some(event => event.type === 'trackName' && event.text === 'EVENTS'))!
-		expect(trackTexts(eventsTrack)).toEqual([[0, '[coda'], [0, 'coda]'], [2400, '[coda]']])
+		expect(trackTexts(eventsTrack)).toEqual([[0, 'x [coda'], [0, 'coda]'], [2400, '[coda]']])
 		const otherTexts = eventsTrack.flatMap(event => (event.type === 'lyrics' || event.type === 'marker' || event.type === 'cuePoint' ? [[event.type, event.text]] : []))
 		expect(otherTexts).toEqual([['lyrics', '[coda]'], ['marker', '[coda]'], ['cuePoint', 'coda']])
 		expect(fills(parseChartAndIni([{ fileName: 'notes.mid', data: written }]).parsedChart!)).toEqual([[960, false], [2400, true]])
 
-		// The .chart export keeps `[coda` and `coda]`, which [Events] reads as no event either: no `]` closes the `[`.
+		// The .chart export keeps `x [coda` and `coda]`, which [Events] reads as no event either.
 		const chartText = writeChartFile(parsed)
-		expect(chartText).toContain('0 = E "[coda"')
+		expect(chartText).toContain('0 = E "x [coda"')
 		expect(chartText).toContain('0 = E "coda]"')
 		expect(fills(parseChartAndIni([{ fileName: 'notes.chart', data: new TextEncoder().encode(chartText) }]).parsedChart!)).toEqual([[960, false], [2400, true]])
 	})

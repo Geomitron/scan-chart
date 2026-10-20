@@ -8,7 +8,7 @@
 
 import type { DrumType, Instrument } from '../types'
 import { drumTypes, getInstrumentType, instrumentTypes } from '../types'
-import { readChartEventsText, readMidiEventsText } from './song-events'
+import { readChartEventsText, readMidiEventsVocalText } from './song-events'
 import { drumMixText } from './disco-flip'
 import { codaTicksFromFreestyle, drumMixEvents, firstFormHoldingNoEvent, unwrapEventBrackets } from './writer-shared'
 import { computeHopoThresholdTicks, isNaturalHopo } from './natural-hopo'
@@ -201,7 +201,7 @@ export type ChartTextForMidiEventsText = { text: string } | { leftOut: 'vocal ev
  * event either way, such as `lyric` alone; the conversion report lists them.
  */
 export function chartTextForMidiEventsText(text: string): ChartTextForMidiEventsText {
-	if (readMidiEventsText(text) !== null) return { leftOut: 'vocal event' }
+	if (readMidiEventsVocalText(text) !== null) return { leftOut: 'vocal event' }
 	const written = firstFormHoldingNoEvent([unwrapEventBrackets(text), text], readChartEventsText)
 	return written === null ? { leftOut: 'event' } : { text: written }
 }
