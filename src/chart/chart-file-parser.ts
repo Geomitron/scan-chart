@@ -196,6 +196,14 @@ export function lazyChartFileSections(tokens: ChartFileTokens, bodies?: Map<stri
 	return fileSections
 }
 
+/** A section's trimmed lines by their leading tick, keeping the file's order at one tick. A line without one stays after the line before it. */
+function inTickOrder(lines: string[]): string[] {
+	let previous = 0
+	const ticked = lines.map((line, index) => ({ line, index, tick: previous = Number(/^\d+/.exec(line)?.[0] ?? previous) }))
+	if (ticked.every((entry, i) => i === 0 || entry.tick >= ticked[i - 1].tick)) return lines
+	return ticked.sort((a, b) => a.tick - b.tick || a.index - b.index).map(({ line }) => line)
+}
+
 /**
  * Reads a `.chart` file into its sections.
  *
@@ -250,9 +258,12 @@ export function classifyChartFile(
 		extraChartSongFields[key] = value
 	}
 
-	const eventLines = readable(fileSections['Events'] ?? [], 'events')
+	// A section whose lines go back in time is read in tick order, keeping the file's order at one tick, as instrument
+	// sections are. The frozen profile keeps scan-chart 8's reading, in the order written.
+	const ordered = (lines: string[]) => nonstandardLines === 'read' ? inTickOrder(lines) : lines
+	const eventLines = ordered(readable(fileSections['Events'] ?? [], 'events'))
 	if (fileSections['SyncTrack'] === undefined) throw 'Invalid .chart file: no [SyncTrack] section was found.'
-	const syncLines = readable(fileSections['SyncTrack'], 'sync')
+	const syncLines = ordered(readable(fileSections['SyncTrack'], 'sync'))
 
 	// Classify each line of the [Events] section into one of:
 	// sections, endEvents, codaEvents, or unrecognizedTextEvents (the remainder).
