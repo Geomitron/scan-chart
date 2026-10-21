@@ -105,7 +105,7 @@ export const chartIssueMessages: { readonly [issue in ChartIssueType]: string } 
 	invalidPhraseEnd: 'This phrase_end is on the EVENTS track. Vocal phrase boundaries in .mid charts must be MIDI note 105 (player 1) or 106 (player 2) on PART VOCALS.',
 	chartOffset: "The chart's [Song] Offset isn't 0.",
 	emptyTrack: "This track has no notes, so games don't list it.",
-	greenDrumPair: 'This pro drums chart has a 5-lane green note on the tick of a green note, so games refuse to load it. Move one of them, or turn the 5-lane green into a blue tom.',
+	greenDrumPair: 'This pro drums chart has a 5-lane green note on the tick of a green note, which makes the chart invalid. Move one of them, or turn the 5-lane green into a blue tom.',
 }
 
 /** The statistics of a chart parsed with `settings` from a file of `format`. */
@@ -272,7 +272,8 @@ function jsonEntries(object: object) {
 }
 
 /**
- * The chart issues of a parsed chart, in order: the parser's own, then the chart-wide ones, then each track's.
+ * The chart issues of a parsed chart, in order: the parser's own and each track's green pairs, then the chart-wide ones,
+ * then each track's others.
  * `isSameAsExpert` decides `difficultyNotReduced`. With `recommendations`, a check with a charting recommendation also
  * reports what misses it but passes the check's own threshold, as a finding marked `recommendation`.
  */

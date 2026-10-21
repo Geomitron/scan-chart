@@ -60,11 +60,11 @@ export interface SourceParseRequest {
 }
 
 /**
- * Why the canonical profile rejected a chart: `sourceParseFailed` when the file couldn't be parsed, `invalidChart` when
- * it parsed but holds a form that makes games refuse it, such as a pro drums green pair.
+ * Why the canonical profile rejected a chart: `sourceParseFailed` when the file couldn't be parsed, `invalidForm` when
+ * it parsed but holds a form that makes the chart invalid, such as a pro drums green pair.
  */
 export interface SourceParseError {
-	readonly code: 'sourceParseFailed' | 'invalidChart'
+	readonly code: 'sourceParseFailed' | 'invalidForm'
 	readonly message: string
 }
 

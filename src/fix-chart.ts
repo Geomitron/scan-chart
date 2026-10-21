@@ -368,16 +368,21 @@ export function fixSustains(
 	return fixed
 }
 
-/** The authored events of a parsed fret note: its `.chart` lines, or its MIDI notes on its difficulty. */
 /** One `greenDrumPair` tick's fix: the 5-lane green note it removes, and the blue tom it writes in its place, if any. */
 interface GreenPairFix {
 	readonly difficulty: Difficulty
 	readonly tick: number
 	readonly green: AuthoredElement & { readonly length: number }
-	/** The blue tom to add, or `null` where it removes the 5-lane green only. */
-	readonly blueTom: { readonly length: number; readonly velocity?: number; readonly channel?: number } | null
-	/** The `.chart` blue cymbal markers on the tick, removed so the new blue note is a tom. */
-	readonly cymbalMarkers: readonly AuthoredElement[]
+	/**
+	 * The blue tom to add, with the flags the parse should give it (`null` to check only that it's a tom), or `null`
+	 * where the fix removes the 5-lane green only, for `reason`.
+	 */
+	readonly blueTom: { readonly length: number; readonly velocity?: number; readonly channel?: number; readonly flags: number | null } | null
+	readonly reason: 'blueOnTick' | 'markerChangesOther' | null
+	/** Other events on the tick it removes: the 5-lane green's accent or ghost, and `.chart` markers of the blue note. */
+	readonly removals: readonly AuthoredElement[]
+	/** The `.chart` accent or ghost it adds for the blue tom, as the 5-lane green had. */
+	readonly modifiers: readonly EventType[]
 	/** Whether a `.mid` blue tom marker is added on the tick, so the new blue note is a tom. */
 	readonly tomMarker: boolean
 	/** The `.chart` section's index, or the `.mid` drum track chunk's. */
@@ -386,9 +391,9 @@ interface GreenPairFix {
 
 /**
  * Fixes `greenDrumPair`: turns each 5-lane green note on the tick of a green note in a pro drums chart into a blue tom,
- * as Clone Hero 1.1 plays it, or removes it where a blue note is already on that tick. In a `.mid` file the blue note is
- * a tom under a blue tom marker, which covers every difficulty, so where another difficulty has a blue note on the tick
- * that a new marker would turn into a tom, the 5-lane green is removed instead.
+ * as Clone Hero 1.1 plays it, keeping its accent or ghost, or removes it where a blue note is already on that tick. In a
+ * `.mid` file the blue note is a tom under a blue tom marker, which covers every difficulty, so where another difficulty
+ * has a blue note on the tick that a new marker would turn into a tom, the 5-lane green is removed instead.
  */
 export function fixGreenDrumPairs(song: SongDocument, issues: readonly Issue[], record: FixRecord): SongDocument {
 	const { chart } = song
@@ -408,11 +413,18 @@ export function fixGreenDrumPairs(song: SongDocument, issues: readonly Issue[], 
 				notFound()
 				continue
 			}
-			const hasBlue = onTick.some(event => event.type === eventTypes.blueDrum)
+			const ofType = (type: EventType) => onTick.filter(event => event.type === type)
+			const [accents, ghosts] = [ofType(eventTypes.fiveGreenAccent), ofType(eventTypes.fiveGreenGhost)]
+			const hasBlue = ofType(eventTypes.blueDrum).length > 0
+			// The blue note's markers on the tick marked no note, and would change the new blue tom.
+			const blueMarkers = hasBlue ? [] : [eventTypes.blueCymbalMarker, eventTypes.blueAccent, eventTypes.blueGhost].flatMap(ofType)
+			const accentFlag = accents.length > 0 ? noteFlags.accent : ghosts.length > 0 ? noteFlags.ghost : noteFlags.none
 			fixes.push({
 				difficulty, tick, green, container: section.section, tomMarker: false,
-				blueTom: hasBlue ? null : { length: green.length },
-				cymbalMarkers: hasBlue ? [] : onTick.filter(event => event.type === eventTypes.blueCymbalMarker),
+				blueTom: hasBlue ? null : { length: green.length, flags: noteFlags.tom | accentFlag },
+				reason: hasBlue ? 'blueOnTick' : null,
+				removals: [...accents, ...ghosts, ...blueMarkers],
+				modifiers: hasBlue ? [] : accents.length > 0 ? [eventTypes.blueAccent] : ghosts.length > 0 ? [eventTypes.blueGhost] : [],
 			})
 		} else {
 			const track = midiTrackOf(chart.tokens!, 'drums')
@@ -426,11 +438,12 @@ export function fixGreenDrumPairs(song: SongDocument, issues: readonly Issue[], 
 				&& (tick < event.tick + event.length || event.tick === tick))
 			const blues = onTick.filter(event => event.type === eventTypes.blueDrum)
 			// A new marker would turn another difficulty's blue cymbal on the tick into a tom.
-			const removesOnly = blues.some(event => event.scope === difficulty) || (!covered && blues.length > 0)
+			const reason = blues.some(event => event.scope === difficulty) ? 'blueOnTick' : !covered && blues.length > 0 ? 'markerChangesOther' : null
 			fixes.push({
-				difficulty, tick, green, container: track.chunk, cymbalMarkers: [],
-				blueTom: removesOnly ? null : { length: green.length, velocity: green.velocity, channel: green.channel },
-				tomMarker: !removesOnly && !covered,
+				difficulty, tick, green, container: track.chunk, removals: [], modifiers: [], reason,
+				// The velocity carries an accent or ghost, as the 5-lane green had.
+				blueTom: reason !== null ? null : { length: green.length, velocity: green.velocity, channel: green.channel, flags: null },
+				tomMarker: reason === null && !covered,
 			})
 		}
 	}
@@ -440,10 +453,11 @@ export function fixGreenDrumPairs(song: SongDocument, issues: readonly Issue[], 
 		const markedTicks = new Set<number>()
 		for (const fix of chosen) {
 			batch.remove(fix.green)
-			for (const marker of fix.cymbalMarkers) batch.remove(marker)
+			for (const element of fix.removals) batch.remove(element)
 			if (fix.blueTom === null) continue
 			if (chart.format === 'chart') {
 				batch.addToChartSection(fix.container, fix.tick, eventTypes.blueDrum, fix.blueTom.length)
+				for (const type of fix.modifiers) batch.addToChartSection(fix.container, fix.tick, type, 0)
 			} else {
 				batch.addToMidiTrack(fix.container, fix.difficulty, fix.tick, eventTypes.blueDrum, fix.blueTom.length,
 					{ velocity: fix.blueTom.velocity!, channel: fix.blueTom.channel! })
@@ -452,8 +466,9 @@ export function fixGreenDrumPairs(song: SongDocument, issues: readonly Issue[], 
 			}
 		}
 	})
-	// The other notes play as before, the green note stays, a converted tick gains a blue tom, and the pair is gone.
+	// The other notes play as before, the green note stays, a converted tick gains its blue tom, and the pair is gone.
 	const notesOf = (groups: readonly (readonly NoteEvent[])[]) => groups.map(group => group.map(({ tick, length, type, flags }) => [tick, length, type, flags]))
+	const tomFlags = noteFlags.tom | noteFlags.accent | noteFlags.ghost
 	const problem = (edited: SongDocument, chosen: readonly GreenPairFix[]) => {
 		const after = parsedChart(edited)
 		if (after === null) return 'would make the chart fail to parse'
@@ -472,33 +487,40 @@ export function fixGreenDrumPairs(song: SongDocument, issues: readonly Issue[], 
 				const now = notesOf([group])[0]
 				if (!was.every(note => now.some(other => sameAsJson(other, note)))) return `would change the other ${trackLabel(track)} notes at tick ${fix.tick}`
 				if (editedTrack.greenDrumPairs?.some(pair => pair.tick === fix.tick)) return `would leave the green pair at tick ${fix.tick}`
-				if (fix.blueTom !== null && !group.some(note => note.type === noteTypes.blueDrum && (note.flags & noteFlags.tom) !== 0)) {
-					return `wouldn't give a blue tom at tick ${fix.tick}`
+				const blueTom = fix.blueTom
+				if (blueTom !== null && !group.some(note => note.type === noteTypes.blueDrum
+					&& (blueTom.flags === null ? (note.flags & noteFlags.tom) !== 0 : (note.flags & tomFlags) === blueTom.flags))) {
+					return `wouldn't give the blue tom the 5-lane green's accent or ghost at tick ${fix.tick}`
 				}
 			}
 		}
 		return null
 	}
-	const what = (fix: GreenPairFix) => fix.blueTom === null ? 'removed' : 'blueTom'
 	const { song: fixed, chosen } = chooseEdits(song, fixes, apply, problem, (fix, reason) =>
 		record.skip('greenDrumPair', chart.fileName, `Fixing the ${fix.difficulty} drums 5-lane green note at tick ${fix.tick} ${reason}.`))
+	const kinds: readonly (readonly ['blueTom' | NonNullable<GreenPairFix['reason']>, (one: boolean) => string])[] = [
+		['blueTom', one => `into ${one ? 'a blue tom' : 'blue toms'}`],
+		['blueOnTick', () => 'where a blue note is already on the tick'],
+		['markerChangesOther', () => 'where a blue tom marker would turn another difficulty\'s blue cymbal on the tick into a tom'],
+	]
 	for (const difficulty of new Set(chosen.map(fix => fix.difficulty))) {
-		for (const kind of ['blueTom', 'removed'] as const) {
-			const ticks = chosen.filter(fix => fix.difficulty === difficulty && what(fix) === kind).map(fix => fix.tick)
+		for (const [kind, phrase] of kinds) {
+			const ticks = chosen.filter(fix => fix.difficulty === difficulty && (fix.reason ?? 'blueTom') === kind).map(fix => fix.tick)
 			if (ticks.length === 0) continue
-			const at = `${ticks.length === 1 ? 'tick' : 'ticks'} ${ticks.join(', ')}`
+			const one = ticks.length === 1
+			const notes = `the ${difficulty} drums 5-lane green ${one ? 'note that shares' : 'notes that share'} a tick with a green note`
+			const at = `at ${one ? 'tick' : 'ticks'} ${ticks.join(', ')}`
 			record.fixed.push({
 				code: 'greenDrumPair',
 				file: chart.fileName,
-				description: kind === 'blueTom'
-					? `Turned the ${difficulty} drums 5-lane green ${ticks.length === 1 ? 'note' : 'notes'} on the green note's tick into a blue tom at ${at}.`
-					: `Removed the ${difficulty} drums 5-lane green ${ticks.length === 1 ? 'note' : 'notes'} on the green note's tick at ${at}, where a blue note on the tick keeps it from being a blue tom.`,
+				description: kind === 'blueTom' ? `Turned ${notes} ${phrase(one)} ${at}.` : `Removed ${notes} ${at}, ${phrase(one)}.`,
 			})
 		}
 	}
 	return fixed
 }
 
+/** The authored events of a parsed fret note: its `.chart` lines, or its MIDI notes on its difficulty. */
 function authoredNotes(song: SongDocument, track: Track, note: NoteEvent): (AuthoredElement & { length: number })[] {
 	const { chart } = song
 	const type = fretEventTypes.get(note.type)

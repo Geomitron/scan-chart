@@ -4,10 +4,12 @@ import { describe, expect, it } from 'vitest'
 import { parseChartFile, parseChartFileCanonicalIdentity, parseChartFileFrozenLegacyIdentity } from 'src/chart/parse-chart-file'
 import { noteFlags, noteTypes } from 'src/chart/types'
 import { calculateCompetitiveHashes } from 'src/competitive'
+import { convertChart, InvalidChartError } from 'src/convert-chart'
 import { fixIssues } from 'src/fix-issues'
 import { scanSongFolder } from 'src/scan-song-folder'
-import { parseSong, parseSongFiles } from 'src/song-document'
-import type { SongFile } from 'src/song-files'
+import { editSong, parseSong, parseSongFiles } from 'src/song-document'
+import { saveSong } from 'src/song-save'
+import { fileBytes, type SongFile } from 'src/song-files'
 
 import { chartFile, chartText, midi } from './helpers/chart-files'
 
@@ -48,13 +50,16 @@ describe('a 5-lane green note on the tick of a green note in a pro drums chart',
 			{ tick: 0, noteNumber: 98 }, { tick: 0, noteNumber: 110 },
 			{ tick: 960, noteNumber: 100 }, { tick: 960, noteNumber: 101 }, { tick: 960, noteNumber: 112 },
 			{ tick: 1920, noteNumber: 100 }, { tick: 1920, noteNumber: 101 },
+			{ tick: 2880, noteNumber: 64 }, { tick: 2880, noteNumber: 65 },
 		] })
 		for (const parse of [parsers.scanner, parsers.canonical]) {
 			expect(notesAt(parse, data, 'mid', 960)).toEqual(['greenDrum tom'])
 			expect(notesAt(parse, data, 'mid', 1920)).toEqual(['greenDrum cymbal'])
-			expect(pairsOf(parse, data, 'mid')).toEqual(['expert 960', 'expert 1920'])
+			expect(notesAt(parse, data, 'mid', 2880, 'easy')).toEqual(['greenDrum cymbal'])
+			expect(pairsOf(parse, data, 'mid')).toEqual(['expert 960', 'expert 1920', 'easy 2880'])
 		}
 		expect(notesAt(parsers.legacy, data, 'mid', 960)).toEqual(['blueDrum tom', 'greenDrum tom'])
+		expect(notesAt(parsers.legacy, data, 'mid', 2880, 'easy')).toEqual(['blueDrum tom', 'greenDrum cymbal'])
 	})
 
 	it('leaves a 5-lane chart and a lone 5-lane green in a pro chart as they are', () => {
@@ -78,6 +83,14 @@ describe('a 5-lane green note on the tick of a green note in a pro drums chart',
 			.toEqual([{ difficulty: 'expert', tick: 768, severity: 'error' }])
 		expect(scanned.issues.map(issue => issue.code)).toContain('badChartIdentity')
 	})
+
+	it('is kept as written by saving, and refused by conversion until it is fixed', async () => {
+		const song = await parseSong(folder(drumsChart(['768 = N 4 0', '768 = N 5 0'])))
+		const saved = saveSong(song, editSong(song, batch => batch.setMetadata('name', 'Other'))).files
+		expect(new TextDecoder().decode(fileBytes(saved.find(file => file.fileName === 'notes.chart')!))).toContain('768 = N 5 0')
+		expect(() => convertChart(song, 'mid')).toThrow(InvalidChartError)
+		expect(() => convertChart(song, 'mid')).toThrow('Fix it with fixIssues (greenDrumPair) before converting.')
+	})
 })
 
 describe('fixIssues on greenDrumPair', () => {
@@ -88,10 +101,22 @@ describe('fixIssues on greenDrumPair', () => {
 		const { song, report } = await fix(folder(drumsChart(['768 = N 4 0', '768 = N 5 0', '768 = N 67 0', '960 = N 4 0', '960 = N 5 0', '960 = N 3 0'])))
 		expect(drumLines(chartText(song))).toEqual(['{', '0 = N 2 0', '0 = N 66 0', '768 = N 4 0', '768 = N 3 0', '960 = N 4 0', '960 = N 3 0'])
 		expect(report.fixed.map(entry => entry.description)).toEqual([
-			'Turned the expert drums 5-lane green note on the green note\'s tick into a blue tom at tick 768.',
-			'Removed the expert drums 5-lane green note on the green note\'s tick at tick 960, where a blue note on the tick keeps it from being a blue tom.',
+			'Turned the expert drums 5-lane green note that shares a tick with a green note into a blue tom at tick 768.',
+			'Removed the expert drums 5-lane green note that shares a tick with a green note at tick 960, where a blue note is already on the tick.',
 		])
 		expect(calculateCompetitiveHashes(song).accepted).toBe(true)
+	})
+
+	it('gives the blue tom the 5-lane green\'s accent or ghost in a .chart file, as Clone Hero 1.1 plays it', async () => {
+		const { song, report } = await fix(folder(drumsChart(['768 = N 4 0', '768 = N 5 0', '768 = N 38 0', '960 = N 4 0', '960 = N 5 0', '960 = N 44 0', '960 = N 36 0'])))
+		expect(drumLines(chartText(song))).toEqual(['{', '0 = N 2 0', '0 = N 66 0', '768 = N 4 0', '768 = N 3 0', '768 = N 36 0', '960 = N 4 0', '960 = N 3 0', '960 = N 42 0'])
+		const fixedChart = new TextEncoder().encode(chartText(song)!)
+		const flags = (tick: number) => parsers.canonical(fixedChart, 'chart').trackData[0].noteEventGroups
+			.find(group => group[0].tick === tick)!.find(note => note.type === noteTypes.blueDrum)!.flags & (noteFlags.tom | noteFlags.accent | noteFlags.ghost)
+		expect([flags(768), flags(960)]).toEqual([noteFlags.tom | noteFlags.accent, noteFlags.tom | noteFlags.ghost])
+		expect(report.fixed.map(entry => entry.description)).toEqual([
+			'Turned the expert drums 5-lane green notes that share a tick with a green note into blue toms at ticks 768, 960.',
+		])
 	})
 
 	it('turns a .mid 5-lane green into a blue tom under a new tom marker, or removes it where the marker would change another difficulty', async () => {
@@ -110,9 +135,10 @@ describe('fixIssues on greenDrumPair', () => {
 		const drums = parseMidi(fixed).tracks.find(track => track.some(event => event.type === 'trackName' && event.text === 'PART DRUMS'))!
 		expect(drums.filter(event => event.type === 'noteOn' && event.noteNumber === 111 && event.velocity > 0)).toHaveLength(1)
 		expect(report.fixed.map(entry => entry.description)).toEqual([
-			'Turned the expert drums 5-lane green note on the green note\'s tick into a blue tom at tick 960.',
-			'Removed the expert drums 5-lane green note on the green note\'s tick at tick 1920, where a blue note on the tick keeps it from being a blue tom.',
-			'Turned the hard drums 5-lane green note on the green note\'s tick into a blue tom at tick 960.',
+			'Turned the expert drums 5-lane green note that shares a tick with a green note into a blue tom at tick 960.',
+			'Removed the expert drums 5-lane green note that shares a tick with a green note at tick 1920, '
+				+ 'where a blue tom marker would turn another difficulty\'s blue cymbal on the tick into a tom.',
+			'Turned the hard drums 5-lane green note that shares a tick with a green note into a blue tom at tick 960.',
 		])
 	})
 })

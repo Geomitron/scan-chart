@@ -647,8 +647,9 @@ describe('issueFixes', () => {
 			const withheld = await run(changes, code, false)
 			expect(withheld.report.fixed.map(entry => entry.code), code).not.toContain(code)
 			expect(withheld.codes, code).toContain(code)
-			// A chart the canonical rules reject has no hashes until its fix gives it some.
-			if (withheld.before === null) {
+			// A chart with a green pair has no hashes until its fix gives it some.
+			if (code === 'greenDrumPair') {
+				expect(withheld.before, code).toBeNull()
 				expect(withheld.after, code).toBeNull()
 				expect(withheld.report.hashes, code).toEqual([])
 			} else {

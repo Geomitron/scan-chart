@@ -18,7 +18,7 @@ const metadata = { name: 'Name', artist: 'Artist', album: null, genre: null, yea
 describe('public API', () => {
 	it('exports the 9.0.0 functions and constants, and none of 8.x\'s', () => {
 		expect(Object.keys(publicApi).sort()).toEqual([
-			'ChartReadError', 'ConversionError', 'analyzeChart', 'authoredSongEvents', 'authoredTracks', 'byteSourceFromBlob', 'chartCapabilities',
+			'ChartReadError', 'ConversionError', 'InvalidChartError', 'analyzeChart', 'authoredSongEvents', 'authoredTracks', 'byteSourceFromBlob', 'chartCapabilities',
 			'convertChart', 'createSong', 'defaultChartParseSettings', 'defaultMetadata', 'difficulties', 'drumTypes', 'editSong', 'fixIssues',
 			'getInstrumentType', 'instrumentTypes', 'instruments', 'issueFixes', 'lyricFlags', 'noteFlags', 'noteTypes', 'parseSong',
 			'parseSongMetadata', 'resolveChart', 'savePlanToBlobs', 'scanSongFolder', 'serializeSong', 'songMetadata',
