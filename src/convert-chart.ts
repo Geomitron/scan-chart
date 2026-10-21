@@ -49,6 +49,11 @@ export interface ConversionReport {
 }
 
 /** The chart holds values the target format can't store; `force` writes the nearest ones, where there are any. */
+/** `convertChart` meets a chart games refuse, such as a pro drums green pair, which converting would hide: fix it first. */
+export class InvalidChartError extends RangeError {
+	override readonly name = 'InvalidChartError'
+}
+
 export class ConversionError extends RangeError {
 	override readonly name = 'ConversionError'
 	constructor(readonly limits: readonly ConversionLimit[]) {
@@ -86,6 +91,11 @@ export function convertChart(
 	if (context.chart.kind === 'failed') throw new ChartReadError(context.chart.error)
 	const { parsedChart } = parseSongChartAndIni(song)
 	if (parsedChart === null) throw new ChartReadError('The song has no chart file.')
+	const pair = parsedChart.trackData.find(track => track.greenDrumPairs !== undefined)
+	if (pair !== undefined) {
+		throw new InvalidChartError(`The ${pair.difficulty} drums have a 5-lane green note on the tick of a green note at tick ${pair.greenDrumPairs![0].tick}, `
+			+ 'which makes a pro drums chart invalid. Fix it with fixIssues (greenDrumPair) before converting.')
+	}
 
 	const limits = format === 'mid' ? midiLimits(parsedChart) : []
 	if (limits.length > 0 && (!options.force || limits.some(limit => limit.nearest === null))) throw new ConversionError(limits)

@@ -365,6 +365,7 @@ The resolution is 192 ticks per beat for `.chart` and 480 for `.mid`, unless you
 |---|---|
 | `ChartReadError` | `resolveChart` or `convertChart` gets a song with no chart, or with a chart Clone Hero can't read. |
 | `ConversionError` | `convertChart` meets a value the new format can't hold. Its `limits` list each value. |
+| `InvalidChartError` | `convertChart` gets a chart games refuse, such as a pro drums green pair, which converting would hide. Fix it with `fixIssues` first. |
 | `RangeError` | An edit doesn't fit the chart: an event the instrument can't use, a value song.ini can't hold, or an edit to a song.ini that isn't UTF-8. |
 
 `parseSong`, `parseSongMetadata`, and `scanSongFolder` don't throw for a malformed chart or song.ini. They report it as an issue.

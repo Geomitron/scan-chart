@@ -75,7 +75,7 @@ export type { FixOptions, FixReport } from './fix-issues'
 export type { FixHashes } from './issue-fixes'
 
 /** Converting a song's chart to the other format. */
-export { ConversionError, convertChart } from './convert-chart'
+export { ConversionError, convertChart, InvalidChartError } from './convert-chart'
 export type { ConversionCause, ConversionLimit, ConversionReport } from './convert-chart'
 
 /** Names and constants shared by every part of the API. */

@@ -307,9 +307,9 @@ function canonicalOutcome(format: 'chart' | 'mid', parse: () => ReturnType<typeo
 			return {
 				kind: 'rejected',
 				errors: [{
-					code: 'invalidChart',
+					code: 'invalidForm',
 					message: `The ${greenPair.difficulty} drums have a 5-lane green note on the tick of a green note at tick ${greenPair.greenDrumPairs![0].tick}, `
-						+ 'which games refuse in a pro drums chart.',
+						+ 'which makes a pro drums chart invalid.',
 				}],
 			}
 		}
