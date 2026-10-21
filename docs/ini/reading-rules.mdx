@@ -33,6 +33,7 @@ A scanner decodes `song.ini` as it decodes a `.chart` file: see [Encoding](/char
 - **Required:** one `[song]` section, on the file's first line. Every key is inside it.
 - **Required:** `[song]` alone on its line, with no spaces inside the brackets.
 - A scanner matches the section's name in any letter case, as written between the brackets. **Recommended:** `[song]`, in lowercase.
+- A scanner reads a line as a section header only when, without white space at its ends, it starts with `[` and ends with `]`, as Clone Hero, YARG and scan-chart do.
 
 ## Lines
 
@@ -119,7 +120,11 @@ Clone Hero and scan-chart read them as one section, and the last line of each ke
 </Accordion>
 
 <Accordion title="A section header with spaces or a comment, such as [ song ]">
-No scanner reads `[ song ]` or `[song] ; comment` as `[song]`, so the key lines after it aren't in a `[song]` section.
+No scanner reads `[ song ]` or `[song] ; comment` as `[song]`, so when such a line stands in for the file's `[song]`, the key lines after it aren't in a `[song]` section.
+</Accordion>
+
+<Accordion title="A [Song] = line">
+It ends with `=`, not `]`, so a scanner reads it as a key line, with a key no scanner knows, and the key lines after it stay in their section, as Clone Hero, YARG and scan-chart read it. 21 library `song.ini` files have one, each right after `[Song]`.
 </Accordion>
 
 <Accordion title="A comment that starts with #">
