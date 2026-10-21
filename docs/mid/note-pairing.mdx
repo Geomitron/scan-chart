@@ -76,7 +76,7 @@ Clone Hero, YARG and scan-chart keep the longer note, as in a `.chart` file. sca
 </Accordion>
 
 <Accordion title="A note-on before the note-off at a shared tick">
-For notes that should end and start at one tick, the file has the next note-on before the note-off. Clone Hero, YARG and scan-chart pair that note-on with the note-off at its tick, and trimming overlapping sustains then gives the two notes the charter meant. scan-chart reports `overlappingMidiNotes`, and its export writes the note-off first.
+For notes that should end and start at one tick, the file has the next note-on before the note-off. Clone Hero, YARG and scan-chart pair that note-on with the note-off at its tick, and trimming overlapping sustains then gives the two notes the charter meant, as cutting overlapping phrases does for star power and solos. Two drum fills written so are a fill to the later note-off and a fill of length 0 at the shared tick, and go into the TrackHash so, since fills go in as written. scan-chart reports `overlappingMidiNotes`, and its export writes the note-off first.
 </Accordion>
 
 <Accordion title="A note-on with no note-off">
