@@ -155,7 +155,7 @@ A scanner reads the chart as 5-lane.
 </Accordion>
 
 <Accordion title="N 4 and N 5 at one tick in a pro chart">
-Both notes are in the green lane: two green toms, or, with `N 68`, a green cymbal and a green tom. A scanner refuses the chart, as Clone Hero does. YARG lists the song, and fails to load it when it's played. scan-chart reads the tick with the `N 4` alone, reports `greenDrumPair`, and gives the chart no SongHash or TrackHash. Its frozen legacy profile reads the `N 5` as a blue tom, as Clone Hero 1.1 does. Saving keeps the notes as written, and converting to `.mid` is refused until the chart is fixed. `fixIssues` turns the `N 5` into a blue tom with its accent or ghost, as Clone Hero 1.1 plays it, and removes it where a blue note is already on the tick.
+Both notes are in the green lane: two green toms, or, with `N 68`, a green cymbal and a green tom. A scanner refuses the chart, as Clone Hero does. YARG lists the song, and fails to load it when it's played, unless only `pro_drums = True` in `song.ini` makes the chart pro. scan-chart reads the tick with the `N 4` alone, reports `greenDrumPair`, and gives the chart no SongHash or TrackHash. Its frozen legacy profile reads the `N 5` as a blue tom, as Clone Hero 1.1 does. Saving keeps the notes as written, and converting to `.mid` is refused until the chart is fixed. `fixIssues` turns the `N 5` into a blue tom with its accent or ghost, as Clone Hero 1.1 plays it, and removes it where a blue note is already on the tick.
 </Accordion>
 
 <Accordion title="N 0 and N 32 at one tick">
