@@ -197,9 +197,9 @@ In a 5-fret or 6-fret track, Clone Hero fails to load a chart with a tap or open
 </Accordion>
 
 <Accordion title="A SysEx start while another of its difficulty and type is open">
-The next end ends the later start, as the [SysEx event](#the-phase-shift-sysex-event) says, and the earlier one runs to the end after it. Some Guitar Hero conversions write one open modifier's start before the previous one's end, at the tick where they meet: the end then ends the new start at once, and the notes covered are the ones the charter meant. Clone Hero and scan-chart read them so. YARG ignores a start while another of its difficulty and type is open, so the next end ends the earlier one, and the note on that tick isn't open or tapped there.
+The next end ends the later start, as the [SysEx event](#the-phase-shift-sysex-event) says, and the earlier one runs to the end after it. Some Guitar Hero conversions write one open modifier's start before the previous one's end, at the tick where they meet: the end then ends the new start at once, and the notes covered are the ones the charter meant. Clone Hero, YARG and scan-chart read them so.
 </Accordion>
 
 <Accordion title="A start with no end">
-A scanner ignores it, as a note-on with no note-off, as Clone Hero and scan-chart do. YARG ends it at the next end when a later start comes first, as "A SysEx start while another of its difficulty and type is open" says. A scanner ends a SysEx start only with an end of the same difficulty byte and type, and never with a note-off, so an end for one difficulty doesn't end a start for every difficulty, and a tap SysEx end doesn't end note 104.
+A scanner ignores it, as a note-on with no note-off, as Clone Hero, YARG and scan-chart do. A scanner ends a SysEx start only with an end of the same difficulty byte and type, and never with a note-off, so an end for one difficulty doesn't end a start for every difficulty, and a tap SysEx end doesn't end note 104.
 </Accordion>
