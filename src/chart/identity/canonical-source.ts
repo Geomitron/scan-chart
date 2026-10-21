@@ -302,6 +302,17 @@ const canonicalOutcomes = new ObjectCache<ReturnType<typeof parseChartSource>, C
 function canonicalOutcome(format: 'chart' | 'mid', parse: () => ReturnType<typeof parseChartFileCanonicalIdentity>): CanonicalParseOutcome {
 	try {
 		const parsed = parse()
+		const greenPair = parsed.trackData.find(track => track.greenDrumPairs !== undefined)
+		if (greenPair !== undefined) {
+			return {
+				kind: 'rejected',
+				errors: [{
+					code: 'invalidChart',
+					message: `The ${greenPair.difficulty} drums have a 5-lane green note on the tick of a green note at tick ${greenPair.greenDrumPairs![0].tick}, `
+						+ 'which games refuse in a pro drums chart.',
+				}],
+			}
+		}
 		const ranges = collectRangeShifts(format, parsed.trackData)
 		const tempoMap = buildTempoMap(parsed)
 		const tracks = parsed.trackData.map(track => ({

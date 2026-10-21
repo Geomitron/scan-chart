@@ -2,7 +2,7 @@ import { contentType, readAudioInfo } from './assets/media-headers'
 import { scanAudio } from './assets/scan-audio'
 import { imageSize } from './assets/scan-image'
 import { contentNames, hasContentExtension } from './assets/scan-media'
-import { fixEmptyPhrases, fixEmptyTracks, fixHopoTags, fixMultiplierNote, fixSustains } from './fix-chart'
+import { fixEmptyPhrases, fixEmptyTracks, fixGreenDrumPairs, fixHopoTags, fixMultiplierNote, fixSustains } from './fix-chart'
 import { ignoredIssueCodes, keyList } from './ini/ini-checks'
 import { asUtf8Ini, rewriteSongIni, SongIniRewrite, songIniRepeats } from './ini/ini-edit'
 import { isBooleanTag, isNumberTag, newerTag, olderTags } from './ini/metadata'
@@ -81,6 +81,7 @@ export async function fixIssues(song: SongDocument, options: FixOptions = {}): P
 	const findings = songIniFindings(song, context, scanned.stats, { styleNotes: true })
 
 	let fixed = fixMultiplierNote(fixHopoTags(song, issues, findings, record), issues, findings, record)
+	fixed = fixGreenDrumPairs(fixed, issues, record)
 	fixed = fixSustains(fixed, issues, { gapMs: options.sustainGapMs ?? 60, minMs: options.minSustainMs ?? 200, removeShort: makes('babySustain') }, record)
 	fixed = fixEmptyTracks(fixEmptyPhrases(fixed, issues, record), issues, record)
 	const songLength = issues.some(issue => issue.code === 'missingSongLength' || issue.code === 'songLengthMismatch') ? await longestAudio(song.files) : null
