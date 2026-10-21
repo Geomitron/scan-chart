@@ -44,6 +44,12 @@ export interface ParseRules {
 	 * reads it the same way; scan-chart 8 skipped such a line, which the frozen profile keeps doing.
 	 */
 	readonly chartNonstandardLines: 'read' | 'ignored'
+	/**
+	 * A pro drums chart's 5-lane green note on the tick of a green note, on one difficulty. `invalid` is the spec's rule:
+	 * the chart is invalid, so games refuse it, and the parser reads the green note alone and records the tick. `blueTom`
+	 * is Clone Hero 1.1's reading, which moves the 5-lane green to a blue tom.
+	 */
+	readonly proDrumsGreenPair: 'invalid' | 'blueTom'
 }
 
 const scanner: ParseRules = Object.freeze({
@@ -56,6 +62,7 @@ const scanner: ParseRules = Object.freeze({
 	midiKickDynamics: 'ignored',
 	chartFlam: 'read',
 	chartNonstandardLines: 'read',
+	proDrumsGreenPair: 'invalid',
 })
 
 const frozenLegacy6142: ParseRules = Object.freeze({
@@ -68,6 +75,7 @@ const frozenLegacy6142: ParseRules = Object.freeze({
 	midiKickDynamics: 'applied',
 	chartFlam: 'ignored',
 	chartNonstandardLines: 'ignored',
+	proDrumsGreenPair: 'blueTom',
 })
 
 const canonical20260801: ParseRules = Object.freeze({
@@ -80,6 +88,7 @@ const canonical20260801: ParseRules = Object.freeze({
 	midiKickDynamics: 'ignored',
 	chartFlam: 'read',
 	chartNonstandardLines: 'read',
+	proDrumsGreenPair: 'invalid',
 })
 
 export const parseRules = Object.freeze({ scanner, frozenLegacy6142, canonical20260801 })

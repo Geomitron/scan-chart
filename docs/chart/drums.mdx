@@ -45,7 +45,9 @@ A game plays any type of chart on any kit:
 
 **Edge case: chords on a 5-lane kit.** Clone Hero also makes a yellow tom red when a blue cymbal shares its tick, and a blue cymbal yellow when a green tom does. YARG doesn't.
 
-**`N 4` and `N 5` at one tick.** A scanner reads them as Clone Hero and scan-chart do, since the [TrackHash](/hashes/btrack#notes) holds the result. In a 5-lane chart played on a pro kit, they're a green cymbal and a blue tom. In a pro chart, the `N 5` moves to a blue tom. YARG gives a blue cymbal and a green tom in a 5-lane chart, and plays both in the green lane in a pro chart: as one green tom, or with `N 68` as a green cymbal and a green tom. **Recommended:** `N 4` and `N 5` on different ticks in a pro chart.
+**`N 4` and `N 5` at one tick in a 5-lane chart.** Played on a pro kit, they're a green cymbal and a blue tom. A scanner reads them as Clone Hero and scan-chart do, since the [TrackHash](/hashes/btrack#notes) holds the result. YARG gives a blue cymbal and a green tom.
+
+**Required:** in a pro chart, no `N 5` on a tick with `N 4`. See [Invalid forms](#invalid-forms).
 
 ## Notes
 
@@ -150,6 +152,10 @@ A `mix` event sets up the drum audio for one difficulty, and its `d` flag turns 
 
 <Accordion title="Both five_lane_drums and pro_drums set to True">
 A scanner reads the chart as 5-lane.
+</Accordion>
+
+<Accordion title="N 4 and N 5 at one tick in a pro chart">
+Both notes are in the green lane: two green toms, or, with `N 68`, a green cymbal and a green tom. A scanner refuses the chart. Clone Hero plays the `N 5` as a blue tom, and YARG plays one green tom, or with `N 68` a green cymbal and a green tom. scan-chart reads the tick with the `N 4` alone, reports `greenDrumPair`, and gives the chart no SongHash or TrackHash. Its frozen legacy profile reads the `N 5` as a blue tom, as Clone Hero 1.1 does. Saving keeps the notes as written. `fixIssues` turns the `N 5` into a blue tom, as Clone Hero 1.1 plays it, and removes it where a blue note is already on the tick.
 </Accordion>
 
 <Accordion title="N 0 and N 32 at one tick">

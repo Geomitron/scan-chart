@@ -624,6 +624,8 @@ describe('issueFixes', () => {
 		emptyFlexLane: { keeps: songOf([length], ['768 = N 0 0', '960 = N 1 0', '1800 = S 65 100']) },
 		badSustainGap: { changes: songOf([length], ['768 = N 0 170', '960 = N 1 0']) },
 		babySustain: { changes: songOf([length], ['768 = N 0 30', '960 = N 1 0']) },
+		// A chart with the pair has no hashes; turning the 5-lane green into a blue tom gives it some.
+		greenDrumPair: { changes: songOf([length, 'pro_drums = True'], undefined, [], ['[ExpertDrums]', '{', '  768 = N 4 0', '  768 = N 5 0', '  960 = N 1 0', '}']) },
 	}
 	const run = (files: readonly SongFile[], code: IssueCode, changeHashes: boolean) =>
 		fix(files, { codes: [code], changeHashes, resizeImage: async (_image, size) => jpeg(size, size) })
@@ -645,11 +647,17 @@ describe('issueFixes', () => {
 			const withheld = await run(changes, code, false)
 			expect(withheld.report.fixed.map(entry => entry.code), code).not.toContain(code)
 			expect(withheld.codes, code).toContain(code)
-			expectHashesKept(withheld)
+			// A chart the canonical rules reject has no hashes until its fix gives it some.
+			if (withheld.before === null) {
+				expect(withheld.after, code).toBeNull()
+				expect(withheld.report.hashes, code).toEqual([])
+			} else {
+				expectHashesKept(withheld)
+			}
 			const made = await run(changes, code, true)
 			expect(made.report.fixed.map(entry => entry.code), code).toContain(code)
 			expect(made.codes, code).not.toContain(code)
-			expect(made.after!.get('canonical:song'), code).not.toBe(made.before!.get('canonical:song'))
+			expect(made.after!.get('canonical:song'), code).not.toBe(made.before?.get('canonical:song'))
 			expect(made.report.hashes.map(change => change.key), code).toContain('canonical:song')
 		}
 	})

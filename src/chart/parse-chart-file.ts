@@ -98,7 +98,9 @@ export function resolveChartData(
 
 	const normalizedVocalTracks = normalizeVocalTracks(rawChartData.vocalTracks, timedTempos, rawChartData.chartTicksPerBeat, format)
 	// Evaluate trackData first — normalizedVocalTracks is used below for phrase-level hasLyrics check.
-	const context: TrackResolutionContext = { timedTempos, drumType, iniChartModifiers, resolution: rawChartData.chartTicksPerBeat, format }
+	const context: TrackResolutionContext = {
+		timedTempos, drumType, iniChartModifiers, resolution: rawChartData.chartTicksPerBeat, format, proDrumsGreenPair: rules.proDrumsGreenPair,
+	}
 	const resolvedTracks = rawChartData.trackData.map(track => resolveOne(track, context))
 
 	return {
@@ -129,6 +131,7 @@ export interface TrackResolutionContext {
 	readonly iniChartModifiers: IniChartModifiers
 	readonly resolution: number
 	readonly format: 'chart' | 'mid'
+	readonly proDrumsGreenPair: ParseRules['proDrumsGreenPair']
 }
 
 /**
@@ -151,11 +154,13 @@ export type ResolvedTrack = ReturnType<typeof resolveTrack>
 
 /** Resolves one classified track: its notes and phrases, with times in milliseconds. Consumes the track's events. */
 export function resolveTrack(track: RawChartData['trackData'][number], context: TrackResolutionContext) {
-	const { timedTempos, drumType, iniChartModifiers, resolution: tpb, format } = context
+	const { timedTempos, drumType, iniChartModifiers, resolution: tpb, format, proDrumsGreenPair } = context
 	const trimmed = trimSustains(track.trackEvents, iniChartModifiers.sustain_cutoff_threshold, tpb, format)
 	const grouped = groupByTick(trimmed)
+	// The ticks of a pro chart where a 5-lane green note shares a tick with the green note, which makes the chart invalid.
+	const greenPairTicks: number[] = []
 	const resolved = track.instrument === 'drums'
-		? resolveDrumModifiers(grouped, drumType!, format)
+		? resolveDrumModifiers(grouped, drumType!, format, proDrumsGreenPair, greenPairTicks)
 		: resolveFretModifiers(grouped, iniChartModifiers, tpb, format)
 	const snapped = snapChords(resolved, iniChartModifiers.chord_snap_threshold, track.instrument)
 	sortAndFixInvalidNoteOverlaps(snapped)
@@ -172,6 +177,9 @@ export function resolveTrack(track: RawChartData['trackData'][number], context: 
 		animations: setEventMsTimes(track.animations, timedTempos, tpb),
 		unrecognizedMidiEvents: track.unrecognizedMidiEvents,
 		...(track.drumMixes === undefined ? {} : { drumMixes: track.drumMixes }),
+		...(greenPairTicks.length === 0 ? {} : {
+			greenDrumPairs: setEventMsTimes(greenPairTicks.map(tick => ({ tick })), timedTempos, tpb).map(({ tick, msTime }) => ({ tick, msTime })),
+		}),
 		noteEventGroups: setEventGroupMsTimes(snapped, timedTempos, tpb),
 	}
 }
@@ -609,7 +617,17 @@ function trimSustains(
 	return trackEvents
 }
 
-function resolveDrumModifiers(trackEventGroups: TrackEvent[][], drumType: DrumType, format: 'chart' | 'mid'): UntimedNoteEvent[][] {
+/**
+ * The note groups of a drum track. In a pro chart, a 5-lane green note on the tick of a green note is dropped and its
+ * tick added to `greenPairTicks` when `greenPair` is `invalid`, and moved to a blue tom when it's `blueTom`.
+ */
+function resolveDrumModifiers(
+	trackEventGroups: TrackEvent[][],
+	drumType: DrumType,
+	format: 'chart' | 'mid',
+	greenPair: ParseRules['proDrumsGreenPair'],
+	greenPairTicks: number[],
+): UntimedNoteEvent[][] {
 	const noteEventGroups: UntimedNoteEvent[][] = []
 
 	let activeDiscoFlip: EventType = eventTypes.discoFlipOff
@@ -659,8 +677,11 @@ function resolveDrumModifiers(trackEventGroups: TrackEvent[][], drumType: DrumTy
 		}
 
 		const hasOrangeAndGreen = hasOrange && hasGreen
+		const dropsGreen = hasOrangeAndGreen && drumType === drumTypes.fourLanePro && greenPair === 'invalid'
+		if (dropsGreen) greenPairTicks.push(events[0].tick)
 
 		for (const note of notes) {
+			if (dropsGreen && note.type === eventTypes.fiveGreenDrum) continue
 			const type = getDrumNoteTypeFromEventType(note.type, hasOrangeAndGreen)!
 			const canBeDisco = type === noteTypes.redDrum || type === noteTypes.yellowDrum
 			const discoFlag =

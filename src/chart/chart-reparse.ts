@@ -112,7 +112,7 @@ function parseReusing(
 		for (const track of trackData) applyChartTrackRules(track, rules)
 		const { tempos, resolution } = earlier.parsed
 		const drumType = chartDrumType(trackData, iniChartModifiers)
-		const context: TrackResolutionContext = { timedTempos: tempos, drumType, iniChartModifiers, resolution, format: 'chart' }
+		const context: TrackResolutionContext = { timedTempos: tempos, drumType, iniChartModifiers, resolution, format: 'chart', proDrumsGreenPair: rules.proDrumsGreenPair }
 		const resolvedTracks = trackData.map(track => resolveOne(track, context))
 		const parsed = { ...earlier.parsed, drumType, trackData: resolvedTracks.filter(track => isTrackAllocated(track.noteEventGroups, 'chart', rules)) }
 		return { key, bodies, firstCodaTick: earlier.firstCodaTick, classified, resolved, parsed }

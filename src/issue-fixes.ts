@@ -58,6 +58,7 @@ export const issueFixTable: { readonly [code in IssueCode]?: IssueFix } = {
 		describe: ([fix]) => `Set "song_length" to ${fix.value}, the length of the longest audio file in milliseconds.`,
 	},
 	emptyTrack: { hashes: 'keepsHashes', steps: ['chart'] },
+	greenDrumPair: { hashes: 'changesHashes', steps: ['chart'] },
 	emptyStarPower: { hashes: 'keepsHashes', steps: ['chart'], phrases: { field: 'starPowerSections', name: 'star power' } },
 	emptySoloSection: { hashes: 'keepsHashes', steps: ['chart'], phrases: { field: 'soloSections', name: 'solo' } },
 	emptyFlexLane: { hashes: 'keepsHashes', steps: ['chart'], phrases: { field: 'flexLanes', name: 'flex lane' } },

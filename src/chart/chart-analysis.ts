@@ -105,6 +105,7 @@ export const chartIssueMessages: { readonly [issue in ChartIssueType]: string } 
 	invalidPhraseEnd: 'This phrase_end is on the EVENTS track. Vocal phrase boundaries in .mid charts must be MIDI note 105 (player 1) or 106 (player 2) on PART VOCALS.',
 	chartOffset: "The chart's [Song] Offset isn't 0.",
 	emptyTrack: "This track has no notes, so games don't list it.",
+	greenDrumPair: 'This pro drums chart has a 5-lane green note on the tick of a green note, so games refuse to load it. Move one of them, or turn the 5-lane green into a blue tom.',
 }
 
 /** The statistics of a chart parsed with `settings` from a file of `format`. */
@@ -288,6 +289,9 @@ export function findChartIssues(
 	// descriptions appear at the top of the issue list for consumers.
 	for (const issue of chartData.parseIssues) {
 		addIssue(issue.instrument, issue.difficulty, issue.noteIssue)
+	}
+	for (const track of chartData.trackData) {
+		for (const pair of track.greenDrumPairs ?? []) addIssue(track.instrument, track.difficulty, 'greenDrumPair', pair)
 	}
 
 	// misalignedTimeSignature

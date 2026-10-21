@@ -59,8 +59,12 @@ export interface SourceParseRequest {
 	readonly modifiers: IniChartModifiers
 }
 
+/**
+ * Why the canonical profile rejected a chart: `sourceParseFailed` when the file couldn't be parsed, `invalidChart` when
+ * it parsed but holds a form that makes games refuse it, such as a pro drums green pair.
+ */
 export interface SourceParseError {
-	readonly code: 'sourceParseFailed'
+	readonly code: 'sourceParseFailed' | 'invalidChart'
 	readonly message: string
 }
 

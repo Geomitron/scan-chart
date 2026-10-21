@@ -18,6 +18,7 @@ describe('parse profiles', () => {
 			    "midiKickDynamics": "ignored",
 			    "midiTapEnd": "inclusive",
 			    "midiTrackAllocation": "difficultiesWithNotes",
+			    "proDrumsGreenPair": "invalid",
 			    "profile": "canonical20260801",
 			  },
 			  "frozenLegacy6142": {
@@ -29,6 +30,7 @@ describe('parse profiles', () => {
 			    "midiKickDynamics": "applied",
 			    "midiTapEnd": "exclusive",
 			    "midiTrackAllocation": "difficultiesWithNotesAndExpert",
+			    "proDrumsGreenPair": "blueTom",
 			    "profile": "frozenLegacy6142",
 			  },
 			  "scanner": {
@@ -40,6 +42,7 @@ describe('parse profiles', () => {
 			    "midiKickDynamics": "ignored",
 			    "midiTapEnd": "exclusive",
 			    "midiTrackAllocation": "difficultiesWithNotes",
+			    "proDrumsGreenPair": "invalid",
 			    "profile": "scanner",
 			  },
 			}
