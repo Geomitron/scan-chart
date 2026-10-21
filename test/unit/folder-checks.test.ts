@@ -134,15 +134,14 @@ describe('audio names', () => {
 		expect(await issuesOf(named('drums.opus', 'bass.opus'), ['singleAudioName'])).toEqual([])
 	})
 
-	it('discourages crowd and preview audio', async () => {
+	it('discourages preview audio, and accepts crowd audio', async () => {
 		expect(await issuesOf(named('song.opus', 'crowd.opus', 'preview.opus'), codes)).toEqual([
-			['discouragedAudio', 'crowd.opus', '"crowd.opus" is discouraged by the charting guidelines.'],
 			['discouragedAudio', 'preview.opus', '"preview.opus" is discouraged. Set "preview_start_time" in song.ini instead, so games play the preview from the song\'s audio.'],
 		])
 	})
 
 	it('reads the names in any letter case', () => {
-		const issues = audioNameRecommendations(named('Song.OPUS', 'CROWD.opus')).map(issue => [issue.folderIssue, issue.file])
-		expect(issues).toEqual([['discouragedAudio', 'CROWD.opus']])
+		const issues = audioNameRecommendations(named('Song.OPUS', 'PREVIEW.opus')).map(issue => [issue.folderIssue, issue.file])
+		expect(issues).toEqual([['discouragedAudio', 'PREVIEW.opus']])
 	})
 })

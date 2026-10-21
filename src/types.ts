@@ -338,7 +338,7 @@ export type FolderIssueType =
 	| 'folderSize' // This chart's files total more than Chorus Encore scans
 	| 'audioFormat' // This audio file isn't Opus, the recommended format
 	| 'singleAudioName' // This chart's only audio file is named neither "song" nor "guitar"
-	| 'discouragedAudio' // This chart has crowd or preview audio
+	| 'discouragedAudio' // This chart has preview audio
 	// Found reading the media files' headers, only with ScanOptions.mediaIssues
 	| 'extensionMismatch' // This audio or image file's extension doesn't match its content
 	| 'audioBitrate' // This audio file's bitrate isn't the recommended one
