@@ -186,7 +186,7 @@ A scanner refuses a file whose track holds a status byte from F1 to F6, or from 
 </Accordion>
 
 <Accordion title="No end of track, or events after it">
-A scanner reads a track without an end of track to the end of its chunk, as Clone Hero and scan-chart do. YARG's song scan can fail on it, and then doesn't list the song. scan-chart's export adds an end of track.
+A scanner reads a track without an end of track to the end of its chunk, as Clone Hero, YARG and scan-chart do. scan-chart's export adds an end of track.
 
 A scanner ignores the events after the end of track, as Clone Hero and YARG do. So it also ignores a note whose note-off comes after it. Saving with scan-chart keeps them as they are. scan-chart reports them, and `fixIssues` can move the end of track after them, which changes the TrackHash.
 </Accordion>
@@ -204,7 +204,7 @@ A scanner uses the last name at tick 0, wherever it is among the events at tick 
 </Accordion>
 
 <Accordion title="A name in another letter case">
-A scanner reads it in any letter case, as Clone Hero and scan-chart do, so `part guitar` is lead guitar. YARG ignores the track. scan-chart's export writes the name in capitals.
+A scanner reads it in any letter case, as Clone Hero, YARG and scan-chart do, so `part guitar` is lead guitar. scan-chart's export writes the name in capitals.
 </Accordion>
 
 <Accordion title="A name with spaces at its ends, or no name at tick 0">

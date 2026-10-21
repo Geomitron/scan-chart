@@ -148,7 +148,7 @@ scan-chart's export writes both under their new names.
 ## Invalid forms
 
 <Accordion title="Two tracks for one instrument">
-A scanner reads the first, even when it has no notes, as Clone Hero does. `T1 GEMS` and `PART GUITAR` are one instrument, and so are `PART DRUM` and `PART DRUMS`. YARG's song list uses the first track that has a note. YARG's gameplay uses the last `PART GUITAR` or `PART DRUMS`, and otherwise the first track that holds anything, so the song list and the notes played can differ.
+A scanner reads the first, even when it has no notes, as Clone Hero and YARG do. `T1 GEMS` and `PART GUITAR` are one instrument, and so are `PART DRUM` and `PART DRUMS`.
 
 scan-chart reports `multipleMidiTracks`. It reads every track, and its TrackHash uses the first. Saving with scan-chart keeps every track. scan-chart's export writes only the first, under its standard name.
 </Accordion>
