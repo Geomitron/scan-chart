@@ -53,7 +53,7 @@ function findAudioData(files: readonly SongFile[]) {
 
 /**
  * The charting recommendations about the audio files' names: Opus audio, a lone audio file named "song" or "guitar",
- * and no crowd or preview audio. `stemFiles` are the files named as stems.
+ * and no preview audio. `stemFiles` are the files named as stems.
  */
 export function audioNameRecommendations(stemFiles: readonly SongFile[]): FolderFinding[] {
 	const folderIssues: FolderFinding[] = []
@@ -84,8 +84,6 @@ export function audioNameRecommendations(stemFiles: readonly SongFile[]): Folder
 				description: `"${fileName}" is discouraged. Set "preview_start_time" in song.ini instead, so games play the preview from the song's audio.`,
 				file: fileName,
 			})
-		} else if (stem(fileName) === 'crowd') {
-			folderIssues.push({ folderIssue: 'discouragedAudio', description: `"${fileName}" is discouraged by the charting guidelines.`, file: fileName })
 		}
 	}
 	return folderIssues
