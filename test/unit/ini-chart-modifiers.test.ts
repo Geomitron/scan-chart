@@ -107,6 +107,14 @@ describe('pro_drum and star_power_note, the older names of pro_drums and multipl
 		expect(frozenLegacy6142.readModifiers(null)).toEqual(defaultIniChartModifiers)
 	})
 
+	it('reads song_length for the frozen legacy hashes as 8.x did: the leading number, rounded', () => {
+		const songIni = (line: string) => new TextEncoder().encode(`[song]\r\n${line}\r\n`)
+		expect(frozenLegacy6142.readModifiers(songIni('song_length = 1.5')).song_length).toBe(2)
+		expect(frozenLegacy6142.readModifiers(songIni('song_length = 12abc')).song_length).toBe(12)
+		expect(frozenLegacy6142.readModifiers(songIni('song_length = -1')).song_length).toBe(0)
+		expect(modifiers(['song_length = 12abc']).metadata.song_length).toBe(0)
+	})
+
 	it.each([
 		// In a .mid file, pro drums read yellow and blue as cymbals without a tom marker.
 		['pro_drum', midiFile({ 'PART DRUMS': [97, 98, 99].map((noteNumber, index) => ({ tick: index * 480, noteNumber })) }), 'pro_drum = True', 'pro_drums = True'],

@@ -296,7 +296,7 @@ function readFrozenLegacyModifiers(songIni: Uint8Array | null): IniChartModifier
 	if (songSection === undefined) return { ...defaultIniChartModifiers }
 	const read = extractSongMetadata(Object.fromEntries(Object.entries(songSection).filter(([key]) => !olderNamesUnreadByLegacy.includes(key)))).metadata
 	return {
-		song_length: read.song_length,
+		song_length: frozenLegacySongLength(songSection.song_length),
 		hopo_frequency: read.hopo_frequency,
 		eighthnote_hopo: read.eighthnote_hopo,
 		multiplier_note: read.multiplier_note,
@@ -305,6 +305,15 @@ function readFrozenLegacyModifiers(songIni: Uint8Array | null): IniChartModifier
 		five_lane_drums: read.five_lane_drums,
 		pro_drums: read.pro_drums,
 	}
+}
+
+/**
+ * `song_length` as scan-chart 8.x read it, which the frozen profile keeps: the leading number, rounded, or 0 when
+ * there's none or it's -1.
+ */
+function frozenLegacySongLength(value: string | undefined): number {
+	const read = parseFloat(value ?? '')
+	return isNaN(read) || read === -1 ? 0 : Math.round(read)
 }
 
 export const frozenLegacy6142: FrozenLegacy6142Api = {
