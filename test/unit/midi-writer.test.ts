@@ -24,7 +24,7 @@ import { readMidiFile } from 'src/chart/midi-file-parser'
 import { scanVocalTrack } from 'src/chart/lyric-parser'
 import { chartSpellingIssues } from 'src/spelling-issues'
 
-import { midiFile, midiNote, midiText, trackTexts } from './helpers/midi-files'
+import { midiFile, midiNote, midiText, type TimedMidiEvent, trackTexts } from './helpers/midi-files'
 
 function roundTrip(chart: ParsedChart, iniText?: string): ParsedChart {
 	const files: { fileName: string; data: Uint8Array }[] = [
@@ -981,6 +981,22 @@ describe('writeMidiFile round-trip: vocal tracks', () => {
 			[[0, false], [120, true], [480, false], [720, true]],
 			[[1920, false], [2040, false]],
 		])
+	})
+
+	it('reads lyrics in FF 04, FF 08 and FF 09 events, and writes them as FF 05', () => {
+		const meta = (tick: number, metatypeByte: number, text: string) =>
+			({ tick, event: { type: 'unknownMeta', metatypeByte, data: new TextEncoder().encode(text) } }) as TimedMidiEvent
+		const source = midiFile([{
+			name: 'PART VOCALS',
+			events: [...midiNote(0, 105, 960), { tick: 0, event: { type: 'instrumentName', text: 'Hel-' } } as TimedMidiEvent, ...midiNote(0, 60, 100),
+				meta(240, 0x08, 'lo'), ...midiNote(240, 62, 100), meta(480, 0x09, 'yeah'), ...midiNote(480, 64, 100)],
+		}])
+		const lyrics = (chart: ParsedChart) => chart.vocalTracks.parts.vocals.notePhrases.flatMap(p => p.lyrics.map(l => [l.tick, l.text]))
+		const parsed = parseChartAndIni([{ fileName: 'notes.mid', data: source }]).parsedChart!
+		expect(lyrics(parsed)).toEqual([[0, 'Hel-'], [240, 'lo'], [480, 'yeah']])
+		const written = readMidiFile(writeMidiFile(parsed)).tracks.find(track => track.some(event => event.type === 'trackName' && event.text === 'PART VOCALS'))!
+		expect(written.flatMap(event => event.type === 'lyrics' ? [[event.deltaTime, event.text]] : [])).toEqual([[0, 'Hel-'], [240, 'lo'], [480, 'yeah']])
+		expect(written.some(event => event.type === 'instrumentName' || event.type === 'unknownMeta')).toBe(false)
 	})
 
 	it('reads [range_shift] events as vocal text events, and writes them back', () => {

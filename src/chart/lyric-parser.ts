@@ -1,3 +1,4 @@
+import { decodeText } from './midi-tokens'
 import { chartEventsEventText } from './song-events'
 
 /** Minimal MIDI event shape for lyric/text extraction. */
@@ -5,6 +6,30 @@ export interface MidiTextLikeEvent {
 	type: string
 	deltaTime: number
 	text?: string
+	/** An unknown meta event's bytes and type byte, such as FF 08's and FF 09's. */
+	data?: ArrayLike<number>
+	metatypeByte?: number
+}
+
+/**
+ * The text of an event a vocal track reads as a lyric or text event, or `undefined` when it isn't one. Every scanner
+ * reads every type of text event so, except a copyright notice (FF 02) and a track name (FF 03): FF 01 and FF 04 to
+ * FF 09 (`docs/mid/vocals.mdx`). The MIDI reader gives FF 08 and FF 09 as unknown meta events, so their text is
+ * decoded here as the reader decodes text.
+ */
+export function vocalTrackEventText(event: MidiTextLikeEvent): string | undefined {
+	switch (event.type) {
+		case 'text':
+		case 'instrumentName':
+		case 'lyrics':
+		case 'marker':
+		case 'cuePoint':
+			return event.text ?? undefined
+		case 'unknownMeta':
+			return (event.metatypeByte === 0x08 || event.metatypeByte === 0x09) && event.data !== undefined ? decodeText(Uint8Array.from(event.data)) : undefined
+		default:
+			return undefined
+	}
 }
 
 /** Minimal MIDI event shape for note-based extraction (vocal phrases). */
@@ -170,20 +195,14 @@ export function isBracketedControlEvent(text: string): boolean {
  * Determine if a MIDI event on PART VOCALS is a lyric.
  *
  * Rules:
- * - FF 05 (lyrics), FF 01 (text), FF 06 (marker), FF 07 (cuePoint): included
+ * - FF 01 and FF 04 to FF 09, every text event but a copyright notice and a track name: included
  * - Known bracketed control events ([play], [idle], etc.) are NOT lyrics
  * - Unknown bracketed text ([Everyone liked that]) IS a lyric
  * - Empty text is a valid lyric (empty lyrics show in game)
  */
 export function isMidiVocalLyric(event: MidiTextLikeEvent): boolean {
-	// YARG's ProcessTextEvent processes BaseTextEvent types (except trackName and copyrightNotice).
-	// instrumentName (FF 04) contains the track name, not lyric content.
-	const isTextLike = event.type === 'lyrics' || event.type === 'text' ||
-		event.type === 'marker' || event.type === 'cuePoint'
-	if (!isTextLike) return false
-
-	const text = event.text
-	if (text === undefined || text === null) return false
+	const text = vocalTrackEventText(event)
+	if (text === undefined) return false
 
 	// Only filter known control events, not arbitrary bracketed text
 	if (isBracketedControlEvent(text)) return false
@@ -272,7 +291,7 @@ const discoFlipRegex = /^\s*\[?mix[ _][0-3][ _]drums[0-5](d|dnoflip|easy|easynok
  * One loop walks `trackEvents` once, routing each event to the appropriate
  * bucket:
  *
- * - **text-like events** (`lyrics`, `text`, `marker`, `cuePoint`) are split
+ * - **text-like events** (every type `vocalTrackEventText` reads) are split
  *   between `lyrics` and `textEvents`. Events consumed elsewhere
  *   (`ENHANCED_OPENS`, `ENABLE_CHART_DYNAMICS`, `[mix N drumsM]` disco flips)
  *   are dropped — they're not vocal content, just carried on this track.
@@ -362,14 +381,11 @@ export function scanVocalTrack<T extends MidiLyricEvent>(trackEvents: T[]): Voca
 		if (i === 0) continue
 
 		// --- Text-like events (lyrics + textEvents) ---
-		const isTextLike = event.type === 'lyrics' || event.type === 'text' ||
-			event.type === 'marker' || event.type === 'cuePoint'
-		if (!isTextLike) {
+		const text = vocalTrackEventText(event)
+		if (text === undefined) {
 			unrecognizedMidiEvents.push(event)
 			continue
 		}
-		const text = event.text
-		if (text === undefined || text === null) continue
 
 		// Events consumed elsewhere — drop from all buckets (not unrecognized).
 		if (text === 'ENHANCED_OPENS' || text === '[ENHANCED_OPENS]') continue

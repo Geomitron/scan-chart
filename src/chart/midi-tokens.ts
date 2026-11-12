@@ -581,7 +581,7 @@ const utf8Decoder = new TextDecoder()
  * Decodes text as `parseMidi` does: as UTF-8 when that gives fewer UTF-16 code units than there are bytes, otherwise
  * one character per byte. ASCII-only text gives the same string both ways, so it skips the UTF-8 decode.
  */
-function decodeText(bytes: Uint8Array): string {
+export function decodeText(bytes: Uint8Array): string {
 	// One argument per byte, as parseMidi calls it, so text too long for the call stack throws the same RangeError
 	const singleByte = String.fromCharCode.apply(null, bytes as unknown as number[])
 	for (let i = 0; i < bytes.length; i++) {

@@ -345,8 +345,13 @@ describe('isMidiVocalLyric', () => {
 		expect(isMidiVocalLyric(midiTextEvent({ type: 'marker', text: 'verse' }))).toBe(true)
 	})
 
-	it('instrumentName type is NOT a lyric (contains track name, not lyrics)', () => {
-		expect(isMidiVocalLyric(midiTextEvent({ type: 'instrumentName', text: 'PART VOCALS' }))).toBe(false)
+	it('an instrument name (FF 04) is a lyric, as every scanner reads it', () => {
+		expect(isMidiVocalLyric(midiTextEvent({ type: 'instrumentName', text: 'Hel-' }))).toBe(true)
+	})
+
+	it('a track name or copyright notice is not a lyric', () => {
+		expect(isMidiVocalLyric(midiTextEvent({ type: 'trackName', text: 'Hel-' }))).toBe(false)
+		expect(isMidiVocalLyric(midiTextEvent({ type: 'copyrightNotice', text: 'Hel-' }))).toBe(false)
 	})
 
 	it('UTF-8 multibyte text is a lyric', () => {
@@ -414,6 +419,22 @@ describe('scanVocalTrack (lyrics)', () => {
 		const lyrics = scanVocalTrack(events).lyrics
 		expect(lyrics).toHaveLength(1)
 		expect(lyrics[0].text).toBe(' hey^ ')
+	})
+
+	it('reads lyrics in FF 04, FF 08 and FF 09 events, and in no other unknown meta event', () => {
+		const bytes = (text: string) => new TextEncoder().encode(text)
+		const events = [
+			{ deltaTime: 0, type: 'trackName' as const, text: 'PART VOCALS' },
+			{ deltaTime: 480, type: 'instrumentName' as const, text: 'Hel-' },
+			{ deltaTime: 600, type: 'unknownMeta' as const, metatypeByte: 0x08, data: bytes('lo') },
+			{ deltaTime: 720, type: 'unknownMeta' as const, metatypeByte: 0x09, data: bytes('café') },
+			{ deltaTime: 840, type: 'unknownMeta' as const, metatypeByte: 0x0a, data: bytes('no') },
+			{ deltaTime: 960, type: 'unknownMeta' as const, metatypeByte: 0x09, data: bytes('[play]') },
+		]
+		const scanned = scanVocalTrack(events)
+		expect(scanned.lyrics.map(l => [l.tick, l.text])).toEqual([[480, 'Hel-'], [600, 'lo'], [720, 'café']])
+		expect(scanned.textEvents).toEqual([{ tick: 960, text: '[play]' }])
+		expect(scanned.unrecognizedMidiEvents.map(event => event.deltaTime)).toEqual([840])
 	})
 
 	it('handles mixed lyrics and text events', () => {
