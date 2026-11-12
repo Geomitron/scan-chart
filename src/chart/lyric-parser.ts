@@ -485,6 +485,25 @@ const stripSymbols = new Set(['+', '#', '^', '*', '%', '/', '$', '"'])
 const trailingStripSymbols = new Set(['+', '#', '^', '*', '%', '/', '$'])
 
 /**
+ * Whether a lyric has a `-` or `+` that isn't at its end: outside the run of symbols that ends it, and outside a
+ * formatting tag such as `<voffset=-1>`. Clone Hero joins the next syllable to a lyric with a `-` anywhere in it, and
+ * a lyric that starts with `+` to the one before it; YARG and scan-chart take the symbols' meaning only from the end
+ * (`docs/mid/vocals.mdx`, "A - or + that isn't at the end of a lyric").
+ */
+export function hasMisplacedJoinSymbol(text: string): boolean {
+	let trailEnd = text.length
+	while (trailEnd > 0 && trailingSymbolFlags[text[trailEnd - 1]] !== undefined) trailEnd--
+	let insideTag = false
+	for (let i = 0; i < trailEnd; i++) {
+		const ch = text[i]
+		if (ch === '<') insideTag = true
+		else if (ch === '>') insideTag = false
+		else if (!insideTag && (ch === '-' || ch === '+')) return true
+	}
+	return false
+}
+
+/**
  * Parse lyric symbol flags from a lyric text string.
  * Matches YARG's LyricSymbols.GetLyricFlags(): scans from end consuming flag symbols,
  * and checks start for '$' (harmony hidden).

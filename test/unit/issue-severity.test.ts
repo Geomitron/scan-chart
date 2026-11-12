@@ -6,6 +6,8 @@ import { issueSeverities } from 'src/issues'
 import { scanSongFolder } from 'src/scan-song-folder'
 import { parseSongFiles } from 'src/song-document'
 
+import { midiFile, midiNote, midiText } from './helpers/midi-files'
+
 const encode = (text: string) => new TextEncoder().encode(text)
 const songIni = { fileName: 'song.ini', data: encode('[song]\r\nname = Test\r\n') }
 // At 120 BPM and resolution 192, a tick is 500 / 192 ms, about 2.6 ms.
@@ -47,5 +49,19 @@ describe('issue severity', () => {
 		expect(chartIssues(['768 = N 0 31', '1536 = N 1 0'])).toEqual([{ code: 'babySustain', severity: 'warning', tick: 768 }])
 		expect(chartIssues(['768 = N 0 58', '1536 = N 1 0'])).toEqual([{ code: 'babySustain', severity: 'recommendation', tick: 768 }])
 		expect(chartIssues(['768 = N 0 77', '1536 = N 1 0'])).toEqual([])
+	})
+
+	it('reports a "-" or "+" inside a lyric as an error, once for each tick, in .mid and .chart lyrics', async () => {
+		const lyricIssues = async (files: { fileName: string; data: Uint8Array }[]) => (await scanSongFolder([...files, songIni])).issues
+			.filter(issue => issue.code === 'misplacedLyricSymbol').map(({ severity, tick }) => ({ severity, tick }))
+		const texts = ['x-ray', 'oh-', 'ah+-', '+oh', 'rock+roll', '<voffset=-1>la', '$-', 'mid=dle', '+']
+		const lyrics = texts.map((text, index) => midiText(index * 120, text, 'lyrics'))
+		const part = (name: string) => ({ name, events: [...midiNote(0, 105, 1920), ...lyrics, ...texts.flatMap((_, index) => midiNote(index * 120, 60, 60))] })
+		const expected = [0, 3, 4].map(index => ({ severity: 'error', tick: index * 120 }))
+		expect(await lyricIssues([{ fileName: 'notes.mid', data: midiFile([part('PART VOCALS'), part('HARM1')]) }])).toEqual(expected)
+
+		const chart = ['[Song]', '{', '  Resolution = 480', '}', '[SyncTrack]', '{', '  0 = B 120000', '}', '[Events]', '{', '  0 = E "phrase_start"',
+			...texts.map((text, index) => `  ${index * 120} = E "lyric ${text}"`), '  1920 = E "phrase_end"', '}', ''].join('\r\n')
+		expect(await lyricIssues([{ fileName: 'notes.chart', data: encode(chart) }])).toEqual(expected)
 	})
 })

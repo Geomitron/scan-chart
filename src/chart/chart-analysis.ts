@@ -4,6 +4,7 @@ import { ChartIssueType, Difficulty, DrumType, getInstrumentType, Instrument, in
 import type { CanonicalParsedChart } from './identity/canonical-source'
 import { computeHopoThresholdTicks, isNaturalHopo } from './natural-hopo'
 import type { ParsedChartFile } from './parse-chart-file'
+import { hasMisplacedJoinSymbol } from './lyric-parser'
 import { pruneEmptyPhrases } from './track-hasher'
 import { IniChartModifiers, NoteEvent, noteFlags, NoteType, noteTypes } from './types'
 
@@ -106,6 +107,8 @@ export const chartIssueMessages: { readonly [issue in ChartIssueType]: string } 
 	chartOffset: "The chart's [Song] Offset isn't 0.",
 	emptyTrack: "This track has no notes, so games don't list it.",
 	greenDrumPair: 'This pro drums chart has a 5-lane green note on the tick of a green note, which makes the chart invalid. Move one of them, or turn the 5-lane green into a blue tom.',
+	misplacedLyricSymbol: 'This lyric has a "-" or "+" that isn\'t at its end. Clone Hero joins the next syllable to a lyric with a "-" anywhere in it, '
+		+ 'and a lyric that starts with "+" to the one before it, and YARG doesn\'t. For a hyphen shown inside a lyric, write "=".',
 }
 
 /** The statistics of a chart parsed with `settings` from a file of `format`. */
@@ -367,6 +370,17 @@ export function findChartIssues(
 		if (lastNoteTick && chartData.endEvents[0] && chartData.endEvents[0].tick < lastNoteTick) {
 			addIssue(null, null, 'badEndEvent', chartData.endEvents[0])
 		}
+	}
+
+	// misplacedLyricSymbol: once for each tick, though several parts or both phrase lists hold the lyric.
+	{
+		const found = new Map<number, { tick: number; msTime: number }>()
+		for (const part of Object.values(chartData.vocalTracks.parts)) {
+			for (const phrase of [...part.notePhrases, ...part.staticLyricPhrases]) {
+				for (const lyric of phrase.lyrics) if (!found.has(lyric.tick) && hasMisplacedJoinSymbol(lyric.text)) found.set(lyric.tick, lyric)
+			}
+		}
+		for (const lyric of [...found.values()].sort((a, b) => a.tick - b.tick)) addIssue(null, null, 'misplacedLyricSymbol', lyric)
 	}
 
 	// The recommended leading silence: 2 seconds, or two measures of the starting tempo when those are shorter.

@@ -313,6 +313,7 @@ export type ChartIssueType =
 	| 'chartOffset' // The .chart [Song] Offset isn't 0
 	| 'emptyTrack' // This instrument section or track has no notes, so games don't list it
 	| 'greenDrumPair' // In this pro drums chart, a 5-lane green note shares a tick with a green note, which makes the chart invalid
+	| 'misplacedLyricSymbol' // This lyric has a "-" or "+" that isn't at its end, which Clone Hero and YARG read differently
 
 export type FolderIssueType =
 	| 'noMetadata' // This chart doesn't have "song.ini"
