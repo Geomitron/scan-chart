@@ -919,6 +919,21 @@ describe('writeMidiFile round-trip: vocal tracks', () => {
 		expect(harmony2.staticLyricPhrases.map(p => [p.tick, p.length, p.notes.length])).toEqual([[0, 960, 1]])
 	})
 
+	it("writes HARM3's phrases, and HARM2's and HARM3's star power, when the parts don't come from HARM1 and HARM2", () => {
+		const harmony = (name: string, pitch: number) => ({
+			name, events: [...midiNote(0, 105, 480), ...midiNote(960, 105, 480), ...midiNote(0, 116, 480), midiText(0, name, 'lyrics'), ...midiNote(0, pitch, 100),
+				midiText(960, 'la', 'lyrics'), ...midiNote(960, pitch, 100)],
+		})
+		for (const tracks of [[harmony('HARM2', 62), harmony('HARM3', 64)], [harmony('HARM3', 64)], [harmony('HARM1', 60), harmony('HARM3', 64)]]) {
+			const parsed = parseChartAndIni([{ fileName: 'notes.mid', data: midiFile(tracks) }]).parsedChart!
+			const reparsed = roundTrip(parsed)
+			expect(reparsed.vocalTracks).toEqual(parsed.vocalTracks)
+			const harmony3 = reparsed.vocalTracks.parts.harmony3
+			expect(harmony3.notePhrases.map(p => [p.tick, p.notes.length, p.lyrics.length])).toEqual([[0, 1, 1], [960, 1, 1]])
+			expect(harmony3.starPowerSections.map(s => [s.tick, s.length])).toEqual([[0, 480]])
+		}
+	})
+
 	it('writes a vocal phrase of length 0 at length 0, so the lyric after it stays in the next phrase', () => {
 		const chart = createEmptyChart({ format: 'mid', resolution: 480 })
 		chart.vocalTracks.parts.vocals = {

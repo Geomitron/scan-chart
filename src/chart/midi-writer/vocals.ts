@@ -26,7 +26,11 @@ import type { AbsoluteEvent } from './shared'
  *     GGCF put HARM2's phrases (its scoring phrases come from HARM1 via
  *     CopyDown on re-parse, and its 105 and 106 notes both read as static
  *     lyric phrases)
- *   - HARM3 emits no phrase markers at all
+ *   - HARM3 emits its `staticLyricPhrases` as HARM2 does, unless the chart has
+ *     both HARM1 and HARM2, whose phrases CopyDown gives it on re-parse
+ *
+ * HARM2 and HARM3 also emit their star power when the chart has no HARM1:
+ * without HARM1, each part reads its own phrases and star power.
  *
  * Lyric and note events are union'd across both phrase sets (note 105 and
  * 106 can have different boundaries, so a lyric/note may appear in only one
@@ -54,12 +58,13 @@ export function buildVocalPartTrack(
 	const isHarm3 = partName === 'harmony3'
 	const isHarm2 = partName === 'harmony2'
 	const isPartVocals = partName === 'vocals'
+	const hasHarm1 = vocalTracks.parts.harmony1 !== undefined
 
 	// Phrase markers. A phrase of length 0 stays at length 0: it holds the notes and lyrics on its tick
 	// (`docs/mid/vocals.mdx`), and a tick longer, it would hold the next tick's too.
-	if (isHarm3) {
+	if (isHarm3 && hasHarm1 && vocalTracks.parts.harmony2 !== undefined) {
 		// no-op: all phrases come from CopyDown on re-parse.
-	} else if (isHarm2) {
+	} else if (isHarm2 || isHarm3) {
 		for (const phrase of part.staticLyricPhrases) {
 			addNoteOnOff(events, phrase.tick, phrase.length, 105, 100, true)
 		}
@@ -143,10 +148,10 @@ export function buildVocalPartTrack(
 		})
 	}
 
-	// Star power sections → note 116. HARM2/HARM3 starPowerSections are also
-	// copied from HARM1 by CopyDown on re-parse, so only HARM1 / PART VOCALS
-	// need to emit them.
-	if (!isHarm2 && !isHarm3) {
+	// Star power sections → note 116. HARM2/HARM3 starPowerSections are
+	// copied from HARM1 by CopyDown on re-parse, so they're emitted only
+	// without HARM1.
+	if ((!isHarm2 && !isHarm3) || !hasHarm1) {
 		for (const sp of part.starPowerSections) {
 			addNoteOnOff(events, sp.tick, Math.max(sp.length, 1), 116, 100)
 		}
