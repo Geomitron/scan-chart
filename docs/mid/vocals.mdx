@@ -67,7 +67,7 @@ Unlike in a `.chart` file, a lyric has no `lyric` prefix, and it's in a vocal tr
 
 ### Lyric symbols
 
-A symbol at the end of a lyric changes how it's sung or shown. YARG reads each one as a property of the lyric's note. Clone Hero only changes how it shows the lyric:
+A symbol at the end of a lyric, after any [formatting tag](#formatting-tags), changes how it's sung or shown. YARG reads each one as a property of the lyric's note. Clone Hero only changes how it shows the lyric:
 
 | Symbol | Meaning | Clone Hero shows |
 |---|---|---|
@@ -85,7 +85,7 @@ A symbol at the end of a lyric changes how it's sung or shown. YARG reads each o
 - `=` shows as `-` anywhere in a lyric, and joins the next syllable only at the end.
 - Two symbols stand for a character anywhere in a lyric: `§` joins two syllables sung as one, and `_` is a space. Clone Hero shows each as a space. YARG's vocals show `§` as `‿`.
 - Any other symbol elsewhere in a lyric has no meaning, and isn't shown.
-- **Required:** `-` and `+` only at the end of a lyric. For a hyphen shown inside a lyric, write `=`.
+- **Required:** `-` and `+` only at the end of a lyric: `<i>des</i>-`, not `<i>des-</i>`. For a hyphen shown inside a lyric, write `=`.
 - Clone Hero and YARG show the symbols the same way in a `.chart` file's lyrics.
 
 ### Formatting tags
@@ -126,7 +126,7 @@ The three harmony parts share their phrases:
 
 ## Ignored
 
-- **Note 97,** hidden percussion. No scanner reads it.
+- **Note 97,** hidden percussion. No scanner reads it, and scan-chart's export writes it back.
 - **Any other note number,** such as 104, which YARG reads as a censorship marker after a `[CENSORSHIP_MARKERS]` event.
 - **A text event that starts with `[`,** such as `[play]`. No scanner reads it as a lyric, and scan-chart writes it back as a text event.
 - **An empty lyric.**
@@ -147,7 +147,7 @@ From its code, YARG copies `HARM1`'s phrases into `HARM2` and `HARM3` as it read
 </Accordion>
 
 <Accordion title="A lyric or note outside every phrase">
-Clone Hero doesn't show such a lyric, and YARG doesn't sing such a note. YARG's vocals and scan-chart join a lyric before a phrase to that phrase, and scan-chart drops a lyric after the last phrase. A part with no phrases at all shows nothing in any scanner, and scan-chart's export writes it empty.
+Clone Hero doesn't show such a lyric, and YARG doesn't sing such a note. YARG's vocals and scan-chart join a lyric before a phrase to that phrase, and scan-chart drops a lyric after the last phrase. A part with no phrases at all shows nothing in any scanner, and scan-chart's export writes its notes back but not its lyrics.
 </Accordion>
 
 <Accordion title="A phrase note-on with no note-off, or a note-off with no note-on">
@@ -155,7 +155,7 @@ Clone Hero, YARG's vocals and scan-chart ignore it, as for any note: see [Note p
 </Accordion>
 
 <Accordion title="A - or + that isn't at the end of a lyric">
-Clone Hero joins the next syllable to a lyric with a `-` anywhere in it, and joins a lyric that starts with `+` to the one before it. YARG and scan-chart give such a symbol no meaning. Clone Hero and YARG's lyrics don't show it, and YARG's vocals and scan-chart keep a `-`.
+Clone Hero joins the next syllable to a lyric with a `-` anywhere in it, and joins a lyric that starts with `+` to the one before it. YARG and scan-chart give such a symbol no meaning. Clone Hero and YARG's lyrics don't show it, and YARG's vocals and scan-chart keep a `-`. scan-chart reports it as `misplacedLyricSymbol`, in a `.chart` file's lyrics too.
 </Accordion>
 
 <Accordion title="Overlapping phrases, or a 106 that doesn't match a 105">

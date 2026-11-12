@@ -64,7 +64,7 @@ The tempo track and the header also have limits:
 - A tempo slower than 3.5763 BPM, a time signature or a resolution over these limits can't be converted to `.mid`. **Recommended:** an exporter refuses the conversion, or with the user's consent writes the nearest value it can.
 - A tempo faster than 245.316 BPM may move by less than a microsecond a beat. Games play the tempo each file holds, so the timing changes by a fraction of a millisecond, and the TrackHash changes when the tempo moves by more than its rounding: see [TrackHash](/hashes/btrack#trackhash).
 
-Tempo anchors, `A` in `[SyncTrack]`, and sections a scanner ignores have no place in a `.mid` file either.
+Tempo anchors, `A` in `[SyncTrack]`, sections a scanner ignores, and a `mix` event that names another difficulty than its section's have no place in a `.mid` file either.
 
 ## What .chart can't hold
 
