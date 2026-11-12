@@ -23,6 +23,8 @@ Each Track also records its own duration at song speed 1.0. Track duration runs 
 
 Legacy length follows CH's `Cache.TryUpdateChartMetadata` order: a nonzero signed-int32 `song_length`, then non-crowd audio length, then chart length. This bundle does not include BASS. If the INI length is missing, zero, or invalid and a supported audio stem is present, it reports `audioLengthUnavailable` while still generating both TrackHash/BTrack profiles and canonical SongHash. Without supported audio stems, it uses CH's chart fallback and records `chart-fallback`. Supported stems and extensions match CH; crowd and preview audio do not determine legacy length.
 
+When Clone Hero 1.1.0.6142's parse refuses a chart that the canonical profile reads, such as a `.chart` without a resolution, the tool still generates the canonical artifacts. It writes no legacy tracks, and records the legacy SongHash and legacy length as `legacyParseRejected`, with the parse error. HashScanTool compares only the canonical hashes of such a song.
+
 INI section names and keys are lowercased, and the last duplicate key wins in both profiles. Decoding matches CH's BOM detection for UTF-8/16/32, strict UTF-8 without a BOM, and ISO-8859-1 fallback for invalid BOM-less UTF-8. BOM-less UTF-16/32 is not guessed; its embedded NULs can prevent recognition of `song_length`. Malformed BOM-tagged Unicode is rejected. Canonical duration remains independent of INI length.
 
 Legacy identity retains noteless MIDI tracks, including the Expert track CH creates for each recognized instrument. Canonical identity includes only tracks with at least one note, in both formats, and reads only the first MIDI track of each instrument. MIDI track names match in any letter case in both profiles.

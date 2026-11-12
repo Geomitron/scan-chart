@@ -182,6 +182,28 @@ describe('identity CLI generation', () => {
 		expect(manifest).toContain('"durationMs": "500"')
 	})
 
+	it('generates the canonical artifacts of a chart the frozen legacy profile refuses, with the legacy side unavailable', async () => {
+		const root = await temporaryDirectory()
+		for (const [name, chart] of [['no-song', validChart().replace('[Song]\r\n{\r\n  Resolution = 192\r\n}\r\n', '')], ['song', validChart()]]) {
+			await mkdir(join(root, name))
+			await writeFile(join(root, name, 'notes.chart'), chart)
+		}
+
+		const result = await generate({ input: root, output: join(root, 'output') })
+		const [noSong, withSong] = result.results
+		if (noSong?.kind !== 'success' || withSong?.kind !== 'success') throw new Error(JSON.stringify(result.results))
+		expect(noSong.legacySongHash).toBeNull()
+		// The canonical profile reads a .chart without [Song] as Resolution = 192.
+		expect(noSong.canonicalSongHash).toBe(withSong.canonicalSongHash)
+		const songRoot = join(root, 'output', 'songs', 'no-song')
+		await expect(access(join(songRoot, 'canonical20260801', 'tracks', '000-guitar-expert', 'physical.btrack'))).resolves.toBeUndefined()
+		await expect(access(join(songRoot, 'frozenLegacy6142'))).rejects.toThrow()
+		const manifest = JSON.parse(await readFile(join(songRoot, 'manifest.json'), 'utf8'))
+		const refusal = { kind: 'unavailable', reason: 'legacyParseRejected', error: expect.stringContaining('resolution') }
+		expect(manifest.profiles.frozenLegacy6142).toEqual({ song: refusal, tracks: [] })
+		expect(manifest.duration.frozenLegacy).toEqual(refusal)
+	})
+
 	it('uses notes.mid when a folder also has notes.chart', async () => {
 		const root = await temporaryDirectory()
 		const both = join(root, 'both')

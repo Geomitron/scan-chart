@@ -2,14 +2,20 @@ import { createHash } from 'node:crypto'
 import { lstat, mkdir, mkdtemp, readFile, readdir, rename, rm, rmdir, writeFile } from 'node:fs/promises'
 import { dirname, extname, join, relative, resolve, sep } from 'node:path'
 
-import { parseChartAndIni } from '../../src/chart/parse-chart-and-ini'
+import { parseChartAndIni, type ParsedChart } from '../../src/chart/parse-chart-and-ini'
 import { parseChartFileFrozenLegacyIdentity } from '../../src/chart/parse-chart-file'
-import { canonical20260801, frozenLegacy6142, songBundle20251010 } from '../../src/chart/identity/public'
+import {
+	canonical20260801,
+	frozenLegacy6142,
+	type FrozenLegacySongBundleIdentity,
+	songBundle20251010,
+	type SongBundleIdentityOutcome,
+} from '../../src/chart/identity/public'
 import type { TrackDuration } from '../../src/chart/chart-duration'
 import type { Difficulty, File, Instrument, ScannedChartMetadata } from '../../src/types'
 import type { SongHashMetadata } from '../../src/chart/identity/song-hash-20251010'
 import { identityTrackKey, IdentityTrackKey } from '../../src/chart/identity/track-key'
-import { resolveHistoricalDuration } from './duration'
+import { type HistoricalDuration, resolveHistoricalDuration } from './duration'
 
 const skippedDirectories = new Set(['.git', 'node_modules'])
 
@@ -236,26 +242,67 @@ async function writeSongArtifacts(
 	return { preimage, digest, songHash: song.songHash.value, songHashArtifact }
 }
 
+/** The frozen legacy side of a song whose chart Clone Hero 1.1 refuses. */
+interface LegacyRefusal {
+	readonly kind: 'unavailable'
+	readonly reason: 'legacyParseRejected'
+	readonly error: string
+}
+
+type AcceptedSongBundle = Extract<SongBundleIdentityOutcome, { kind: 'accepted' }>
+
+/**
+ * A song's identities in both profiles, with the historical duration the legacy SongHash reads. Clone Hero 1.1 refuses
+ * some charts the canonical profile reads, such as a `.chart` without a resolution. HashScanTool then compares the
+ * canonical hashes alone, so the identities keep them, and the legacy side is unavailable.
+ */
+function identifySong(
+	loaded: { readonly iniBytes: Uint8Array | null; readonly fileNames: readonly string[] },
+	chart: ParsedChart,
+	legacyMetadata: SongHashMetadata,
+): {
+	historicalDuration: HistoricalDuration | LegacyRefusal
+	bundle: {
+		readonly frozenLegacy6142: { readonly tracks: AcceptedSongBundle['frozenLegacy6142']['tracks']; readonly song: FrozenLegacySongBundleIdentity | LegacyRefusal }
+		readonly canonical20260801: AcceptedSongBundle['canonical20260801']
+	}
+} {
+	const source = { format: chart.format, bytes: chart.chartBytes }
+	const legacyModifiers = frozenLegacy6142.readModifiers(loaded.iniBytes)
+	let legacyChart: ReturnType<typeof parseChartFileFrozenLegacyIdentity>
+	try {
+		legacyChart = parseChartFileFrozenLegacyIdentity(source.bytes, source.format, legacyModifiers)
+	} catch (error: unknown) {
+		const refusal: LegacyRefusal = { kind: 'unavailable', reason: 'legacyParseRejected', error: errorMessage(error) }
+		const canonicalParsed = canonical20260801.parseSource({ source, modifiers: chart.iniChartModifiers })
+		if (canonicalParsed.kind === 'rejected') throw new Error(canonicalParsed.errors.map(rejection => rejection.message).join(' '))
+		const canonical = canonical20260801.calculateSongBundle({ chart: canonicalParsed.chart, metadata: chart.songHashMetadata })
+		return {
+			historicalDuration: refusal,
+			bundle: { frozenLegacy6142: { tracks: [], song: refusal }, canonical20260801: { ...canonical, notices: canonicalParsed.notices } },
+		}
+	}
+	const historicalDuration = resolveHistoricalDuration(loaded.iniBytes, loaded.fileNames, legacyChart)
+	const bundle = songBundle20251010.calculate({
+		source,
+		modifiers: chart.iniChartModifiers,
+		legacyModifiers,
+		legacyMetadata,
+		canonicalMetadata: chart.songHashMetadata,
+		...(historicalDuration.kind === 'available' ? { legacyDurationMs: historicalDuration.durationMs } : {}),
+	})
+	if (bundle.kind === 'rejected') throw new Error(bundle.errors.map(error => error.message).join(' '))
+	return { historicalDuration, bundle }
+}
+
 async function generateSong(folder: string, inputRoot: string, outputRoot: string, outputRelative: string): Promise<SongFolderSuccess> {
 	const loaded = await loadFolder(folder)
 	const parsed = parseChartAndIni([...loaded.files])
 	if (!parsed.parsedChart) {
 		throw new Error(parsed.chartFolderIssues.map(issue => issue.description).join(' ') || 'Chart parser rejected the source')
 	}
-	const legacyModifiers = frozenLegacy6142.readModifiers(loaded.iniBytes)
-	const historicalDuration = resolveHistoricalDuration(loaded.iniBytes, loaded.fileNames, parseChartFileFrozenLegacyIdentity(
-		parsed.parsedChart.chartBytes, parsed.parsedChart.format, legacyModifiers,
-	))
 	const legacyMetadata = songMetadata(parsed.parsedChart.metadata)
-	const bundle = songBundle20251010.calculate({
-		source: { format: parsed.parsedChart.format, bytes: parsed.parsedChart.chartBytes },
-		modifiers: parsed.parsedChart.iniChartModifiers,
-		legacyModifiers,
-		legacyMetadata,
-		canonicalMetadata: parsed.parsedChart.songHashMetadata,
-		...(historicalDuration.kind === 'available' ? { legacyDurationMs: historicalDuration.durationMs } : {}),
-	})
-	if (bundle.kind === 'rejected') throw new Error(bundle.errors.map(error => error.message).join(' '))
+	const { historicalDuration, bundle } = identifySong(loaded, parsed.parsedChart, legacyMetadata)
 
 	const songRoot = join(outputRoot, ...outputRelative.split('/'))
 	await mkdir(songRoot, { recursive: true })
