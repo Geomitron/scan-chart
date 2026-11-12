@@ -228,7 +228,7 @@ export function extractMidiLyricText(event: MidiTextLikeEvent): string {
 	return event.text ?? ''
 }
 
-export type VocalNoteType = 'pitched' | 'percussion' | 'percussionHidden'
+export type VocalNoteType = 'pitched' | 'percussion'
 
 export interface VocalNote {
 	tick: number
@@ -240,7 +240,6 @@ export interface VocalNote {
 function noteNumberToVocalType(noteNumber: number): VocalNoteType | null {
 	if (noteNumber >= 36 && noteNumber <= 84) return 'pitched'
 	if (noteNumber === 96) return 'percussion'
-	if (noteNumber === 97) return 'percussionHidden'
 	return null
 }
 
@@ -262,7 +261,7 @@ export interface VocalTrackScanResult<T extends MidiLyricEvent = MidiLyricEvent>
 	phrases105: { tick: number; length: number }[]
 	/** Static lyric / player-2 phrase boundaries from note 106. */
 	phrases106: { tick: number; length: number }[]
-	/** Vocal notes: pitched 36–84, percussion 96 (displayed), 97 (hidden). */
+	/** Vocal notes: pitched 36–84 and percussion 96. Note 97, hidden percussion, is read by no scanner. */
 	notes: VocalNote[]
 	/** Star power sections from note 116. */
 	starPower: { tick: number; length: number }[]
@@ -272,7 +271,7 @@ export interface VocalTrackScanResult<T extends MidiLyricEvent = MidiLyricEvent>
 	lyricShifts: { tick: number; length: number }[]
 	/**
 	 * MIDI events this scanner didn't consume — stray noteOn/noteOff outside
-	 * the recognized vocal note ranges, plus any sysEx / meta / channel
+	 * the recognized vocal note ranges, such as note 97, plus any sysEx / meta / channel
 	 * events that vocal tracks don't typically carry. Stored verbatim
 	 * (deltaTime = absolute tick) so writers can re-emit them for round-trip.
 	 * Events intentionally consumed elsewhere (`ENHANCED_OPENS`,
@@ -305,7 +304,7 @@ const discoFlipRegex = /^\s*\[?mix[ _][0-3][ _]drums[0-5](d|dnoflip|easy|easynok
  *   (`docs/mid/note-pairing.mdx`): a note-off ends the latest open note of its
  *   number and channel, and a velocity-0 noteOn counts as a noteOff. They're
  *   routed: 0 → rangeShifts, 1 → lyricShifts, 105 → phrases105, 106 →
- *   phrases106, 116 → starPower, 36–84 / 96 / 97 → notes. Then overlapping
+ *   phrases106, 116 → starPower, 36–84 / 96 → notes. Then overlapping
  *   notes of one pitch are trimmed as overlapping sustains are, and of two at
  *   one tick the longer is kept (`docs/mid/vocals.mdx`, "Overlapping notes of
  *   one part").

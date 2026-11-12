@@ -4,7 +4,7 @@
 import type { MidiEvent } from '@geomitron/midi-file'
 
 import type { VocalNote, VocalPart, VocalTrack } from '../types'
-import { addNoteOnOff, finalizeMidiTrack, lyricsEvent, metaTextEvent, noteOffEvent, noteOnEvent, trackNameEvent } from './shared'
+import { addNoteOnOff, addVerbatimEvents, finalizeMidiTrack, lyricsEvent, metaTextEvent, noteOffEvent, noteOnEvent, trackNameEvent } from './shared'
 import type { AbsoluteEvent } from './shared'
 
 
@@ -166,6 +166,9 @@ export function buildVocalPartTrack(
 			event: metaTextEvent(te.text),
 		})
 	}
+
+	// The events no scanner reads: notes outside every phrase, note 97 and other note numbers, and other events.
+	addVerbatimEvents(events, part.unrecognizedMidiEvents ?? [])
 
 	// Per-part range shifts (note 0) and lyric shifts (note 1). Fall back to
 	// the track-level arrays only if the per-part arrays are empty and this

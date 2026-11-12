@@ -1,3 +1,5 @@
+import type { MidiEvent } from '@geomitron/midi-file'
+
 import { ObjectValues } from '../shared/type-utils'
 import { defaultMetadata } from '../ini/metadata'
 
@@ -167,6 +169,13 @@ export interface VocalPart {
 	lyricShifts: { tick: number; msTime: number; length: number; msLength: number }[]
 	/** Raw vocal text events for this part, excluding parsed lyric syllables. */
 	textEvents: { tick: number; msTime: number; text: string }[]
+	/**
+	 * The events of the part's `.mid` track that no scanner reads, kept so that saving writes them back, each with its
+	 * tick as its `deltaTime`: a note outside every phrase, as its note-on and note-off; note 97 and the other note
+	 * numbers no scanner reads; and any other event a vocal track doesn't use. Reading always sets it, empty for a
+	 * `.chart` file; a part built without it has none.
+	 */
+	unrecognizedMidiEvents?: MidiEvent[]
 }
 
 /** Top-level vocals data containing every singer lane and shared track-level shift markers. */

@@ -449,7 +449,7 @@ describe('vocalTracks: notes and markers', () => {
 				notes: [
 					{ tick: 480, pitch: 60, length: 240 },   // pitched
 					{ tick: 960, pitch: 96, length: 120 },   // percussion
-					{ tick: 1440, pitch: 97, length: 120 },  // percussionHidden
+					{ tick: 1440, pitch: 97, length: 120 },  // hidden percussion, which no scanner reads
 				],
 				phrases: [{ tick: 480, length: 1200 }],
 			}),
@@ -457,10 +457,9 @@ describe('vocalTracks: notes and markers', () => {
 
 		const result = parseNotesFromMidi(midi, defaultMetadata)
 		const notes = result.vocalTracks.vocals.notes
-		expect(notes).toHaveLength(3)
+		expect(notes).toHaveLength(2)
 		expect(notes[0]).toMatchObject({ tick: 480, length: 240, pitch: 60, type: 'pitched' })
 		expect(notes[1]).toMatchObject({ tick: 960, length: 120, pitch: 96, type: 'percussion' })
-		expect(notes[2]).toMatchObject({ tick: 1440, length: 120, pitch: 97, type: 'percussionHidden' })
 	})
 
 	it('extracts star power sections', () => {
@@ -836,7 +835,7 @@ describe('normalizedVocalTracks', () => {
 		expect(note.type).toBe('pitched')
 	})
 
-	it('excludes percussionHidden (note 97) from normalized notes', () => {
+	it('excludes hidden percussion (note 97) from normalized notes', () => {
 		// YARG only processes PERCUSSION_NOTE (96), not NONPLAYED_PERCUSSION_NOTE (97).
 		// Real example: "311 - Down" has 26 note-96 + 94 note-97 in a single phrase.
 		const midi = buildMidi(480, [

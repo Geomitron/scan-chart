@@ -1023,6 +1023,29 @@ describe('writeMidiFile round-trip: vocal tracks', () => {
 		expect(parsed.vocalTracks.parts.harmony1.notePhrases[0].lyrics.map(l => l.text)).toEqual(['new'])
 	})
 
+	it('writes back note 97, other note numbers, and notes outside every phrase', () => {
+		const source = midiFile([{
+			name: 'PART VOCALS',
+			events: [
+				...midiNote(0, 60, 100), midiText(0, 'early', 'lyrics'), // before the phrase: the lyric joins it, the note is in none
+				...midiNote(240, 105, 960), ...midiNote(240, 97, 60), ...midiNote(300, 104, 10), ...midiNote(240, 62, 100),
+				...midiNote(1440, 69, 120), ...midiNote(1440, 96, 0), // after the last phrase
+			],
+		}])
+		const parsed = parseChartAndIni([{ fileName: 'notes.mid', data: source }]).parsedChart!
+		const vocals = parsed.vocalTracks.parts.vocals
+		expect(vocals.notePhrases.map(p => [p.lyrics.map(l => l.text), p.notes.map(n => n.tick)])).toEqual([[['early'], [240]]])
+		const noteEvents = (events: readonly MidiEvent[]) => events.flatMap(event => event.type === 'noteOn' || event.type === 'noteOff'
+			? [[event.deltaTime, event.type, event.noteNumber]] : [])
+		const unread = [[0, 'noteOn', 60], [100, 'noteOff', 60], [240, 'noteOn', 97], [300, 'noteOff', 97], [300, 'noteOn', 104], [310, 'noteOff', 104],
+			[1440, 'noteOn', 96], [1440, 'noteOff', 96], [1440, 'noteOn', 69], [1560, 'noteOff', 69]]
+		expect(noteEvents(vocals.unrecognizedMidiEvents!)).toEqual(unread)
+
+		expect(roundTrip(parsed).vocalTracks).toEqual(parsed.vocalTracks)
+		const written = readMidiFile(writeMidiFile(parsed)).tracks.find(track => track.some(event => event.type === 'trackName' && event.text === 'PART VOCALS'))!
+		expect(noteEvents(written).filter(([, , noteNumber]) => noteNumber !== 62 && noteNumber !== 105)).toEqual(unread)
+	})
+
 	it('reads [range_shift] events as vocal text events, and writes them back', () => {
 		const source = trackMidi('PART VOCALS', [
 			{ tick: 0, text: 'a', type: 'lyrics' }, { tick: 240, text: '[range_shift]' }, { tick: 480, text: '[range_shift 2.5]' },

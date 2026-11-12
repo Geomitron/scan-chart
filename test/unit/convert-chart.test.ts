@@ -212,6 +212,15 @@ describe('convertChart', () => {
 		expect(iniText(converted)).toBe('[song]\r\nname = Midi Song\r\n')
 	})
 
+	it('reports the vocal events no scanner reads as dropped: note 97 and notes outside every phrase', () => {
+		const midi = midiFile([
+			{ name: 'PART GUITAR', events: midiNote(0, 96) },
+			{ name: 'PART VOCALS', events: [...midiNote(0, 105, 480), ...midiNote(0, 60, 100), midiText(0, 'la', 'lyrics'), ...midiNote(120, 97, 10), ...midiNote(960, 62, 100)] },
+		])
+		const { report } = convertChart(parseSongFiles([{ fileName: 'notes.mid', data: midi }]), 'chart')
+		expect(report.dropped).toEqual([{ content: 'vocal pitches', count: 1 }, { content: 'vocal track MIDI events', count: 4 }])
+	})
+
 	it('writes EVENTS text into [Events] so it holds no event it didn\'t, and leaves out misplaced vocal events', () => {
 		const midi = midiFile([
 			{

@@ -1,4 +1,6 @@
 
+import type { MidiEvent } from '@geomitron/midi-file'
+
 import { defaultMetadata } from '../ini/metadata'
 import { Difficulty, DrumType, drumTypes, getInstrumentType, Instrument, instrumentTypes } from '../types'
 import { ChartFileTokens, chartFileSections, classifyChartFile, tokenizeChartFile } from './chart-file-parser'
@@ -252,6 +254,8 @@ function normalizeVocalPart(
 	// MIDI note numbers, and CopyDown relies on HARM1's vocalPhrases (105 only).
 	let notePhrases: VocalPhrase[]
 	let staticLyricPhrases: VocalPhrase[]
+	// The notes some phrase holds; the others are kept as unrecognized events.
+	const placed = new Set<VocalTrackData['notes'][number]>()
 
 	if (isPartVocals) {
 		// Merge 105 + 106 for PART VOCALS
@@ -280,7 +284,7 @@ function normalizeVocalPart(
 			phraseSourceByTick.set(p.tick, dedupedPhrases.find(d => d.tick === p.tick)!._source)
 		}
 
-		notePhrases = groupIntoPhrases(dedupedPhrases, data, timedTempos, resolution, format)
+		notePhrases = groupIntoPhrases(dedupedPhrases, data, timedTempos, resolution, format, placed)
 
 		// Set player field
 		for (const phrase of notePhrases) {
@@ -292,9 +296,9 @@ function normalizeVocalPart(
 		staticLyricPhrases = notePhrases.map(p => ({ ...p }))
 	} else {
 		// Harmonies: separate 105/106 for lossless round-trip
-		notePhrases = groupIntoPhrases(data.vocalPhrases, data, timedTempos, resolution, format)
+		notePhrases = groupIntoPhrases(data.vocalPhrases, data, timedTempos, resolution, format, placed)
 		staticLyricPhrases = data.staticLyricPhrases.length > 0
-			? groupIntoPhrases(data.staticLyricPhrases, data, timedTempos, resolution, format)
+			? groupIntoPhrases(data.staticLyricPhrases, data, timedTempos, resolution, format, placed)
 			: []
 	}
 
@@ -305,7 +309,22 @@ function normalizeVocalPart(
 		rangeShifts: setEventMsTimes(data.rangeShifts, timedTempos, resolution),
 		lyricShifts: setEventMsTimes(data.lyricShifts, timedTempos, resolution),
 		textEvents: setEventMsTimes(data.textEvents ?? [], timedTempos, resolution),
+		unrecognizedMidiEvents: vocalUnrecognizedEvents(data, placed),
 	}
+}
+
+/**
+ * A vocal track's events no scanner reads: its unrecognized events, and a note-on and note-off for each note no phrase
+ * holds, at the note's tick and length as read. In tick order; at one tick, in the order they were found.
+ */
+function vocalUnrecognizedEvents(data: VocalTrackData, placed: ReadonlySet<VocalTrackData['notes'][number]>): MidiEvent[] {
+	const outside = data.notes.filter(note => !placed.has(note))
+	if (outside.length === 0) return data.unrecognizedMidiEvents
+	const noteEvents = outside.flatMap((note): MidiEvent[] => [
+		{ deltaTime: note.tick, type: 'noteOn', channel: 0, noteNumber: note.pitch, velocity: 100 },
+		{ deltaTime: note.tick + note.length, type: 'noteOff', channel: 0, noteNumber: note.pitch, velocity: 0 },
+	])
+	return [...data.unrecognizedMidiEvents, ...noteEvents].sort((a, b) => a.deltaTime - b.deltaTime)
 }
 
 /** Standard emptiness check for lyrics (matching YARG's IsNullOrWhiteSpace
@@ -322,6 +341,7 @@ function groupIntoPhrases(
 	timedTempos: TimedTempos,
 	resolution: number,
 	format: 'chart' | 'mid',
+	placed: Set<VocalTrackData['notes'][number]>,
 ): VocalPhrase[] {
 	// Dedup phrases by tick (both note 105 and 106 can create phrases at the same tick)
 	const dedupedPhrases: typeof phrases = []
@@ -394,7 +414,7 @@ function groupIntoPhrases(
 		// Process notes, using phraseLyrics for flag detection
 		let phraseLyricIdx = 0
 		for (const note of rawNotes) {
-			if (note.type === 'percussionHidden') continue
+			placed.add(note)
 
 			// Collect lyrics up to and including this note's tick (local iterator)
 			let noteLyricFlags = 0

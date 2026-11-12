@@ -894,14 +894,14 @@ describe('scanVocalTrack (notes)', () => {
 		expect(notes[0]).toEqual({ tick: 480, length: 240, pitch: 96, type: 'percussion' })
 	})
 
-	it('extracts hidden percussion (note 97)', () => {
+	it('reads no note from hidden percussion (note 97), and keeps its events as unrecognized', () => {
 		const events = [
 			{ deltaTime: 480, type: 'noteOn' as const, noteNumber: 97, velocity: 100 },
 			{ deltaTime: 720, type: 'noteOff' as const, noteNumber: 97, velocity: 0 },
 		]
-		const notes = scanVocalTrack(events).notes
-		expect(notes).toHaveLength(1)
-		expect(notes[0]).toEqual({ tick: 480, length: 240, pitch: 97, type: 'percussionHidden' })
+		const scanned = scanVocalTrack(events)
+		expect(scanned.notes).toEqual([])
+		expect(scanned.unrecognizedMidiEvents).toEqual(events)
 	})
 
 	it('ignores notes outside vocal range (35, 85, 105, 106)', () => {

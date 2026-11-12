@@ -248,6 +248,7 @@ function droppedContent(chart: ParsedChart, format: ChartFormat): ConversionRepo
 			add(`MIDI track ${track.trackName}`, track.events.filter(event => event.type !== 'trackName' && event.type !== 'endOfTrack').length)
 		}
 		add('instrument track MIDI events', chart.trackData.reduce((count, track) => count + track.unrecognizedMidiEvents.length, 0))
+		add('vocal track MIDI events', Object.values(parts).reduce((count, part) => count + (part.unrecognizedMidiEvents?.length ?? 0), 0))
 		add('events track MIDI events', chart.unrecognized.eventsTrackMidiEvents.length)
 		const texts = chart.format === 'mid' ? chart.unrecognized.eventsTrackTextEvents : []
 		const leftOut = texts.map(event => chartTextForMidiEventsText(event.text)).flatMap(written => 'leftOut' in written ? [written.leftOut] : [])
