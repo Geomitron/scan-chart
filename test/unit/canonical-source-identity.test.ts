@@ -111,7 +111,7 @@ describe('canonical source identity', () => {
 		expect(containsBytes(identity.projection.bytes, [0xf2, 0xd2, 0x4d, 0x62, 0x10, 0x00, 0x5e, 0x40])).toBe(true)
 	})
 
-	it('keeps a MIDI tap active at its end and routes MIDI range shifts', () => {
+	it('leaves the note on a MIDI tap\'s end tick untapped, as the scanner does, and routes MIDI range shifts', () => {
 		const source = midiSource()
 		const legacy = parseChartFile(source, 'mid')
 		const parsed = canonical20260801.parseSource({
@@ -128,7 +128,7 @@ describe('canonical source identity', () => {
 
 		expect(canonicalFlags[100] & noteFlags.tap).toBe(noteFlags.tap)
 		expect(canonicalFlags[150] & noteFlags.tap).toBe(noteFlags.tap)
-		expect(canonicalFlags[200] & noteFlags.tap).toBe(noteFlags.tap)
+		expect(canonicalFlags[200] & noteFlags.tap).toBe(0)
 		expect(canonicalFlags[250] & noteFlags.tap).toBe(0)
 		expect(legacyFlags[200] & noteFlags.tap).toBe(0)
 		expect(canonical.semantics.rangeShifts).toEqual([
@@ -144,6 +144,38 @@ describe('canonical source identity', () => {
 		expect(containsBytes(identity.physicalBTrack.bytes, exactTempo)).toBe(true)
 		expect(containsBytes(identity.projection.bytes, exactTempo)).toBe(false)
 		expect(containsBytes(identity.projection.bytes, roundedTempo)).toBe(true)
+	})
+
+	it('leaves the note on a tap\'s end tick untapped whichever event comes first, for tap SysEx events and note 104', () => {
+		const tapEvent = (form: 'sysEx' | 'note104', on: boolean): MidiEvent =>
+			form === 'sysEx' ? { deltaTime: 0, type: 'sysEx', data: [0x50, 0x53, 0, 0, 3, 4, on ? 1 : 0, 0xf7] }
+			: on ? { deltaTime: 0, type: 'noteOn', channel: 0, noteNumber: 104, velocity: 100 }
+			: { deltaTime: 0, type: 'noteOff', channel: 0, noteNumber: 104, velocity: 0 }
+		const greenAt = (tick: number): { tick: number; event: MidiEvent }[] => [
+			{ tick, event: { deltaTime: 0, type: 'noteOn', channel: 0, noteNumber: 96, velocity: 100 } },
+			{ tick: tick + 1, event: { deltaTime: 0, type: 'noteOff', channel: 0, noteNumber: 96, velocity: 0 } },
+		]
+		const tracks = (['sysEx', 'note104'] as const).flatMap(form => [true, false].map(noteFirst => {
+			const end = { tick: 240, event: tapEvent(form, false) }
+			const guitar = midiTrack('PART GUITAR', [
+				{ tick: 0, event: tapEvent(form, true) },
+				...greenAt(0),
+				...noteFirst ? [...greenAt(240), end] : [end, ...greenAt(240)],
+			])
+			const source = new Uint8Array(writeMidi({ header: { format: 1, numTracks: 2, ticksPerBeat: 480 }, tracks: [midiTrack('', []), guitar] }))
+			const parsed = canonical20260801.parseSource({ source: { format: 'mid', bytes: source }, modifiers: defaultMetadata })
+			if (parsed.kind !== 'accepted') throw new Error(`${form}, note first ${noteFirst}: not accepted`)
+			return parsed.chart.tracks.find(track => track.key.instrument === 'guitar' && track.key.difficulty === 'expert')!
+		}))
+
+		for (const track of tracks) {
+			const flags = Object.fromEntries(track.semantics.notes.map(note => [Number(note.tick), note.flags]))
+			expect(flags[0] & noteFlags.tap).toBe(noteFlags.tap)
+			expect(flags[240] & noteFlags.tap).toBe(0)
+		}
+		const trackHashes = tracks.map(track => canonical20260801.calculateTrackIdentity(track).trackHash.value)
+		expect(trackHashes[0]).toMatch(/^[\w-]{43}$/)
+		expect(new Set(trackHashes).size).toBe(1)
 	})
 
 	it('ignores a .chart range shift with a sign before a number, as Clone Hero does', () => {

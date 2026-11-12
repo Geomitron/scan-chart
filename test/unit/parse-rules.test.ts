@@ -16,7 +16,6 @@ describe('parse profiles', () => {
 			    "midiChartDynamics": "fromEvent",
 			    "midiDuplicateInstrumentTracks": "firstWins",
 			    "midiKickDynamics": "ignored",
-			    "midiTapEnd": "inclusive",
 			    "midiTrackAllocation": "difficultiesWithNotes",
 			    "proDrumsGreenPair": "invalid",
 			    "profile": "canonical20260801",
@@ -28,7 +27,6 @@ describe('parse profiles', () => {
 			    "midiChartDynamics": "leaksAcrossDifficulties",
 			    "midiDuplicateInstrumentTracks": "keepAll",
 			    "midiKickDynamics": "applied",
-			    "midiTapEnd": "exclusive",
 			    "midiTrackAllocation": "difficultiesWithNotesAndExpert",
 			    "proDrumsGreenPair": "blueTom",
 			    "profile": "frozenLegacy6142",
@@ -40,7 +38,6 @@ describe('parse profiles', () => {
 			    "midiChartDynamics": "fromEvent",
 			    "midiDuplicateInstrumentTracks": "keepAll",
 			    "midiKickDynamics": "ignored",
-			    "midiTapEnd": "exclusive",
 			    "midiTrackAllocation": "difficultiesWithNotes",
 			    "proDrumsGreenPair": "invalid",
 			    "profile": "scanner",
@@ -65,7 +62,7 @@ describe('the gameplay view (E2)', () => {
 		expect(tracksOf([{ fileName: 'notes.chart', data: encode(chart) }])).toEqual(['guitar:expert'])
 	})
 
-	it('reads only the first of several .mid tracks for one instrument, and a tap phrase includes its end tick', () => {
+	it('reads only the first of several .mid tracks for one instrument, and a tap phrase leaves out its end tick', () => {
 		const guitar = (notes: number[]) => [
 			{ deltaTime: 0, type: 'trackName' as const, text: 'PART GUITAR' },
 			...notes.flatMap(noteNumber => [
@@ -84,7 +81,8 @@ describe('the gameplay view (E2)', () => {
 		}))
 		const parsed = parseChartAndIni([{ fileName: 'notes.mid', data: midi }]).parsedChart!
 		expect(parsed.trackData.map(track => `${track.instrument}:${track.difficulty}`)).toEqual(['guitar:expert'])
-		const [, endTickGroup] = parsed.trackData[0].noteEventGroups
-		expect(endTickGroup[0].flags & noteFlags.tap).toBeTruthy()
+		const [startGroup, endTickGroup] = parsed.trackData[0].noteEventGroups
+		expect(startGroup[0].flags & noteFlags.tap).toBeTruthy()
+		expect(endTickGroup[0].flags & noteFlags.tap).toBe(0)
 	})
 })

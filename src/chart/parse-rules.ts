@@ -7,8 +7,6 @@
  */
 export interface ParseRules {
 	readonly profile: 'scanner' | 'frozenLegacy6142' | 'canonical20260801'
-	/** Whether a MIDI tap phrase (SysEx or note 104) still applies to a note on its end tick. */
-	readonly midiTapEnd: 'exclusive' | 'inclusive'
 	/**
 	 * Which MIDI difficulties become tracks. `difficultiesWithNotesAndExpert` also keeps the Expert track
 	 * that Clone Hero 1.1.0.6142 allocates for every recognized instrument track, even when it has no notes.
@@ -54,7 +52,6 @@ export interface ParseRules {
 
 const scanner: ParseRules = Object.freeze({
 	profile: 'scanner',
-	midiTapEnd: 'exclusive',
 	midiTrackAllocation: 'difficultiesWithNotes',
 	chartTrackAllocation: 'everySection',
 	midiDuplicateInstrumentTracks: 'keepAll',
@@ -67,7 +64,6 @@ const scanner: ParseRules = Object.freeze({
 
 const frozenLegacy6142: ParseRules = Object.freeze({
 	profile: 'frozenLegacy6142',
-	midiTapEnd: 'exclusive',
 	midiTrackAllocation: 'difficultiesWithNotesAndExpert',
 	chartTrackAllocation: 'everySection',
 	midiDuplicateInstrumentTracks: 'keepAll',
@@ -80,7 +76,6 @@ const frozenLegacy6142: ParseRules = Object.freeze({
 
 const canonical20260801: ParseRules = Object.freeze({
 	profile: 'canonical20260801',
-	midiTapEnd: 'inclusive',
 	midiTrackAllocation: 'difficultiesWithNotes',
 	chartTrackAllocation: 'sectionsWithNotes',
 	midiDuplicateInstrumentTracks: 'firstWins',

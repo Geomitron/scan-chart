@@ -85,8 +85,8 @@ export const parsedCharts = new ObjectCache<ParsedChart, { readonly source: Char
  * `scanChart` if you need hashes, chart issues, or asset scanning.
  *
  * The notes are read with Clone Hero's rules, the canonical ones (E2): a
- * `.chart` section with no notes isn't a track, only the first `.mid` track
- * of an instrument is read, and a `.mid` tap phrase includes its end tick.
+ * `.chart` section with no notes isn't a track, and only the first `.mid`
+ * track of an instrument is read.
  */
 export function parseChartAndIni(files: File[]): ParseChartAndIniResult {
 	return parseSongChartAndIni(parseSongFiles(files))

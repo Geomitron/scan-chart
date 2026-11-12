@@ -1180,10 +1180,7 @@ function splitMidiModifierSustains(
 				let w = 0
 				for (let r = 0; r < activeModifiers.length; r++) {
 					const m = activeModifiers[r]
-					const ended =
-						m.length === 0 ? m.tick < eventTick
-						: rules.midiTapEnd === 'inclusive' && m.type === eventTypes.forceTap ? m.tick + m.length < eventTick
-						: m.tick + m.length <= eventTick
+					const ended = m.length === 0 ? m.tick < eventTick : m.tick + m.length <= eventTick
 					if (!ended) activeModifiers[w++] = m
 				}
 				activeModifiers.length = w

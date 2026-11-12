@@ -6,7 +6,7 @@ import { defaultMetadata } from 'src/ini/metadata'
 import { Difficulty, Instrument } from 'src/types'
 
 /*
- * The authored cases of the next suite, v5: the canonical `canonical-20260801` profile only. Approved suites are
+ * The authored cases of the next suite, v6: the canonical `canonical-20260801` profile only. Approved suites are
  * frozen in `suites/`; changing a case here changes only drafts generated from now on.
  */
 
@@ -212,7 +212,7 @@ export const sourceCases: readonly AuthoredSourceCase[] = [
 	},
 	{
 		id: 'source-midi-all-difficulty-tap-boundary',
-		purpose: 'All-difficulty tap applies to a second charted difficulty and remains active at its end tick.',
+		purpose: 'All-difficulty tap applies to a second charted difficulty and ends before the note on its end tick.',
 		format: 'mid',
 		bytes: modifierBoundaryMidi(),
 		target: { instrument: 'guitar', difficulty: 'easy' },
@@ -250,6 +250,7 @@ export const sourceCases: readonly AuthoredSourceCase[] = [
 	...chartFlamCases(),
 	...discoCases(),
 	...syncTrackAndInstrumentCases(),
+	...tapEndCases(),
 ]
 
 function note(tick: number, noteNumber: number, length: number, velocity = 100): { tick: number; event: MidiEvent }[] {
@@ -378,6 +379,35 @@ function dynamicsMidi(eventTick: number, eventBeforeNotes: boolean): Uint8Array 
 	}
 	if (![0, 480, 1920, 2400].includes(eventTick)) events.push(textEvent(eventTick, '[ENABLE_CHART_DYNAMICS]'))
 	return midi([midiTrack('PART DRUMS', events)])
+}
+
+/**
+ * Expert green notes at 0 and 480 under a tap from 0 to 480 (tap SysEx events or note 104), with the tap's end event
+ * listed before or after the note-on on its tick.
+ */
+function tapEndMidi(form: 'sysEx' | 'note104', endBeforeNote: boolean): Uint8Array {
+	const tapEvent = (on: boolean): MidiEvent =>
+		form === 'sysEx' ? { deltaTime: 0, type: 'sysEx', data: [0x50, 0x53, 0, 0, 3, 4, on ? 1 : 0, 0xf7] }
+		: on ? { deltaTime: 0, type: 'noteOn', channel: 0, noteNumber: 104, velocity: 100 }
+		: { deltaTime: 0, type: 'noteOff', channel: 0, noteNumber: 104, velocity: 0 }
+	const end = { tick: 480, event: tapEvent(false) }
+	return midi([midiTrack('PART GUITAR', [
+		{ tick: 0, event: tapEvent(true) },
+		...note(0, 96, 60),
+		...endBeforeNote ? [end, ...note(480, 96, 60)] : [...note(480, 96, 60), end],
+	])])
+}
+
+/** C22: a tap covers no note on its end tick, whichever form it has and whichever event comes first there. */
+function tapEndCases(): AuthoredSourceCase[] {
+	return ([['sysex', 'sysEx', 'Tap SysEx events'], ['note-104', 'note104', 'Note 104']] as const).flatMap(([idForm, form, name]) =>
+		([['before', true], ['after', false]] as const).map(([order, endBeforeNote]) => ({
+			id: `source-midi-tap-${idForm}-end-${order}-note`,
+			purpose: `${name}: a tap whose end event is listed ${order} the note-on on its end tick leaves that note untapped.`,
+			format: 'mid' as const,
+			bytes: tapEndMidi(form, endBeforeNote),
+			target: { instrument: 'guitar', difficulty: 'expert' } as const,
+		})))
 }
 
 /** C8: `[ENABLE_CHART_DYNAMICS]` applies from its event onward on every difficulty; `.chart` dynamics need no event. */

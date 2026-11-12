@@ -625,7 +625,7 @@ describe('writeMidiFile round-trip: 5-fret tracks', () => {
 		expect(notes[0].flags & noteFlags.tap).toBeTruthy()
 	})
 
-	it('ends each tap range before the next note, so a tap end read inclusively or exclusively taps the same notes', () => {
+	it('ends each tap range before the next note, so a reader that taps a note on the end tick taps the same notes', () => {
 		const chart = createEmptyChart({ format: 'mid', resolution: 480 })
 		const td = emptyFretTrack('guitar', 'expert')
 		td.noteEventGroups.push([note(0, noteTypes.green)])
@@ -640,6 +640,28 @@ describe('writeMidiFile round-trip: 5-fret tracks', () => {
 		const written = writeMidiFile(chart)
 		expect(tapped(parseChartFile(written, 'mid').trackData[0])).toEqual(expected)
 		expect(tapped(parseChartFileFrozenLegacyIdentity(written, 'mid').trackData[0])).toEqual(expected)
+		// No note that isn't tapped starts on the end tick of a tap range with a length.
+		const guitar = parseMidi(written).tracks.find(track => track.some(e => e.type === 'trackName' && e.text === 'PART GUITAR'))!
+		let tick = 0
+		const noteTicks = new Set<number>()
+		const tapStarts = new Set<number>()
+		const tapEnds: number[] = []
+		let tapStart: number | null = null
+		for (const event of guitar) {
+			tick += event.deltaTime
+			if (event.type === 'noteOn' && event.velocity > 0) noteTicks.add(tick)
+			if (event.type === 'sysEx' && event.data[5] === 0x04) {
+				if (event.data[6] === 1) {
+					tapStart = tick
+					tapStarts.add(tick)
+				} else {
+					if (tapStart !== null && tick > tapStart) tapEnds.push(tick)
+					tapStart = null
+				}
+			}
+		}
+		expect(tapEnds.length).toBeGreaterThan(0)
+		expect(tapEnds.filter(end => noteTicks.has(end) && !tapStarts.has(end))).toEqual([])
 	})
 
 	it('preserves star power and solo sections on a guitar track', () => {

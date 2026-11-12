@@ -420,8 +420,8 @@ function emitFretModifierRanges(
 }
 
 /**
- * The tap ranges for `tapTicks`, each ending before the next note. A tap range includes its end tick under the canonical
- * rules and excludes it in Clone Hero 1.1 and YARG, so no note may sit on it. When the next note is one tick after the
+ * The tap ranges for `tapTicks`, each ending before the next note. A tap range excludes its end tick, but
+ * GuitarGame_ChartFormats has it include that tick, so no note may sit on it. When the next note is one tick after the
  * last tapped note, the range ends on that note, and a zero-length range, which every reader reads as its own tick, taps
  * it.
  */
