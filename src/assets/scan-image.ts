@@ -2,7 +2,7 @@ import { load } from 'exifreader'
 
 import type { FolderFinding } from '../issues'
 import { fileBytes, type SongFile } from '../song-files'
-import { hasAlbumName } from '../shared/file-names'
+import { albumArtNames } from '../shared/file-names'
 
 /** The 8.x album art scan: the name checks, then the art decoded. Its file must already be bytes. 8.x also accepted 500x500. */
 export function scanImage(files: readonly SongFile[]) {
@@ -13,17 +13,20 @@ export function scanImage(files: readonly SongFile[]) {
 	return { albumBuffer: decoded.decoded ? data : null, folderIssues: [...album.folderIssues, ...decoded.folderIssues] }
 }
 
-/** The album art file games read, the last one in the list, and the issues with the album art's names. Reads nothing. */
+/**
+ * The album art file a scanner reads, the first of `album.png`, `album.jpg` and `album.jpeg`, and the issues with the
+ * album art's names. Reads nothing.
+ */
 export function findAlbumArt(files: readonly SongFile[]): { file: SongFile | null; folderIssues: FolderFinding[] } {
 	const folderIssues: FolderFinding[] = []
-	const albumFiles = files.filter(file => hasAlbumName(file.fileName))
+	const albumFiles = albumArtNames.flatMap(name => files.filter(file => file.fileName === name))
 	if (albumFiles.length > 1) {
 		folderIssues.push({ folderIssue: 'multipleAlbumArt', description: 'This chart has multiple album art files.' })
 	}
 	if (albumFiles.length === 0) {
 		folderIssues.push({ folderIssue: 'noAlbumArt', description: "This chart doesn't have album art." })
 	}
-	return { file: albumFiles[albumFiles.length - 1] ?? null, folderIssues }
+	return { file: albumFiles[0] ?? null, folderIssues }
 }
 
 /**

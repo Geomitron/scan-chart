@@ -124,8 +124,11 @@ export function hasGameVideoName(fileName: string) {
  * @returns `true` if `fileName` is a valid album fileName.
  */
 export function hasAlbumName(fileName: string) {
-	return ['album.jpg', 'album.jpeg', 'album.png'].includes(fileName)
+	return albumArtNames.includes(fileName)
 }
+
+/** The album art names, in the order a scanner prefers them. */
+export const albumArtNames: readonly string[] = ['album.png', 'album.jpg', 'album.jpeg']
 
 /**
  * @returns `true` if `fileName` is a valid video fileName.

@@ -29,6 +29,22 @@ describe('album art', () => {
 			.toEqual([['multipleAlbumArt', null, 'This chart has multiple album art files.']])
 	})
 
+	it('reads the first of album.png, album.jpg and album.jpeg, wherever the folder lists them', async () => {
+		const art = png(512, 512)
+		const other = (fileName: string) => ({ fileName, data: png(500, 500) })
+		const read = async (files: SongFile[]) => {
+			const scanned = await scanSongFolder([{ fileName: 'notes.chart', data: chart }, ...files], { albumArt: true, fileHashes: true })
+			return { data: scanned.albumArt?.data, hash: scanned.fileHashes?.albumArtHash }
+		}
+		const png512 = await read([{ fileName: 'album.png', data: art }])
+		expect(png512.data).toEqual(art)
+		expect(await read([{ fileName: 'album.png', data: art }, other('album.jpg'), other('album.jpeg')])).toEqual(png512)
+		expect(await read([other('album.jpeg'), { fileName: 'album.png', data: art }, other('album.jpg')])).toEqual(png512)
+		expect(await read([{ fileName: 'album.jpg', data: art }, other('album.jpeg')])).toEqual(png512)
+		// Another letter case isn't read.
+		expect(await read([{ fileName: 'Album.png', data: art }])).toEqual({ data: undefined, hash: null })
+	})
+
 	it('accepts a 512x512 square by default, and reports another size width first', async () => {
 		expect(await issuesOf([{ fileName: 'album.png', data: png(512, 512) }], sizeCodes, { albumArt: true })).toEqual([])
 		expect(await issuesOf([{ fileName: 'album.png', data: png(500, 500) }], sizeCodes, { albumArt: true }))

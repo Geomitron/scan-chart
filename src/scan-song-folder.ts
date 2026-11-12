@@ -86,7 +86,7 @@ export interface FileHashes {
 	readonly folderHash: string
 	/** BLAKE3 of the chart file and its non-default parse settings, or `null` when there's no readable chart. */
 	readonly chartHash: string | null
-	/** MD5 of the album art file, or `null` when there's none. */
+	/** MD5 of the album art file a scanner reads (see `findAlbumArt`), or `null` when there's none. */
 	readonly albumArtHash: string | null
 }
 
@@ -274,10 +274,10 @@ async function fileHashes(files: readonly SongFile[], context: ReturnType<typeof
 		folder.update(file.fileName)
 		await forEachChunk(file, chunk => folder.update(chunk))
 	}
-	const albumFile = [...files].reverse().find(file => hasAlbumName(file.fileName))
+	const albumFile = findAlbumArt(files).file
 	return {
 		folderHash: folder.hex(),
 		chartHash: context.chart.kind === 'parsed' ? getChartHash(context.chart.bytes, context.settings) : null,
-		albumArtHash: albumFile === undefined ? null : md5.create().update(await readFileBytes(albumFile)).hex(),
+		albumArtHash: albumFile === null ? null : md5.create().update(await readFileBytes(albumFile)).hex(),
 	}
 }
