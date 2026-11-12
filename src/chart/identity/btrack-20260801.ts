@@ -314,7 +314,7 @@ function phraseContainsNote(
  * `phraseContainsNote` for notes in tick order: whether the first note at or after the range's start is before its end,
  * found by a binary search instead of a scan of every note before it.
  */
-function orderedNotesContainPhrase(range: CanonicalTickRange, notes: readonly CanonicalNote[], inclusiveEnd: boolean): boolean {
+function orderedPhraseContainsNote(range: CanonicalTickRange, notes: readonly CanonicalNote[], inclusiveEnd: boolean): boolean {
 	let low = 0
 	let high = notes.length
 	while (low < high) {
@@ -335,7 +335,7 @@ function assertCanonicalPhrasePruning(semantics: CanonicalTrackSemantics): void 
 		['flex lane', semantics.flexLanes, true],
 	]
 	for (const [name, ranges, inclusiveEnd] of sections) {
-		if (ranges.some(range => !orderedNotesContainPhrase(range, semantics.notes, inclusiveEnd))) {
+		if (ranges.some(range => !orderedPhraseContainsNote(range, semantics.notes, inclusiveEnd))) {
 			throw new RangeError(`${name} ranges must contain a note`)
 		}
 	}

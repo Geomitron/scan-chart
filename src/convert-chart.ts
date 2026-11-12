@@ -4,6 +4,7 @@ import { chartTextForMidiEventsText, writeChartFile } from './chart/chart-writer
 import { chartMixTextEvents } from './chart/disco-flip'
 import { roundBpm } from './chart/identity/btrack-20260801'
 import { canonicalChartFromParse } from './chart/identity/canonical-source'
+import { readsSolosAsStarPower } from './chart/midi-file-parser'
 import { midiSustainCutoff, midiTextForChartEventsText, writeMidiFile } from './chart/midi-writer'
 import { ParsedChart, parseSongChartAndIni } from './chart/parse-chart-and-ini'
 import { calculateCompetitiveHashes } from './competitive'
@@ -188,7 +189,7 @@ function soloReadsAsStarPower(chart: ParsedChart, multiplierNote: number): boole
 		if (type !== instrumentTypes.fiveFret && type !== instrumentTypes.sixFret) continue
 		// Each instrument's phrases come from its Expert track, or its hardest.
 		const phrases = ['expert', 'hard', 'medium', 'easy'].map(difficulty => tracks.find(track => track.difficulty === difficulty)).find(Boolean)!
-		if (phrases.starPowerSections.length === 0 && phrases.soloSections.length > 1) return true
+		if (readsSolosAsStarPower(phrases.starPowerSections.length, phrases.soloSections.length)) return true
 	}
 	return false
 }

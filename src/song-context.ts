@@ -6,7 +6,7 @@ import { selectSongHashMetadata } from './chart/identity/song-metadata'
 import { parseMidiTokens } from './chart/midi-reparse'
 import { readsSolosAsStarPower } from './chart/midi-file-parser'
 import { chartDrumType, ChartSource, classifyChartSource, ParsedChartFile, resolveChartData } from './chart/parse-chart-file'
-import { parseRules } from './chart/parse-rules'
+import { ParseRules, parseRules } from './chart/parse-rules'
 import type { RawChartData } from './chart/raw-types'
 import type { IniChartModifiers } from './chart/types'
 import { defaultMetadata } from './ini/metadata'
@@ -97,21 +97,20 @@ function parseChart(chart: NonNullable<SongDocument['chart']>, settings: IniChar
 		if (chart.format === 'chart') {
 			const source: ChartSource = { format: 'chart', tokens: chart.tokens }
 			if (wasEdited(chart.tokens)) return { kind: 'parsed', source, bytes: chart.tokens.bytes, parsed: parseChartTokens(chart.tokens, settings, rules), settingFacts: null }
-			return { kind: 'parsed', source, bytes: chart.tokens.bytes, ...parseWithFacts(source, settings) }
+			return { kind: 'parsed', source, bytes: chart.tokens.bytes, ...parseWithFacts(source, settings, rules) }
 		}
 		const source: ChartSource = { format: 'mid', bytes: chart.bytes, tokens: chart.tokens }
 		if (chart.tokens !== null && wasEdited(chart.tokens)) {
 			return { kind: 'parsed', source, bytes: source.bytes, parsed: parseMidiTokens(chart.tokens, settings, rules), settingFacts: null }
 		}
-		return { kind: 'parsed', source, bytes: source.bytes, ...parseWithFacts(source, settings) }
+		return { kind: 'parsed', source, bytes: source.bytes, ...parseWithFacts(source, settings, rules) }
 	} catch (error) {
 		return { kind: 'failed', error: typeof error === 'string' ? error : ((error as Error)?.message ?? JSON.stringify(error)) }
 	}
 }
 
-/** `parseChartSource` with Clone Hero's rules, and the setting facts read from its classified tracks before they're resolved. */
-function parseWithFacts(source: ChartSource, settings: IniChartModifiers): { parsed: ParsedChartFile; settingFacts: ChartSettingFacts } {
-	const rules = parseRules.canonical20260801
+/** `parseChartSource`, and the setting facts read from its classified tracks before they're resolved. */
+function parseWithFacts(source: ChartSource, settings: IniChartModifiers, rules: ParseRules): { parsed: ParsedChartFile; settingFacts: ChartSettingFacts } {
 	const modifiers = Object.assign({}, defaultMetadata, settings) as IniChartModifiers
 	const raw = classifyChartSource(source, modifiers, rules)
 	const settingFacts = chartSettingFacts(raw.trackData, modifiers)

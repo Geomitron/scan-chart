@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest'
 
+import { authoredTracks } from 'src/authored'
 import { chartStats } from 'src/chart/chart-analysis'
 import { deprecatedTags } from 'src/ini/ini-checks'
 import { defaultMetadata } from 'src/ini/metadata'
-import { scanSongFolder, type ScanOptions, songIniFindings } from 'src/scan-song-folder'
+import { type ScannedSong, scanSong, scanSongFolder, type ScanOptions, songIniFindings } from 'src/scan-song-folder'
 import { songContext } from 'src/song-context'
-import { parseSongFiles } from 'src/song-document'
+import { editSong, parseSongFiles } from 'src/song-document'
 
 import { expertChart, midi } from './helpers/chart-files'
 
@@ -291,6 +292,19 @@ describe('song.ini values', () => {
 		expect(await values(['five_lane_drums = True'], codes, drums(['768 = N 5 0']))).toEqual([['redundantDrumType',
 			'"song.ini" sets "five_lane_drums", but games already read this drums chart as 5-lane. Remove the tag.']])
 		expect(await values(['pro_drums = True'], codes)).toEqual([['redundantDrumType', '"song.ini" sets "pro_drums", but the chart has no drums track. Remove the tag.']])
+		const toms = midi({ 'PART DRUMS': [{ tick: 1920, noteNumber: 98 }, { tick: 1920, noteNumber: 110 }] })
+		expect(await values(['pro_drums = True'], codes, toms, 'notes.mid')).toEqual([['redundantDrumType',
+			'"song.ini" sets "pro_drums", but games already read this drums chart as 4-lane pro. Remove the tag.']])
+		expect(await values(['pro_drums = True'], codes, midi({ 'PART DRUMS': [{ tick: 1920, noteNumber: 98 }] }), 'notes.mid')).toEqual([])
+	})
+
+	it('checks the drum type flag of an edited song against its edited chart', async () => {
+		const song = parseSongFiles([{ fileName: 'notes.chart', data: chartFile(['[ExpertDrums]', '{', '  768 = N 2 0', '}']) },
+			{ fileName: 'song.ini', data: encode('[song]\r\npro_drums = True\r\n') }])
+		const edited = editSong(song, batch => batch.addEvent(authoredTracks(song.chart!).find(track => track.instrument === 'drums')!, 768, 'yellowCymbalMarker', 0))
+		const codes = (scanned: ScannedSong) => scanned.issues.filter(issue => issue.code === 'redundantDrumType').map(issue => issue.code)
+		expect(codes(await scanSong(song, { styleNotes: true }))).toEqual([])
+		expect(codes(await scanSong(edited, { styleNotes: true }))).toEqual(['redundantDrumType'])
 	})
 
 	it('reports a charted instrument\'s -1 difficulty as missing, not blank', async () => {
