@@ -422,7 +422,7 @@ describe('.chart: per-track text events', () => {
 		])
 	})
 
-	it('excludes disco flip mix events from textEvents', () => {
+	it("excludes the section's disco flip mix events from textEvents, and keeps the other mix events", () => {
 		const chart = buildChart({
 			Song: ['Resolution = 192'],
 			SyncTrack: ['0 = B 120000', '0 = TS 4'],
@@ -431,6 +431,8 @@ describe('.chart: per-track text events', () => {
 				'0 = N 0 0',
 				'0 = E [mix 0 drums0]',
 				'192 = E [mix 1 drums2d]',
+				'192 = E [mix 3 drums2d]',
+				'288 = E mix 3 drums2easy',
 				'384 = E [idle]',
 			],
 		})
@@ -438,8 +440,12 @@ describe('.chart: per-track text events', () => {
 		const result = parseNotesFromChart(chart)
 		const track = getTrack(result, 'drums')!
 		expect(track.textEvents).toEqual([
+			{ tick: 0, text: '[mix 0 drums0]' },
+			{ tick: 192, text: '[mix 1 drums2d]' },
+			{ tick: 288, text: 'mix 3 drums2easy' },
 			{ tick: 384, text: '[idle]' },
 		])
+		expect(track.drumMixes).toEqual([{ tick: 192, configuration: 2, flag: 'd' }])
 	})
 })
 

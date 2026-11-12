@@ -8,7 +8,8 @@ import type { NoteType } from '../types'
 import { noteFlags, noteTypes } from '../types'
 import { drumsDiffStarts } from '../midi-note-numbers'
 import type { ParsedChart } from '../parse-chart-and-ini'
-import { drumMixText } from '../disco-flip'
+import { chartMixTextEvents, drumMixText } from '../disco-flip'
+import { midiDiscoFlipRegex } from '../midi-file-parser'
 import { drumMixEvents, wrapEventBrackets } from '../writer-shared'
 import {
 	addNoteOnOff,
@@ -128,6 +129,8 @@ export function buildDrumTrack(
 		if (td === trackDataEntries[0]) {
 			const sourceIsMidi = chart.format === 'mid'
 			for (const te of td.textEvents) {
+				// A `.chart` file's mix events are written below, from every difficulty's section.
+				if (!sourceIsMidi && midiDiscoFlipRegex.test(te.text)) continue
 				const text = sourceIsMidi ? te.text : wrapEventBrackets(te.text)
 				events.push({
 					tick: te.tick,
@@ -137,6 +140,11 @@ export function buildDrumTrack(
 			addVersusPhrases(events, td.versusPhrases)
 			addVerbatimEvents(events, td.unrecognizedMidiEvents)
 		}
+	}
+
+	// A `.chart` file holds mix events in each difficulty's section, and the drums track holds them once.
+	if (chart.format === 'chart') {
+		for (const te of chartMixTextEvents(trackDataEntries).kept) events.push({ tick: te.tick, event: metaTextEvent(te.text) })
 	}
 
 	// Instrument-wide sections. Preserve velocity/channel from source if the

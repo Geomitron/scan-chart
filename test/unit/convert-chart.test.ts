@@ -90,6 +90,46 @@ describe('convertChart', () => {
 		expect(chartText.split('\r\n').filter(line => line.includes('mix '))).toEqual(['  0 = E mix 3 drums2', '  480 = E mix 3 drums2d', '  960 = E mix 3 drums2'])
 	})
 
+	it('keeps the .chart mix events that set no flip, writing each easy and easynokick one once, without changing a note', () => {
+		const drums = [
+			'[ExpertDrums]', '{', '  0 = E mix 3 drums0easy', '  0 = N 1 0', '  240 = E mix 2 drums0d', '  240 = N 1 0', '  480 = E mix 2 drums0easynokick', '}',
+			'[HardDrums]', '{', '  0 = E mix 2 drums0easy', '  0 = N 1 0', '  240 = N 1 0', '  480 = E mix 2 drums0easynokick', '}',
+		]
+		const song = chartSong(drums)
+		const tracks = resolveChart(song).tracks.filter(track => track.instrument === 'drums')
+		expect(tracks.map(track => track.textEvents.map(({ tick, text }) => [tick, text]))).toEqual([
+			[[0, 'mix 3 drums0easy'], [240, 'mix 2 drums0d'], [480, 'mix 2 drums0easynokick']],
+			[[0, 'mix 2 drums0easy'], [480, 'mix 2 drums0easynokick']],
+		])
+		const trackHashes = (song: SongDocument) => {
+			const hashes = calculateCompetitiveHashes(song)
+			return hashes.accepted ? hashes.tracks.map(track => track.trackHash) : null
+		}
+		const withoutMixes = chartSong(drums.filter(line => !line.includes('mix')))
+		expect(trackHashes(song)).toEqual(trackHashes(withoutMixes))
+		expect(resolveChart(song).tracks.map(track => track.noteGroups)).toEqual(resolveChart(withoutMixes).tracks.map(track => track.noteGroups))
+
+		// The other difficulty's flip would flip Hard in the drums track, so it's left out.
+		const { song: asMidi, report } = convertChart(song, 'mid')
+		expect(report.tracks.every(track => track.kept)).toBe(true)
+		expect(report.dropped).toEqual([{ content: "mix events that flip another difficulty than their drums section's", count: 1 }])
+		const midiFile = fileBytes(documentFiles(asMidi).find(file => file.fileName === 'notes.mid')!)
+		const midiMixes = parseMidi(midiFile).tracks.flatMap(track => trackTexts(track).filter(([, text]) => text.includes('mix')))
+		expect(midiMixes).toEqual([[0, 'mix 3 drums0easy'], [0, 'mix 2 drums0easy'], [480, 'mix 2 drums0easynokick']])
+		expect(trackHashes(asMidi)).toEqual(trackHashes(song))
+
+		// The drums track's text goes into each difficulty's section, where the .chart reader keeps it.
+		const { song: asChart } = convertChart(asMidi, 'chart')
+		const chartText = decode(fileBytes(documentFiles(asChart).find(file => file.fileName === 'notes.chart')!))
+		expect(chartText.split('\r\n').filter(line => line.includes('mix '))).toEqual([
+			'  0 = E mix 3 drums0easy', '  0 = E mix 2 drums0easy', '  480 = E mix 2 drums0easynokick',
+			'  0 = E mix 3 drums0easy', '  0 = E mix 2 drums0easy', '  480 = E mix 2 drums0easynokick',
+		])
+		const { song: asMidiAgain } = convertChart(asChart, 'mid')
+		const again = fileBytes(documentFiles(asMidiAgain).find(file => file.fileName === 'notes.mid')!)
+		expect(parseMidi(again).tracks.flatMap(track => trackTexts(track).filter(([, text]) => text.includes('mix')))).toEqual(midiMixes)
+	})
+
 	it('turns a d flip off before a dnoflip both ways, keeping every TrackHash', () => {
 		const drums = ['[ExpertDrums]', '{', '  480 = E mix 3 drums1d', '  480 = N 1 0', '  600 = N 2 0', '  960 = E mix 3 drums0dnoflip', '  960 = N 1 0', '}']
 		const { song: asMidi, report } = convertChart(chartSong(drums), 'mid')

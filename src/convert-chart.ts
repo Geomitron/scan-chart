@@ -1,6 +1,7 @@
 import { sameAsJson } from './chart/chart-analysis'
 import { readChartSongEntries } from './chart/chart-file-parser'
 import { chartTextForMidiEventsText, writeChartFile } from './chart/chart-writer'
+import { chartMixTextEvents } from './chart/disco-flip'
 import { roundBpm } from './chart/identity/btrack-20260801'
 import { canonicalChartFromParse } from './chart/identity/canonical-source'
 import { midiSustainCutoff, midiTextForChartEventsText, writeMidiFile } from './chart/midi-writer'
@@ -257,6 +258,8 @@ function droppedContent(chart: ParsedChart, format: ChartFormat): ConversionRepo
 		add('[SyncTrack] lines', chart.unrecognized.syncTrackEvents.length)
 		const texts = chart.format === 'chart' ? chart.unrecognized.eventsTrackTextEvents : []
 		add('[Events] text that the events track would read as an event or a misplaced vocal event', texts.filter(event => midiTextForChartEventsText(event.text) === null).length)
+		const drums = chart.format === 'chart' ? chart.trackData.filter(track => getInstrumentType(track.instrument) === instrumentTypes.drums) : []
+		add("mix events that flip another difficulty than their drums section's", chartMixTextEvents(drums).leftOut)
 	}
 	return dropped
 }

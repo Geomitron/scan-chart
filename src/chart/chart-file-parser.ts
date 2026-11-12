@@ -687,10 +687,6 @@ function splitTrimmedNonEmptyLines(source: string, start: number, end: number): 
 	return out
 }
 
-/** Regex matching disco flip mix events (any difficulty). Used to filter them
- * out from textEvents since they're consumed as disco flip modifiers. */
-const chartDiscoFlipRegex = /^\s*\[?mix[ _][0-3][ _]drums[0-5](d|dnoflip|easy|easynokick|)\]?\s*$/
-
 // Hoisted regexes — avoid re-parsing on every parseTrackLine call.
 const chartLineEQuoted = /^(\d+) = E "([^"\r\n]*)"$/
 const chartLineEUnquoted = /^(\d+) = E ([^\r\n]+?)$/
@@ -821,8 +817,8 @@ export function parseTrackLine(
 		if (drumMix !== null) return { kind: 'note', tick, type: discoFlipEventTypes[drumMix.flag], length: 0, drumMix }
 		const recognizedType = getEEventType(value)
 		if (recognizedType !== null) return { kind: 'note', tick, type: recognizedType, length: 0 }
-		// Disco flip events for other difficulties: consumed (not stored as text)
-		if (chartDiscoFlipRegex.test(value)) return null
+		// A mix event that sets no flip here, one of another difficulty or with the flag `easy` or `easynokick`, stays a
+		// text event, as in a `.mid` file, so the writers keep it.
 		// Skip directives consumed by chart processing (not stored as text events)
 		const stripped = value.replace(/^\[/, '').replace(/\]$/, '').trim()
 		if (stripped === 'ENABLE_CHART_DYNAMICS' || stripped === 'ENHANCED_OPENS') return null

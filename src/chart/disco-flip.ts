@@ -106,3 +106,25 @@ export function midiTrackNoflips(tokens: MidiTokens): MidiDrumsNoflips | null {
 			[difficulty, noflipsDuringFlips(events.get(difficulty)!, flippedTicks.get(difficulty)!)] as const)),
 	}
 }
+
+/**
+ * The mix events a `.chart` file's drums sections keep as text, which set no flip there, as the `.mid` export writes
+ * them in the one drums track: `kept`, each with the flag `easy` or `easynokick`, once for each tick and text, as
+ * written; and `leftOut`, the number of other difficulties' flips, which the `.chart` reader ignores and the drums
+ * track would read as flips.
+ */
+export function chartMixTextEvents(tracks: readonly { readonly textEvents: readonly { tick: number; text: string }[] }[]): {
+	kept: { tick: number; text: string }[]
+	leftOut: number
+} {
+	const kept = new Map<string, { tick: number; text: string }>()
+	let leftOut = 0
+	for (const { textEvents } of tracks) {
+		for (const event of textEvents) {
+			const flag = midiDiscoFlipRegex.exec(event.text)?.[3]
+			if (flag === 'easy' || flag === 'easynokick') kept.set(`${event.tick} ${event.text}`, event)
+			else if (flag !== undefined) leftOut++
+		}
+	}
+	return { kept: [...kept.values()], leftOut }
+}
