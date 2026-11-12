@@ -35,7 +35,7 @@ const isBooleanKey = (key: keyof Metadata): key is MetaBooleanKey => typeof defa
 const isIntegerKey = (key: keyof Metadata): key is MetaIntegerKey => typeof defaultMetadata[key] === 'number' || key === 'vocal_scroll_speed'
 const integerProperties = (Object.keys(defaultMetadata) as (keyof Metadata)[]).filter(isIntegerKey)
 const requiredProperties: MetaStringKey[] = ['name', 'artist', 'album', 'genre', 'year', 'charter']
-/** Integer keys that change how notes parse. Clone Hero reads them with `IniFile.GetInt`, so they parse like `int.TryParse`. */
+/** Integer keys that change how notes parse, which read -1 as -1 rather than as not set: see `getChartModifierInteger`. */
 const chartModifierIntegers = ['hopo_frequency', 'multiplier_note', 'sustain_cutoff_threshold', 'chord_snap_threshold'] as const
 
 export function scanIni(files: readonly SongFile[], options: { readonly removeStyleTags?: boolean } = {}): ScanIniResult {
@@ -294,7 +294,7 @@ function getIniInteger<K extends MetaIntegerKey>(songSection: { readonly [key: s
 /**
  * Reads a song.ini number as Clone Hero does: `int.TryParse` (see `parseDotnetInt`), but a `delay` containing "." as
  * seconds (see `parseSecondsAsMs`). -1, which a scanner reads as not set, is returned as -1.
- * @returns the number, or `null` when Clone Hero would read the key's default.
+ * @returns the number, or `null` when the value isn't one a scanner reads, so the key's default is read instead.
  */
 export function readIniNumber(key: string, value: string): number | null {
 	return isDelayInSeconds(key, value) ? parseSecondsAsMs(value) : parseDotnetInt(value)
@@ -315,7 +315,8 @@ function isDelayInSeconds(key: string, value: string): boolean {
  * ASCII whitespace, an optional sign, digits with a decimal point, an optional exponent, optional whitespace, then
  * optional NUL characters), as seconds, and returns the milliseconds truncated toward 0. It truncates the exact
  * decimal, so `1.001` is 1001 and `0.251` is 251, where Clone Hero's single precision gives 250.
- * @returns the milliseconds, or `null` if .NET would not parse it or they're outside the signed 32-bit range.
+ * @returns the milliseconds, or `null` when .NET would not parse the value, or when the milliseconds are outside the
+ * signed 32-bit range, which Clone Hero's cast to `int` doesn't read reliably.
  */
 export function parseSecondsAsMs(value: string): number | null {
 	const match = /^[\x09-\x0d ]*([+-]?)(?=\.?[0-9])([0-9]*)(?:\.([0-9]*))?(?:[eE]([+-]?[0-9]+))?[\x09-\x0d ]*\x00*$/.exec(value)
@@ -328,6 +329,7 @@ export function parseSecondsAsMs(value: string): number | null {
 	if (significant === '' || msDigits <= 0) return 0
 	if (msDigits > 10) return null
 	const ms = Number(significant.slice(0, msDigits).padEnd(msDigits, '0')) * (sign === '-' ? -1 : 1)
+	// "+ 0" turns -0, from a negative value under 1 ms, into 0.
 	return ms < -2147483648 || ms > 2147483647 ? null : ms + 0
 }
 
@@ -354,7 +356,8 @@ function readYargOnlyMetadata(songSection: { readonly [key: string]: string }, t
 
 /**
  * @returns the value in `songSection` at `key`, or at its older name when `key` isn't in the file, parsed as Clone
- * Hero's `IniFile.GetInt` parses it, or the default.
+ * Hero's `IniFile.GetInt` parses it, or the default. Unlike `getIniInteger`, -1 reads as -1: the parse and the
+ * frozen legacy hashes read these keys that way.
  */
 function getChartModifierInteger(songSection: { readonly [key: string]: string }, key: (typeof chartModifierIntegers)[number]) {
 	const value = writtenValue(songSection, key)

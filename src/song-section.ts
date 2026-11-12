@@ -99,7 +99,9 @@ export function songSectionAgreement(song: SongDocument): SongDocument | null {
 
 function isSet(pair: (typeof pairs)[number], value: string, side: 'chart' | 'ini'): boolean {
 	if (pair.unit === 'text' || pair.unit === 'year') return value !== ''
-	const number = side === 'ini' ? readIniNumber(pair.iniKey, value) : pair.unit === 'seconds' ? secondsToMs(value) : parseFloat(value)
+	let number: number | null
+	if (side === 'ini') number = readIniNumber(pair.iniKey, value)
+	else number = pair.unit === 'seconds' ? secondsToMs(value) : parseFloat(value)
 	return number !== null && Number.isFinite(number) && !(pair.unset ?? []).includes(number)
 }
 

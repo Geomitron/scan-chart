@@ -259,6 +259,9 @@ describe('scanIni: a delay with a decimal point', () => {
 		const { metadata } = scanIni(buildIni(['[Song]', 'delay = 250', 'video_start_time = 1.5']))
 		expect(metadata).toMatchObject({ delay: 250, video_start_time: 0 })
 		expect(scan('250').metadataIssues.map(issue => issue.description)).not.toContain(invalid('250'))
+		// Without ".", a delay reads as int.TryParse reads it.
+		expect(scan('1e3').metadata!.delay).toBe(0)
+		expect(scan('1e3').metadataIssues.map(issue => issue.description)).toContain(invalid('1e3'))
 	})
 })
 
