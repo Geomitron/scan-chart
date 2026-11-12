@@ -63,7 +63,8 @@ export function scanIni(files: readonly SongFile[], options: { readonly removeSt
 		return { metadata: null, folderIssues, metadataIssues: [], unknownIniValues: {}, songSection: null }
 	}
 
-	const { metadata, metadataIssues, unknownIniValues } = extractSongMetadata(songSection, options)
+	const keyLines = parseIniResult.keyLines.song
+	const { metadata, metadataIssues, unknownIniValues } = extractSongMetadata(songSection, { ...options, keyLines })
 
 	return {
 		metadata,
@@ -115,24 +116,35 @@ export function findIniData(files: readonly SongFile[]): {
 	return { iniFile: ini, iniData: ini === null ? null : fileBytes(ini), isSongIni: ini?.fileName.toLowerCase() === 'song.ini', folderIssues }
 }
 
+/** The keys YARG reads as `credit_album_art_designed_by`, which scan-chart reads too: the last line of the three counts. */
+const albumArtCreditKeys = ['credit_album_art_designed_by', 'credit_album_art_by', 'credit_album_cover'] as const
+
 /** All keys that extractSongMetadata reads (primary + legacy aliases). */
 export const knownIniKeys = new Set([
 	...Object.keys(defaultMetadata),
 	...olderTags.values(),
+	...albumArtCreditKeys,
 ])
 
 /**
  * @returns the chart metadata found in `songSection`, using default values if not found.
  * Also returns all unrecognized key-value pairs for roundtrip preservation.
  * Text values have their style tags removed unless `removeStyleTags` is `false`; 8.x always removed them.
+ * `keyLines` gives each key's last line in the file; without it, keys count in the order `songSection` lists them.
  */
-export function extractSongMetadata(songSection: { readonly [key: string]: string }, options: { readonly removeStyleTags?: boolean } = {}): {
+export function extractSongMetadata(
+	songSection: { readonly [key: string]: string },
+	options: { readonly removeStyleTags?: boolean; readonly keyLines?: { readonly [key: string]: number } } = {},
+): {
 	metadata: typeof defaultMetadata
 	metadataIssues: { metadataIssue: MetadataIssueType; description: string }[]
 	unknownIniValues: { [key: string]: string }
 } {
 	const metadataIssues: { metadataIssue: MetadataIssueType; description: string }[] = []
-	const text = (key: MetaStringKey) => getIniString(songSection, key, options.removeStyleTags ?? true)
+	const removeTags = options.removeStyleTags ?? true
+	const text = (key: MetaStringKey) => key === 'credit_album_art_designed_by'
+		? readText(songSection[albumArtCreditKey(songSection, options.keyLines)], key, removeTags)
+		: getIniString(songSection, key, removeTags)
 
 	const metadata: typeof defaultMetadata = {
 		name: text('name'),
@@ -247,9 +259,24 @@ function writtenValue(songSection: { readonly [key: string]: string }, key: stri
  * when `removeTags` is set.
  */
 function getIniString(songSection: { readonly [key: string]: string }, key: MetaStringKey, removeTags: boolean) {
-	const value = writtenValue(songSection, key)
+	return readText(writtenValue(songSection, key), key, removeTags)
+}
+
+/** `value`, read as text for `key`: its default when it's blank or not there, and without style tags when `removeTags` is set. */
+function readText(value: string | undefined, key: MetaStringKey, removeTags: boolean) {
 	if (!value) return defaultMetadata[key]
 	return removeTags ? removeStyleTags(value) : value
+}
+
+/**
+ * The key of the line read for `credit_album_art_designed_by`: whichever of it, `credit_album_art_by` and
+ * `credit_album_cover` has the last line in the file, as YARG reads them. A blank line reads as not there.
+ */
+function albumArtCreditKey(songSection: { readonly [key: string]: string }, keyLines: { readonly [key: string]: number } | undefined): string {
+	const order = Object.keys(songSection)
+	const line = (key: string) => keyLines?.[key] ?? order.indexOf(key)
+	const written = albumArtCreditKeys.filter(key => songSection[key])
+	return written.reduce((last, key) => line(key) > line(last) ? key : last, written[0] ?? albumArtCreditKeys[0])
 }
 
 /**

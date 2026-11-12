@@ -26,10 +26,15 @@ export function tokenizeIni(bytes: Uint8Array): IniTokens {
 	}
 }
 
+/** The line, counting from 0, of each key's last line in each section of an `IniObject`. */
+export type IniKeyLines = { [section: string]: { [key: string]: number } }
+
+type ParsedIni = { iniObject: IniObject; keyLines: IniKeyLines; folderIssues: { folderIssue: 'badIniLine'; description: string }[] }
+
 /**
  * @returns the `IniObject` parsed from `file`.
  */
-export function parseIni(file: Uint8Array): { iniObject: IniObject; folderIssues: { folderIssue: 'badIniLine'; description: string }[] } {
+export function parseIni(file: Uint8Array): ParsedIni {
 	return parseIniTokens(tokenizeIni(file))
 }
 
@@ -38,7 +43,7 @@ export function parseIni(file: Uint8Array): { iniObject: IniObject; folderIssues
  *
  * Throws the decoding error if the file couldn't be decoded.
  */
-export function parseIniTokens(tokens: IniTokens): { iniObject: IniObject; folderIssues: { folderIssue: 'badIniLine'; description: string }[] } {
+export function parseIniTokens(tokens: IniTokens): ParsedIni {
 	if (tokens.text === null) throw tokens.decodeError
 	const iniLines = tokens.text
 		.replace(/^\uFEFF/, '') // CH IniFile.Load removes one leading byte order mark
@@ -46,10 +51,11 @@ export function parseIniTokens(tokens: IniTokens): { iniObject: IniObject; folde
 		.map(trimDotnet)
 
 	const iniObject: IniObject = Object.create(null)
+	const keyLines: IniKeyLines = Object.create(null)
 	const folderIssues: { folderIssue: 'badIniLine'; description: string }[] = []
 	let currentSection: string | typeof $NoSection = $NoSection
 
-	for (const line of iniLines) {
+	for (const [index, line] of iniLines.entries()) {
 		if (line.length === 0 || line.startsWith(';') || line.startsWith('#')) {
 			continue
 		}
@@ -63,10 +69,11 @@ export function parseIniTokens(tokens: IniTokens): { iniObject: IniObject; folde
 			const value = trimDotnet(line.slice(delimeterPos + 1))
 
 			;(iniObject[currentSection] ??= Object.create(null))[key] = value
+			if (currentSection !== $NoSection) (keyLines[currentSection] ??= Object.create(null))[key] = index
 		} else {
 			folderIssues.push({ folderIssue: 'badIniLine', description: `Unsupported type of line: "${truncate(line, 200)}"` })
 		}
 	}
 
-	return { iniObject, folderIssues: folderIssues.slice(-5) }
+	return { iniObject, keyLines, folderIssues: folderIssues.slice(-5) }
 }

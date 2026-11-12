@@ -51,15 +51,14 @@ const standardTags = [
 	'video_end_time', 'cover',
 ]
 /**
- * Tags of other games and tools that scan-chart knows but doesn't read, so it doesn't report them as unknown. A game
- * acts only on credit_album_art_by and credit_album_cover, which YARG reads as credit_album_art_designed_by. YARG's
- * SongIniHandler parses some of the others without using them, and lists others commented out. Clone Hero's game reads
+ * Tags of other games and tools that scan-chart knows but doesn't read, so it doesn't report them as unknown. YARG's
+ * SongIniHandler parses some of them without using them, and lists others commented out. Clone Hero's game reads
  * none of them: diff_coop, diff_coopghl and diff_rhythmghl are names from one of its test builds, and only its tool
  * that builds encrypted song packs reads md5_hash.
  */
 const gameTags = [
 	'diff_coop', 'diff_coopghl', 'diff_rhythmghl', 'md5_hash', 'banner_link_a', 'banner_link_b', 'bass_type', 'boss_battle', 'cassettecolor', 'count',
-	'credit_album_art_by', 'credit_album_cover', 'dance_type', 'drum_fallback_blue', 'early_hit_window_size', 'eof_midi_import_drum_accent_velocity',
+	'dance_type', 'drum_fallback_blue', 'early_hit_window_size', 'eof_midi_import_drum_accent_velocity',
 	'eof_midi_import_drum_ghost_velocity', 'guitar_type', 'keys_type', 'kit_type', 'link_name_a', 'link_name_b', 'real_keys_lane_count_left',
 	'real_keys_lane_count_right', 'scores', 'scores_ext', 'sysex_high_hat_ctrl', 'sysex_open_bass', 'sysex_pro_slide', 'sysex_rimshot', 'sysex_slider',
 	'tutorial', 'unlock_completed', 'unlock_id', 'unlock_require', 'unlock_text',

@@ -293,3 +293,22 @@ describe('scanIni: numbers, read as int.TryParse reads them', () => {
 		expect(metadataIssues.filter(issue => issue.metadataIssue === 'invalidValue').map(issue => issue.description)).toEqual([invalid('track', '3x')])
 	})
 })
+
+describe('scanIni: the other names of credit_album_art_designed_by', () => {
+	const read = (lines: string[]) => scanIni(buildIni(['[Song]', ...lines]))
+
+	it('reads credit_album_art_by and credit_album_cover as YARG does, the last line of the three counting', () => {
+		expect(read(['credit_album_art_by = A']).metadata!.credit_album_art_designed_by).toBe('A')
+		expect(read(['credit_album_cover = <b>C</b>']).metadata!.credit_album_art_designed_by).toBe('C')
+		expect(read(['credit_album_art_designed_by = D', 'credit_album_cover = C', 'credit_album_art_by = A']).metadata!.credit_album_art_designed_by).toBe('A')
+		expect(read(['credit_album_cover = C', 'credit_album_art_designed_by = D']).metadata!.credit_album_art_designed_by).toBe('D')
+		// A key's last line counts, though games list it where it first appears.
+		expect(read(['credit_album_art_by = A', 'credit_album_cover = C', 'credit_album_art_by = B']).metadata!.credit_album_art_designed_by).toBe('B')
+		// A blank line reads as if it weren't there.
+		expect(read(['credit_album_cover = C', 'credit_album_art_by =']).metadata!.credit_album_art_designed_by).toBe('C')
+	})
+
+	it('knows both names, so it doesn\'t keep them as unknown values', () => {
+		expect(read(['credit_album_art_by = A', 'credit_album_cover = C']).unknownIniValues).toEqual({})
+	})
+})
