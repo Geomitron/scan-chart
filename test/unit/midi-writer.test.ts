@@ -15,7 +15,7 @@ import { createEmptyChart } from 'src/chart/create-chart'
 import { writeChartFile } from 'src/chart/chart-writer'
 import { midiSustainCutoff, writeMidiFile } from 'src/chart/midi-writer'
 import { writeChartFolder } from 'src/chart/chart-document'
-import { noteFlags, type NoteType, noteTypes } from 'src/chart/types'
+import { lyricFlags, noteFlags, type NoteType, noteTypes } from 'src/chart/types'
 import { drumTypes } from 'src/types'
 import { parseChartAndIni, type ParsedChart } from 'src/chart/parse-chart-and-ini'
 import { parseChartFile, parseChartFileFrozenLegacyIdentity } from 'src/chart/parse-chart-file'
@@ -1044,6 +1044,25 @@ describe('writeMidiFile round-trip: vocal tracks', () => {
 		expect(roundTrip(parsed).vocalTracks).toEqual(parsed.vocalTracks)
 		const written = readMidiFile(writeMidiFile(parsed)).tracks.find(track => track.some(event => event.type === 'trackName' && event.text === 'PART VOCALS'))!
 		expect(noteEvents(written).filter(([, , noteNumber]) => noteNumber !== 62 && noteNumber !== 105)).toEqual(unread)
+	})
+
+	it('keeps a lyric of only symbols that set a flag, and writes it back', () => {
+		const lyric = (tick: number, text: string) => midiText(tick, text, 'lyrics')
+		const source = midiFile([{
+			name: 'PART VOCALS',
+			events: [
+				...midiNote(0, 105, 1440), lyric(0, '#'), ...midiNote(0, 62, 100), lyric(240, '^'), ...midiNote(240, 64, 100),
+				lyric(480, '+#'), ...midiNote(480, 65, 100), lyric(720, '$'), ...midiNote(720, 67, 100), lyric(960, '+'), ...midiNote(960, 69, 100),
+			],
+		}])
+		const parsed = parseChartAndIni([{ fileName: 'notes.mid', data: source }]).parsedChart!
+		const [phrase] = parsed.vocalTracks.parts.vocals.notePhrases
+		expect(phrase.lyrics.map(l => [l.tick, l.text, l.flags])).toEqual([
+			[0, '#', lyricFlags.nonPitched], [240, '^', lyricFlags.nonPitched | lyricFlags.lenientScoring],
+			[480, '+#', lyricFlags.pitchSlide | lyricFlags.nonPitched], [720, '$', lyricFlags.harmonyHidden],
+		])
+		expect(phrase.notes.map(n => n.pitchSlide ?? false)).toEqual([false, false, true, false, true])
+		expect(roundTrip(parsed).vocalTracks).toEqual(parsed.vocalTracks)
 	})
 
 	it('reads [range_shift] events as vocal text events, and writes them back', () => {

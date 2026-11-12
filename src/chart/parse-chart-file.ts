@@ -327,12 +327,14 @@ function vocalUnrecognizedEvents(data: VocalTrackData, placed: ReadonlySet<Vocal
 	return [...data.unrecognizedMidiEvents, ...noteEvents].sort((a, b) => a.deltaTime - b.deltaTime)
 }
 
-/** Standard emptiness check for lyrics (matching YARG's IsNullOrWhiteSpace
- * on StripForVocals output). Symbol-only lyrics like "+" strip to empty
- * and are dropped. */
-function isLyricKept(text: string): boolean {
+/**
+ * Whether a lyric is kept: when it shows text (YARG's IsNullOrWhiteSpace on its StripForVocals output), or when it's
+ * only symbols that set a flag, such as `#`, which YARG gives the note without showing. A `+` alone isn't kept: its
+ * note is marked as a pitch slide, and saving writes the `+` back.
+ */
+function isLyricKept(text: string, flags: number): boolean {
 	const stripped = stripLyricSymbols(text)
-	return stripped.length > 0 && stripped.replace(/_/g, ' ').trim().length > 0
+	return (stripped.length > 0 && stripped.replace(/_/g, ' ').trim().length > 0) || (flags & ~lyricFlags.pitchSlide) !== 0
 }
 
 function groupIntoPhrases(
@@ -405,7 +407,7 @@ function groupIntoPhrases(
 		if (rawNotes.length === 0) {
 			// No-notes path (.chart format, empty phrases): add all phrase lyrics
 			for (const pl of phraseLyrics) {
-				if (isLyricKept(pl.text)) {
+				if (isLyricKept(pl.text, pl.flags)) {
 					untimedLyrics.push({ tick: pl.tick, text: pl.text, flags: pl.flags })
 				}
 			}
@@ -444,7 +446,7 @@ function groupIntoPhrases(
 					}
 				}
 
-				if (isLyricKept(text)) {
+				if (isLyricKept(text, flags)) {
 					untimedLyrics.push({ tick, text, flags })
 				}
 			}
@@ -470,7 +472,7 @@ function groupIntoPhrases(
 		while (rawNotes.length > 0 && phraseLyricIdx < phraseLyrics.length) {
 			const { tick, text, flags } = phraseLyrics[phraseLyricIdx]
 			phraseLyricIdx++
-			if (isLyricKept(text)) {
+			if (isLyricKept(text, flags)) {
 				untimedLyrics.push({ tick, text, flags })
 			}
 		}
