@@ -3,6 +3,7 @@ import { ChartFileTokens, chartSectionLines, ChartLineToken, isChartSongReaderSt
 import { secondsToMs } from './ini/chart-song-entries'
 import { setSongIniValue } from './ini/ini-edit'
 import { tagRank } from './ini/metadata'
+import { readIniNumber } from './ini/scan-ini'
 import { IniTokens, parseIniTokens } from './ini/parse-ini'
 import type { SongDocument } from './song-document'
 
@@ -98,7 +99,7 @@ export function songSectionAgreement(song: SongDocument): SongDocument | null {
 
 function isSet(pair: (typeof pairs)[number], value: string, side: 'chart' | 'ini'): boolean {
 	if (pair.unit === 'text' || pair.unit === 'year') return value !== ''
-	const number = side === 'chart' && pair.unit === 'seconds' ? secondsToMs(value) : parseFloat(value)
+	const number = side === 'ini' ? readIniNumber(pair.iniKey, value) : pair.unit === 'seconds' ? secondsToMs(value) : parseFloat(value)
 	return number !== null && Number.isFinite(number) && !(pair.unset ?? []).includes(number)
 }
 
@@ -106,8 +107,8 @@ function agree(pair: (typeof pairs)[number], chartValue: string, iniValue: strin
 	switch (pair.unit) {
 		case 'text': return chartValue === iniValue
 		case 'year': return withoutYearSeparator(chartValue) === iniValue
-		case 'number': return parseFloat(chartValue) === parseFloat(iniValue)
-		case 'seconds': return secondsToMs(chartValue) === parseFloat(iniValue)
+		case 'number': return parseFloat(chartValue) === readIniNumber(pair.iniKey, iniValue)
+		case 'seconds': return secondsToMs(chartValue) === readIniNumber(pair.iniKey, iniValue)
 	}
 }
 
@@ -153,7 +154,8 @@ function chartValues(pair: (typeof pairs)[number], iniValue: string, yearSeparat
 		case 'year': return yearSeparator ? [`, ${iniValue}`] : [iniValue, `, ${iniValue}`]
 		case 'number': return [iniValue]
 		case 'seconds': {
-			const ms = parseFloat(iniValue)
+			const ms = readIniNumber(pair.iniKey, iniValue)
+			if (ms === null) return []
 			return [String(ms / 1000), String((ms - 0.5) / 1000)]
 		}
 	}

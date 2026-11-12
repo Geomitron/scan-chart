@@ -6,7 +6,7 @@ import type { ExplicitLyricMatch } from './explicit-lyrics'
 import { defaultMetadata, isNumberTag, olderTags, tagOrder, tagRank } from './metadata'
 import { marksSingle } from './metadata-style'
 import type { IniTokens } from './parse-ini'
-import { knownIniKeys, parseBoolean, parseDotnetInt, writtenKey } from './scan-ini'
+import { isQuoted, knownIniKeys, parseBoolean, parseDotnetInt, readIniNumber, writtenKey } from './scan-ini'
 
 type SongSection = { readonly [key: string]: string }
 
@@ -107,7 +107,7 @@ export function songIniIssues(input: SongIniInput): MetadataFinding[] {
 	if (blankStyle.length > 0 && styleNotes) {
 		issues.push({ metadataIssue: 'blankIniValue', keys: blankStyle, description: `In "song.ini", ${keyList(blankStyle)} ${blankStyle.length === 1 ? 'is' : 'are'} blank or -1. Remove ${blankStyle.length === 1 ? 'that line' : 'those lines'} instead.` })
 	}
-	const quoted = keys.filter(key => songSection[key].length >= 2 && songSection[key].startsWith('"') && songSection[key].endsWith('"'))
+	const quoted = keys.filter(key => isQuoted(songSection[key]))
 	if (quoted.length > 0) {
 		issues.push({
 			metadataIssue: 'quotedIniValue',
@@ -165,8 +165,8 @@ function valueIssues({ songSection, metadata, chart, styleNotes }: SongIniInput)
 	}
 
 	for (const key of Object.keys(songSection).filter(key => key.startsWith('diff_'))) {
-		const value = Number(songSection[key])
-		if (Number.isInteger(value) && value !== -1 && (value < 0 || value > 10)) {
+		const value = parseDotnetInt(songSection[key])
+		if (value !== null && value !== -1 && (value < 0 || value > 10)) {
 			add('difficultyRange', `In "song.ini", "${key}" is ${value}. Difficulties go from 0 to 6, or up to 10 for very hard charts.`)
 		}
 	}
@@ -223,13 +223,13 @@ export const deprecatedTags: ReadonlySet<string> = new Set(['delay', ...hopoTags
  */
 function unneededKeys(songSection: SongSection, metadata: typeof defaultMetadata, chart: SongIniInput['chart']): string[] {
 	const keys: string[] = []
-	const check = (key: string, unneeded: (value: string) => boolean) => {
+	const check = (key: string, unneeded: (value: string, key: string) => boolean) => {
 		const value = songSection[key]
-		if (hasValue(songSection, key) && unneeded(value)) keys.push(key)
+		if (hasValue(songSection, key) && unneeded(value, key)) keys.push(key)
 	}
 	const isFalse = (value: string) => parseBoolean(value) === false
 	// As getIniInteger reads it.
-	const isZero = (value: string) => parseFloat(value) === 0
+	const isZero = (value: string, key: string) => readIniNumber(key, value) === 0
 	const isAtMostZero = (value: string) => (parseDotnetInt(value) ?? 1) <= 0
 	check('delay', isZero)
 	check('hopo_frequency', isAtMostZero)

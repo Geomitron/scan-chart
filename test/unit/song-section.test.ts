@@ -74,6 +74,13 @@ describe('the [Song] normalization', () => {
 		expect(songSectionAgreement(song(['Offset = -2.046'], '[song]\ndelay = -2046\n'))).toBeNull()
 	})
 
+	it('reads song.ini\'s numbers as Clone Hero does: a delay with a decimal point in seconds, and int.TryParse otherwise', () => {
+		expect(songSectionAgreement(song(['Offset = 0.5'], '[song]\ndelay = 0.5\n'))).toBeNull()
+		expect(songLines(songSectionAgreement(song(['Offset = 0.25'], '[song]\ndelay = 0.5\n')))).toEqual(['Offset = 0.5'])
+		// Clone Hero reads diff_band = 4abc as not set, so [Song]'s Difficulty, which it doesn't read, is removed.
+		expect(songLines(songSectionAgreement(song(['Difficulty = 4', 'Resolution = 192'], '[song]\ndiff_band = 4abc\n')))).toEqual(['Resolution = 192'])
+	})
+
 	it('treats a Difficulty of 0 as a difficulty, and only song.ini\'s -1 as none (Geo, 2026-10-12)', () => {
 		expect(songLines(songSectionAgreement(song(['Resolution = 192'], '[song]\ndiff_band = 0\n')))).toEqual(['Resolution = 192', 'Difficulty = 0'])
 		expect(songLines(songSectionAgreement(song(['Difficulty = 4'], '[song]\ndiff_band = 0\n')))).toEqual(['Difficulty = 0'])

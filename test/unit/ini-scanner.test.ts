@@ -216,7 +216,7 @@ describe('scanIni: the keys only YARG reads', () => {
 		expect(read(['vocal_scroll_speed = 80']).vocal_scroll_speed).toBe(80)
 		for (const value of ['', '-1', 'fast']) expect(read([`vocal_scroll_speed = ${value}`.trim()]).vocal_scroll_speed).toBeNull()
 		const { metadata, metadataIssues } = scanIni(buildIni(['[Song]', 'vocal_scroll_speed = 80.5', 'rating = 2.5']))
-		expect(metadata).toMatchObject({ vocal_scroll_speed: 81, rating: 3 })
+		expect(metadata).toMatchObject({ vocal_scroll_speed: null, rating: 0 })
 		expect(metadataIssues.map(issue => issue.description).filter(description => description.includes('integer'))).toEqual([
 			'The "rating" value in "song.ini" is "2.5", which is not an integer.',
 			'The "vocal_scroll_speed" value in "song.ini" is "80.5", which is not an integer.',
@@ -257,7 +257,39 @@ describe('scanIni: a delay with a decimal point', () => {
 
 	it('reads only delay as seconds', () => {
 		const { metadata } = scanIni(buildIni(['[Song]', 'delay = 250', 'video_start_time = 1.5']))
-		expect(metadata).toMatchObject({ delay: 250, video_start_time: 2 })
+		expect(metadata).toMatchObject({ delay: 250, video_start_time: 0 })
 		expect(scan('250').metadataIssues.map(issue => issue.description)).not.toContain(invalid('250'))
+	})
+})
+
+describe('scanIni: numbers, read as int.TryParse reads them', () => {
+	const scan = (lines: string[]) => scanIni(buildIni(['[Song]', ...lines]))
+	const invalid = (key: string, value: string) => `The "${key}" value in "song.ini" is "${value}", which is not an integer.`
+
+	it.each([
+		['5', 5],
+		['+5', 5],
+		['007', 7],
+		['-0', 0],
+		['5 ', 5],
+		['2147483647', 2147483647],
+		['-2147483648', -2147483648],
+	])('reads %j as int.TryParse does', (value, expected) => {
+		const { metadata, metadataIssues } = scan([`album_track = ${value}`, `diff_guitar = ${value}`, `video_end_time = ${value}`])
+		expect(metadata).toMatchObject({ album_track: expected, diff_guitar: expected, video_end_time: expected })
+		expect(metadataIssues.filter(issue => issue.metadataIssue === 'invalidValue')).toEqual([])
+	})
+
+	it.each(['12abc', '1.5', '1e3', '0x10', '- 5', '2147483648', '-2147483649', 'abc'])('reads %j, which int.TryParse rejects, as not set, and reports it', value => {
+		const { metadata, metadataIssues } = scan([`album_track = ${value}`, `diff_guitar = ${value}`, `vocal_scroll_speed = ${value}`, `song_length = ${value}`])
+		expect(metadata).toMatchObject({ album_track: 16000, diff_guitar: -1, vocal_scroll_speed: null, song_length: 0 })
+		const issues = metadataIssues.map(issue => issue.description)
+		for (const key of ['album_track', 'diff_guitar', 'vocal_scroll_speed', 'song_length']) expect(issues).toContain(invalid(key, value))
+	})
+
+	it('reads -1 as not set, names an older name\'s line, and leaves blank and quoted numbers to their own issues', () => {
+		const { metadata, metadataIssues } = scan(['diff_bass = -01', 'track = 3x', 'diff_drums =', 'diff_keys = "4"'])
+		expect(metadata).toMatchObject({ diff_bass: -1, album_track: 16000, diff_drums: -1, diff_keys: -1 })
+		expect(metadataIssues.filter(issue => issue.metadataIssue === 'invalidValue').map(issue => issue.description)).toEqual([invalid('track', '3x')])
 	})
 })

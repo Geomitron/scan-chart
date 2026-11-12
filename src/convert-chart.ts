@@ -10,6 +10,7 @@ import { ChartFormat, ChartReadError } from './gameplay-chart'
 import { previewEndMs, secondsToMs } from './ini/chart-song-entries'
 import { asUtf8Ini, setSongIniValue } from './ini/ini-edit'
 import { IniTokens, parseIniTokens } from './ini/parse-ini'
+import { readIniNumber } from './ini/scan-ini'
 import { songContext } from './song-context'
 import { documentFiles, parseSongFiles, SongDocument, songIniWithSection, withSongIni } from './song-document'
 import type { SongFile } from './song-files'
@@ -110,7 +111,10 @@ export function convertChart(
 		const songIni = song.ini !== null && song.ini.fileName.toLowerCase() === 'song.ini' ? song.ini : null
 		ini = songIniWithSection(songIni === null ? song : withSongIni(song, asUtf8Ini(songIni.tokens)))
 		const iniSong = parseIniTokens(ini).iniObject.song ?? {}
-		const isSet = (key: string, ...unset: number[]) => Number.isFinite(parseFloat(iniSong[key] ?? '')) && !unset.includes(parseFloat(iniSong[key]))
+		const isSet = (key: string, ...unset: number[]) => {
+			const value = readIniNumber(key, iniSong[key] ?? '')
+			return value !== null && !unset.includes(value)
+		}
 		const chartSong = chart.format === 'chart' ? readChartSongEntries(chart.tokens.bytes) : new Map<string, string>()
 		// Games read these [Song] values when song.ini doesn't set them, from a .chart only.
 		const offset = secondsToMs(chartSong.get('Offset'))

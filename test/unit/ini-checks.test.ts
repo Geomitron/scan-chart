@@ -227,6 +227,10 @@ describe('song.ini values', () => {
 			['difficultyRange', 'In "song.ini", "diff_drums" is -2. Difficulties go from 0 to 6, or up to 10 for very hard charts.'],
 			['difficultyRange', 'In "song.ini", "diff_guitar_real" is 11. Difficulties go from 0 to 6, or up to 10 for very hard charts.'],
 		])
+		// Read as int.TryParse reads them: 0x0B and 1e2 aren't numbers, and +011 is 11.
+		expect(await values(['diff_guitar = 0x0B', 'diff_drums = 1e2', 'diff_bass = +011'], ['difficultyRange'])).toEqual([
+			['difficultyRange', 'In "song.ini", "diff_bass" is 11. Difficulties go from 0 to 6, or up to 10 for very hard charts.'],
+		])
 	})
 
 	it('reports an icon written as a file name, or with other characters than a-z, 0-9, "-" and "_"', async () => {
@@ -312,6 +316,9 @@ describe('song.ini default values', () => {
 			'In "song.ini", "delay = 0", "modchart = False", "video_start_time = 0" and 2 more change nothing: games read the song the same without them. Remove those lines.',
 		])
 		expect(await unneeded(['delay = 50', 'modchart = True', 'video_start_time = 1000', 'chord_snap_threshold = 2', 'explicit_lyrics = True'])).toEqual([])
+		// A delay with a decimal point reads as seconds, so 0.0004 is 0 and 0.1 is 100 ms.
+		expect(await keys(['delay = 0.0004'])).toEqual([['"delay = ']])
+		expect(await unneeded(['delay = 0.1'])).toEqual([])
 	})
 
 	it('reports the values of the keys only YARG reads that it reads the same without', async () => {

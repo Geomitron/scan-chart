@@ -185,24 +185,12 @@ export function extractSongMetadata(songSection: { readonly [key: string]: strin
 		// Setting `icon` can be redundant
 		metadata.icon = ''
 	}
-	for (const integerProperty of integerProperties) {
-		const value = metadata[integerProperty]
-		if (value !== null && !Number.isInteger(value)) {
-			metadataIssues.push({
-				metadataIssue: 'invalidValue',
-				description: `The "${integerProperty}" value in "song.ini" is "${value}", which is not an integer.`,
-			})
-			metadata[integerProperty] = Math.round(value)
-		}
-	}
-	const delay = songSection.delay
-	if (delay !== undefined && isDelayInSeconds('delay', delay)) {
-		metadataIssues.push({ metadataIssue: 'invalidValue', description: `The "delay" value in "song.ini" is "${delay}", which is not an integer.` })
-	}
-	for (const key of chartModifierIntegers) {
+	// A blank value is reported as blankIniNumber, and a quoted one as quotedIniValue.
+	for (const key of integerProperties) {
 		const read = writtenKey(songSection, key)
 		const value = songSection[read]
-		if (value !== undefined && value !== '' && parseDotnetInt(value) === null) {
+		if (value === undefined || value === '' || isQuoted(value)) continue
+		if (isDelayInSeconds(key, value) || parseDotnetInt(value) === null) {
 			metadataIssues.push({
 				metadataIssue: 'invalidValue',
 				description: `The "${read}" value in "song.ini" is "${value}", which is not an integer.`,
@@ -265,14 +253,27 @@ function getIniString(songSection: { readonly [key: string]: string }, key: Meta
 }
 
 /**
- * @returns the value in `songSection` at `key`, or at its older name when `key` isn't in the file, parsed as an
- * integer, or the default value when it's blank, -1, not a number, or not there: `null` for `vocal_scroll_speed`.
+ * @returns the value in `songSection` at `key`, or at its older name when `key` isn't in the file, read by
+ * `readIniNumber`, or the default value when it's blank, -1, not a number, or not there: `null` for
+ * `vocal_scroll_speed`.
  */
 function getIniInteger<K extends MetaIntegerKey>(songSection: { readonly [key: string]: string }, key: K): Metadata[K] {
-	const written = writtenValue(songSection, key) ?? ''
-	if (isDelayInSeconds(key, written)) return (parseSecondsAsMs(written) ?? defaultMetadata.delay) as Metadata[K]
-	const value = parseFloat(written)
-	return !isNaN(value) && value !== -1 ? value as Metadata[K] : defaultMetadata[key]
+	const value = readIniNumber(key, writtenValue(songSection, key) ?? '')
+	return value !== null && value !== -1 ? value as Metadata[K] : defaultMetadata[key]
+}
+
+/**
+ * Reads a song.ini number as Clone Hero does: `int.TryParse` (see `parseDotnetInt`), but a `delay` containing "." as
+ * seconds (see `parseSecondsAsMs`). -1, which a scanner reads as not set, is returned as -1.
+ * @returns the number, or `null` when Clone Hero would read the key's default.
+ */
+export function readIniNumber(key: string, value: string): number | null {
+	return isDelayInSeconds(key, value) ? parseSecondsAsMs(value) : parseDotnetInt(value)
+}
+
+/** Whether `value` is in quotation marks, which games keep as part of it. */
+export function isQuoted(value: string): boolean {
+	return value.length >= 2 && value.startsWith('"') && value.endsWith('"')
 }
 
 /** Whether `value` is a `delay` that Clone Hero reads as seconds (StrikeCore `IniFile.GetTimeMs`): one containing ".". */
