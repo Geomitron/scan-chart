@@ -4,14 +4,17 @@ import { wasEdited } from './chart/edit-history'
 import type { SongHashMetadata } from './chart/identity/song-hash-20251010'
 import { selectSongHashMetadata } from './chart/identity/song-metadata'
 import { parseMidiTokens } from './chart/midi-reparse'
-import { ChartSource, ParsedChartFile, parseChartSource } from './chart/parse-chart-file'
+import { readsSolosAsStarPower } from './chart/midi-file-parser'
+import { chartDrumType, ChartSource, classifyChartSource, ParsedChartFile, resolveChartData } from './chart/parse-chart-file'
 import { parseRules } from './chart/parse-rules'
+import type { RawChartData } from './chart/raw-types'
 import type { IniChartModifiers } from './chart/types'
 import { defaultMetadata } from './ini/metadata'
 import { scanIni } from './ini/scan-ini'
 import { ObjectCache } from './shared/object-cache'
 import type { SongDocument } from './song-document'
 import type { SongFile } from './song-files'
+import { type DrumType, getInstrumentType, instrumentTypes } from './types'
 
 /** What every view of a song reads first: its song.ini, the settings it gives, and one parse of its chart. */
 export interface SongContext {
@@ -27,7 +30,28 @@ export interface SongContext {
 export type ChartParseOutcome =
 	| { readonly kind: 'none' }
 	| { readonly kind: 'failed'; readonly error: string }
-	| { readonly kind: 'parsed'; readonly source: ChartSource; readonly bytes: Uint8Array; readonly parsed: ParsedChartFile }
+	| {
+		readonly kind: 'parsed'
+		readonly source: ChartSource
+		readonly bytes: Uint8Array
+		readonly parsed: ParsedChartFile
+		/** What the song.ini checks ask of the chart under other settings, or `null` when the song was edited: then they reparse. */
+		readonly settingFacts: ChartSettingFacts | null
+	}
+
+/**
+ * Facts about how the chart reads under other settings, taken from its classified tracks before resolution, so the
+ * song.ini checks don't parse the chart again to learn them.
+ */
+export interface ChartSettingFacts {
+	/** The drum type without song.ini's `pro_drums` and `five_lane_drums`, as `chartDrumType` reads it. */
+	readonly detectedDrumType: DrumType | null
+	/**
+	 * Whether a guitar or keys difficulty has two or more solos and no star power, so that a `multiplier_note` other than
+	 * 116 could make Clone Hero read its solos as star power. Without one, that setting changes nothing.
+	 */
+	readonly hasSoloStarPowerCandidate: boolean
+}
 
 const contexts = new ObjectCache<SongDocument, SongContext>('songContext')
 
@@ -72,13 +96,35 @@ function parseChart(chart: NonNullable<SongDocument['chart']>, settings: IniChar
 		// every track, so a song that's only read is parsed plainly. Its first edit then parses the whole chart once.
 		if (chart.format === 'chart') {
 			const source: ChartSource = { format: 'chart', tokens: chart.tokens }
-			const parsed = wasEdited(chart.tokens) ? parseChartTokens(chart.tokens, settings, rules) : parseChartSource(source, settings, rules)
-			return { kind: 'parsed', source, bytes: chart.tokens.bytes, parsed }
+			if (wasEdited(chart.tokens)) return { kind: 'parsed', source, bytes: chart.tokens.bytes, parsed: parseChartTokens(chart.tokens, settings, rules), settingFacts: null }
+			return { kind: 'parsed', source, bytes: chart.tokens.bytes, ...parseWithFacts(source, settings) }
 		}
 		const source: ChartSource = { format: 'mid', bytes: chart.bytes, tokens: chart.tokens }
-		const parsed = chart.tokens !== null && wasEdited(chart.tokens) ? parseMidiTokens(chart.tokens, settings, rules) : parseChartSource(source, settings, rules)
-		return { kind: 'parsed', source, bytes: source.bytes, parsed }
+		if (chart.tokens !== null && wasEdited(chart.tokens)) {
+			return { kind: 'parsed', source, bytes: source.bytes, parsed: parseMidiTokens(chart.tokens, settings, rules), settingFacts: null }
+		}
+		return { kind: 'parsed', source, bytes: source.bytes, ...parseWithFacts(source, settings) }
 	} catch (error) {
 		return { kind: 'failed', error: typeof error === 'string' ? error : ((error as Error)?.message ?? JSON.stringify(error)) }
+	}
+}
+
+/** `parseChartSource` with Clone Hero's rules, and the setting facts read from its classified tracks before they're resolved. */
+function parseWithFacts(source: ChartSource, settings: IniChartModifiers): { parsed: ParsedChartFile; settingFacts: ChartSettingFacts } {
+	const rules = parseRules.canonical20260801
+	const modifiers = Object.assign({}, defaultMetadata, settings) as IniChartModifiers
+	const raw = classifyChartSource(source, modifiers, rules)
+	const settingFacts = chartSettingFacts(raw.trackData, modifiers)
+	return { parsed: resolveChartData(raw, source.format, modifiers, rules), settingFacts }
+}
+
+function chartSettingFacts(trackData: RawChartData['trackData'], settings: IniChartModifiers): ChartSettingFacts {
+	return {
+		detectedDrumType: chartDrumType(trackData, { ...settings, pro_drums: false, five_lane_drums: false }),
+		hasSoloStarPowerCandidate: trackData.some(track => {
+			const type = getInstrumentType(track.instrument)
+			return (type === instrumentTypes.fiveFret || type === instrumentTypes.sixFret)
+				&& readsSolosAsStarPower(track.starPowerSections.length, track.soloSections.length)
+		}),
 	}
 }

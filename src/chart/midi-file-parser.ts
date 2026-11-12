@@ -1320,6 +1320,14 @@ function getDrumAccentNoteType(note: EventType) {
 	}
 }
 
+/**
+ * Whether Clone Hero reads a guitar or keys difficulty's solos as star power, as Guitar Hero 1 and 2 charts mark it, when
+ * `multiplier_note` isn't 116 or 103: the difficulty has two or more solos and no star power.
+ */
+export function readsSolosAsStarPower(starPowerSections: number, soloSections: number): boolean {
+	return starPowerSections === 0 && soloSections > 1
+}
+
 function fixLegacyGhStarPower(
 	events: { [key in Difficulty]: MidiTrackEvent[] },
 	instrumentType: InstrumentType,
@@ -1338,7 +1346,7 @@ function fixLegacyGhStarPower(
 				}
 			}
 
-			if (iniChartModifiers.multiplier_note === 103 || (!starPowerSections.length && soloSections.length > 1)) {
+			if (iniChartModifiers.multiplier_note === 103 || readsSolosAsStarPower(starPowerSections.length, soloSections.length)) {
 				for (const soloSection of soloSections) {
 					soloSection.type = eventTypes.starPower // GH1 and GH2 star power
 				}

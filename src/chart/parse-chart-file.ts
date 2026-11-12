@@ -78,10 +78,18 @@ export type ChartSource =
  */
 export function parseChartSource(source: ChartSource, partialIniChartModifiers: Partial<IniChartModifiers>, rules: ParseRules) {
 	const iniChartModifiers = Object.assign({}, defaultMetadata, partialIniChartModifiers) as IniChartModifiers
-	const rawChartData = source.format === 'mid'
+	return resolveChartData(classifyChartSource(source, iniChartModifiers, rules), source.format, iniChartModifiers, rules)
+}
+
+/**
+ * Classifies a tokenized chart file with a rule profile, before resolution: `parseChartSource`'s first step.
+ *
+ * Throws an exception exactly as parsing the file's bytes would.
+ */
+export function classifyChartSource(source: ChartSource, iniChartModifiers: IniChartModifiers, rules: ParseRules): RawChartData {
+	return source.format === 'mid'
 		? applyMidiRules(classifyMidiFile(midiTokensToMidiData(midiTokensForParsing(source.tokens, source.bytes))), iniChartModifiers, rules)
 		: applyChartRules(classifyChartFile(chartFileSections(source.tokens), undefined, rules.chartNonstandardLines), rules)
-	return resolveChartData(rawChartData, source.format, iniChartModifiers, rules)
 }
 
 /**
