@@ -222,6 +222,21 @@ function hasLongDeltaTime({ data, chunks }: MidiTokens): boolean {
 		&& chunk.events.some(({ start }) => (data[start] & data[start + 1] & data[start + 2] & data[start + 3] & 0x80) !== 0))
 }
 
+/**
+ * The track each vocal part is read from: the first of its tracks, except that a `HARMn` wins over a `PART HARMn`
+ * wherever it is, as YARG reads them (`docs/mid/vocals.mdx`, "Both HARMn and PART HARMn for one part").
+ */
+function vocalPartTracks(tracks: readonly MidiSourceTrack[]): Map<string, MidiSourceTrack> {
+	const chosen = new Map<string, MidiSourceTrack>()
+	for (const track of tracks) {
+		const partName = vocalTrackNameMap[track.trackName as VocalTrackName] as string | undefined
+		if (partName === undefined) continue
+		const current = chosen.get(partName)
+		if (current === undefined || (current.trackName.startsWith('PART HARM') && !track.trackName.startsWith('PART HARM'))) chosen.set(partName, track)
+	}
+	return chosen
+}
+
 /** A `.mid` file's tracks and events, classified without a rule profile. */
 export interface ClassifiedMidi {
 	ticksPerBeat: number
@@ -245,37 +260,34 @@ export function classifyMidiFile(midiFile: MidiData): ClassifiedMidi {
 	// note 106 on their own track, HARM1 emits vocalPhrases as note 105, and CopyDown
 	// on re-parse re-copies HARM1's vocalPhrases to HARM2/HARM3 — identical result.
 	const vocalTracks: { [part: string]: VocalTrackData } = {}
-	for (const track of tracks) {
-		const partName = vocalTrackNameMap[track.trackName as VocalTrackName]
-		if (partName && !vocalTracks[partName]) {
-			// Single pass over the vocal track classifies all fields at once:
-			// lyrics, textEvents (MoonText), note 105/106 phrases, pitched +
-			// percussion notes, star power (116), range shifts (0), lyric
-			// shifts (1). Consumed events (ENHANCED_OPENS, disco flip, etc.)
-			// are dropped inside the classifier.
-			//
-			// YARG treats BOTH note 105 (LYRICS_PHRASE_1) and note 106
-			// (LYRICS_PHRASE_2) as creating a `Vocals_StaticLyricPhrase` in
-			// HARM2/HARM3's specialPhrases (plus `Vocals_ScoringPhrase` which
-			// CopyDown later replaces from HARM1). Match that by unioning both
-			// sets for harmony parts. For solo vocals and HARM1, the
-			// static-lyric view is simply a duplicate of the note-phrase
-			// (scoring) list per YARG's MoonSongLoader.Vocals.cs.
-			const scanned = scanVocalTrack(track.trackEvents)
-			const isHarmonyBacking = partName === 'harmony2' || partName === 'harmony3'
-			vocalTracks[partName] = {
-				lyrics: scanned.lyrics,
-				vocalPhrases: scanned.phrases105,
-				notes: scanned.notes,
-				starPowerSections: scanned.starPower,
-				rangeShifts: scanned.rangeShifts,
-				lyricShifts: scanned.lyricShifts,
-				staticLyricPhrases: isHarmonyBacking
-					? mergePhraseLists(scanned.phrases105, scanned.phrases106)
-					: scanned.phrases106,
-				textEvents: scanned.textEvents,
-				unrecognizedMidiEvents: scanned.unrecognizedMidiEvents,
-			}
+	for (const [partName, track] of vocalPartTracks(tracks)) {
+		// Single pass over the vocal track classifies all fields at once:
+		// lyrics, textEvents (MoonText), note 105/106 phrases, pitched +
+		// percussion notes, star power (116), range shifts (0), lyric
+		// shifts (1). Consumed events (ENHANCED_OPENS, disco flip, etc.)
+		// are dropped inside the classifier.
+		//
+		// YARG treats BOTH note 105 (LYRICS_PHRASE_1) and note 106
+		// (LYRICS_PHRASE_2) as creating a `Vocals_StaticLyricPhrase` in
+		// HARM2/HARM3's specialPhrases (plus `Vocals_ScoringPhrase` which
+		// CopyDown later replaces from HARM1). Match that by unioning both
+		// sets for harmony parts. For solo vocals and HARM1, the
+		// static-lyric view is simply a duplicate of the note-phrase
+		// (scoring) list per YARG's MoonSongLoader.Vocals.cs.
+		const scanned = scanVocalTrack(track.trackEvents)
+		const isHarmonyBacking = partName === 'harmony2' || partName === 'harmony3'
+		vocalTracks[partName] = {
+			lyrics: scanned.lyrics,
+			vocalPhrases: scanned.phrases105,
+			notes: scanned.notes,
+			starPowerSections: scanned.starPower,
+			rangeShifts: scanned.rangeShifts,
+			lyricShifts: scanned.lyricShifts,
+			staticLyricPhrases: isHarmonyBacking
+				? mergePhraseLists(scanned.phrases105, scanned.phrases106)
+				: scanned.phrases106,
+			textEvents: scanned.textEvents,
+			unrecognizedMidiEvents: scanned.unrecognizedMidiEvents,
 		}
 	}
 

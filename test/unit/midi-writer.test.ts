@@ -999,6 +999,15 @@ describe('writeMidiFile round-trip: vocal tracks', () => {
 		expect(written.some(event => event.type === 'instrumentName' || event.type === 'unknownMeta')).toBe(false)
 	})
 
+	it('writes only the HARMn track of a part that also has a PART HARMn track', () => {
+		const harmony = (name: string, text: string) => ({ name, events: [...midiNote(0, 105, 480), midiText(0, text, 'lyrics'), ...midiNote(0, 60, 100)] })
+		const parsed = parseChartAndIni([{ fileName: 'notes.mid', data: midiFile([harmony('PART HARM1', 'old'), harmony('HARM1', 'new')]) }]).parsedChart!
+		const written = readMidiFile(writeMidiFile(parsed)).tracks
+		const names = written.flatMap(track => track.flatMap(event => event.type === 'trackName' ? [event.text] : []))
+		expect(names.filter(name => name.includes('HARM'))).toEqual(['HARM1'])
+		expect(parsed.vocalTracks.parts.harmony1.notePhrases[0].lyrics.map(l => l.text)).toEqual(['new'])
+	})
+
 	it('reads [range_shift] events as vocal text events, and writes them back', () => {
 		const source = trackMidi('PART VOCALS', [
 			{ tick: 0, text: 'a', type: 'lyrics' }, { tick: 240, text: '[range_shift]' }, { tick: 480, text: '[range_shift 2.5]' },

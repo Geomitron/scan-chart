@@ -237,6 +237,20 @@ describe('vocalTracks: harmonies', () => {
 		expect(result.vocalTracks.harmony1.lyrics[0].text).toBe('h1')
 	})
 
+	it('reads HARMn rather than PART HARMn for one part, wherever each is, and the first of two PART HARMn', () => {
+		const harmony = (name: string, text: string) => vocalTrack(name, {
+			lyrics: [{ tick: 480, text }], notes: [{ tick: 480, pitch: 60, length: 240 }], phrases: [{ tick: 480, length: 480 }],
+		})
+		const midi = buildMidi(480, [
+			tempoTrack(), eventsTrack(),
+			harmony('PART HARM1', 'old1'), harmony('PART HARM2', 'old2'), harmony('PART HARM2', 'old2b'), harmony('HARM1', 'new1'),
+			harmony('PART HARM3', 'old3'), harmony('HARM3', 'new3'), harmony('HARM1', 'new1b'),
+		])
+		const result = parseNotesFromMidi(midi, defaultMetadata)
+		expect(Object.keys(result.vocalTracks)).toEqual(['harmony1', 'harmony2', 'harmony3'])
+		expect(['harmony1', 'harmony2', 'harmony3'].map(part => result.vocalTracks[part].lyrics[0].text)).toEqual(['new1', 'old2', 'new3'])
+	})
+
 	it('harmony without PART VOCALS is allowed', () => {
 		const midi = buildMidi(480, [
 			tempoTrack(),
