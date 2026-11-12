@@ -38,6 +38,7 @@ export interface MidiNoteLikeEvent {
 	deltaTime: number
 	noteNumber?: number
 	velocity?: number
+	channel?: number
 }
 
 /** Union of fields used by all MIDI lyric/phrase functions. */
@@ -300,11 +301,14 @@ const discoFlipRegex = /^\s*\[?mix[ _][0-3][ _]drums[0-5](d|dnoflip|easy|easynok
  *   **not** lyrics, but unknown bracketed text like `[Everyone liked that]` is
  *   (YARG's ProcessLyric accepts it).
  *
- * - **note events** (`noteOn` / `noteOff`) are paired by `noteNumber` and
+ * - **note events** (`noteOn` / `noteOff`) pair as an instrument track's do
+ *   (`docs/mid/note-pairing.mdx`): a note-off ends the latest open note of its
+ *   number and channel, and a velocity-0 noteOn counts as a noteOff. They're
  *   routed: 0 → rangeShifts, 1 → lyricShifts, 105 → phrases105, 106 →
- *   phrases106, 116 → starPower, 36–84 / 96 / 97 → notes. Velocity-0 noteOn
- *   counts as noteOff. Duplicate noteOn while a note is already open is
- *   ignored (matches YARG's `MidReader.ProcessNoteEvent`).
+ *   phrases106, 116 → starPower, 36–84 / 96 / 97 → notes. Then overlapping
+ *   notes of one pitch are trimmed as overlapping sustains are, and of two at
+ *   one tick the longer is kept (`docs/mid/vocals.mdx`, "Overlapping notes of
+ *   one part").
  *
  * Requires tick-sorted input — `trackEvents` must already be in absolute time
  * (deltaTime = absolute tick). MIDI files are monotonic after
@@ -315,13 +319,8 @@ const discoFlipRegex = /^\s*\[?mix[ _][0-3][ _]drums[0-5](d|dnoflip|easy|easynok
  * files have a stray FF 01 text duplicate of the track name at index 0 —
  * YARG silently drops it, so we skip text classification for index 0 too.
  *
- * Single-pitch buckets (0, 1, 105, 106, 116) emit pairs in start-tick order
- * automatically because a noteNumber can't overlap itself. `notes` holds
- * multiple pitches (e.g. 60 and 72 can overlap), so a small bucket-local sort
- * by start tick reorders the `notes` output. "The Lumineers - Ho Hey" is the
- * canonical test case: zero-length note 60 at tick 49840 must not steal the
- * noteOff at 55080 from the real note at 54880 — preserved by the
- * first-matching-noteOff rule.
+ * A note-off ends the latest open note, so pairs can end out of start order;
+ * each bucket is sorted by start tick.
  */
 export function scanVocalTrack<T extends MidiLyricEvent>(trackEvents: T[]): VocalTrackScanResult<T> {
 	const lyrics: VocalTrackScanResult['lyrics'] = []
@@ -335,7 +334,8 @@ export function scanVocalTrack<T extends MidiLyricEvent>(trackEvents: T[]): Voca
 	const unrecognizedMidiEvents: T[] = []
 
 	const seenLyrics = new Set<string>()
-	const openNotes = new Map<number, number>() // noteNumber → open tick
+	// The start ticks of the open notes of each note number and channel, latest last.
+	const openNotes = new Map<number, number[]>()
 
 	for (let i = 0; i < trackEvents.length; i++) {
 		const event = trackEvents[i]
@@ -352,13 +352,14 @@ export function scanVocalTrack<T extends MidiLyricEvent>(trackEvents: T[]): Voca
 			}
 
 			const isOff = event.type === 'noteOff' || (event.type === 'noteOn' && event.velocity === 0)
+			const key = n * 16 + (event.channel ?? 0)
+			let open = openNotes.get(key)
 			if (!isOff) {
-				// YARG ignores duplicate noteOns — if already open, skip.
-				if (!openNotes.has(n)) openNotes.set(n, event.deltaTime)
+				if (open === undefined) openNotes.set(key, open = [])
+				open.push(event.deltaTime)
 			} else {
-				const startTick = openNotes.get(n)
+				const startTick = open?.pop()
 				if (startTick === undefined) continue
-				openNotes.delete(n)
 				const length = event.deltaTime - startTick
 				switch (n) {
 					case 0:   rangeShifts.push({ tick: startTick, length }); break
@@ -416,10 +417,45 @@ export function scanVocalTrack<T extends MidiLyricEvent>(trackEvents: T[]): Voca
 		lyrics.push({ tick: event.deltaTime, length: 0, text })
 	}
 
-	// Only `notes` can have overlapping pitches emitting out of start-tick order.
-	notes.sort((a, b) => a.tick - b.tick)
+	const byTick = (a: { tick: number }, b: { tick: number }) => a.tick - b.tick
+	for (const bucket of [phrases105, phrases106, starPower, rangeShifts, lyricShifts]) bucket.sort(byTick)
 
-	return { lyrics, textEvents, phrases105, phrases106, notes, starPower, rangeShifts, lyricShifts, unrecognizedMidiEvents }
+	return {
+		lyrics, textEvents, phrases105, phrases106, notes: trimOverlappingNotes(notes).sort(byTick), starPower, rangeShifts, lyricShifts,
+		unrecognizedMidiEvents,
+	}
+}
+
+/**
+ * Trims overlapping vocal notes of one pitch as overlapping sustains are trimmed (`docs/mid/vocals.mdx`, "Overlapping
+ * notes of one part"): of two notes at one tick, the longer is kept, and otherwise the earlier note ends where the
+ * later starts, and the later runs to whichever end is later. Returns the notes kept, in their order.
+ */
+function trimOverlappingNotes(notes: VocalNote[]): VocalNote[] {
+	const removed = new Set<VocalNote>()
+	const byPitch = new Map<number, VocalNote[]>()
+	for (const note of notes) {
+		const ofPitch = byPitch.get(note.pitch)
+		if (ofPitch === undefined) byPitch.set(note.pitch, [note])
+		else ofPitch.push(note)
+	}
+	for (const ofPitch of byPitch.values()) {
+		if (ofPitch.length < 2) continue
+		ofPitch.sort((a, b) => a.tick - b.tick || a.length - b.length)
+		// The longest note of each tick, in tick order.
+		const kept = ofPitch.filter((note, index) => {
+			const isShorter = ofPitch[index + 1]?.tick === note.tick
+			if (isShorter) removed.add(note)
+			return !isShorter
+		})
+		for (let index = 1; index < kept.length; index++) {
+			const [earlier, later] = [kept[index - 1], kept[index]]
+			if (earlier.tick + earlier.length <= later.tick) continue
+			later.length = Math.max(later.tick + later.length, earlier.tick + earlier.length) - later.tick
+			earlier.length = later.tick - earlier.tick
+		}
+	}
+	return removed.size === 0 ? notes : notes.filter(note => !removed.has(note))
 }
 
 // ---------------------------------------------------------------------------

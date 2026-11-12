@@ -498,14 +498,15 @@ describe('scanVocalTrack (phrases)', () => {
 		expect(result.phrases106).toEqual([{ tick: 720, length: 480 }])
 	})
 
-	it('ignores duplicate noteOn (YARG behavior)', () => {
-		// When 105 is already open, a second noteOn is ignored — first noteOff closes original
+	it('pairs a phrase note-off with the latest open phrase of its channel, so the outer phrase holds both', () => {
 		const events = [
 			{ deltaTime: 480, type: 'noteOn' as const, channel: 0, noteNumber: 105, velocity: 100 },
-			{ deltaTime: 960, type: 'noteOn' as const, channel: 0, noteNumber: 105, velocity: 100 },  // duplicate, ignored
+			{ deltaTime: 960, type: 'noteOn' as const, channel: 0, noteNumber: 105, velocity: 100 },
+			{ deltaTime: 970, type: 'noteOn' as const, channel: 1, noteNumber: 105, velocity: 100 },
+			{ deltaTime: 980, type: 'noteOff' as const, channel: 0, noteNumber: 105, velocity: 0 },
 			{ deltaTime: 1440, type: 'noteOff' as const, channel: 0, noteNumber: 105, velocity: 0 },
 		]
-		expect(scanVocalTrack(events).phrases105).toEqual([{ tick: 480, length: 960 }])
+		expect(scanVocalTrack(events).phrases105).toEqual([{ tick: 480, length: 960 }, { tick: 960, length: 20 }])
 	})
 
 	it('does not route non-105/106 notes into phrase buckets', () => {
@@ -940,27 +941,59 @@ describe('scanVocalTrack (notes)', () => {
 		expect(notes[1]).toEqual({ tick: 720, length: 240, pitch: 60, type: 'pitched' })
 	})
 
-	it('handles zero-length note (noteOn+noteOff at same tick) followed by new note', () => {
-		// Real case: "The Lumineers - Ho Hey" has noteOn+noteOff at tick 49840 (zero-length),
-		// then a real noteOn at 54880. YARG ignores the duplicate noteOn at 49840 (already open
-		// from earlier), then the noteOff closes the note. The noteOn at 54880 opens a new note.
-		// With incorrect noteOff-before-noteOn sorting, the zero-length note steals the noteOff
-		// at 55080, causing the noteOn at 54880 to be treated as a duplicate.
+	it('pairs a note-off with the latest open note of its pitch and channel, as an instrument note pairs', () => {
+		// The Lumineers - Ho Hey's pattern (batch 5 Q10): the note at 480 has no note-off of its own, so it's dropped.
 		const events = [
 			{ deltaTime: 480, type: 'noteOn' as const, noteNumber: 60, velocity: 100 },
-			// Zero-length note at tick 680: noteOn then noteOff at same tick
 			{ deltaTime: 680, type: 'noteOn' as const, noteNumber: 60, velocity: 100 },
 			{ deltaTime: 680, type: 'noteOff' as const, noteNumber: 60, velocity: 100 },
-			// New note at tick 960
 			{ deltaTime: 960, type: 'noteOn' as const, noteNumber: 60, velocity: 100 },
 			{ deltaTime: 1200, type: 'noteOff' as const, noteNumber: 60, velocity: 0 },
 		]
-		const notes = scanVocalTrack(events).notes
-		// Should produce 2 notes: 480-680 and 960-1200
-		// (zero-length noteOn at 680 is duplicate → ignored; noteOff at 680 closes note at 480)
-		expect(notes).toHaveLength(2)
-		expect(notes[0]).toMatchObject({ tick: 480, length: 200 })
-		expect(notes[1]).toMatchObject({ tick: 960, length: 240 })
+		expect(scanVocalTrack(events).notes.map(n => [n.tick, n.length])).toEqual([[680, 0], [960, 240]])
+	})
+
+	it('ignores a note-off on another channel than its note-on', () => {
+		const events = [
+			{ deltaTime: 480, type: 'noteOn' as const, channel: 0, noteNumber: 60, velocity: 100 },
+			{ deltaTime: 720, type: 'noteOff' as const, channel: 1, noteNumber: 60, velocity: 0 },
+		]
+		expect(scanVocalTrack(events).notes).toEqual([])
+	})
+
+	it('trims overlapping notes of one pitch as sustains: the earlier ends where the later starts', () => {
+		// on 0, on 192, off 384, off 576: pairing gives 192-384 and 0-576, and trimming 0-192 and 192-576.
+		const nested = [
+			{ deltaTime: 0, type: 'noteOn' as const, noteNumber: 60, velocity: 100 },
+			{ deltaTime: 192, type: 'noteOn' as const, noteNumber: 60, velocity: 100 },
+			{ deltaTime: 384, type: 'noteOff' as const, noteNumber: 60, velocity: 0 },
+			{ deltaTime: 576, type: 'noteOff' as const, noteNumber: 60, velocity: 0 },
+		]
+		expect(scanVocalTrack(nested).notes.map(n => [n.tick, n.length])).toEqual([[0, 192], [192, 384]])
+		// The next note-on before the note-off at a shared tick: two notes, as the charter meant.
+		const sharedTick = [
+			{ deltaTime: 0, type: 'noteOn' as const, noteNumber: 60, velocity: 100 },
+			{ deltaTime: 192, type: 'noteOn' as const, noteNumber: 60, velocity: 100 },
+			{ deltaTime: 192, type: 'noteOff' as const, noteNumber: 60, velocity: 0 },
+			{ deltaTime: 384, type: 'noteOff' as const, noteNumber: 60, velocity: 0 },
+		]
+		expect(scanVocalTrack(sharedTick).notes.map(n => [n.tick, n.length])).toEqual([[0, 192], [192, 192]])
+	})
+
+	it('keeps the longer of two notes of one pitch at one tick, then trims, and keeps notes of other pitches', () => {
+		const events = [
+			{ deltaTime: 0, type: 'noteOn' as const, noteNumber: 60, velocity: 100 },
+			{ deltaTime: 100, type: 'noteOn' as const, noteNumber: 60, velocity: 100 },
+			{ deltaTime: 100, type: 'noteOn' as const, noteNumber: 60, velocity: 100 },
+			{ deltaTime: 100, type: 'noteOn' as const, noteNumber: 62, velocity: 100 },
+			{ deltaTime: 150, type: 'noteOff' as const, noteNumber: 60, velocity: 0 },
+			{ deltaTime: 160, type: 'noteOff' as const, noteNumber: 60, velocity: 0 },
+			{ deltaTime: 300, type: 'noteOff' as const, noteNumber: 62, velocity: 0 },
+			{ deltaTime: 500, type: 'noteOff' as const, noteNumber: 60, velocity: 0 },
+		]
+		// Pairing gives 100-150, 100-160 and 0-500 on 60. Of the two at 100, 100-160 is kept; then 0-500 is trimmed to
+		// 0-100, and 100-160 runs to 500.
+		expect(scanVocalTrack(events).notes.map(n => [n.tick, n.pitch, n.length])).toEqual([[0, 60, 100], [100, 60, 400], [100, 62, 200]])
 	})
 
 	it('extracts same-pitch notes with noteOff velocity > 0', () => {
