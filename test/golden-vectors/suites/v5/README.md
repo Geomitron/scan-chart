@@ -80,7 +80,10 @@ No chart archive or third-party song content is included.
 ## Reproduction status
 
 - `scan-chart`: verify this suite before every change.
-- Clone Hero: the C21 and C22 changes are still to be checked against this
-  suite. Owner reproduction is pending.
+- Clone Hero: the branch with the C22 change passes the four new tap
+  vectors, and writes the BTrack of `source-midi-modifier-boundaries` and
+  `source-midi-all-difficulty-tap-boundary` exactly; their TrackHashes also
+  need C16's tempo rounding. The C21 change is still to be checked. Owner
+  reproduction is pending.
 
 Use `OWNER_REPRODUCTION.md` for the comparison stages and response format.
