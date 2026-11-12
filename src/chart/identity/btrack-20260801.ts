@@ -279,8 +279,11 @@ function noteFlagError(type: NoteType, flags: number): 'flagBitsUnknown' | 'flag
 	return null
 }
 
+/** Every NoteType's value, made once rather than for each note checked. */
+const noteTypeValues: ReadonlySet<number> = new Set(Object.values(noteTypes))
+
 function isNoteType(value: number): value is NoteType {
-	return Object.values(noteTypes).some(noteType => noteType === value)
+	return noteTypeValues.has(value)
 }
 
 function assertStrictTicks(values: readonly { readonly tick: bigint }[], section: string): void {
@@ -422,7 +425,7 @@ function assertCanonicalSemantics(semantics: CanonicalTrackSemantics): void {
 	for (const note of semantics.notes) {
 		assertNonnegative(note.tick, 'note tick')
 		assertNonnegative(note.length, 'note length')
-		if (!Object.values(noteTypes).includes(note.type)) throw new RangeError('note type is invalid')
+		if (!noteTypeValues.has(note.type)) throw new RangeError('note type is invalid')
 		if (!Number.isInteger(note.flags) || note.flags < 0 || noteFlagError(note.type, note.flags) !== null) {
 			throw new RangeError('note flags are invalid')
 		}
