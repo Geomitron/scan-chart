@@ -143,6 +143,32 @@ describe('nonstandard spelling issues', () => {
 		})
 	})
 
+	describe('report the .mid tom markers and flams that cover no note, for each drums track read, as a style note', () => {
+		const modifiers = (events: Parameters<typeof midiFile>[0][number]['events'], styleNotes = true, tracks: Parameters<typeof midiFile>[0] = []) => {
+			const song = parseSongFiles([{ fileName: 'notes.mid', data: midiFile([{ name: 'PART DRUMS', events }, ...tracks]) }])
+			return analyzeChart(resolveChart(song), { styleNotes }).issues
+				.filter(issue => issue.code === 'midiDrumModifierWithoutNote').map(({ instrument, difficulty, severity, message }) => ({ instrument, difficulty, severity, message }))
+		}
+
+		it('a tom marker or flam whose range starts no note, on any difficulty, and only with styleNotes', () => {
+			// 110 ends where the yellow at 480 starts, and the zero-length 109 at 720 is on no note's tick.
+			const events = [...midiNote(0, 110, 480), ...midiNote(480, 98), ...midiNote(480, 111, 240), ...midiNote(720, 109), ...midiNote(960, 112, 1), ...midiNote(960, 64)]
+			expect(modifiers(events)).toEqual([{
+				instrument: 'drums', difficulty: null, severity: 'recommendation',
+				message: '2 drum modifiers, such as the tom marker (note 110) at tick 0, cover no note, so they change none. Clone Hero 1.1 and YARG still read the tom marker as making the chart pro.',
+			}])
+			expect(modifiers(events, false)).toEqual([])
+			expect(modifiers([...midiNote(0, 109, 240), ...midiNote(480, 96)]).map(issue => issue.message)).toEqual(['The flam (note 109) at tick 0 covers no note, so it changes none.'])
+			expect(modifiers([...midiNote(0, 112, 480), ...midiNote(480, 96)]).map(issue => issue.message))
+				.toEqual(['The tom marker (note 112) at tick 0 covers no note, so it changes none. Clone Hero 1.1 and YARG still read it as making the chart pro.'])
+		})
+
+		it('none for a modifier over a kick, a zero-length one on its note\'s tick, or one on a second drums track', () => {
+			expect(modifiers([...midiNote(0, 110, 240), ...midiNote(120, 96), ...midiNote(480, 109), ...midiNote(480, 61)])).toEqual([])
+			expect(modifiers(midiNote(0, 96), true, [{ name: 'PART DRUMS', events: midiNote(480, 110) }])).toEqual([])
+		})
+	})
+
 	it('report a song.ini key set twice, in the song.ini Clone Hero reads', async () => {
 		const chart = { fileName: 'notes.chart', data: encode('[Song]\r\n{\r\n  Resolution = 192\r\n}\r\n[ExpertSingle]\r\n{\r\n  0 = N 0 0\r\n}\r\n') }
 		const twice = { fileName: 'song.ini', data: encode('[song]\r\nname = A\r\nName = B\r\n') }

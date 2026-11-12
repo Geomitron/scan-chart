@@ -11,7 +11,7 @@ import {
 import { ChartEventSection, ChartLineSpelling, chartSectionSpellings, chartSongSpellings } from './chart/chart-line-spelling'
 import { chartModifiersWithoutNotes } from './chart/chart-modifiers'
 import { chartSectionNoflips, midiTrackNoflips, type NoflipDuringFlip } from './chart/disco-flip'
-import { midiTrackInstrument, repeatedMidiInstruments } from './chart/midi-file-parser'
+import { midiDrumModifiersWithoutNotes, midiTrackInstrument, repeatedMidiInstruments } from './chart/midi-file-parser'
 import { midiPitchKey } from './chart/midi-note-numbers'
 import { midiNormalizations } from './chart/midi-normalize'
 import type { MidiTokens } from './chart/midi-tokens'
@@ -38,6 +38,7 @@ export type SpellingIssueType =
 	| 'nonstandardChartSections'
 	| 'discoNoflipDuringFlip'
 	| 'chartModifierWithoutNote'
+	| 'midiDrumModifierWithoutNote'
 
 /**
  * Each message says what Clone Hero does (StrikeCore's readers, which HashScanTool shares). The issues about
@@ -56,6 +57,7 @@ export const spellingIssueMessages: { readonly [code in SpellingIssueType]: stri
 	nonstandardChartSections: 'The chart\'s [Song] and [SyncTrack] sections aren\'t written the standard way. Saving an edit fixes them.',
 	discoNoflipDuringFlip: 'A "dnoflip" mix event comes while a "d" disco flip is on. Clone Hero 1.1 keeps the flip on, and other programs start no-flip there. Saving an edit turns the flip off first.',
 	chartModifierWithoutNote: 'A modifier in this section, such as a forced, tap, cymbal, accent or ghost marker, has no note at its tick to apply to. Games ignore it, but a cymbal marker still makes the chart pro. Saving an edit removes it, unless it\'s a cymbal marker the drum type may depend on.',
+	midiDrumModifierWithoutNote: 'A drum modifier in this track, a tom marker or a flam, covers no note, so it changes none. Clone Hero 1.1 and YARG still read a tom marker as making the chart pro.',
 }
 
 /** The nonstandard spellings of a chart file, one issue per section or track; style notes only when `styleNotes`. */
@@ -119,7 +121,22 @@ export function chartSpellingIssues(source: ChartSource, styleNotes: boolean): I
 	for (const [difficulty, found] of midiTrackNoflips(source.tokens)?.difficulties ?? []) {
 		if (found.length > 0) add('discoNoflipDuringFlip', { instrument: 'drums', difficulty }, noflipMessage(found))
 	}
+	for (const { instrument, modifiers } of styleNotes ? midiDrumModifiersWithoutNotes(source.tokens) : []) {
+		add('midiDrumModifierWithoutNote', { instrument, difficulty: null }, drumModifierMessage(modifiers))
+	}
 	return issues
+}
+
+/** The message about a drums track's tom markers and flams that cover no note, naming the first. */
+function drumModifierMessage(modifiers: readonly { noteNumber: number; tick: number }[]): string {
+	const name = ({ noteNumber, tick }: { noteNumber: number; tick: number }) => `${noteNumber === 109 ? 'flam' : 'tom marker'} (note ${noteNumber}) at tick ${tick}`
+	const one = modifiers.length === 1
+	const which = one ? `The ${name(modifiers[0])} covers no note, so it changes none.`
+		: `${modifiers.length.toLocaleString('en-US')} drum modifiers, such as the ${name(modifiers[0])}, cover no note, so they change none.`
+	const toms = modifiers.filter(modifier => modifier.noteNumber !== 109).length
+	if (toms === 0) return which
+	const them = toms === modifiers.length ? (one ? 'it' : 'them') : `the ${toms === 1 ? 'tom marker' : `${toms.toLocaleString('en-US')} tom markers`}`
+	return `${which} Clone Hero 1.1 and YARG still read ${them} as making the chart pro.`
 }
 
 /**

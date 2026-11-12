@@ -2,7 +2,7 @@ import { MidiData, MidiEvent, MidiSetTempoEvent, MidiTextEvent, MidiTimeSignatur
 
 import { difficulties, Difficulty, getInstrumentType, Instrument, InstrumentType, instrumentTypes } from '../types'
 import { discoFlipDifficultyMap } from './chart-file-parser'
-import { midiTokensToMidiData, MidiTokens, readMidiTokens } from './midi-tokens'
+import { MidiTrackChunk, midiTokensToMidiData, MidiTokens, midiTrackEvents, midiTrackIndex, readMidiTokens } from './midi-tokens'
 import { DrumMixEvent, EventType, eventTypes, RawChartData, VocalTrackData } from './raw-types'
 import { IniChartModifiers } from './types'
 import { parseRules, ParseRules } from './parse-rules'
@@ -895,29 +895,65 @@ const drumNoteEventTypes: EventType[] = [
 	eventTypes.kick, eventTypes.kick2x, eventTypes.redDrum, eventTypes.yellowDrum, eventTypes.blueDrum, eventTypes.fiveOrangeFourGreenDrum, eventTypes.fiveGreenDrum,
 ]
 
+/** The note number of each drum modifier: a tom marker or a flam. */
+const drumModifierNotes = new Map<EventType, number>([
+	[eventTypes.forceFlam, 109], [eventTypes.yellowTomMarker, 110], [eventTypes.blueTomMarker, 111], [eventTypes.greenTomMarker, 112],
+])
+
+/**
+ * The drum modifiers of `types`, paired, that cover no drum note on any difficulty, in start order. A modifier covers the
+ * notes from its start up to its end, or its own tick when it has no length.
+ */
+function uncoveredDrumModifiers(eventEnds: TrackScanResult['eventEnds'], types: readonly EventType[]): PairedEventEnds[] {
+	const modifiers = eventEnds.all.filter(end => types.includes(end.type))
+	if (modifiers.length === 0) return []
+	const noteTicks = difficulties
+		.flatMap(difficulty => eventEnds[difficulty].filter(end => end.isStart && drumNoteEventTypes.includes(end.type)).map(end => end.tick))
+		.sort((a, b) => a - b)
+	const uncovered: PairedEventEnds[] = []
+	let next = 0
+	// Pairs come in start order, so the first note at or after each start only moves forward.
+	for (const pair of pairEventEnds(modifiers)) {
+		while (next < noteTicks.length && noteTicks[next] < pair.start.tick) next++
+		const covered = next < noteTicks.length && (noteTicks[next] < pair.end.tick || noteTicks[next] === pair.start.tick)
+		if (!covered) uncovered.push(pair)
+	}
+	return uncovered
+}
+
 /**
  * A drum track's unrecognized events, with the events of each tom marker that covers no drum note on any difficulty,
  * in track order. Such a marker changes no note and doesn't make the chart pro drums here, as in the canonical rules,
  * but Clone Hero 1.1 reads any tom marker as pro drums, so the `.mid` writer writes it back.
  */
 function withUncoveredTomMarkers(events: MidiEvent[], eventEnds: TrackScanResult['eventEnds'], unrecognizedEvents: MidiEvent[]): MidiEvent[] {
-	const tomMarkers = eventEnds.all.filter(end => end.type === eventTypes.yellowTomMarker || end.type === eventTypes.blueTomMarker || end.type === eventTypes.greenTomMarker)
-	if (tomMarkers.length === 0) return unrecognizedEvents
-	const noteTicks = difficulties
-		.flatMap(difficulty => eventEnds[difficulty].filter(end => end.isStart && drumNoteEventTypes.includes(end.type)).map(end => end.tick))
-		.sort((a, b) => a - b)
 	const uncovered = new Set<number>()
-	let next = 0
-	// Pairs come in start order, so the first note at or after each start only moves forward.
-	for (const { start, end } of pairEventEnds(tomMarkers)) {
-		while (next < noteTicks.length && noteTicks[next] < start.tick) next++
-		// A marker covers the notes from its start up to its end, or its own tick when it has no length.
-		const covered = next < noteTicks.length && (noteTicks[next] < end.tick || noteTicks[next] === start.tick)
-		if (!covered) uncovered.add(start.eventIndex).add(end.eventIndex)
+	for (const { start, end } of uncoveredDrumModifiers(eventEnds, [eventTypes.yellowTomMarker, eventTypes.blueTomMarker, eventTypes.greenTomMarker])) {
+		uncovered.add(start.eventIndex).add(end.eventIndex)
 	}
 	if (uncovered.size === 0) return unrecognizedEvents
 	const unrecognized = new Set(unrecognizedEvents)
 	return events.filter((event, index) => unrecognized.has(event) || uncovered.has(index))
+}
+
+/**
+ * The tom markers and flams that cover no note, in start order with each one's note number and tick, in each drums
+ * track a reader reads: the first of its instrument.
+ */
+export function midiDrumModifiersWithoutNotes(tokens: MidiTokens): { instrument: Instrument; modifiers: { noteNumber: number; tick: number }[] }[] {
+	const found: { instrument: Instrument; modifiers: { noteNumber: number; tick: number }[] }[] = []
+	const seen = new Set<Instrument>()
+	for (const { instrument, chunkIndex } of midiInstrumentTracks(tokens)) {
+		if (seen.has(instrument)) continue
+		seen.add(instrument)
+		if (getInstrumentType(instrument) !== instrumentTypes.drums) continue
+		const scanned = classifyMidiInstrumentTrack(midiTrackIndex(tokens, chunkIndex), midiTrackEvents(tokens.chunks[chunkIndex] as MidiTrackChunk))
+		if (scanned === null) continue
+		const modifiers = uncoveredDrumModifiers(scanned.scan.eventEnds, [...drumModifierNotes.keys()])
+			.map(({ start }) => ({ noteNumber: drumModifierNotes.get(start.type)!, tick: start.tick }))
+		if (modifiers.length > 0) found.push({ instrument, modifiers })
+	}
+	return found
 }
 
 /** These apply to the entire instrument, not specific difficulties. */
