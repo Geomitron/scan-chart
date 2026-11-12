@@ -119,7 +119,7 @@ describe('convertChart', () => {
 		// The other difficulty's flip would flip Hard in the drums track, so it's left out.
 		const { song: asMidi, report } = convertChart(song, 'mid')
 		expect(report.tracks.every(track => track.kept)).toBe(true)
-		expect(report.dropped).toEqual([{ content: "mix events that flip another difficulty than their drums section's", count: 1 }])
+		expect(report.dropped).toEqual([{ content: "mix events for another difficulty than their drums section's", count: 1 }])
 		const midiFile = fileBytes(documentFiles(asMidi).find(file => file.fileName === 'notes.mid')!)
 		const midiMixes = parseMidi(midiFile).tracks.flatMap(track => trackTexts(track).filter(([, text]) => text.includes('mix')))
 		expect(midiMixes).toEqual([[0, 'mix 3 drums0easy'], [0, 'mix 2 drums0easy'], [480, 'mix 2 drums0easynokick']])

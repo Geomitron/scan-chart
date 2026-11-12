@@ -260,7 +260,7 @@ function droppedContent(chart: ParsedChart, format: ChartFormat): ConversionRepo
 		const texts = chart.format === 'chart' ? chart.unrecognized.eventsTrackTextEvents : []
 		add('[Events] text that the events track would read as an event or a misplaced vocal event', texts.filter(event => midiTextForChartEventsText(event.text) === null).length)
 		const drums = chart.format === 'chart' ? chart.trackData.filter(track => getInstrumentType(track.instrument) === instrumentTypes.drums) : []
-		add("mix events that flip another difficulty than their drums section's", chartMixTextEvents(drums).leftOut)
+		add("mix events for another difficulty than their drums section's", chartMixTextEvents(drums).leftOut)
 	}
 	return dropped
 }
