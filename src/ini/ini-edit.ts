@@ -67,7 +67,7 @@ export function hasSongIniSection(tokens: IniTokens): boolean {
  * in `[song]` sections, and every `[song]` key line with its key.
  */
 function scanSongSections(text: string, key: string | null) {
-	const lines = text.match(/[^\n]*\n|[^\n]+$/g) ?? []
+	const lines: string[] = text.match(/[^\n]*\n|[^\n]+$/g) ?? []
 	const wanted = key === null ? null : toLowerInvariant(key)
 	let inSong = false
 	let lastSongLine = -1
