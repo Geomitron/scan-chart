@@ -4,8 +4,11 @@ import { describe, expect, it } from 'vitest'
 import { authoredTracks } from 'src/authored'
 import { authoredSongEvents, chartAuthoredTracks, midiAuthoredTracks } from 'src/chart/authored-view'
 import { eventTypes } from 'src/chart/raw-types'
+import { resolveChart } from 'src/gameplay-chart'
 import { editSong, parseSongFiles, documentFiles } from 'src/song-document'
 import { fileBytes } from 'src/song-files'
+
+import { midiFile, midiNote, midiText } from './helpers/midi-files'
 
 const encode = (text: string) => new TextEncoder().encode(text)
 const file = (fileName: string, text: string) => ({ fileName, data: encode(text) })
@@ -234,6 +237,22 @@ describe('song documents', () => {
 		})))
 		expect(authoredTracks(edited.chart!)[0].events.map(({ tick, type, length, scope, velocity, channel }) => [tick, type, length, scope, velocity, channel]))
 			.toEqual([[0, 'green', 120, 'hard', 127, 2], [480, 'starPower', 480, 'instrument', 100, 0]])
+	})
+
+	it('add a Big Rock Ending, S 64 or note 120, to a 5-fret track, which reads back after the coda', () => {
+		const chart = '[Song]\n{\n  Resolution = 192\n}\n[SyncTrack]\n{\n  0 = B 120000\n}\n[Events]\n{\n  768 = E "coda"\n}\n[ExpertSingle]\n{\n  0 = N 0 0\n  1152 = N 0 0\n}\n'
+		const song = parseSongFiles([file('notes.chart', chart)])
+		const edited = parseSongFiles(documentFiles(editSong(song, batch => batch.addEvent(authoredTracks(song.chart!)[0], 768, 'freestyleSection', 192))))
+		expect(new TextDecoder().decode(fileBytes(edited.files[0]))).toContain('[ExpertSingle]\n{\n  0 = N 0 0\n  768 = S 64 192\n  1152 = N 0 0\n}\n')
+		expect(resolveChart(edited).tracks[0].drumFills).toMatchObject([{ tick: 768, length: 192, isCoda: true }])
+
+		const midi = midiFile([{ name: 'EVENTS', events: [midiText(1920, '[coda]')] }, { name: 'PART GUITAR', events: [...midiNote(0, 96), ...midiNote(2880, 96)] }])
+		const midiSong = parseSongFiles([{ fileName: 'notes.mid', data: midi }])
+		const guitar = authoredTracks(midiSong.chart!).find(track => track.instrument === 'guitar')!
+		const editedMidi = parseSongFiles(documentFiles(editSong(midiSong, batch => batch.addEvent(guitar, 1920, 'freestyleSection', 480, { scope: 'instrument' }))))
+		expect(authoredTracks(editedMidi.chart!).find(track => track.instrument === 'guitar')!.events.map(({ tick, type, length }) => [tick, type, length]))
+			.toEqual([[0, 'green', 0], [1920, 'freestyleSection', 480], [2880, 'green', 0]])
+		expect(resolveChart(editedMidi).tracks[0].drumFills).toMatchObject([{ tick: 1920, length: 480, isCoda: true }])
 	})
 
 	it('have no chart or song.ini when the folder has none', () => {

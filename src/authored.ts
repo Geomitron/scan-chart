@@ -122,7 +122,7 @@ const fretModifiers: readonly EventType[] = [eventTypes.forceTap, eventTypes.for
 const meaningfulTypes: { readonly [type in InstrumentType]: ReadonlySet<EventType> } = {
 	[instrumentTypes.fiveFret]: new Set([
 		...fretPhrases, ...fretModifiers, eventTypes.forceOpen, eventTypes.flexLaneSingle, eventTypes.flexLaneDouble,
-		eventTypes.open, eventTypes.green, eventTypes.red, eventTypes.yellow, eventTypes.blue, eventTypes.orange,
+		eventTypes.freestyleSection, eventTypes.open, eventTypes.green, eventTypes.red, eventTypes.yellow, eventTypes.blue, eventTypes.orange,
 	]),
 	[instrumentTypes.sixFret]: new Set([
 		...fretPhrases, ...fretModifiers,
