@@ -159,3 +159,26 @@ describe('writeIniFile key order', () => {
 			'tuning_offset_cents = 10', 'delay = 50', 'kit_type = 1', ''].join('\r\n'))
 	})
 })
+
+describe('writeIniFile: the other names of credit_album_art_designed_by', () => {
+	/** song.ini parsed with a chart, then written: its [song] lines, and the credit read back from them. */
+	const rewrite = (lines: string[]) => {
+		const parsed = parseChartAndIni([
+			{ fileName: 'notes.chart', data: EMPTY_CHART },
+			{ fileName: 'song.ini', data: new TextEncoder().encode(['[song]', ...lines].join('\r\n')) },
+		]).parsedChart!.metadata
+		const written = writeIniFile(parsed)
+		return { lines: written.split('\r\n').slice(1, -1), credit: roundTrip(parsed).credit_album_art_designed_by }
+	}
+
+	it('writes the other names as written, without renaming them', () => {
+		expect(rewrite(['credit_album_cover = Artist'])).toEqual({ lines: ['credit_album_cover = Artist'], credit: 'Artist' })
+		expect(rewrite(['credit_album_art_by = A', 'credit_album_cover = C'])).toEqual({ lines: ['credit_album_art_by = A', 'credit_album_cover = C'], credit: 'C' })
+		expect(rewrite(['credit_album_art_designed_by = D'])).toEqual({ lines: ['credit_album_art_designed_by = D'], credit: 'D' })
+	})
+
+	it('writes credit_album_art_designed_by after the other names when it\'s the line read, so it still reads', () => {
+		expect(rewrite(['credit_album_art_by = A', 'credit_album_art_designed_by = D']))
+			.toEqual({ lines: ['credit_album_art_by = A', 'credit_album_art_designed_by = D'], credit: 'D' })
+	})
+})

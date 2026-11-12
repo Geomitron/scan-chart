@@ -6,7 +6,7 @@ import type { ExplicitLyricMatch } from './explicit-lyrics'
 import { defaultMetadata, isNumberTag, olderTags, tagOrder, tagRank } from './metadata'
 import { marksSingle } from './metadata-style'
 import type { IniTokens } from './parse-ini'
-import { isQuoted, knownIniKeys, parseBoolean, parseDotnetInt, readIniNumber, writtenKey } from './scan-ini'
+import { albumArtCreditKeys, isQuoted, knownIniKeys, parseBoolean, parseDotnetInt, readIniNumber, writtenKey } from './scan-ini'
 
 type SongSection = { readonly [key: string]: string }
 
@@ -66,7 +66,7 @@ const gameTags = [
 /** scan-chart's own tag: the issue codes a chart means to have. */
 const ignoredIssuesTag = 'ignored_issues'
 /** The tags scan-chart doesn't report as unknown: the standard's, the ones it reads, other games' and tools', and its own. */
-const knownTags = new Set([...standardTags, ...knownIniKeys, ...gameTags, ignoredIssuesTag])
+const knownTags = new Set([...standardTags, ...knownIniKeys, ...albumArtCreditKeys, ...gameTags, ignoredIssuesTag])
 
 /**
  * The charting recommendations about song.ini: how it's written (its layout, its tags' order, blank and quoted values,

@@ -116,14 +116,16 @@ export function findIniData(files: readonly SongFile[]): {
 	return { iniFile: ini, iniData: ini === null ? null : fileBytes(ini), isSongIni: ini?.fileName.toLowerCase() === 'song.ini', folderIssues }
 }
 
-/** The keys YARG reads as `credit_album_art_designed_by`, which scan-chart reads too: the last line of the three counts. */
-const albumArtCreditKeys = ['credit_album_art_designed_by', 'credit_album_art_by', 'credit_album_cover'] as const
+/**
+ * `credit_album_art_designed_by` and the two other names YARG reads it under, which scan-chart reads too: the last
+ * line of the three counts. The other names are kept in `unknownIniValues`, so the 8.x writer writes them as written.
+ */
+export const albumArtCreditKeys = ['credit_album_art_designed_by', 'credit_album_art_by', 'credit_album_cover'] as const
 
-/** All keys that extractSongMetadata reads (primary + legacy aliases). */
+/** All keys that extractSongMetadata reads (primary + legacy aliases), but the other names of `credit_album_art_designed_by`. */
 export const knownIniKeys = new Set([
 	...Object.keys(defaultMetadata),
 	...olderTags.values(),
-	...albumArtCreditKeys,
 ])
 
 /**

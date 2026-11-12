@@ -1,4 +1,6 @@
+import { removeStyleTags } from '../shared/text'
 import { defaultMetadata, type PreviewTimes } from './metadata'
+import { albumArtCreditKeys } from './scan-ini'
 
 /**
  * Metadata input shape accepted by `writeIniFile`. Matches the shape
@@ -26,23 +28,30 @@ export type IniMetadata = Partial<typeof defaultMetadata> & {
  *     `preview` as `<start> <end>`.
  *   - `extraIniFields` are appended after the known fields, in insertion
  *     order.
+ *   - `credit_album_art_designed_by`, when `extraIniFields` holds one of its
+ *     other names, which read over it there: left out when they already read
+ *     as its value, and otherwise written after them.
  */
 export function writeIniFile(metadata: IniMetadata): string {
 	const lines: string[] = ['[song]']
+
+	const extras = Object.entries(metadata.extraIniFields ?? {})
+	// The value the other names of credit_album_art_designed_by read as, written after the known fields.
+	const creditAlias = extras.filter(([key, value]) => (albumArtCreditKeys as readonly string[]).includes(key) && value !== '').slice(-1)[0]?.[1]
+	const credit = metadata.credit_album_art_designed_by
+	const creditAfterExtras = creditAlias !== undefined && credit !== undefined && credit !== '' && credit !== creditAlias && credit !== removeStyleTags(creditAlias)
 
 	const keys = Object.keys(defaultMetadata) as (keyof typeof defaultMetadata)[]
 	for (const key of keys) {
 		const value = metadata[key]
 		if (value === undefined || value === null) continue
 		if (value === defaultMetadata[key]) continue
+		if (key === 'credit_album_art_designed_by' && creditAlias !== undefined) continue
 		lines.push(`${key} = ${formatIniValue(value)}`)
 	}
 
-	if (metadata.extraIniFields) {
-		for (const [key, value] of Object.entries(metadata.extraIniFields)) {
-			lines.push(`${key} = ${value}`)
-		}
-	}
+	for (const [key, value] of extras) lines.push(`${key} = ${value}`)
+	if (creditAfterExtras) lines.push(`credit_album_art_designed_by = ${credit}`)
 
 	return lines.join('\r\n') + '\r\n'
 }

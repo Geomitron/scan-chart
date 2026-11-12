@@ -308,7 +308,7 @@ describe('scanIni: the other names of credit_album_art_designed_by', () => {
 		expect(read(['credit_album_cover = C', 'credit_album_art_by =']).metadata!.credit_album_art_designed_by).toBe('C')
 	})
 
-	it('knows both names, so it doesn\'t keep them as unknown values', () => {
-		expect(read(['credit_album_art_by = A', 'credit_album_cover = C']).unknownIniValues).toEqual({})
+	it('keeps both names among the values it doesn\'t read into another field, so the 8.x writer writes them as written', () => {
+		expect(read(['credit_album_art_by = A', 'credit_album_cover = C']).unknownIniValues).toEqual({ credit_album_art_by: 'A', credit_album_cover: 'C' })
 	})
 })
