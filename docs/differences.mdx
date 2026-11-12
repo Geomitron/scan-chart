@@ -60,7 +60,7 @@ So many of the differences are of three kinds:
 - **Running status kept across meta and SysEx events is valid,** since every reader keeps it. GuitarGame_ChartFormats calls it a fault.
 - **The header's track count must match the tracks,** and a scanner reads every track anyway. GuitarGame_ChartFormats calls the count metadata only.
 - **A Phase Shift SysEx event counts only at exactly 8 bytes:** see [The Phase Shift SysEx event](/mid/modifiers#the-phase-shift-sysex-event).
-- **A tap covers its end tick,** as GuitarGame_ChartFormats says. YARG doesn't tap a note there, so an exporter keeps notes off that tick: see [Taps](/mid/modifiers#taps).
+- **A tap doesn't cover the note on its end tick,** like every other modifier, though GuitarGame_ChartFormats says it does: see [Which notes a modifier covers](/mid/modifiers#which-notes-a-modifier-covers).
 - **`T1 GEMS` and `PART DRUM` are deprecated,** and the `BEAT` track is ignored.
 
 ## Drums

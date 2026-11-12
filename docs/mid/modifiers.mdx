@@ -32,7 +32,7 @@ Drums tracks have modifiers of their own. See [Drums](/mid/drums#modifiers).
 
 A modifier covers the notes of its difficulty, or of every difficulty, that start at or after its start and before its end. Only where a note starts counts, not its sustain.
 
-- A note on the modifier's end tick isn't covered, except by a tap. See [Taps](#taps).
+- A note on the modifier's end tick isn't covered.
 - At one tick, a modifier and its notes may come in any order.
 - **Required:** at least one note under each modifier.
 - A modifier written as a note pairs as [Note pairing](/mid/note-pairing) says.
@@ -67,10 +67,7 @@ A tap makes every note it covers a tap, which the player can play without strumm
 
 **Recommended:** tap SysEx events for each difficulty, which can differ between difficulties. scan-chart's export writes this form.
 
-- **Required:** a note is tapped or forced, not both.
-- Unlike other modifiers, a tap covers the notes on its end tick too.
-
-**Edge case: a note on a tap's end tick.** YARG taps it under tap SysEx events, but not under note 104. **Recommended:** end a tap after its last tapped note, and before the next note.
+**Required:** a note is tapped or forced, not both.
 
 ## Open notes
 
