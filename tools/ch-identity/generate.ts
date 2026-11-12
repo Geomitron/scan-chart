@@ -251,22 +251,24 @@ interface LegacyRefusal {
 
 type AcceptedSongBundle = Extract<SongBundleIdentityOutcome, { kind: 'accepted' }>
 
+/** A song's identities in both profiles, with the historical duration the legacy SongHash reads. */
+interface SongIdentities {
+	readonly historicalDuration: HistoricalDuration | LegacyRefusal
+	readonly bundle: {
+		readonly frozenLegacy6142: { readonly tracks: AcceptedSongBundle['frozenLegacy6142']['tracks']; readonly song: FrozenLegacySongBundleIdentity | LegacyRefusal }
+		readonly canonical20260801: AcceptedSongBundle['canonical20260801']
+	}
+}
+
 /**
- * A song's identities in both profiles, with the historical duration the legacy SongHash reads. Clone Hero 1.1 refuses
- * some charts the canonical profile reads, such as a `.chart` without a resolution. HashScanTool then compares the
+ * A song's identities. Clone Hero 1.1 refuses some charts the canonical profile reads, such as a `.chart` without a resolution. HashScanTool then compares the
  * canonical hashes alone, so the identities keep them, and the legacy side is unavailable.
  */
 function identifySong(
 	loaded: { readonly iniBytes: Uint8Array | null; readonly fileNames: readonly string[] },
 	chart: ParsedChart,
 	legacyMetadata: SongHashMetadata,
-): {
-	historicalDuration: HistoricalDuration | LegacyRefusal
-	bundle: {
-		readonly frozenLegacy6142: { readonly tracks: AcceptedSongBundle['frozenLegacy6142']['tracks']; readonly song: FrozenLegacySongBundleIdentity | LegacyRefusal }
-		readonly canonical20260801: AcceptedSongBundle['canonical20260801']
-	}
-} {
+): SongIdentities {
 	const source = { format: chart.format, bytes: chart.chartBytes }
 	const legacyModifiers = frozenLegacy6142.readModifiers(loaded.iniBytes)
 	let legacyChart: ReturnType<typeof parseChartFileFrozenLegacyIdentity>

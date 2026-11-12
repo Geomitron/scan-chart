@@ -1,7 +1,7 @@
 import { parseMidi, writeMidi } from '@geomitron/midi-file'
 import { describe, expect, it } from 'vitest'
 
-import { calculateCompetitiveHashes } from 'src/competitive'
+import { calculateCompetitiveHashes, frozenLegacy6142 } from 'src/competitive'
 import { ConversionError, convertChart } from 'src/convert-chart'
 import { resolveChart } from 'src/gameplay-chart'
 import { songContext } from 'src/song-context'
@@ -107,6 +107,13 @@ describe('convertChart', () => {
 		}
 		const withoutMixes = chartSong(drums.filter(line => !line.includes('mix')))
 		expect(trackHashes(song)).toEqual(trackHashes(withoutMixes))
+		const legacyTrackHashes = (song: SongDocument) => {
+			const parsed = frozenLegacy6142.parseSource({ source: { format: 'chart', bytes: fileBytes(documentFiles(song)[0]) }, modifiers: frozenLegacy6142.readModifiers(null) })
+			if (parsed.kind === 'rejected') return null
+			return (['expert', 'hard'] as const).map(difficulty => frozenLegacy6142.calculateTrackIdentity({ chart: parsed.chart, instrument: 'drums', difficulty }).trackHash.value)
+		}
+		expect(legacyTrackHashes(song)).toHaveLength(2)
+		expect(legacyTrackHashes(song)).toEqual(legacyTrackHashes(withoutMixes))
 		expect(resolveChart(song).tracks.map(track => track.noteGroups)).toEqual(resolveChart(withoutMixes).tracks.map(track => track.noteGroups))
 
 		// The other difficulty's flip would flip Hard in the drums track, so it's left out.

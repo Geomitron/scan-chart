@@ -2,7 +2,7 @@ import { MidiData, MidiEvent, MidiSetTempoEvent, MidiTextEvent, MidiTimeSignatur
 
 import { difficulties, Difficulty, getInstrumentType, Instrument, InstrumentType, instrumentTypes } from '../types'
 import { discoFlipDifficultyMap } from './chart-file-parser'
-import { MidiTrackChunk, midiTokensToMidiData, MidiTokens, midiTrackEvents, midiTrackIndex, readMidiTokens } from './midi-tokens'
+import { midiTokensToMidiData, MidiTokens, midiTrackEvents, midiTrackIndex, readMidiTokens } from './midi-tokens'
 import { DrumMixEvent, EventType, eventTypes, RawChartData, VocalTrackData } from './raw-types'
 import { IniChartModifiers } from './types'
 import { parseRules, ParseRules } from './parse-rules'
@@ -896,9 +896,7 @@ const drumNoteEventTypes: EventType[] = [
 ]
 
 /** The note number of each drum modifier: a tom marker or a flam. */
-const drumModifierNotes = new Map<EventType, number>([
-	[eventTypes.forceFlam, 109], [eventTypes.yellowTomMarker, 110], [eventTypes.blueTomMarker, 111], [eventTypes.greenTomMarker, 112],
-])
+const drumModifierNotes = new Map<EventType, number>([109, 110, 111, 112].map(noteNumber => [getInstrumentEventType(noteNumber)!, noteNumber]))
 
 /**
  * The drum modifiers of `types`, paired, that cover no drum note on any difficulty, in start order. A modifier covers the
@@ -947,7 +945,8 @@ export function midiDrumModifiersWithoutNotes(tokens: MidiTokens): { instrument:
 		if (seen.has(instrument)) continue
 		seen.add(instrument)
 		if (getInstrumentType(instrument) !== instrumentTypes.drums) continue
-		const scanned = classifyMidiInstrumentTrack(midiTrackIndex(tokens, chunkIndex), midiTrackEvents(tokens.chunks[chunkIndex] as MidiTrackChunk))
+		const chunk = tokens.chunks[chunkIndex]
+		const scanned = chunk.kind === 'track' ? classifyMidiInstrumentTrack(midiTrackIndex(tokens, chunkIndex), midiTrackEvents(chunk)) : null
 		if (scanned === null) continue
 		const modifiers = uncoveredDrumModifiers(scanned.scan.eventEnds, [...drumModifierNotes.keys()])
 			.map(({ start }) => ({ noteNumber: drumModifierNotes.get(start.type)!, tick: start.tick }))
