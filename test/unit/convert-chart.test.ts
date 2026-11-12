@@ -7,6 +7,7 @@ import { resolveChart } from 'src/gameplay-chart'
 import { songContext } from 'src/song-context'
 import { documentFiles, parseSongFiles, SongDocument } from 'src/song-document'
 import { fileBytes } from 'src/song-files'
+import { saveSong } from 'src/song-save'
 import { chartSpellingIssues } from 'src/spelling-issues'
 
 import { midiFile, midiNote, midiText, trackTexts } from './helpers/midi-files'
@@ -187,6 +188,19 @@ describe('convertChart', () => {
 		const events = decode(fileBytes(documentFiles(converted)[0])).split('[Events]\r\n{\r\n')[1].split('}')[0]
 		expect(events).toBe('  0 = E "x [coda"\r\n  0 = E "[ coda]"\r\n  0 = E "[foo [section B] bar]"\r\n  0 = E "crowd_clap"\r\n  0 = E "[[coda]"\r\n')
 		expect(resolveChart(converted).sections).toEqual([])
+	})
+
+	it('reads the later of two .mid sections at one tick, as .chart does, and keeps both when saved unedited', () => {
+		const midi = midiFile([
+			{ name: 'EVENTS', events: [midiText(0, '[section Intro]'), midiText(480, '[section Verse]'), midiText(480, '[prc_chorus]'), midiText(960, '[section Outro]')] },
+			{ name: 'PART GUITAR', events: midiNote(0, 96) },
+		])
+		const song = parseSongFiles([{ fileName: 'notes.mid', data: midi }])
+		expect(resolveChart(song).sections.map(section => [section.tick, section.name])).toEqual([[0, 'Intro'], [480, 'chorus'], [960, 'Outro']])
+		expect(fileBytes(saveSong(song, song).files[0])).toEqual(midi)
+		const { song: converted } = convertChart(song, 'chart')
+		const events = decode(fileBytes(documentFiles(converted)[0])).split('[Events]\r\n{\r\n')[1].split('}')[0]
+		expect(events).toBe('  0 = E "section Intro"\r\n  480 = E "section chorus"\r\n  960 = E "section Outro"\r\n')
 	})
 
 	it('writes [Events] text into EVENTS so it holds no event it didn\'t', () => {

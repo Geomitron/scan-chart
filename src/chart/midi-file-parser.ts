@@ -1361,6 +1361,7 @@ function scanEventsTrack(tracks: MidiSourceTrack[]): EventsScanResult {
 	const eventsTrack = tracks.find(t => t.trackName === 'EVENTS')
 	if (!eventsTrack) return result
 
+	const sectionIndexes = new Map<number, number>()
 	for (const event of eventsTrack.trackEvents) {
 		if (!isTextLikeEvent(event)) {
 			// Structural events (trackName / endOfTrack) are re-emitted by
@@ -1391,7 +1392,10 @@ function scanEventsTrack(tracks: MidiSourceTrack[]): EventsScanResult {
 			if (songEvent === null) result.unrecognizedTextEvents.push({ tick, text })
 			else result.unrecognizedMidiEvents.push(event)
 		} else if (songEvent?.type === 'section') {
-			result.sections.push({ tick, name: songEvent.name })
+			// A tick holds one section, so a later one replaces it, as the `.chart` reader and Clone Hero read them.
+			const index = sectionIndexes.get(tick)
+			if (index === undefined) sectionIndexes.set(tick, result.sections.push({ tick, name: songEvent.name }) - 1)
+			else result.sections[index] = { tick, name: songEvent.name }
 		} else if (songEvent?.type === 'end') {
 			result.endEvents.push({ tick })
 		} else if (songEvent?.type === 'coda') {
