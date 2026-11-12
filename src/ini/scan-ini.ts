@@ -35,7 +35,11 @@ const isBooleanKey = (key: keyof Metadata): key is MetaBooleanKey => typeof defa
 const isIntegerKey = (key: keyof Metadata): key is MetaIntegerKey => typeof defaultMetadata[key] === 'number' || key === 'vocal_scroll_speed'
 const integerProperties = (Object.keys(defaultMetadata) as (keyof Metadata)[]).filter(isIntegerKey)
 const requiredProperties: MetaStringKey[] = ['name', 'artist', 'album', 'genre', 'year', 'charter']
-/** Integer keys that change how notes parse, which read -1 as -1 rather than as not set: see `getChartModifierInteger`. */
+/**
+ * Integer keys that change how notes parse. `getChartModifierInteger` reads -1 in them as -1, not as not set, as Clone
+ * Hero does. After the `hopo_frequency` clamp and the `multiplier_note` check, -1 differs from its key's default only
+ * in `chord_snap_threshold`.
+ */
 const chartModifierIntegers = ['hopo_frequency', 'multiplier_note', 'sustain_cutoff_threshold', 'chord_snap_threshold'] as const
 
 export function scanIni(files: readonly SongFile[], options: { readonly removeStyleTags?: boolean } = {}): ScanIniResult {
