@@ -119,7 +119,7 @@ export interface VocalNote {
 	msLength: number
 	/** The MIDI note number for the vocal pitch of this note. */
 	pitch: number
-	/** Whether this note is a sung pitch note (MIDI 36-84) or vocals percussion cue (MIDI 96/97). */
+	/** Whether this note is a sung pitch note (MIDI 36-84) or vocals percussion cue (MIDI 96). */
 	type: 'pitched' | 'percussion'
 	/**
 	 * Set when the note slides from the note before it: its lyric, or the last lyric since that note, ends in `+`. A `+`
