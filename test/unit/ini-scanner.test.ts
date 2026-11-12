@@ -223,3 +223,41 @@ describe('scanIni: the keys only YARG reads', () => {
 		])
 	})
 })
+
+describe('scanIni: a delay with a decimal point', () => {
+	const scan = (value: string) => scanIni(buildIni(['[Song]', `delay = ${value}`]))
+	const invalid = (value: string) => `The "delay" value in "song.ini" is "${value}", which is not an integer.`
+
+	it.each([
+		['0.251', 251],
+		['1.001', 1001],
+		['-0.85', -850],
+		['.87', 870],
+		['1.5', 1500],
+		['1.', 1000],
+		['+0.1', 100],
+		['0.0004', 0],
+		['-0.0009', 0],
+		['1.5e3', 1500000],
+		['15.0E-1', 1500],
+		['2147483.647', 2147483647],
+		['-2147483.648', -2147483648],
+		['0.1\0', 100],
+	])('reads %j as seconds, truncated to whole milliseconds toward 0, and reports it', (value, ms) => {
+		const { metadata, metadataIssues } = scan(value)
+		expect(metadata!.delay).toBe(ms)
+		expect(metadataIssues.map(issue => issue.description)).toContain(invalid(value))
+	})
+
+	it.each(['1.2.3', '.', '1.5abc', '- 1.5', '1.5e', '2147483.648', '1.0e99'])('reads %j, which isn\'t a number of milliseconds Clone Hero reads, as 0, and reports it', value => {
+		const { metadata, metadataIssues } = scan(value)
+		expect(metadata!.delay).toBe(0)
+		expect(metadataIssues.map(issue => issue.description)).toContain(invalid(value))
+	})
+
+	it('reads only delay as seconds', () => {
+		const { metadata } = scanIni(buildIni(['[Song]', 'delay = 250', 'video_start_time = 1.5']))
+		expect(metadata).toMatchObject({ delay: 250, video_start_time: 2 })
+		expect(scan('250').metadataIssues.map(issue => issue.description)).not.toContain(invalid('250'))
+	})
+})

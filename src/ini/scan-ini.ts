@@ -195,6 +195,10 @@ export function extractSongMetadata(songSection: { readonly [key: string]: strin
 			metadata[integerProperty] = Math.round(value)
 		}
 	}
+	const delay = songSection.delay
+	if (delay !== undefined && isDelayInSeconds('delay', delay)) {
+		metadataIssues.push({ metadataIssue: 'invalidValue', description: `The "delay" value in "song.ini" is "${delay}", which is not an integer.` })
+	}
 	for (const key of chartModifierIntegers) {
 		const read = writtenKey(songSection, key)
 		const value = songSection[read]
@@ -265,8 +269,36 @@ function getIniString(songSection: { readonly [key: string]: string }, key: Meta
  * integer, or the default value when it's blank, -1, not a number, or not there: `null` for `vocal_scroll_speed`.
  */
 function getIniInteger<K extends MetaIntegerKey>(songSection: { readonly [key: string]: string }, key: K): Metadata[K] {
-	const value = parseFloat(writtenValue(songSection, key) ?? '')
+	const written = writtenValue(songSection, key) ?? ''
+	if (isDelayInSeconds(key, written)) return (parseSecondsAsMs(written) ?? defaultMetadata.delay) as Metadata[K]
+	const value = parseFloat(written)
 	return !isNaN(value) && value !== -1 ? value as Metadata[K] : defaultMetadata[key]
+}
+
+/** Whether `value` is a `delay` that Clone Hero reads as seconds (StrikeCore `IniFile.GetTimeMs`): one containing ".". */
+function isDelayInSeconds(key: string, value: string): boolean {
+	return key === 'delay' && value.includes('.')
+}
+
+/**
+ * Parses `value` as .NET's `float.TryParse` with `NumberStyles.Float` and the invariant culture accepts it (optional
+ * ASCII whitespace, an optional sign, digits with a decimal point, an optional exponent, optional whitespace, then
+ * optional NUL characters), as seconds, and returns the milliseconds truncated toward 0. It truncates the exact
+ * decimal, so `1.001` is 1001 and `0.251` is 251, where Clone Hero's single precision gives 250.
+ * @returns the milliseconds, or `null` if .NET would not parse it or they're outside the signed 32-bit range.
+ */
+export function parseSecondsAsMs(value: string): number | null {
+	const match = /^[\x09-\x0d ]*([+-]?)(?=\.?[0-9])([0-9]*)(?:\.([0-9]*))?(?:[eE]([+-]?[0-9]+))?[\x09-\x0d ]*\x00*$/.exec(value)
+	if (match === null) return null
+	const [, sign, whole, fraction = '', exponent = '0'] = match
+	const digits = whole + fraction
+	const significant = digits.replace(/^0+/, '')
+	// How many of the significant digits come before the millisecond's decimal point.
+	const msDigits = whole.length + Number(exponent) + 3 - (digits.length - significant.length)
+	if (significant === '' || msDigits <= 0) return 0
+	if (msDigits > 10) return null
+	const ms = Number(significant.slice(0, msDigits).padEnd(msDigits, '0')) * (sign === '-' ? -1 : 1)
+	return ms < -2147483648 || ms > 2147483647 ? null : ms + 0
 }
 
 /**
