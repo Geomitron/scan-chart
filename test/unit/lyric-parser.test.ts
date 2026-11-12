@@ -942,7 +942,7 @@ describe('scanVocalTrack (notes)', () => {
 	})
 
 	it('pairs a note-off with the latest open note of its pitch and channel, as an instrument note pairs', () => {
-		// The Lumineers - Ho Hey's pattern (batch 5 Q10): the note at 480 has no note-off of its own, so it's dropped.
+		// The Lumineers - Ho Hey's pattern: the note at 480 has no note-off of its own, so it's dropped.
 		const events = [
 			{ deltaTime: 480, type: 'noteOn' as const, noteNumber: 60, velocity: 100 },
 			{ deltaTime: 680, type: 'noteOn' as const, noteNumber: 60, velocity: 100 },

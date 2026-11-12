@@ -820,6 +820,11 @@ function phrase(tick: number, length: number, opts: {
 	}
 }
 
+/** The PART VOCALS track of `chart` as written, with each event's tick as its `deltaTime`. */
+function writtenVocalsTrack(chart: ParsedChart): MidiEvent[] {
+	return readMidiFile(writeMidiFile(chart)).tracks.find(track => track.some(event => event.type === 'trackName' && event.text === 'PART VOCALS'))!
+}
+
 const EMPTY_VOCAL_PART = {
 	notePhrases: [],
 	staticLyricPhrases: [],
@@ -1009,7 +1014,7 @@ describe('writeMidiFile round-trip: vocal tracks', () => {
 		const lyrics = (chart: ParsedChart) => chart.vocalTracks.parts.vocals.notePhrases.flatMap(p => p.lyrics.map(l => [l.tick, l.text]))
 		const parsed = parseChartAndIni([{ fileName: 'notes.mid', data: source }]).parsedChart!
 		expect(lyrics(parsed)).toEqual([[0, 'Hel-'], [240, 'lo'], [480, 'yeah']])
-		const written = readMidiFile(writeMidiFile(parsed)).tracks.find(track => track.some(event => event.type === 'trackName' && event.text === 'PART VOCALS'))!
+		const written = writtenVocalsTrack(parsed)
 		expect(written.flatMap(event => event.type === 'lyrics' ? [[event.deltaTime, event.text]] : [])).toEqual([[0, 'Hel-'], [240, 'lo'], [480, 'yeah']])
 		expect(written.some(event => event.type === 'instrumentName' || event.type === 'unknownMeta')).toBe(false)
 	})
@@ -1042,7 +1047,7 @@ describe('writeMidiFile round-trip: vocal tracks', () => {
 		expect(noteEvents(vocals.unrecognizedMidiEvents!)).toEqual(unread)
 
 		expect(roundTrip(parsed).vocalTracks).toEqual(parsed.vocalTracks)
-		const written = readMidiFile(writeMidiFile(parsed)).tracks.find(track => track.some(event => event.type === 'trackName' && event.text === 'PART VOCALS'))!
+		const written = writtenVocalsTrack(parsed)
 		expect(noteEvents(written).filter(([, , noteNumber]) => noteNumber !== 62 && noteNumber !== 105)).toEqual(unread)
 	})
 
@@ -1072,7 +1077,7 @@ describe('writeMidiFile round-trip: vocal tracks', () => {
 		const textEvents = (chart: ParsedChart) => chart.vocalTracks.parts.vocals.textEvents.map(event => [event.tick, event.text])
 		const parsed = parseChartAndIni([{ fileName: 'notes.mid', data: source }]).parsedChart!
 		expect(textEvents(parsed)).toEqual([[240, '[range_shift]'], [480, '[range_shift 2.5]']])
-		const written = readMidiFile(writeMidiFile(parsed)).tracks.find(track => track.some(event => event.type === 'trackName' && event.text === 'PART VOCALS'))!
+		const written = writtenVocalsTrack(parsed)
 		expect(written.flatMap(event => event.type === 'text' ? [[event.deltaTime, event.text]] : [])).toEqual([[240, '[range_shift]'], [480, '[range_shift 2.5]']])
 	})
 
