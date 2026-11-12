@@ -108,7 +108,8 @@ export const chartIssueMessages: { readonly [issue in ChartIssueType]: string } 
 	emptyTrack: "This track has no notes, so games don't list it.",
 	greenDrumPair: 'This pro drums chart has a 5-lane green note on the tick of a green note, which makes the chart invalid. Move one of them, or turn the 5-lane green into a blue tom.',
 	misplacedLyricSymbol: 'This lyric has a "-" or "+" that isn\'t at its end. Clone Hero joins the next syllable to a lyric with a "-" anywhere in it, '
-		+ 'and a lyric that starts with "+" to the one before it, and YARG doesn\'t. For a hyphen shown inside a lyric, write "=".',
+		+ 'and a lyric that starts with "+" to the one before it, and YARG doesn\'t. To join the next syllable, put the "-" at the very end, '
+		+ 'after a closing tag such as "</i>". For a hyphen shown inside a lyric, write "=".',
 }
 
 /** The statistics of a chart parsed with `settings` from a file of `format`. */
