@@ -230,11 +230,21 @@ function buildSemantics(
 	rangeShifts: readonly SourceRangeShiftMarker[],
 ): CanonicalTrackSemantics {
 	const notes = track.noteEventGroups.flat()
-	const containsNote = (range: { tick: number; length: number }, inclusiveEnd: boolean) => notes.some(note =>
-		note.tick >= range.tick && (inclusiveEnd
-			? note.tick <= range.tick + range.length
-			: note.tick < range.tick + (range.length || 1)),
-	)
+	// A parse's notes are in tick order, so the first note at or after a phrase's start, found by a binary search, tells
+	// whether the phrase holds one. Notes out of order are scanned.
+	const ordered = notes.every((note, index) => index === 0 || notes[index - 1].tick <= note.tick)
+	const containsNote = (range: { tick: number; length: number }, inclusiveEnd: boolean) => {
+		const isBeforeEnd = (tick: number) => inclusiveEnd ? tick <= range.tick + range.length : tick < range.tick + (range.length || 1)
+		if (!ordered) return notes.some(note => note.tick >= range.tick && isBeforeEnd(note.tick))
+		let low = 0
+		let high = notes.length
+		while (low < high) {
+			const middle = (low + high) >>> 1
+			if (notes[middle].tick < range.tick) low = middle + 1
+			else high = middle
+		}
+		return low < notes.length && isBeforeEnd(notes[low].tick)
+	}
 	const starPower = track.starPowerSections.filter(range => containsNote(range, false))
 	const solos = track.soloSections.filter(range => containsNote(range, false))
 	const flexLanes = track.flexLanes.filter(range => containsNote(range, true))
