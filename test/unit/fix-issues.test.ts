@@ -644,6 +644,10 @@ describe('issueFixes', () => {
 		},
 		// The header counts the tempo track and PART GUITAR, and not PART BASS.
 		wrongMidiTrackCount: { keeps: withTrackCount(midSongOf([length], [{ name: 'PART BASS', events: midiNote(480, 96, 10) }]), 2) },
+		// PART BASS ends at 600, before its note at 960.
+		eventsAfterEndOfTrack: {
+			changes: midSongOf([length], [{ name: 'PART BASS', events: [...midiNote(480, 96, 10), { tick: 600, event: { type: 'endOfTrack' } as never }, ...midiNote(960, 97, 10)] }]),
+		},
 		nonstandardEnhancedOpens: { keeps: midSongOf([length], [{ name: 'PART BASS', events: [midiText(0, '[enhanced_opens]'), ...midiNote(480, 95, 10)] }]) },
 	}
 	const run = (files: readonly SongFile[], code: IssueCode, changeHashes: boolean) =>

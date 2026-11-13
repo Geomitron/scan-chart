@@ -2,7 +2,7 @@ import { spliceChartText } from './chart/chart-edit'
 import { chartSectionLines, chartSectionTrack } from './chart/chart-file-parser'
 import { chartSectionMisspelledMixes, midiTrackMisspelledMixes } from './chart/disco-flip'
 import { editMidiTrack, midiTextEvent, type MidiTrackEdit } from './chart/midi-edit'
-import { midiEnhancedOpensInOtherCase, midiTrackCounts } from './chart/midi-file-parser'
+import { midiEnhancedOpensInOtherCase, midiEventsAfterEnd, midiTrackCounts } from './chart/midi-file-parser'
 import { type MidiTokens, readMidiTokens } from './chart/midi-tokens'
 import type { FixOptions } from './fix-issues'
 import { chooseEdits, FixRecord, hashChanges, hashNames, issueFixTable } from './issue-fixes'
@@ -24,7 +24,7 @@ interface FormFix {
 }
 
 /** The codes `fixReadingForms` fixes. */
-const formCodes: readonly IssueCode[] = ['nonstandardMixEvent', 'nonstandardEnhancedOpens', 'wrongMidiTrackCount']
+const formCodes: readonly IssueCode[] = ['nonstandardMixEvent', 'nonstandardEnhancedOpens', 'wrongMidiTrackCount', 'eventsAfterEndOfTrack']
 
 /**
  * Rewrites the forms of the chart file the issues report in their standard forms, each by its own edit so that each
@@ -63,6 +63,20 @@ export function fixReadingForms(song: SongDocument, issues: readonly Issue[], op
 				code: 'wrongMidiTrackCount',
 				description: `Rewrote the header's track count from ${counted.toLocaleString('en-US')} to ${tracks.toLocaleString('en-US')}.`,
 				edit: { kind: 'midiFile', apply: current => withTrackCount(current, midiTrackCounts(current).tracks) },
+			})
+		}
+		for (const track of codes.has('eventsAfterEndOfTrack') ? midiEventsAfterEnd(tokens) : []) {
+			const original = tokens.chunks[track.chunkIndex]
+			const endTick = original.kind === 'track' ? original.events[track.end].tick : 0
+			fixes.push({
+				code: 'eventsAfterEndOfTrack',
+				description: `Moved the end of track of "${track.name}" from tick ${endTick} to tick ${Math.max(endTick, track.lastTick)}, after the `
+					+ `${track.after === 1 ? 'event' : `${track.after.toLocaleString('en-US')} events`} that followed it.`,
+				edit: {
+					kind: 'midiTrack',
+					chunkIndex: track.chunkIndex,
+					edits: [{ kind: 'move', event: track.end, tick: Math.max(endTick, track.lastTick) }, ...track.otherEnds.map(event => ({ kind: 'delete' as const, event }))],
+				},
 			})
 		}
 		for (const track of codes.has('nonstandardEnhancedOpens') ? midiEnhancedOpensInOtherCase(tokens) : []) {

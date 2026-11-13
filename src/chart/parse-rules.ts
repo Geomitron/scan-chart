@@ -62,6 +62,8 @@ export interface ParseRules {
 	 * the tracks the header counts, as Clone Hero does; `headerCount` reads only the tracks the header counts.
 	 */
 	readonly midiTrackChunks: 'every' | 'headerCount'
+	/** Whether a `.mid` track's events after its end-of-track event are ignored, as Clone Hero ignores them (C20: R16), or read. */
+	readonly midiEventsAfterEnd: 'ignored' | 'read'
 }
 
 const scanner: ParseRules = Object.freeze({
@@ -77,6 +79,7 @@ const scanner: ParseRules = Object.freeze({
 	mixEvents: 'cloneHero',
 	midiEnhancedOpens: 'anyCase',
 	midiTrackChunks: 'every',
+	midiEventsAfterEnd: 'ignored',
 })
 
 const frozenLegacy6142: ParseRules = Object.freeze({
@@ -92,6 +95,7 @@ const frozenLegacy6142: ParseRules = Object.freeze({
 	mixEvents: 'strict',
 	midiEnhancedOpens: 'capitals',
 	midiTrackChunks: 'headerCount',
+	midiEventsAfterEnd: 'read',
 })
 
 const canonical20260801: ParseRules = Object.freeze({
@@ -107,6 +111,7 @@ const canonical20260801: ParseRules = Object.freeze({
 	mixEvents: 'cloneHero',
 	midiEnhancedOpens: 'anyCase',
 	midiTrackChunks: 'every',
+	midiEventsAfterEnd: 'ignored',
 })
 
 export const parseRules = Object.freeze({ scanner, frozenLegacy6142, canonical20260801 })

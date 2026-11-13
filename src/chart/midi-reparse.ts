@@ -158,7 +158,7 @@ function rescanInstrumentChunks(
 	for (const chunk of changed) {
 		const instrument = instruments.get(chunk)
 		if (instrument === undefined) return null
-		const scanned = classifyMidiInstrumentTrack(midiTrackIndex(tokens, chunk), midiTrackEvents(tokens.chunks[chunk] as MidiTrackChunk), rules)
+		const scanned = classifyMidiInstrumentTrack(midiTrackIndex(tokens, chunk), midiTrackEvents(tokens.chunks[chunk] as MidiTrackChunk, rules.midiEventsAfterEnd), rules)
 		if (scanned?.instrument !== instrument) return null
 		rescanned.set(chunk, scanned)
 	}

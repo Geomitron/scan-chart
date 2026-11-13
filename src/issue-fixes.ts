@@ -67,6 +67,7 @@ export const issueFixTable: { readonly [code in IssueCode]?: IssueFix } = {
 	nonstandardMixEvent: { hashes: 'mayChangeHashes', steps: ['chart'] },
 	nonstandardEnhancedOpens: { hashes: 'keepsHashes', steps: ['chart'] },
 	wrongMidiTrackCount: { hashes: 'keepsHashes', steps: ['chart'] },
+	eventsAfterEndOfTrack: { hashes: 'changesHashes', steps: ['chart'] },
 }
 
 /** For each issue code `fixIssues` fixes, what its fix does to the canonical hashes. Each is proven by hashing. */

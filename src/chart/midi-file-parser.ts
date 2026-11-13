@@ -1,7 +1,7 @@
 import { MidiData, MidiEvent, MidiSetTempoEvent, MidiTextEvent, MidiTimeSignatureEvent } from '@geomitron/midi-file'
 
 import { difficulties, Difficulty, getInstrumentType, Instrument, InstrumentType, instrumentTypes } from '../types'
-import { isReadTrack, midiTokensToMidiData, MidiTokens, midiTrackEvents, midiTrackIndex, type MidiTrackRules, readMidiTokens } from './midi-tokens'
+import { isReadTrack, midiTokensToMidiData, MidiTokens, midiTrackEvents, midiTrackIndex, type MidiTrackRules, readMidiTokens, readTrackTokens } from './midi-tokens'
 import { DrumMixEvent, EventType, eventTypes, RawChartData, VocalTrackData } from './raw-types'
 import { IniChartModifiers } from './types'
 import { readMixEvent } from './mix-event'
@@ -131,6 +131,38 @@ export function midiEnhancedOpensInOtherCase(tokens: MidiTokens): { name: string
 	})
 }
 
+/**
+ * The tracks of a `.mid` file with events after their end of track, which Clone Hero ignores (C20: R16): each with its
+ * name, the index of its first end of track, the other ends' indexes, and the first event after it and how many.
+ */
+export function midiEventsAfterEnd(tokens: MidiTokens): {
+	name: string
+	chunkIndex: number
+	end: number
+	otherEnds: number[]
+	firstAfter: { tick: number }
+	after: number
+	lastTick: number
+}[] {
+	return tokens.chunks.flatMap((chunk, chunkIndex) => {
+		if (chunk.kind !== 'track') return []
+		const end = chunk.events.findIndex(({ event }) => event.type === 'endOfTrack')
+		const after = end === -1 ? [] : chunk.events.slice(end + 1).filter(({ event }) => event.type !== 'endOfTrack')
+		if (after.length === 0) return []
+		const names = chunk.events.slice(0, end).filter(({ tick, event }) => tick === 0 && event.type === 'trackName').map(({ event }) => (event as { text: string }).text)
+		const otherEnds = chunk.events.flatMap(({ event }, index) => index > end && event.type === 'endOfTrack' ? [index] : [])
+		return [{
+			name: names[names.length - 1] ?? '',
+			chunkIndex,
+			end,
+			otherEnds,
+			firstAfter: { tick: after[0].tick },
+			after: after.length,
+			lastTick: Math.max(...after.map(({ tick }) => tick)),
+		}]
+	})
+}
+
 /** The number of tracks a `.mid` file's header counts, and the number of `MTrk` chunks Clone Hero reads as tracks (C20: R15). */
 export function midiTrackCounts(tokens: MidiTokens): { counted: number; tracks: number } {
 	return { counted: tokens.header.header.numTracks, tracks: tokens.chunks.filter(chunk => chunk.kind === 'track').length }
@@ -250,7 +282,7 @@ function checkMidiFileTokens(tokens: MidiTokens, rules: MidiTrackRules): MidiTok
  */
 function hasLongDeltaTime({ data, chunks }: MidiTokens, rules: MidiTrackRules): boolean {
 	return chunks.some(chunk => isReadTrack(chunk, rules)
-		&& chunk.events.some(({ start }) => (data[start] & data[start + 1] & data[start + 2] & data[start + 3] & 0x80) !== 0))
+		&& readTrackTokens(chunk, rules.midiEventsAfterEnd).some(({ start }) => (data[start] & data[start + 1] & data[start + 2] & data[start + 3] & 0x80) !== 0))
 }
 
 /**

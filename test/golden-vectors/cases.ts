@@ -254,6 +254,7 @@ export const sourceCases: readonly AuthoredSourceCase[] = [
 	...mixSpellingCases(),
 	...enhancedOpensCaseCases(),
 	...trackCountCases(),
+	...eventsAfterEndCases(),
 ]
 
 function note(tick: number, noteNumber: number, length: number, velocity = 100): { tick: number; event: MidiEvent }[] {
@@ -686,6 +687,29 @@ function trackCountCases(): AuthoredSourceCase[] {
 			target: { instrument: 'guitar', difficulty: 'expert' } as const,
 		}
 	})
+}
+
+/**
+ * C20 (R16): a track's events after its end of track are ignored, as Clone Hero ignores them: a green at 960, and the
+ * note-off of a red that starts before the end, so the red is left out too.
+ */
+function eventsAfterEndCases(): AuthoredSourceCase[] {
+	const before = [...note(480, 96, 10), ...note(500, 97, 150)]
+	const endOfTrack = { tick: 600, event: { deltaTime: 0, type: 'endOfTrack' } as MidiEvent }
+	return [
+		{
+			id: 'source-midi-events-after-end-of-track',
+			purpose: 'A green at 480, a red from 500 to 650, an end of track at 600, then a green at 960: only the green at 480 is read.',
+			format: 'mid', bytes: midi([midiTrack('PART GUITAR', [...before, endOfTrack, ...note(960, 96, 10)])]),
+			target: { instrument: 'guitar', difficulty: 'expert' },
+		},
+		{
+			id: 'source-midi-green-before-end-of-track',
+			purpose: 'A green at 480 alone, which reads as the case with events after the end of track does.',
+			format: 'mid', bytes: midi([midiTrack('PART GUITAR', note(480, 96, 10))]),
+			target: { instrument: 'guitar', difficulty: 'expert' },
+		},
+	]
 }
 
 /** The `.chart` `TS N ` trailing space, five-lane drums, GHL notes, and MIDI range shifts. */

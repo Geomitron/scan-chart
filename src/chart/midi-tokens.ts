@@ -261,18 +261,19 @@ export function serializeMidiTokens(tokens: MidiTokens): Uint8Array {
 }
 
 /** The parse rules that decide which of a `.mid` file's events are read. */
-export type MidiTrackRules = Pick<ParseRules, 'midiTrackChunks'>
+export type MidiTrackRules = Pick<ParseRules, 'midiTrackChunks' | 'midiEventsAfterEnd'>
 
 /**
  * The file as `parseMidi` returns it, with each event's `deltaTime` replaced by its absolute tick, read with `rules`:
- * the tracks past the header's count are left out unless `midiTrackChunks` is `every`. Skipped chunks are left out. The
- * events are copies, so changing them leaves the tokens unchanged.
+ * the tracks past the header's count are left out unless `midiTrackChunks` is `every`, and each track's events after its
+ * end of track unless `midiEventsAfterEnd` is `read`. Skipped chunks are left out. The events are copies, so changing
+ * them leaves the tokens unchanged.
  */
 export function midiTokensToMidiData(tokens: MidiTokens, rules: MidiTrackRules = parseRules.scanner): MidiData {
 	const tracks: MidiEvent[][] = []
 	for (const chunk of tokens.chunks) {
 		if (isReadTrack(chunk, rules)) {
-			tracks.push(midiTrackEvents(chunk))
+			tracks.push(midiTrackEvents(chunk, rules.midiEventsAfterEnd))
 		}
 	}
 	return { header: { ...tokens.header.header }, tracks }
@@ -283,9 +284,19 @@ export function isReadTrack(chunk: MidiChunk, rules: MidiTrackRules): chunk is M
 	return chunk.kind === 'track' && (rules.midiTrackChunks === 'every' || chunk.pastHeaderCount !== true)
 }
 
-/** One track of `midiTokensToMidiData`: copies of the chunk's events, each `deltaTime` replaced by its tick. */
-export function midiTrackEvents(chunk: MidiTrackChunk): MidiEvent[] {
-	return chunk.events.map(token => eventAtTick(token.event, token.tick))
+/**
+ * One track of `midiTokensToMidiData`: copies of the chunk's events, each `deltaTime` replaced by its tick, up to its
+ * first end of track unless `eventsAfterEnd` is `read`.
+ */
+export function midiTrackEvents(chunk: MidiTrackChunk, eventsAfterEnd: ParseRules['midiEventsAfterEnd'] = parseRules.scanner.midiEventsAfterEnd): MidiEvent[] {
+	return readTrackTokens(chunk, eventsAfterEnd).map(token => eventAtTick(token.event, token.tick))
+}
+
+/** A track chunk's event tokens up to its first end of track, unless `eventsAfterEnd` is `read`, (C20: R16). */
+export function readTrackTokens(chunk: MidiTrackChunk, eventsAfterEnd: ParseRules['midiEventsAfterEnd']): MidiEventToken[] {
+	if (eventsAfterEnd === 'read') return chunk.events
+	const end = chunk.events.findIndex(token => token.event.type === 'endOfTrack')
+	return end === -1 ? chunk.events : chunk.events.slice(0, end + 1)
 }
 
 /** The index among the file's tracks of the track chunk at `chunk`, as `midiTokensToMidiData` numbers the tracks. */

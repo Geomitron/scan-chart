@@ -86,3 +86,32 @@ describe('every MTrk chunk is a track (C20: R15)', () => {
 		expect(instruments(result.data, parsers.legacy)).toEqual(['guitar/expert', 'bass/expert'])
 	})
 })
+
+describe('events after the end of track are ignored (C20: R16)', () => {
+	const endOfTrack = (tick: number): TimedMidiEvent => ({ tick, event: { type: 'endOfTrack' } as TimedMidiEvent['event'] })
+	// The track ends at 600; the green at 960 and the red's note-off at 650 come after it.
+	const data = guitarMidi([...midiNote(480, 96, 10), ...midiNote(500, 97, 150), endOfTrack(600), ...midiNote(960, 96, 10)])
+
+	it('leaves them out in the scanner and canonical profiles, and reads them in the frozen one', () => {
+		for (const parse of [parsers.scanner, parsers.canonical]) expect(expertNotes(data, parse)).toEqual([[480, noteTypes.green]])
+		expect(expertNotes(data, parsers.legacy)).toEqual([[480, noteTypes.green], [500, noteTypes.red], [960, noteTypes.green]])
+	})
+
+	it('reports them as a warning, and fixIssues moves the end of track after them with changeHashes', async () => {
+		expect(issuesOf(data, 'eventsAfterEndOfTrack')).toEqual([{
+			instrument: 'guitar', difficulty: null, severity: 'warning',
+			message: 'The track "PART GUITAR" has 3 events, from tick 650, after its end of track. Clone Hero ignores them, and other programs may read them. '
+				+ 'fixIssues can move the end of track after them.',
+		}])
+		const withheld = await fixed(data, 'eventsAfterEndOfTrack')
+		expect(withheld.report.fixed).toEqual([])
+		expect(withheld.report.skipped).toEqual([{ code: 'eventsAfterEndOfTrack', file: null, reason: 'Its fix changes a canonical hash: fix it with changeHashes.' }])
+		const made = await fixed(data, 'eventsAfterEndOfTrack', true)
+		expect(made.report.fixed).toEqual([{
+			code: 'eventsAfterEndOfTrack', file: 'notes.mid', description: 'Moved the end of track of "PART GUITAR" from tick 600 to tick 970, after the 3 events that followed it.',
+		}])
+		expect(made.report.hashes.map(change => change.key)).toEqual(['canonical:guitar:expert', 'canonical:song'])
+		for (const parse of Object.values(parsers)) expect(expertNotes(made.data, parse)).toEqual([[480, noteTypes.green], [500, noteTypes.red], [960, noteTypes.green]])
+		expect(issuesOf(made.data, 'eventsAfterEndOfTrack')).toEqual([])
+	})
+})
