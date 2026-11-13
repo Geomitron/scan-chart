@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest'
 
 import { analyzeChart } from 'src/analyze-chart'
+import { frozenLegacy6142 } from 'src/chart/identity/public'
 import { parseChartFile, parseChartFileCanonicalIdentity, parseChartFileFrozenLegacyIdentity } from 'src/chart/parse-chart-file'
 import { noteFlags, noteTypes } from 'src/chart/types'
 import { fixIssues } from 'src/fix-issues'
 import { resolveChart } from 'src/gameplay-chart'
 import type { IssueCode } from 'src/issues'
+import { defaultMetadata } from 'src/ini/metadata'
 import { parseSong, parseSongFiles } from 'src/song-document'
 
 import { midiFile, midiNote, midiText, type TimedMidiEvent } from './helpers/midi-files'
@@ -18,6 +20,16 @@ const expertNotes = (data: Uint8Array, parse: Parse) => parse(data, 'mid').track
 	.find(track => track.instrument === 'guitar' && track.difficulty === 'expert')?.noteEventGroups.flatMap(group => group.map(note => [note.tick, note.type])) ?? []
 const issuesOf = (data: Uint8Array, code: IssueCode) => analyzeChart(resolveChart(parseSongFiles([{ fileName: 'notes.mid', data }]))).issues
 	.filter(issue => issue.code === code).map(({ instrument, difficulty, severity, message }) => ({ instrument, difficulty, severity, message }))
+/**
+ * The frozen legacy TrackHash of each track, keyed `instrument/difficulty`. fixIssues marks a fix by the canonical
+ * hashes only (`songHashes`): the scan reports no legacy hash, and saving doesn't keep them.
+ */
+const legacyHashes = (data: Uint8Array) => {
+	const parsed = frozenLegacy6142.parseSource({ source: { format: 'mid', bytes: data }, modifiers: defaultMetadata })
+	if (parsed.kind !== 'accepted') throw new Error('Expected the frozen profile to accept the file')
+	return Object.fromEntries(parsers.legacy(data, 'mid').trackData.map(({ instrument, difficulty }) =>
+		[`${instrument}/${difficulty}`, frozenLegacy6142.calculateTrackIdentity({ chart: parsed.chart, instrument, difficulty }).trackHash.value]))
+}
 const fixed = async (data: Uint8Array, code: IssueCode, changeHashes = false) => {
 	const { song, report } = await fixIssues(await parseSong([{ fileName: 'notes.mid', data }]), { codes: [code], changeHashes })
 	return { report, data: song.chart!.format === 'mid' ? song.chart!.bytes : new Uint8Array() }
@@ -48,6 +60,8 @@ describe('ENHANCED_OPENS in any letter case (C20: R13)', () => {
 		}])
 		expect(result.report.hashes).toEqual([])
 		expect(expertNotes(result.data, parsers.legacy)).toEqual([[480, noteTypes.open], [960, noteTypes.green]])
+		// The frozen profile reads it only in capitals, so the fix changes its TrackHash.
+		expect(legacyHashes(result.data)['guitar/expert']).not.toBe(legacyHashes(data)['guitar/expert'])
 	})
 })
 
@@ -84,6 +98,9 @@ describe('every MTrk chunk is a track (C20: R15)', () => {
 		expect(result.report.hashes).toEqual([])
 		expect(result.data).toEqual(withCount(data, 3))
 		expect(instruments(result.data, parsers.legacy)).toEqual(['guitar/expert', 'bass/expert'])
+		// The frozen profile reads only the counted tracks, so the fix gives it a bass track and keeps its guitar.
+		expect(Object.keys(legacyHashes(data))).toEqual(['guitar/expert'])
+		expect(legacyHashes(result.data)['guitar/expert']).toBe(legacyHashes(data)['guitar/expert'])
 	})
 })
 
@@ -167,6 +184,8 @@ describe('events after the end of track are ignored (C20: R16)', () => {
 		expect(made.report.hashes.map(change => change.key)).toEqual(['canonical:guitar:expert', 'canonical:song'])
 		for (const parse of Object.values(parsers)) expect(expertNotes(made.data, parse)).toEqual([[480, noteTypes.green], [500, noteTypes.red], [960, noteTypes.green]])
 		expect(issuesOf(made.data, 'eventsAfterEndOfTrack')).toEqual([])
+		// The frozen profile read the events after the end already, so its TrackHash is kept.
+		expect(legacyHashes(made.data)).toEqual(legacyHashes(data))
 	})
 })
 
@@ -205,6 +224,8 @@ describe('a Phase Shift SysEx event is read only at exactly 8 bytes (C20: R12)',
 		expect(made.report.hashes.map(change => change.key)).toEqual(['canonical:guitar:expert', 'canonical:song'])
 		for (const parse of Object.values(parsers)) expect(tapTicks(made.data, parse)).toEqual([0, 100, 200])
 		expect(made.data).toEqual(taps([1, 0xf7], [0, 0xf7]))
+		// The frozen profile read the 7- and 9-byte events already, so its TrackHash is kept.
+		expect(legacyHashes(made.data)).toEqual(legacyHashes(data))
 	})
 })
 

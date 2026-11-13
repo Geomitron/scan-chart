@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest'
 
 import { analyzeChart } from 'src/analyze-chart'
+import { frozenLegacy6142 } from 'src/chart/identity/public'
 import { readMixEvent } from 'src/chart/mix-event'
 import { parseChartFile, parseChartFileCanonicalIdentity, parseChartFileFrozenLegacyIdentity } from 'src/chart/parse-chart-file'
 import { fixIssues } from 'src/fix-issues'
 import { resolveChart } from 'src/gameplay-chart'
+import { defaultMetadata } from 'src/ini/metadata'
 import { parseSong, parseSongFiles } from 'src/song-document'
 
 import { chartFile } from './helpers/chart-files'
@@ -77,7 +79,16 @@ describe('mix events spelled another way (C20: R2, R10)', () => {
 		const chart = await parseSong([{ fileName: 'notes.chart', data: drumsChart('0 = E mix 3 drumsxd') }])
 		const fixedChart = await fixIssues(chart, { codes: ['nonstandardMixEvent'] })
 		expect(fixedChart.report.fixed).toEqual([{ code: 'nonstandardMixEvent', file: 'notes.chart', description: 'Rewrote the mix event "mix 3 drumsxd" at tick 0 in [ExpertDrums] as "mix 3 drums0d".' }])
-		expect(new TextDecoder().decode(fixedChart.song.chart!.format === 'chart' ? fixedChart.song.chart!.tokens.bytes : undefined)).toContain('  0 = E mix 3 drums0d\r\n')
+		const fixedBytes = fixedChart.song.chart!.format === 'chart' ? fixedChart.song.chart!.tokens.bytes : new Uint8Array()
+		expect(new TextDecoder().decode(fixedBytes)).toContain('  0 = E mix 3 drums0d\r\n')
+		// The canonical hashes are kept, and the frozen profile, which reads only the standard spelling, now reads the flip.
+		expect(fixedChart.report.hashes).toEqual([])
+		const legacyHash = (bytes: Uint8Array) => {
+			const parsed = frozenLegacy6142.parseSource({ source: { format: 'chart', bytes }, modifiers: defaultMetadata })
+			if (parsed.kind !== 'accepted') throw new Error('Expected the frozen profile to accept the file')
+			return frozenLegacy6142.calculateTrackIdentity({ chart: parsed.chart, instrument: 'drums', difficulty: 'expert' }).trackHash.value
+		}
+		expect(legacyHash(fixedBytes)).not.toBe(legacyHash(drumsChart('0 = E mix 3 drumsxd')))
 
 		// Clone Hero ignores this one, so its fix changes the canonical hashes, and is made only with changeHashes.
 		const mid = await parseSong([{ fileName: 'notes.mid', data: drumsMidi(' [mix 3 drums0d]') }])
