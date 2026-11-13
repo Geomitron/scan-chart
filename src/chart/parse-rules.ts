@@ -64,6 +64,11 @@ export interface ParseRules {
 	readonly midiTrackChunks: 'every' | 'headerCount'
 	/** Whether a `.mid` track's events after its end-of-track event are ignored, as Clone Hero ignores them (C20: R16), or read. */
 	readonly midiEventsAfterEnd: 'ignored' | 'read'
+	/**
+	 * Which SysEx events are Phase Shift events (C20: R12): `exactly8Bytes`, `50 53 00 00 <difficulty> <type> <value> F7`
+	 * as Clone Hero reads them, or `7BytesOrMore`, any event that starts with `50 53 00 00` and has a value byte.
+	 */
+	readonly phaseShiftSysEx: 'exactly8Bytes' | '7BytesOrMore'
 }
 
 const scanner: ParseRules = Object.freeze({
@@ -80,6 +85,7 @@ const scanner: ParseRules = Object.freeze({
 	midiEnhancedOpens: 'anyCase',
 	midiTrackChunks: 'every',
 	midiEventsAfterEnd: 'ignored',
+	phaseShiftSysEx: 'exactly8Bytes',
 })
 
 const frozenLegacy6142: ParseRules = Object.freeze({
@@ -96,6 +102,7 @@ const frozenLegacy6142: ParseRules = Object.freeze({
 	midiEnhancedOpens: 'capitals',
 	midiTrackChunks: 'headerCount',
 	midiEventsAfterEnd: 'read',
+	phaseShiftSysEx: '7BytesOrMore',
 })
 
 const canonical20260801: ParseRules = Object.freeze({
@@ -112,6 +119,7 @@ const canonical20260801: ParseRules = Object.freeze({
 	midiEnhancedOpens: 'anyCase',
 	midiTrackChunks: 'every',
 	midiEventsAfterEnd: 'ignored',
+	phaseShiftSysEx: 'exactly8Bytes',
 })
 
 export const parseRules = Object.freeze({ scanner, frozenLegacy6142, canonical20260801 })

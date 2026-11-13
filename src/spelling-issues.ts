@@ -11,7 +11,7 @@ import {
 import { ChartEventSection, ChartLineSpelling, chartSectionSpellings, chartSongSpellings } from './chart/chart-line-spelling'
 import { chartModifiersWithoutNotes } from './chart/chart-modifiers'
 import { chartSectionMisspelledMixes, chartSectionNoflips, type MisspelledMixEvent, midiTrackMisspelledMixes, midiTrackNoflips, type NoflipDuringFlip } from './chart/disco-flip'
-import { midiDrumModifiersWithoutNotes, midiEnhancedOpensInOtherCase, midiEventsAfterEnd, midiTrackCounts, midiTrackInstrument, repeatedMidiInstruments } from './chart/midi-file-parser'
+import { midiDrumModifiersWithoutNotes, midiEnhancedOpensInOtherCase, midiEventsAfterEnd, midiSysExOfAnotherLength, midiTrackCounts, midiTrackInstrument, repeatedMidiInstruments } from './chart/midi-file-parser'
 import { midiPitchKey } from './chart/midi-note-numbers'
 import { midiNormalizations } from './chart/midi-normalize'
 import type { MidiTokens } from './chart/midi-tokens'
@@ -43,6 +43,7 @@ export type SpellingIssueType =
 	| 'nonstandardEnhancedOpens'
 	| 'wrongMidiTrackCount'
 	| 'eventsAfterEndOfTrack'
+	| 'nonstandardPhaseShiftSysEx'
 
 /**
  * Each message says what Clone Hero does (StrikeCore's readers, which HashScanTool shares). The issues about
@@ -65,6 +66,7 @@ export const spellingIssueMessages: { readonly [code in SpellingIssueType]: stri
 	nonstandardEnhancedOpens: "This track's ENHANCED_OPENS event isn't in capitals. Clone Hero reads it in any letter case, and other programs, such as YARG, only in capitals.",
 	wrongMidiTrackCount: "The .mid file's header counts another number of tracks than the file has. Clone Hero reads every track, and other programs may read only the ones counted.",
 	eventsAfterEndOfTrack: 'This track has events after its end of track. Clone Hero ignores them, and other programs may read them.',
+	nonstandardPhaseShiftSysEx: "A tap or open SysEx event in this track isn't 8 bytes long. Clone Hero and YARG ignore it, and other programs may read it.",
 	midiDrumModifierWithoutNote: 'A drum modifier in this track, a tom marker or a flam, covers no note, so it changes none. Clone Hero 1.1 and YARG still read a tom marker as making the chart pro.',
 }
 
@@ -141,6 +143,14 @@ export function chartSpellingIssues(source: ChartSource, styleNotes: boolean): I
 		const events = after === 1 ? `an event, at tick ${firstAfter.tick},` : `${after.toLocaleString('en-US')} events, from tick ${firstAfter.tick},`
 		add('eventsAfterEndOfTrack', { instrument: midiTrackInstrument(name), difficulty: null }, `The track "${name}" has ${events} after its end of track. `
 			+ `Clone Hero ignores ${after === 1 ? 'it' : 'them'}, and other programs may read ${after === 1 ? 'it' : 'them'}. fixIssues can move the end of track after ${after === 1 ? 'it' : 'them'}.`)
+	}
+	for (const { instrument, events } of midiSysExOfAnotherLength(source.tokens)) {
+		const [first] = events
+		const one = events.length === 1
+		const which = one ? `The ${first.data[5] === 0x04 ? 'tap' : 'open'} SysEx event at tick ${first.tick} is ${first.data.length} bytes long`
+			: `${events.length.toLocaleString('en-US')} tap and open SysEx events, such as the one at tick ${first.tick}, which is ${first.data.length} bytes long, aren't 8 bytes long`
+		add('nonstandardPhaseShiftSysEx', { instrument, difficulty: null }, `${which}. Clone Hero and YARG read only an 8-byte one, so they ignore ${one ? 'it' : 'them'}, `
+			+ `and other programs may read ${one ? 'it' : 'them'}. fixIssues can rewrite ${one ? 'it' : 'them'} in the 8-byte form.`)
 	}
 	for (const { instrument, events: [first] } of midiEnhancedOpensInOtherCase(source.tokens)) {
 		add('nonstandardEnhancedOpens', { instrument, difficulty: null }, `The ENHANCED_OPENS event "${first.text}" at tick ${first.tick} isn't in capitals. `

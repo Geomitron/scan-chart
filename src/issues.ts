@@ -119,6 +119,7 @@ export const issueSeverities: { readonly [code in IssueCode]: IssueSeverity } = 
 	nonstandardEnhancedOpens: 'warning',
 	wrongMidiTrackCount: 'warning',
 	eventsAfterEndOfTrack: 'warning',
+	nonstandardPhaseShiftSysEx: 'warning',
 }
 
 /** A problem found in a song folder. Every issue has this shape, whatever its scope. */

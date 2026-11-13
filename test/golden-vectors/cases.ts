@@ -255,6 +255,7 @@ export const sourceCases: readonly AuthoredSourceCase[] = [
 	...enhancedOpensCaseCases(),
 	...trackCountCases(),
 	...eventsAfterEndCases(),
+	...sysExLengthCases(),
 ]
 
 function note(tick: number, noteNumber: number, length: number, velocity = 100): { tick: number; event: MidiEvent }[] {
@@ -710,6 +711,23 @@ function eventsAfterEndCases(): AuthoredSourceCase[] {
 			target: { instrument: 'guitar', difficulty: 'expert' },
 		},
 	]
+}
+
+/** C20 (R12): a Phase Shift SysEx event is read only at exactly 8 bytes, ending with F7, as Clone Hero reads it. */
+function sysExLengthCases(): AuthoredSourceCase[] {
+	const forms = [['8-byte', [0xf7], 'taps the greens at 0 and 240'], ['7-byte', [], 'sets nothing'], ['9-byte', [0, 0xf7], 'sets nothing']] as const
+	return forms.map(([name, rest, reading]) => ({
+		id: `source-midi-sysex-${name}-tap`,
+		purpose: `An Expert tap SysEx start at 0 and end at 480, each ${name === '8-byte' ? '8 bytes long' : `${name.slice(0, 1)} bytes long`}: it ${reading}.`,
+		format: 'mid' as const,
+		bytes: midi([midiTrack('PART GUITAR', [
+			{ tick: 0, event: { deltaTime: 0, type: 'sysEx', data: [0x50, 0x53, 0, 0, 3, 4, 1, ...rest] } as MidiEvent },
+			...note(0, 96, 60), ...note(240, 96, 60),
+			{ tick: 480, event: { deltaTime: 0, type: 'sysEx', data: [0x50, 0x53, 0, 0, 3, 4, 0, ...rest] } as MidiEvent },
+			...note(720, 96, 60),
+		])]),
+		target: { instrument: 'guitar', difficulty: 'expert' } as const,
+	}))
 }
 
 /** The `.chart` `TS N ` trailing space, five-lane drums, GHL notes, and MIDI range shifts. */

@@ -163,6 +163,29 @@ export function midiEventsAfterEnd(tokens: MidiTokens): {
 	})
 }
 
+/**
+ * Whether a SysEx event's `data` is a Phase Shift event, `50 53 00 00 <difficulty> <type> <value>`: only at exactly 8
+ * bytes, ending with F7, as Clone Hero reads it (C20: R12), or at 7 bytes or more.
+ */
+export function isPhaseShiftSysEx(data: ArrayLike<number>, reading: ParseRules['phaseShiftSysEx']): boolean {
+	const header = data.length > 6 && data[0] === 0x50 && data[1] === 0x53 && data[2] === 0x00 && data[3] === 0x00
+	return header && (reading === '7BytesOrMore' || (data.length === 8 && data[7] === 0xf7))
+}
+
+/**
+ * Each instrument track's tap and open SysEx events that scan-chart 8 read as Phase Shift events and Clone Hero doesn't,
+ * as they aren't exactly 8 bytes ending with F7 (C20: R12), each with its index among its chunk's events.
+ */
+export function midiSysExOfAnotherLength(tokens: MidiTokens): { name: string; instrument: Instrument; chunkIndex: number; events: { eventIndex: number; tick: number; data: ArrayLike<number> }[] }[] {
+	return midiInstrumentTracks(tokens).flatMap(track => {
+		const chunk = tokens.chunks[track.chunkIndex]
+		const events = chunk.kind !== 'track' ? [] : chunk.events.flatMap(({ tick, event }, eventIndex) => event.type === 'sysEx'
+			&& isPhaseShiftSysEx(event.data, '7BytesOrMore') && !isPhaseShiftSysEx(event.data, 'exactly8Bytes') && (event.data[5] === 0x01 || event.data[5] === 0x04)
+			? [{ eventIndex, tick, data: event.data }] : [])
+		return events.length === 0 ? [] : [{ ...track, events }]
+	})
+}
+
 /** The number of tracks a `.mid` file's header counts, and the number of `MTrk` chunks Clone Hero reads as tracks (C20: R15). */
 export function midiTrackCounts(tokens: MidiTokens): { counted: number; tracks: number } {
 	return { counted: tokens.header.header.numTracks, tracks: tokens.chunks.filter(chunk => chunk.kind === 'track').length }
@@ -180,7 +203,7 @@ const sixFretDiffStarts = { easy: 58, medium: 70, hard: 82, expert: 94 }
 const drumsDiffStarts = { easy: 60, medium: 72, hard: 84, expert: 96 }
 
 /** The rules that differ between profiles when a `.mid` file's tracks are classified. */
-export type MidiClassificationRules = Pick<ParseRules, 'mixEvents' | 'midiEnhancedOpens'>
+export type MidiClassificationRules = Pick<ParseRules, 'mixEvents' | 'midiEnhancedOpens' | 'phaseShiftSysEx'>
 
 export interface TrackEventEnd {
 	tick: number
@@ -886,12 +909,7 @@ function scanInstrumentTrack(
 		// SysEx event (tap modifier or open)
 		if (eventType === 'sysEx' || eventType === 'endSysEx') {
 			// Phase Shift SysEx event header: 50 53 00 00 <diff> <type> <isStart>
-			const isPhaseShiftHeader =
-				event.data.length > 6 &&
-				event.data[0] === 0x50 &&
-				event.data[1] === 0x53 &&
-				event.data[2] === 0x00 &&
-				event.data[3] === 0x00
+			const isPhaseShiftHeader = isPhaseShiftSysEx(event.data, rules.phaseShiftSysEx)
 			const type =
 				!isPhaseShiftHeader ? null
 				: event.data[5] === 0x01 ? eventTypes.forceOpen

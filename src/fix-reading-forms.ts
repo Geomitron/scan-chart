@@ -2,7 +2,7 @@ import { spliceChartText } from './chart/chart-edit'
 import { chartSectionLines, chartSectionTrack } from './chart/chart-file-parser'
 import { chartSectionMisspelledMixes, midiTrackMisspelledMixes } from './chart/disco-flip'
 import { editMidiTrack, midiTextEvent, type MidiTrackEdit } from './chart/midi-edit'
-import { midiEnhancedOpensInOtherCase, midiEventsAfterEnd, midiTrackCounts } from './chart/midi-file-parser'
+import { midiEnhancedOpensInOtherCase, midiEventsAfterEnd, midiSysExOfAnotherLength, midiTrackCounts } from './chart/midi-file-parser'
 import { type MidiTokens, readMidiTokens } from './chart/midi-tokens'
 import type { FixOptions } from './fix-issues'
 import { chooseEdits, FixRecord, hashChanges, hashNames, issueFixTable } from './issue-fixes'
@@ -24,7 +24,7 @@ interface FormFix {
 }
 
 /** The codes `fixReadingForms` fixes. */
-const formCodes: readonly IssueCode[] = ['nonstandardMixEvent', 'nonstandardEnhancedOpens', 'wrongMidiTrackCount', 'eventsAfterEndOfTrack']
+const formCodes: readonly IssueCode[] = ['nonstandardMixEvent', 'nonstandardEnhancedOpens', 'wrongMidiTrackCount', 'eventsAfterEndOfTrack', 'nonstandardPhaseShiftSysEx']
 
 /**
  * Rewrites the forms of the chart file the issues report in their standard forms, each by its own edit so that each
@@ -79,6 +79,16 @@ export function fixReadingForms(song: SongDocument, issues: readonly Issue[], op
 				},
 			})
 		}
+		for (const track of codes.has('nonstandardPhaseShiftSysEx') ? midiSysExOfAnotherLength(tokens) : []) {
+			for (const { eventIndex, tick, data } of track.events) {
+				const standard = new Uint8Array([...Array.from(data).slice(0, 7), 0xf7])
+				fixes.push({
+					code: 'nonstandardPhaseShiftSysEx',
+					description: `Rewrote the ${data.length}-byte ${data[5] === 0x04 ? 'tap' : 'open'} SysEx event at tick ${tick} in "${track.name}" in the 8-byte form.`,
+					edit: { kind: 'midiTrack', chunkIndex: track.chunkIndex, edits: [{ kind: 'delete', event: eventIndex }, { kind: 'insert', tick, event: { type: 'sysEx', data: standard } }] },
+				})
+			}
+		}
 		for (const track of codes.has('nonstandardEnhancedOpens') ? midiEnhancedOpensInOtherCase(tokens) : []) {
 			for (const { eventIndex, tick, text } of track.events) {
 				fixes.push({
@@ -121,9 +131,14 @@ export function fixReadingForms(song: SongDocument, issues: readonly Issue[], op
 		if (keys === undefined) changedAlone.set(fix, keys = hashChanges(before, songHashes(apply([fix]))).map(change => change.key))
 		return keys
 	}
-	// With changeHashes, the fixes that may change hashes may change the ones each changes alone.
+	// With changeHashes, a fix that changes hashes may change any, as a tap's start and end fixes change them only together,
+	// and one that may change them the ones it changes alone. A fix that keeps them must keep them alone.
 	const problem = (edited: SongDocument, chosen: readonly FormFix[]) => {
 		const changes = hashChanges(before, songHashes(edited))
+		if (options.changeHashes && chosen.some(fix => issueFixTable[fix.code]!.hashes === 'changesHashes') && changes.length > 0) {
+			const kept = chosen.filter(fix => !mayChange(fix))
+			return kept.every(fix => changesOf(fix).length === 0) ? null : `would change ${hashNames(changes)}`
+		}
 		const allowed = new Set(options.changeHashes ? chosen.filter(mayChange).flatMap(changesOf) : [])
 		return changes.every(change => allowed.has(change.key)) ? null : `would change ${hashNames(changes)}`
 	}

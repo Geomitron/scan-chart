@@ -648,6 +648,13 @@ describe('issueFixes', () => {
 		eventsAfterEndOfTrack: {
 			changes: midSongOf([length], [{ name: 'PART BASS', events: [...midiNote(480, 96, 10), { tick: 600, event: { type: 'endOfTrack' } as never }, ...midiNote(960, 97, 10)] }]),
 		},
+		// A tap start of 7 bytes, which Clone Hero ignores, and an end of 8.
+		nonstandardPhaseShiftSysEx: {
+			changes: midSongOf([length], [{ name: 'PART BASS', events: [
+				{ tick: 0, event: { type: 'sysEx', data: new Uint8Array([0x50, 0x53, 0, 0, 3, 4, 1]) } as never }, ...midiNote(0, 96, 10), ...midiNote(100, 96, 10),
+				{ tick: 300, event: { type: 'sysEx', data: new Uint8Array([0x50, 0x53, 0, 0, 3, 4, 0, 0xf7]) } as never },
+			] }]),
+		},
 		nonstandardEnhancedOpens: { keeps: midSongOf([length], [{ name: 'PART BASS', events: [midiText(0, '[enhanced_opens]'), ...midiNote(480, 95, 10)] }]) },
 	}
 	const run = (files: readonly SongFile[], code: IssueCode, changeHashes: boolean) =>

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import { analyzeChart } from 'src/analyze-chart'
 import { parseChartFile, parseChartFileCanonicalIdentity, parseChartFileFrozenLegacyIdentity } from 'src/chart/parse-chart-file'
-import { noteTypes } from 'src/chart/types'
+import { noteFlags, noteTypes } from 'src/chart/types'
 import { fixIssues } from 'src/fix-issues'
 import { resolveChart } from 'src/gameplay-chart'
 import type { IssueCode } from 'src/issues'
@@ -113,5 +113,43 @@ describe('events after the end of track are ignored (C20: R16)', () => {
 		expect(made.report.hashes.map(change => change.key)).toEqual(['canonical:guitar:expert', 'canonical:song'])
 		for (const parse of Object.values(parsers)) expect(expertNotes(made.data, parse)).toEqual([[480, noteTypes.green], [500, noteTypes.red], [960, noteTypes.green]])
 		expect(issuesOf(made.data, 'eventsAfterEndOfTrack')).toEqual([])
+	})
+})
+
+/** A tap SysEx event of Expert, a start or an end, with `data` after `50 53 00 00 03 04`. */
+const tapSysEx = (tick: number, ...rest: number[]): TimedMidiEvent =>
+	({ tick, event: { type: 'sysEx', data: new Uint8Array([0x50, 0x53, 0, 0, 3, 4, ...rest]) } as TimedMidiEvent['event'] })
+const tapTicks = (data: Uint8Array, parse: Parse) => parse(data, 'mid').trackData.find(track => track.difficulty === 'expert')!
+	.noteEventGroups.filter(group => group[0].flags & noteFlags.tap).map(group => group[0].tick)
+
+describe('a Phase Shift SysEx event is read only at exactly 8 bytes (C20: R12)', () => {
+	const greens = [0, 100, 200].flatMap(tick => midiNote(tick, 96, 10))
+	const taps = (start: number[], end: number[]) => guitarMidi([...greens, tapSysEx(0, ...start), tapSysEx(300, ...end)])
+
+	it('reads a 7- or 9-byte one in the frozen profile only', () => {
+		for (const parse of Object.values(parsers)) expect(tapTicks(taps([1, 0xf7], [0, 0xf7]), parse)).toEqual([0, 100, 200])
+		for (const [start, end] of [[[1], [0]], [[1, 0, 0xf7], [0, 0, 0xf7]], [[1, 0xf0], [0, 0xf0]]]) {
+			for (const parse of [parsers.scanner, parsers.canonical]) expect(tapTicks(taps(start, end), parse), String(start)).toEqual([])
+			expect(tapTicks(taps(start, end), parsers.legacy), String(start)).toEqual([0, 100, 200])
+		}
+	})
+
+	it('reports one of another length as a warning, and fixIssues rewrites it in the 8-byte form with changeHashes', async () => {
+		const data = taps([1], [0, 0, 0xf7])
+		expect(issuesOf(data, 'nonstandardPhaseShiftSysEx')).toEqual([{
+			instrument: 'guitar', difficulty: null, severity: 'warning',
+			message: '2 tap and open SysEx events, such as the one at tick 0, which is 7 bytes long, aren\'t 8 bytes long. Clone Hero and YARG read only an 8-byte one, '
+				+ 'so they ignore them, and other programs may read them. fixIssues can rewrite them in the 8-byte form.',
+		}])
+		expect(issuesOf(taps([1, 0xf7], [0, 0xf7]), 'nonstandardPhaseShiftSysEx')).toEqual([])
+		expect((await fixed(data, 'nonstandardPhaseShiftSysEx')).report.fixed).toEqual([])
+		const made = await fixed(data, 'nonstandardPhaseShiftSysEx', true)
+		expect(made.report.fixed.map(entry => entry.description)).toEqual([
+			'Rewrote the 7-byte tap SysEx event at tick 0 in "PART GUITAR" in the 8-byte form.',
+			'Rewrote the 9-byte tap SysEx event at tick 300 in "PART GUITAR" in the 8-byte form.',
+		])
+		expect(made.report.hashes.map(change => change.key)).toEqual(['canonical:guitar:expert', 'canonical:song'])
+		for (const parse of Object.values(parsers)) expect(tapTicks(made.data, parse)).toEqual([0, 100, 200])
+		expect(made.data).toEqual(taps([1, 0xf7], [0, 0xf7]))
 	})
 })
