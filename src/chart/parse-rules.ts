@@ -131,3 +131,12 @@ const canonical20260801: ParseRules = Object.freeze({
 })
 
 export const parseRules = Object.freeze({ scanner, frozenLegacy6142, canonical20260801 })
+
+/**
+ * The scanner's rules with each mix event reading (C20: R2, R10), so that one `.chart` line can be read both ways and
+ * the readings compared, with every other rule alike.
+ */
+export const mixEventReadingRules: { readonly [reading in ParseRules['mixEvents']]: ParseRules } = Object.freeze({
+	cloneHero: scanner,
+	strict: Object.freeze({ ...scanner, mixEvents: 'strict' }),
+})

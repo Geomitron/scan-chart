@@ -4,6 +4,7 @@ import { midiInstrumentTracks } from './midi-file-parser'
 import { drumsDiffStarts } from './midi-note-numbers'
 import type { MidiTokens } from './midi-tokens'
 import { isMixEventSpelledAnotherWay, readMixEvent } from './mix-event'
+import { mixEventReadingRules } from './parse-rules'
 import { type DrumMixEvent, eventTypes } from './raw-types'
 
 /**
@@ -145,6 +146,7 @@ export function chartMixTextEvents(tracks: readonly { readonly textEvents: reado
  * scan-chart 8 read.
  */
 export interface MisspelledMixEvent {
+	readonly difficulty: Difficulty
 	readonly tick: number
 	readonly text: string
 	readonly standard: string
@@ -156,13 +158,13 @@ export function chartSectionMisspelledMixes(lines: readonly ChartLineToken[], di
 	const found: (MisspelledMixEvent & { line: ChartLineToken })[] = []
 	for (const line of lines) {
 		if (!line.text.includes('mix')) continue
-		const read = parseTrackLine(line.text, 'drums', difficulty, { chartNonstandardLines: 'read', mixEvents: 'cloneHero' })
-		const strict = parseTrackLine(line.text, 'drums', difficulty, { chartNonstandardLines: 'read', mixEvents: 'strict' })
+		const read = parseTrackLine(line.text, 'drums', difficulty, mixEventReadingRules.cloneHero)
+		const strict = parseTrackLine(line.text, 'drums', difficulty, mixEventReadingRules.strict)
 		const [mix, legacy] = [read?.kind === 'note' ? read.drumMix : undefined, strict?.kind === 'note' ? strict.drumMix : undefined]
 		if (mix?.flag === legacy?.flag && mix?.configuration === legacy?.configuration) continue
 		const meant = (mix ?? legacy)!
 		const text = read?.kind === 'text' ? read.text : strict?.kind === 'text' ? strict.text : line.text
-		found.push({ tick: meant.tick, text, standard: drumMixText(difficulty, meant), isRead: mix !== undefined, line })
+		found.push({ difficulty, tick: meant.tick, text, standard: drumMixText(difficulty, meant), isRead: mix !== undefined, line })
 	}
 	return found
 }
@@ -179,7 +181,7 @@ export function midiTrackMisspelledMixes(tokens: MidiTokens): { name: string; ch
 	chunk.events.forEach(({ tick, event }, eventIndex) => {
 		if (event.type !== 'text' || !event.text.includes('mix') || !isMixEventSpelledAnotherWay(event.text)) return
 		const mix = readMixEvent(event.text, 'cloneHero') ?? readMixEvent(event.text, 'strict')!
-		events.push({ tick, text: event.text, standard: drumMixText(mix.difficulty, { configuration: mix.configuration, flag: mix.flag as DrumMixEvent['flag'] }), isRead: readMixEvent(event.text, 'cloneHero') !== null, eventIndex })
+		events.push({ difficulty: mix.difficulty, tick, text: event.text, standard: drumMixText(mix.difficulty, { configuration: mix.configuration, flag: mix.flag as DrumMixEvent['flag'] }), isRead: readMixEvent(event.text, 'cloneHero') !== null, eventIndex })
 	})
 	return { name: track.name, chunkIndex: track.chunkIndex, events }
 }

@@ -158,7 +158,7 @@ export function chartSpellingIssues(source: ChartSource, styleNotes: boolean): I
 	}
 	const mixes = midiTrackMisspelledMixes(source.tokens)
 	for (const difficulty of ['expert', 'hard', 'medium', 'easy'] as const) {
-		const found = mixes?.events.filter(event => readDifficulty(event.standard) === difficulty) ?? []
+		const found = mixes?.events.filter(event => event.difficulty === difficulty) ?? []
 		if (found.length > 0) add('nonstandardMixEvent', { instrument: 'drums', difficulty }, mixMessage(found))
 	}
 	for (const { instrument, modifiers } of styleNotes ? midiDrumModifiersWithoutNotes(source.tokens) : []) {
@@ -209,9 +209,6 @@ function trackCountMessage(counted: number, tracks: number): string {
 		? `${header} ${tracks.toLocaleString('en-US')}. Clone Hero reads all ${tracks.toLocaleString('en-US')}, and other programs may read only the first ${counted.toLocaleString('en-US')}. fixIssues can rewrite the count.`
 		: `${header} only ${tracks.toLocaleString('en-US')}. fixIssues can rewrite the count.`
 }
-
-/** The difficulty of a standard mix event's text, `mix <difficulty> ...`. */
-const readDifficulty = (standard: string) => (['easy', 'medium', 'hard', 'expert'] as const)[Number(standard[4])]
 
 /**
  * The message about one difficulty's mix events spelled another way (C20: R2, R10), naming the first: Clone Hero reads
