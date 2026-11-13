@@ -75,6 +75,8 @@ export interface MidiEventToken {
 	tick: number
 	/** The event exactly as `parseMidi` decodes it. Its `deltaTime` is the delta time as written. */
 	event: MidiEvent
+	/** On a text-like meta event whose text starts with a UTF-8 byte order mark, which `parseMidi` drops from `text`. */
+	byteOrderMark?: true
 }
 
 /**
@@ -261,7 +263,7 @@ export function serializeMidiTokens(tokens: MidiTokens): Uint8Array {
 }
 
 /** The parse rules that decide which of a `.mid` file's events are read. */
-export type MidiTrackRules = Pick<ParseRules, 'midiTrackChunks' | 'midiEventsAfterEnd'>
+export type MidiTrackRules = Pick<ParseRules, 'midiTrackChunks' | 'midiEventsAfterEnd' | 'midiTextByteOrderMark'>
 
 /**
  * The file as `parseMidi` returns it, with each event's `deltaTime` replaced by its absolute tick, read with `rules`:
@@ -273,7 +275,7 @@ export function midiTokensToMidiData(tokens: MidiTokens, rules: MidiTrackRules =
 	const tracks: MidiEvent[][] = []
 	for (const chunk of tokens.chunks) {
 		if (isReadTrack(chunk, rules)) {
-			tracks.push(midiTrackEvents(chunk, rules.midiEventsAfterEnd))
+			tracks.push(midiTrackEvents(chunk, rules))
 		}
 	}
 	return { header: { ...tokens.header.header }, tracks }
@@ -286,10 +288,15 @@ export function isReadTrack(chunk: MidiChunk, rules: MidiTrackRules): chunk is M
 
 /**
  * One track of `midiTokensToMidiData`: copies of the chunk's events, each `deltaTime` replaced by its tick, up to its
- * first end of track unless `eventsAfterEnd` is `read`.
+ * first end of track unless the rules read events after it, and with a text's UTF-8 byte order mark as U+FEFF where
+ * the rules keep it.
  */
-export function midiTrackEvents(chunk: MidiTrackChunk, eventsAfterEnd: ParseRules['midiEventsAfterEnd'] = parseRules.scanner.midiEventsAfterEnd): MidiEvent[] {
-	return readTrackTokens(chunk, eventsAfterEnd).map(token => eventAtTick(token.event, token.tick))
+export function midiTrackEvents(chunk: MidiTrackChunk, rules: MidiTrackRules = parseRules.scanner): MidiEvent[] {
+	const keepMark = rules.midiTextByteOrderMark === 'kept'
+	return readTrackTokens(chunk, rules.midiEventsAfterEnd).map(token => {
+		const event = eventAtTick(token.event, token.tick)
+		return keepMark && token.byteOrderMark && 'text' in event ? { ...event, text: `\ufeff${event.text}` } : event
+	})
 }
 
 /** A track chunk's event tokens up to its first end of track, unless `eventsAfterEnd` is `read`, (C20: R16). */
@@ -395,9 +402,22 @@ function readTrackEvents(body: Uint8Array, bodyStart: number): MidiEventToken[] 
 		const start = reader.pos
 		const event = readEvent(reader)
 		tick += event.deltaTime
-		tokens.push({ start: bodyStart + start, end: bodyStart + Math.min(reader.pos, body.length), tick, event })
+		const token: MidiEventToken = { start: bodyStart + start, end: bodyStart + Math.min(reader.pos, body.length), tick, event }
+		if ('text' in event && startsWithByteOrderMark(body, start)) token.byteOrderMark = true
+		tokens.push(token)
 	}
 	return tokens
+}
+
+/** Whether the text of the meta event at `start` in `body` starts with a UTF-8 byte order mark, EF BB BF. */
+function startsWithByteOrderMark(body: Uint8Array, start: number): boolean {
+	// The delta time, FF and the type, then the length.
+	let at = start
+	while (body[at] & 0x80) at++
+	at += 3
+	while (body[at] & 0x80) at++
+	at++
+	return body[at] === 0xef && body[at + 1] === 0xbb && body[at + 2] === 0xbf
 }
 
 /**

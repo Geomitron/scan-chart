@@ -69,6 +69,11 @@ export interface ParseRules {
 	 * as Clone Hero reads them, or `7BytesOrMore`, any event that starts with `50 53 00 00` and has a value byte.
 	 */
 	readonly phaseShiftSysEx: 'exactly8Bytes' | '7BytesOrMore'
+	/**
+	 * Whether a `.mid` text event that starts with a UTF-8 byte order mark keeps it as U+FEFF, as Clone Hero's UTF-8 decoding
+	 * keeps it, or drops it, as `parseMidi`'s `TextDecoder` does.
+	 */
+	readonly midiTextByteOrderMark: 'kept' | 'dropped'
 }
 
 const scanner: ParseRules = Object.freeze({
@@ -86,6 +91,7 @@ const scanner: ParseRules = Object.freeze({
 	midiTrackChunks: 'every',
 	midiEventsAfterEnd: 'ignored',
 	phaseShiftSysEx: 'exactly8Bytes',
+	midiTextByteOrderMark: 'kept',
 })
 
 const frozenLegacy6142: ParseRules = Object.freeze({
@@ -103,6 +109,7 @@ const frozenLegacy6142: ParseRules = Object.freeze({
 	midiTrackChunks: 'headerCount',
 	midiEventsAfterEnd: 'read',
 	phaseShiftSysEx: '7BytesOrMore',
+	midiTextByteOrderMark: 'dropped',
 })
 
 const canonical20260801: ParseRules = Object.freeze({
@@ -120,6 +127,7 @@ const canonical20260801: ParseRules = Object.freeze({
 	midiTrackChunks: 'every',
 	midiEventsAfterEnd: 'ignored',
 	phaseShiftSysEx: 'exactly8Bytes',
+	midiTextByteOrderMark: 'kept',
 })
 
 export const parseRules = Object.freeze({ scanner, frozenLegacy6142, canonical20260801 })

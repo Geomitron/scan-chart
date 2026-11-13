@@ -253,6 +253,7 @@ export const sourceCases: readonly AuthoredSourceCase[] = [
 	...tapEndCases(),
 	...mixSpellingCases(),
 	...enhancedOpensCaseCases(),
+	...byteOrderMarkCases(),
 	...trackCountCases(),
 	...eventsAfterEndCases(),
 	...sysExLengthCases(),
@@ -673,6 +674,20 @@ function enhancedOpensCaseCases(): AuthoredSourceCase[] {
 		bytes: midi([midiTrack('PART GUITAR', [textEvent(0, text), ...note(480, 95, 10), ...note(960, 96, 10)])]),
 		target: { instrument: 'guitar', difficulty: 'expert' } as const,
 	}))
+}
+
+/**
+ * A UTF-8 byte order mark at the start of a `.mid` text stays part of the text, as Clone Hero's UTF-8 decoding keeps it,
+ * so "[ENHANCED_OPENS]" after one isn't the ENHANCED_OPENS event: the Expert note 95 is no note, and a green at 960 is read.
+ */
+function byteOrderMarkCases(): AuthoredSourceCase[] {
+	return [{
+		id: 'source-midi-text-byte-order-mark',
+		purpose: 'EF BB BF then "[ENHANCED_OPENS]" at tick 0, a note 95 at 480 and a green at 960: only the green is read.',
+		format: 'mid',
+		bytes: midi([midiTrack('PART GUITAR', [textEvent(0, '\ufeff[ENHANCED_OPENS]'), ...note(480, 95, 10), ...note(960, 96, 10)])]),
+		target: { instrument: 'guitar', difficulty: 'expert' },
+	}]
 }
 
 /** C20 (R15): every MTrk chunk is a track, whatever the header counts, as Clone Hero reads them. */

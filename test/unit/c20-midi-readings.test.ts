@@ -153,3 +153,13 @@ describe('a Phase Shift SysEx event is read only at exactly 8 bytes (C20: R12)',
 		expect(made.data).toEqual(taps([1, 0xf7], [0, 0xf7]))
 	})
 })
+
+describe('a UTF-8 byte order mark at the start of a .mid text', () => {
+	const data = guitarMidi([midiText(0, '\ufeff[ENHANCED_OPENS]'), ...midiNote(480, 95, 10), ...midiNote(960, 96, 10)])
+
+	it('stays part of the text in the scanner and canonical profiles, as Clone Hero keeps it, and is dropped in the frozen one', () => {
+		expect(Array.from(data.subarray(data.indexOf(0xef), data.indexOf(0xef) + 4))).toEqual([0xef, 0xbb, 0xbf, 0x5b])
+		for (const parse of [parsers.scanner, parsers.canonical]) expect(expertNotes(data, parse)).toEqual([[960, noteTypes.green]])
+		expect(expertNotes(data, parsers.legacy)).toEqual([[480, noteTypes.open], [960, noteTypes.green]])
+	})
+})
