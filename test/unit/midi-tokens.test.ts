@@ -7,6 +7,7 @@ import { describe, expect, it } from 'vitest'
 import { MidiData, parseMidi } from '@geomitron/midi-file'
 
 import { MidiTokens, midiTokensToMidiData, MidiUnknownChunkPolicy, readMidiTokens, serializeMidiTokens } from 'src/chart/midi-tokens'
+import { parseRules } from 'src/chart/parse-rules'
 
 type ByteSource = number | string | number[]
 
@@ -63,7 +64,8 @@ function expectDecodesLikeParseMidi(data: Uint8Array, unknownChunks: MidiUnknown
 	const tokens = readMidiTokens(data, unknownChunks)
 	expect(serializeMidiTokens(tokens)).toEqual(new Uint8Array(data))
 	const expected = parseMidiWithTicks(data)
-	const actual = midiTokensToMidiData(tokens)
+	// parseMidi reads only the tracks the header counts, and every event of each, as scan-chart 8 did.
+	const actual = midiTokensToMidiData(tokens, parseRules.frozenLegacy6142)
 	expect(actual).toStrictEqual(expected)
 	expect(JSON.stringify(actual)).toBe(JSON.stringify(expected))
 	return tokens
@@ -229,9 +231,15 @@ describe('readMidiTokens', () => {
 			}
 		})
 
-		it('keeps a track chunk past the header track count as a skipped chunk', () => {
-			const tokens = expectDecodesLikeParseMidi(file(headerChunk(1, 1, 480), tempoTrack, track))
-			expect(tokens.chunks.map(chunk => [chunk.kind, chunk.id])).toEqual([['track', 'MTrk'], ['skipped', 'MTrk']])
+		it('decodes the MTrk chunks past the header track count up to a chunk of another kind, as Clone Hero reads them (C20: R15)', () => {
+			const tokens = expectDecodesLikeParseMidi(file(headerChunk(1, 1, 480), tempoTrack, track, track, chunk('XFIH', 0x01), track))
+			expect(tokens.chunks.map(chunk => [chunk.kind, chunk.id, chunk.kind === 'track' && chunk.pastHeaderCount === true]))
+				.toEqual([['track', 'MTrk', false], ['track', 'MTrk', true], ['track', 'MTrk', true], ['skipped', 'XFIH', false], ['skipped', 'MTrk', false]])
+			expect(midiTokensToMidiData(tokens, parseRules.canonical20260801).tracks).toHaveLength(3)
+			expect(midiTokensToMidiData(tokens, parseRules.frozenLegacy6142).tracks).toHaveLength(1)
+			// One that can't be decoded, with a running status before any status byte, ends them, and is kept as a skipped chunk.
+			const undecodable = readMidiTokens(file(headerChunk(1, 1, 480), tempoTrack, chunk('MTrk', 0x00, 0x3c, 0x64), track))
+			expect(undecodable.chunks.map(chunk => chunk.kind)).toEqual(['track', 'skipped', 'skipped'])
 		})
 
 		it('keeps trailing bytes after the last chunk', () => {

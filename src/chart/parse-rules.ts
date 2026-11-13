@@ -57,6 +57,11 @@ export interface ParseRules {
 	readonly mixEvents: 'cloneHero' | 'strict'
 	/** Whether a `.mid` track's `ENHANCED_OPENS` is read in any letter case, as Clone Hero reads it (C20: R13), or only in capitals. */
 	readonly midiEnhancedOpens: 'anyCase' | 'capitals'
+	/**
+	 * Which `MTrk` chunks of a `.mid` file are tracks (C20: R15): `every` reads each one up to a chunk of another kind after
+	 * the tracks the header counts, as Clone Hero does; `headerCount` reads only the tracks the header counts.
+	 */
+	readonly midiTrackChunks: 'every' | 'headerCount'
 }
 
 const scanner: ParseRules = Object.freeze({
@@ -71,6 +76,7 @@ const scanner: ParseRules = Object.freeze({
 	proDrumsGreenPair: 'invalid',
 	mixEvents: 'cloneHero',
 	midiEnhancedOpens: 'anyCase',
+	midiTrackChunks: 'every',
 })
 
 const frozenLegacy6142: ParseRules = Object.freeze({
@@ -85,6 +91,7 @@ const frozenLegacy6142: ParseRules = Object.freeze({
 	proDrumsGreenPair: 'blueTom',
 	mixEvents: 'strict',
 	midiEnhancedOpens: 'capitals',
+	midiTrackChunks: 'headerCount',
 })
 
 const canonical20260801: ParseRules = Object.freeze({
@@ -99,6 +106,7 @@ const canonical20260801: ParseRules = Object.freeze({
 	proDrumsGreenPair: 'invalid',
 	mixEvents: 'cloneHero',
 	midiEnhancedOpens: 'anyCase',
+	midiTrackChunks: 'every',
 })
 
 export const parseRules = Object.freeze({ scanner, frozenLegacy6142, canonical20260801 })

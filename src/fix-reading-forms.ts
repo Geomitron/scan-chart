@@ -2,8 +2,8 @@ import { spliceChartText } from './chart/chart-edit'
 import { chartSectionLines, chartSectionTrack } from './chart/chart-file-parser'
 import { chartSectionMisspelledMixes, midiTrackMisspelledMixes } from './chart/disco-flip'
 import { editMidiTrack, midiTextEvent, type MidiTrackEdit } from './chart/midi-edit'
-import { midiEnhancedOpensInOtherCase } from './chart/midi-file-parser'
-import type { MidiTokens } from './chart/midi-tokens'
+import { midiEnhancedOpensInOtherCase, midiTrackCounts } from './chart/midi-file-parser'
+import { type MidiTokens, readMidiTokens } from './chart/midi-tokens'
 import type { FixOptions } from './fix-issues'
 import { chooseEdits, FixRecord, hashChanges, hashNames, issueFixTable } from './issue-fixes'
 import type { Issue, IssueCode } from './issues'
@@ -24,7 +24,7 @@ interface FormFix {
 }
 
 /** The codes `fixReadingForms` fixes. */
-const formCodes: readonly IssueCode[] = ['nonstandardMixEvent', 'nonstandardEnhancedOpens']
+const formCodes: readonly IssueCode[] = ['nonstandardMixEvent', 'nonstandardEnhancedOpens', 'wrongMidiTrackCount']
 
 /**
  * Rewrites the forms of the chart file the issues report in their standard forms, each by its own edit so that each
@@ -57,6 +57,14 @@ export function fixReadingForms(song: SongDocument, issues: readonly Issue[], op
 		}
 	} else {
 		const tokens = chart.tokens!
+		const { counted, tracks } = midiTrackCounts(tokens)
+		if (codes.has('wrongMidiTrackCount') && counted !== tracks) {
+			fixes.push({
+				code: 'wrongMidiTrackCount',
+				description: `Rewrote the header's track count from ${counted.toLocaleString('en-US')} to ${tracks.toLocaleString('en-US')}.`,
+				edit: { kind: 'midiFile', apply: current => withTrackCount(current, midiTrackCounts(current).tracks) },
+			})
+		}
 		for (const track of codes.has('nonstandardEnhancedOpens') ? midiEnhancedOpensInOtherCase(tokens) : []) {
 			for (const { eventIndex, tick, text } of track.events) {
 				fixes.push({
@@ -110,4 +118,13 @@ export function fixReadingForms(song: SongDocument, issues: readonly Issue[], op
 		: `${fix.description.replace(/^Rewrote/, 'Rewriting').replace(/\.$/, '')} ${problem}, so games would read the song differently.`))
 	for (const fix of chosen) record.fixed.push({ code: fix.code, file: chart.fileName, description: fix.description })
 	return fixed
+}
+
+/** A `.mid` file's tokens with the header's track count set to `count`. */
+function withTrackCount(tokens: MidiTokens, count: number): MidiTokens {
+	const data = tokens.data.slice()
+	// The track count follows the format in the header's body, as a big-endian 16-bit number.
+	data[tokens.header.bodyStart + 2] = count >>> 8
+	data[tokens.header.bodyStart + 3] = count & 0xff
+	return readMidiTokens(data, 'skip')
 }

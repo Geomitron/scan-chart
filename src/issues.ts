@@ -117,6 +117,7 @@ export const issueSeverities: { readonly [code in IssueCode]: IssueSeverity } = 
 	midiDrumModifierWithoutNote: 'recommendation',
 	nonstandardMixEvent: 'warning',
 	nonstandardEnhancedOpens: 'warning',
+	wrongMidiTrackCount: 'warning',
 }
 
 /** A problem found in a song folder. Every issue has this shape, whatever its scope. */

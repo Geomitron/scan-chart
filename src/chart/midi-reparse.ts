@@ -11,7 +11,7 @@ import {
 	midiFirstCodaTick,
 	midiTokensForParsing,
 } from './midi-file-parser'
-import { changedTrackChunks, midiTokensToMidiData, MidiTokens, midiTrackBodies, MidiTrackChunk, midiTrackEvents, midiTrackIndex } from './midi-tokens'
+import { changedTrackChunks, isReadTrack, midiTokensToMidiData, MidiTokens, midiTrackBodies, MidiTrackChunk, midiTrackEvents, midiTrackIndex } from './midi-tokens'
 import {
 	chartDrumType,
 	isTrackAllocated,
@@ -61,8 +61,11 @@ export function parseMidiTokens(tokens: MidiTokens, partialIniChartModifiers: Pa
 	const key = `${rules.profile}|${JSON.stringify(iniChartModifiers)}`
 	const own = memos.get(tokens)
 	if (own?.key === key) return own.parsed
-	// A file with an unknown chunk is read again strictly to be rejected as parsing its bytes rejects it.
-	if (midiTokensForParsing(tokens, tokens.data) !== tokens) return parseChartSource({ format: 'mid', bytes: tokens.data, tokens }, partialIniChartModifiers, rules)
+	// A file with an unknown chunk is read again strictly to be rejected as parsing its bytes rejects it. A profile that
+	// reads fewer tracks than the tokens hold numbers its tracks otherwise, so it parses the file whole.
+	if (midiTokensForParsing(tokens, tokens.data, rules) !== tokens || tokens.chunks.some(chunk => chunk.kind === 'track' && !isReadTrack(chunk, rules))) {
+		return parseChartSource({ format: 'mid', bytes: tokens.data, tokens }, partialIniChartModifiers, rules)
+	}
 	const earlier = memos.original(tokens)
 	const memo = parseReusing(tokens, iniChartModifiers, rules, key, earlier?.key === key ? earlier : undefined)
 	memos.set(tokens, memo)
@@ -132,7 +135,7 @@ function parseReusing(
 		return { key, bodies, instruments: earlier!.instruments, classified, resolved, firstCodaTick, parsed }
 	}
 
-	const classifiedMidi = classifyMidiFile(midiTokensToMidiData(tokens), rules)
+	const classifiedMidi = classifyMidiFile(midiTokensToMidiData(tokens, rules), rules)
 	const instruments = new Map(classifiedMidi.instrumentTracks.map(({ trackIndex, instrument }) => [trackChunks[trackIndex], instrument]))
 	const firstCodaTick = midiFirstCodaTick(classifiedMidi.eventsScan)
 	const raw = applyMidiRules(classifiedMidi, iniChartModifiers, rules, (instrumentTrack, build) =>

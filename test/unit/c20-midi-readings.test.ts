@@ -50,3 +50,39 @@ describe('ENHANCED_OPENS in any letter case (C20: R13)', () => {
 		expect(expertNotes(result.data, parsers.legacy)).toEqual([[480, noteTypes.open], [960, noteTypes.green]])
 	})
 })
+
+/** `data` with the header's track count set to `count`. */
+const withCount = (data: Uint8Array, count: number) => {
+	const counted = data.slice()
+	counted[11] = count
+	return counted
+}
+const instruments = (data: Uint8Array, parse: Parse) => parse(data, 'mid').trackData.map(track => `${track.instrument}/${track.difficulty}`)
+
+describe('every MTrk chunk is a track (C20: R15)', () => {
+	const data = withCount(midiFile([{ name: 'PART GUITAR', events: midiNote(480, 96, 10) }, { name: 'PART BASS', events: midiNote(480, 96, 10) }]), 2)
+
+	it('reads the tracks past the header count in the scanner and canonical profiles, and not in the frozen one', () => {
+		for (const parse of [parsers.scanner, parsers.canonical]) expect(instruments(data, parse)).toEqual(['guitar/expert', 'bass/expert'])
+		expect(instruments(data, parsers.legacy)).toEqual(['guitar/expert'])
+		// A count of 0 is read too, as Clone Hero ignores the count.
+		for (const parse of [parsers.scanner, parsers.canonical]) expect(instruments(withCount(data, 0), parse)).toEqual(['guitar/expert', 'bass/expert'])
+		expect(() => parsers.legacy(withCount(data, 0), 'mid')).toThrow('no tracks detected')
+	})
+
+	it('reports the wrong count as a warning, and fixIssues rewrites it, keeping the hashes', async () => {
+		expect(issuesOf(data, 'wrongMidiTrackCount')).toEqual([{
+			instrument: null, difficulty: null, severity: 'warning',
+			message: 'The .mid file\'s header counts 2 tracks, but the file has 3. Clone Hero reads all 3, and other programs may read only the first 2. fixIssues can rewrite the count.',
+		}])
+		expect(issuesOf(withCount(data, 5), 'wrongMidiTrackCount')).toEqual([{
+			instrument: null, difficulty: null, severity: 'warning', message: 'The .mid file\'s header counts 5 tracks, but the file has only 3. fixIssues can rewrite the count.',
+		}])
+		expect(issuesOf(withCount(data, 3), 'wrongMidiTrackCount')).toEqual([])
+		const result = await fixed(data, 'wrongMidiTrackCount')
+		expect(result.report.fixed).toEqual([{ code: 'wrongMidiTrackCount', file: 'notes.mid', description: 'Rewrote the header\'s track count from 2 to 3.' }])
+		expect(result.report.hashes).toEqual([])
+		expect(result.data).toEqual(withCount(data, 3))
+		expect(instruments(result.data, parsers.legacy)).toEqual(['guitar/expert', 'bass/expert'])
+	})
+})

@@ -1,5 +1,7 @@
 import type { MidiData, MidiEvent, MidiHeader, MidiSmpteOffsetEvent } from '@geomitron/midi-file'
 
+import { parseRules, type ParseRules } from './parse-rules'
+
 /**
  * A `.mid` file read as tokens that cover every byte of it: the header chunk, every later chunk in file order, and
  * any bytes after the last chunk. Every offset indexes into `data`.
@@ -42,15 +44,20 @@ export interface MidiHeaderChunk extends MidiChunkFrame {
 	header: MidiHeader
 }
 
-/** An `MTrk` chunk within the header's track count, decoded into events. */
+/**
+ * An `MTrk` chunk, decoded into events: one within the header's track count, or one of the whole `MTrk` chunks that
+ * follow those, up to a chunk of another kind (`pastHeaderCount`), which Clone Hero reads too (C20: R15) and `parseMidi`
+ * never reads.
+ */
 export interface MidiTrackChunk extends MidiChunkFrame {
 	kind: 'track'
 	events: MidiEventToken[]
+	pastHeaderCount?: true
 }
 
 /**
  * A chunk kept as bytes and not decoded: a chunk type other than `MTrk`, which the MIDI specification says readers
- * skip, or an `MTrk` chunk past the header's track count, which `parseMidi` never reads.
+ * skip, or an `MTrk` chunk past the header's track count after a chunk of another kind, or that can't be decoded.
  */
 export interface MidiSkippedChunk extends MidiChunkFrame {
 	kind: 'skipped'
@@ -118,8 +125,22 @@ export function readMidiTokens(data: Uint8Array, unknownChunks: MidiUnknownChunk
 		previous = frame
 	}
 
-	// parseMidi reads nothing past the track count. Whole chunks there are kept as chunks, and anything else as trailing bytes.
+	// parseMidi reads nothing past the track count. Clone Hero reads on, each whole MTrk chunk up to a chunk of another
+	// kind, which are decoded as tracks when they can be. Whole chunks there are kept as chunks, and anything else as
+	// trailing bytes.
 	let trailingStart = previous.end
+	while (trackCount === header.header.numTracks && trailingStart < data.length) {
+		const frame = readChunkFrame(data, trailingStart)
+		if (frame.id !== 'MTrk' || !isWholeChunk(data, frame)) break
+		let events: MidiEventToken[]
+		try {
+			events = readTrackEvents(data.subarray(frame.bodyStart, frame.end), frame.bodyStart)
+		} catch {
+			break
+		}
+		chunks.push({ ...frame, kind: 'track', events, pastHeaderCount: true })
+		trailingStart = frame.end
+	}
 	while (trailingStart < data.length) {
 		const frame = readChunkFrame(data, trailingStart)
 		if (!isWholeChunk(data, frame)) {
@@ -147,7 +168,12 @@ export function replaceMidiTrackChunk(tokens: MidiTokens, chunkIndex: number, ch
 	data.set(tokens.data.subarray(old.end), old.start + chunkBytes.length)
 
 	const frame = readChunkFrame(data, old.start)
-	const replaced: MidiTrackChunk = { ...frame, kind: 'track', events: readTrackEvents(data.subarray(frame.bodyStart, frame.end), frame.bodyStart) }
+	const replaced: MidiTrackChunk = {
+		...frame,
+		kind: 'track',
+		events: readTrackEvents(data.subarray(frame.bodyStart, frame.end), frame.bodyStart),
+		...old.pastHeaderCount ? { pastHeaderCount: true as const } : {},
+	}
 	const chunks = tokens.chunks.map((chunk, index): MidiChunk => index < chunkIndex ? chunk
 		: index === chunkIndex ? replaced
 		: shiftChunk(chunk, shift))
@@ -183,7 +209,10 @@ export function addMidiTrackChunks(tokens: MidiTokens, trackNames: readonly stri
 	return readMidiTokens(data, 'skip')
 }
 
-/** The tokens of `tokens`' file without the track chunks at `chunkIndexes`, and the header's track count lowered to match. */
+/**
+ * The tokens of `tokens`' file without the track chunks at `chunkIndexes`, and the header's track count lowered by the
+ * removed tracks it counted.
+ */
 export function removeMidiTrackChunks(tokens: MidiTokens, chunkIndexes: readonly number[]): MidiTokens {
 	const removed = chunkIndexes.map(index => tokens.chunks[index])
 	if (removed.some(chunk => chunk?.kind !== 'track')) throw new RangeError('Only MIDI track chunks can be removed')
@@ -201,7 +230,7 @@ export function removeMidiTrackChunks(tokens: MidiTokens, chunkIndexes: readonly
 		at += part.length
 	}
 	// The track count follows the format in the header's body, as a big-endian 16-bit number.
-	const numTracks = tokens.header.header.numTracks - removed.length
+	const numTracks = tokens.header.header.numTracks - removed.filter(chunk => chunk.kind === 'track' && !chunk.pastHeaderCount).length
 	data[tokens.header.bodyStart + 2] = numTracks >>> 8
 	data[tokens.header.bodyStart + 3] = numTracks & 0xff
 	return readMidiTokens(data, 'skip')
@@ -231,18 +260,27 @@ export function serializeMidiTokens(tokens: MidiTokens): Uint8Array {
 	return bytes
 }
 
+/** The parse rules that decide which of a `.mid` file's events are read. */
+export type MidiTrackRules = Pick<ParseRules, 'midiTrackChunks'>
+
 /**
- * The file as `parseMidi` returns it, with each event's `deltaTime` replaced by its absolute tick. Skipped chunks are
- * left out. The events are copies, so changing them leaves the tokens unchanged.
+ * The file as `parseMidi` returns it, with each event's `deltaTime` replaced by its absolute tick, read with `rules`:
+ * the tracks past the header's count are left out unless `midiTrackChunks` is `every`. Skipped chunks are left out. The
+ * events are copies, so changing them leaves the tokens unchanged.
  */
-export function midiTokensToMidiData(tokens: MidiTokens): MidiData {
+export function midiTokensToMidiData(tokens: MidiTokens, rules: MidiTrackRules = parseRules.scanner): MidiData {
 	const tracks: MidiEvent[][] = []
 	for (const chunk of tokens.chunks) {
-		if (chunk.kind === 'track') {
+		if (isReadTrack(chunk, rules)) {
 			tracks.push(midiTrackEvents(chunk))
 		}
 	}
 	return { header: { ...tokens.header.header }, tracks }
+}
+
+/** Whether `rules` read `chunk` as a track. */
+export function isReadTrack(chunk: MidiChunk, rules: MidiTrackRules): chunk is MidiTrackChunk {
+	return chunk.kind === 'track' && (rules.midiTrackChunks === 'every' || chunk.pastHeaderCount !== true)
 }
 
 /** One track of `midiTokensToMidiData`: copies of the chunk's events, each `deltaTime` replaced by its tick. */

@@ -608,6 +608,11 @@ describe('issueFixes', () => {
 		audio,
 	]
 	const length = 'song_length = 10000'
+	const withTrackCount = ([mid, ...rest]: SongFile[], count: number) => {
+		const data = (mid.data as Uint8Array).slice()
+		data[11] = count
+		return [{ ...mid, data }, ...rest]
+	}
 	/** For each code, a song whose fix keeps the hashes, and one whose fix changes them. */
 	const fixtures: { readonly [code: string]: { readonly keeps?: SongFile[]; readonly changes?: SongFile[] } } = {
 		fileNameCase: { keeps: songOf([length], undefined, [{ fileName: 'Album.png', data: png(512, 512) }]) },
@@ -637,6 +642,8 @@ describe('issueFixes', () => {
 			keeps: songOf([length], undefined, [], ['[ExpertDrums]', '{', '  0 = E mix 3 drumsxd', '  480 = N 1 0', '}']),
 			changes: midSongOf([length], [{ name: 'PART DRUMS', events: [midiText(0, ' [mix 3 drums0d]'), ...midiNote(480, 97)] }]),
 		},
+		// The header counts the tempo track and PART GUITAR, and not PART BASS.
+		wrongMidiTrackCount: { keeps: withTrackCount(midSongOf([length], [{ name: 'PART BASS', events: midiNote(480, 96, 10) }]), 2) },
 		nonstandardEnhancedOpens: { keeps: midSongOf([length], [{ name: 'PART BASS', events: [midiText(0, '[enhanced_opens]'), ...midiNote(480, 95, 10)] }]) },
 	}
 	const run = (files: readonly SongFile[], code: IssueCode, changeHashes: boolean) =>

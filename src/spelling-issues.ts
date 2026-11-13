@@ -11,7 +11,7 @@ import {
 import { ChartEventSection, ChartLineSpelling, chartSectionSpellings, chartSongSpellings } from './chart/chart-line-spelling'
 import { chartModifiersWithoutNotes } from './chart/chart-modifiers'
 import { chartSectionMisspelledMixes, chartSectionNoflips, type MisspelledMixEvent, midiTrackMisspelledMixes, midiTrackNoflips, type NoflipDuringFlip } from './chart/disco-flip'
-import { midiDrumModifiersWithoutNotes, midiEnhancedOpensInOtherCase, midiTrackInstrument, repeatedMidiInstruments } from './chart/midi-file-parser'
+import { midiDrumModifiersWithoutNotes, midiEnhancedOpensInOtherCase, midiTrackCounts, midiTrackInstrument, repeatedMidiInstruments } from './chart/midi-file-parser'
 import { midiPitchKey } from './chart/midi-note-numbers'
 import { midiNormalizations } from './chart/midi-normalize'
 import type { MidiTokens } from './chart/midi-tokens'
@@ -41,6 +41,7 @@ export type SpellingIssueType =
 	| 'midiDrumModifierWithoutNote'
 	| 'nonstandardMixEvent'
 	| 'nonstandardEnhancedOpens'
+	| 'wrongMidiTrackCount'
 
 /**
  * Each message says what Clone Hero does (StrikeCore's readers, which HashScanTool shares). The issues about
@@ -61,6 +62,7 @@ export const spellingIssueMessages: { readonly [code in SpellingIssueType]: stri
 	chartModifierWithoutNote: 'A modifier in this section, such as a forced, tap, cymbal, accent or ghost marker, has no note at its tick to apply to. Games ignore it, but a cymbal marker still makes the chart pro. Saving an edit removes it, unless it\'s a cymbal marker the drum type may depend on.',
 	nonstandardMixEvent: 'A mix event in this track isn\'t spelled the standard way, "mix <difficulty> drums<configuration><flag>". Clone Hero and other programs may read it differently.',
 	nonstandardEnhancedOpens: "This track's ENHANCED_OPENS event isn't in capitals. Clone Hero reads it in any letter case, and other programs, such as YARG, only in capitals.",
+	wrongMidiTrackCount: "The .mid file's header counts another number of tracks than the file has. Clone Hero reads every track, and other programs may read only the ones counted.",
 	midiDrumModifierWithoutNote: 'A drum modifier in this track, a tom marker or a flam, covers no note, so it changes none. Clone Hero 1.1 and YARG still read a tom marker as making the chart pro.',
 }
 
@@ -131,6 +133,8 @@ export function chartSpellingIssues(source: ChartSource, styleNotes: boolean): I
 	for (const [difficulty, found] of midiTrackNoflips(source.tokens)?.difficulties ?? []) {
 		if (found.length > 0) add('discoNoflipDuringFlip', { instrument: 'drums', difficulty }, noflipMessage(found))
 	}
+	const { counted, tracks } = midiTrackCounts(source.tokens)
+	if (counted !== tracks) add('wrongMidiTrackCount', { instrument: null, difficulty: null }, trackCountMessage(counted, tracks))
 	for (const { instrument, events: [first] } of midiEnhancedOpensInOtherCase(source.tokens)) {
 		add('nonstandardEnhancedOpens', { instrument, difficulty: null }, `The ENHANCED_OPENS event "${first.text}" at tick ${first.tick} isn't in capitals. `
 			+ 'Clone Hero reads it in any letter case, and other programs, such as YARG, only in capitals. fixIssues can rewrite it in capitals.')
@@ -179,6 +183,14 @@ function modifierMessage(lines: readonly string[], kept: number): string {
 	return `${which} modifiers with no note at their tick to apply to. Games ignore them, but ${kept} of them, `
 		+ `${kept === 1 ? 'a cymbal marker, still makes' : 'cymbal markers, still make'} the chart pro. Saving an edit removes the others: `
 		+ moveFirst('them', 'their notes\' ticks', 'they')
+}
+
+/** The message about a `.mid` header that counts `counted` tracks of a file with `tracks` (C20: R15). */
+function trackCountMessage(counted: number, tracks: number): string {
+	const header = `The .mid file's header counts ${counted.toLocaleString('en-US')} ${counted === 1 ? 'track' : 'tracks'}, but the file has`
+	return counted < tracks
+		? `${header} ${tracks.toLocaleString('en-US')}. Clone Hero reads all ${tracks.toLocaleString('en-US')}, and other programs may read only the first ${counted.toLocaleString('en-US')}. fixIssues can rewrite the count.`
+		: `${header} only ${tracks.toLocaleString('en-US')}. fixIssues can rewrite the count.`
 }
 
 /** The difficulty of a standard mix event's text, `mix <difficulty> ...`. */

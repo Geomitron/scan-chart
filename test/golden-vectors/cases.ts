@@ -253,6 +253,7 @@ export const sourceCases: readonly AuthoredSourceCase[] = [
 	...tapEndCases(),
 	...mixSpellingCases(),
 	...enhancedOpensCaseCases(),
+	...trackCountCases(),
 ]
 
 function note(tick: number, noteNumber: number, length: number, velocity = 100): { tick: number; event: MidiEvent }[] {
@@ -670,6 +671,21 @@ function enhancedOpensCaseCases(): AuthoredSourceCase[] {
 		bytes: midi([midiTrack('PART GUITAR', [textEvent(0, text), ...note(480, 95, 10), ...note(960, 96, 10)])]),
 		target: { instrument: 'guitar', difficulty: 'expert' } as const,
 	}))
+}
+
+/** C20 (R15): every MTrk chunk is a track, whatever the header counts, as Clone Hero reads them. */
+function trackCountCases(): AuthoredSourceCase[] {
+	return ([['right', 3], ['short', 2], ['zero', 0]] as const).map(([name, count]) => {
+		const bytes = midi([midiTrack('PART BASS', note(0, 96, 10)), midiTrack('PART GUITAR', [...note(480, 96, 10), ...note(960, 97, 10)])])
+		bytes[11] = count
+		return {
+			id: `source-midi-track-count-${name}`,
+			purpose: `A header that counts ${count} of the 3 tracks; PART GUITAR, the third, is read all the same.`,
+			format: 'mid' as const,
+			bytes,
+			target: { instrument: 'guitar', difficulty: 'expert' } as const,
+		}
+	})
 }
 
 /** The `.chart` `TS N ` trailing space, five-lane drums, GHL notes, and MIDI range shifts. */

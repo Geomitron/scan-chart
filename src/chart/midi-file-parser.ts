@@ -1,7 +1,7 @@
 import { MidiData, MidiEvent, MidiSetTempoEvent, MidiTextEvent, MidiTimeSignatureEvent } from '@geomitron/midi-file'
 
 import { difficulties, Difficulty, getInstrumentType, Instrument, InstrumentType, instrumentTypes } from '../types'
-import { midiTokensToMidiData, MidiTokens, midiTrackEvents, midiTrackIndex, readMidiTokens } from './midi-tokens'
+import { isReadTrack, midiTokensToMidiData, MidiTokens, midiTrackEvents, midiTrackIndex, type MidiTrackRules, readMidiTokens } from './midi-tokens'
 import { DrumMixEvent, EventType, eventTypes, RawChartData, VocalTrackData } from './raw-types'
 import { IniChartModifiers } from './types'
 import { readMixEvent } from './mix-event'
@@ -131,6 +131,11 @@ export function midiEnhancedOpensInOtherCase(tokens: MidiTokens): { name: string
 	})
 }
 
+/** The number of tracks a `.mid` file's header counts, and the number of `MTrk` chunks Clone Hero reads as tracks (C20: R15). */
+export function midiTrackCounts(tokens: MidiTokens): { counted: number; tracks: number } {
+	return { counted: tokens.header.header.numTracks, tracks: tokens.chunks.filter(chunk => chunk.kind === 'track').length }
+}
+
 /** The instruments a `.mid` file has more than one track for, of which Clone Hero reads only the first. */
 export function repeatedMidiInstruments(tokens: MidiTokens): Instrument[] {
 	const trackCounts = new Map<Instrument, number>()
@@ -187,7 +192,7 @@ type MidiTrackEvent = RawChartData['trackData'][number]['trackEvents'][number] &
  * Real Drums (Phase Shift)
  */
 export function parseNotesFromMidi(data: Uint8Array, iniChartModifiers: IniChartModifiers, rules: ParseRules = parseRules.scanner): RawChartData {
-	return applyMidiRules(classifyMidiFile(readMidiFile(data), rules), iniChartModifiers, rules)
+	return applyMidiRules(classifyMidiFile(readMidiFile(data, rules), rules), iniChartModifiers, rules)
 }
 
 /**
@@ -195,8 +200,8 @@ export function parseNotesFromMidi(data: Uint8Array, iniChartModifiers: IniChart
  *
  * Throws an exception as `readMidiFileTokens` does.
  */
-export function readMidiFile(data: Uint8Array): MidiData {
-	return midiTokensToMidiData(readMidiFileTokens(data))
+export function readMidiFile(data: Uint8Array, rules: MidiTrackRules = parseRules.scanner): MidiData {
+	return midiTokensToMidiData(readMidiFileTokens(data, rules), rules)
 }
 
 /**
@@ -205,20 +210,20 @@ export function readMidiFile(data: Uint8Array): MidiData {
  * Throws an exception if the file isn't a format-1 MIDI file with ticks per beat and at least one track. A chunk
  * type other than `MTrk` among the tracks is rejected too, as it was when `.mid` files were read with `parseMidi`.
  */
-export function readMidiFileTokens(data: Uint8Array): MidiTokens {
-	return checkMidiFileTokens(readMidiTokens(data, 'reject'))
+export function readMidiFileTokens(data: Uint8Array, rules: MidiTrackRules = parseRules.scanner): MidiTokens {
+	return checkMidiFileTokens(readMidiTokens(data, 'reject'), rules)
 }
 
 /**
  * Returns tokens read with unknown chunks kept, checked as `readMidiFileTokens` checks them. A file with an unknown
  * chunk is read again strictly, so it is rejected exactly as before.
  */
-export function midiTokensForParsing(tokens: MidiTokens | null, data: Uint8Array): MidiTokens {
-	if (tokens === null || tokens.chunks.some(chunk => chunk.kind === 'skipped' && chunk.id !== 'MTrk')) return readMidiFileTokens(data)
-	return checkMidiFileTokens(tokens)
+export function midiTokensForParsing(tokens: MidiTokens | null, data: Uint8Array, rules: MidiTrackRules = parseRules.scanner): MidiTokens {
+	if (tokens === null || tokens.chunks.some(chunk => chunk.kind === 'skipped' && chunk.id !== 'MTrk')) return readMidiFileTokens(data, rules)
+	return checkMidiFileTokens(tokens, rules)
 }
 
-function checkMidiFileTokens(tokens: MidiTokens): MidiTokens {
+function checkMidiFileTokens(tokens: MidiTokens, rules: MidiTrackRules): MidiTokens {
 	const { header } = tokens.header
 	if (header.format !== 1) {
 		throw `Invavlid .mid file: unsupported header format "${header.format}"`
@@ -228,11 +233,11 @@ function checkMidiFileTokens(tokens: MidiTokens): MidiTokens {
 		throw 'Invalid .mid file: resolution in ticks per SMPTE frame is not supported'
 	}
 
-	if (!tokens.chunks.some(chunk => chunk.kind === 'track')) {
+	if (!tokens.chunks.some(chunk => isReadTrack(chunk, rules))) {
 		throw 'Invalid .mid file: no tracks detected'
 	}
 
-	if (hasLongDeltaTime(tokens)) {
+	if (hasLongDeltaTime(tokens, rules)) {
 		throw 'Invalid .mid file: a delta time is longer than 4 bytes'
 	}
 
@@ -243,8 +248,8 @@ function checkMidiFileTokens(tokens: MidiTokens): MidiTokens {
  * Whether an event's delta time takes more than 4 bytes, which the MIDI format doesn't allow. Clone Hero reads 4 bytes
  * and takes the fifth as the next event's status, so it fails to load or misreads such a file.
  */
-function hasLongDeltaTime({ data, chunks }: MidiTokens): boolean {
-	return chunks.some(chunk => chunk.kind === 'track'
+function hasLongDeltaTime({ data, chunks }: MidiTokens, rules: MidiTrackRules): boolean {
+	return chunks.some(chunk => isReadTrack(chunk, rules)
 		&& chunk.events.some(({ start }) => (data[start] & data[start + 1] & data[start + 2] & data[start + 3] & 0x80) !== 0))
 }
 
