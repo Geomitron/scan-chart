@@ -237,9 +237,11 @@ describe('readMidiTokens', () => {
 				.toEqual([['track', 'MTrk', false], ['track', 'MTrk', true], ['track', 'MTrk', true], ['skipped', 'XFIH', false], ['skipped', 'MTrk', false]])
 			expect(midiTokensToMidiData(tokens, parseRules.canonical20260801).tracks).toHaveLength(3)
 			expect(midiTokensToMidiData(tokens, parseRules.frozenLegacy6142).tracks).toHaveLength(1)
-			// One that can't be decoded, with a running status before any status byte, ends them, and is kept as a skipped chunk.
+			// One that can't be decoded, with a running status before any status byte, ends them. It is kept as a track with what
+			// the reader threw, which the profiles that read it throw, and the chunks after it are skipped.
 			const undecodable = readMidiTokens(file(headerChunk(1, 1, 480), tempoTrack, chunk('MTrk', 0x00, 0x3c, 0x64), track))
-			expect(undecodable.chunks.map(chunk => chunk.kind)).toEqual(['track', 'skipped', 'skipped'])
+			expect(undecodable.chunks.map(chunk => [chunk.kind, chunk.kind === 'track' ? chunk.unreadable : undefined]))
+				.toEqual([['track', undefined], ['track', { thrown: 'Unrecognised MIDI event type: 0' }], ['skipped', undefined]])
 		})
 
 		it('keeps trailing bytes after the last chunk', () => {

@@ -87,6 +87,60 @@ describe('every MTrk chunk is a track (C20: R15)', () => {
 	})
 })
 
+/** An `MTrk` chunk with `body`, whose length field is `declared`, by default the body's length. */
+const trackChunk = (body: readonly number[], declared = body.length) =>
+	[0x4d, 0x54, 0x72, 0x6b, declared >>> 24, (declared >>> 16) & 0xff, (declared >>> 8) & 0xff, declared & 0xff, ...body]
+/** `data` with `chunk` after its last chunk, past the header's track count. */
+const withChunk = (data: Uint8Array, chunk: readonly number[]) => new Uint8Array([...data, ...chunk])
+const trackNameBass = [0x00, 0xff, 0x03, 0x09, ...new TextEncoder().encode('PART BASS')]
+const bassNote = [0x00, 0x90, 0x60, 0x64, 0x0a, 0x80, 0x60, 0x00]
+
+describe('a track past the header count is read as one within it is (C20: R15)', () => {
+	const guitar = guitarMidi(midiNote(480, 96, 10))
+	const thrownBy = (read: () => unknown) => {
+		try {
+			read()
+		} catch (error) {
+			return error
+		}
+		return undefined
+	}
+
+	it("refuses one that can't be decoded with what a track within the count throws, in the scanner and canonical profiles only", () => {
+		// A running status before the track's first channel event.
+		const chunk = trackChunk([0x00, 0x3c, 0x64, 0x00, 0xff, 0x2f, 0x00])
+		const counted = withCount(withChunk(guitar, chunk), 3)
+		const expected = 'Unrecognised MIDI event type: 0'
+		for (const parse of Object.values(parsers)) expect(thrownBy(() => parse(counted, 'mid'))).toBe(expected)
+		for (const parse of [parsers.scanner, parsers.canonical]) expect(thrownBy(() => parse(withChunk(guitar, chunk), 'mid'))).toBe(expected)
+		expect(instruments(withChunk(guitar, chunk), parsers.legacy)).toEqual(['guitar/expert'])
+	})
+
+	it('refuses one the file ends inside an event of, in the scanner and canonical profiles only, and reads one cut between two events', () => {
+		const cutInside = withChunk(guitar, trackChunk([...trackNameBass, ...bassNote.slice(0, 6)], 40))
+		for (const parse of [parsers.scanner, parsers.canonical]) {
+			expect(() => parse(cutInside, 'mid')).toThrow(`Invalid .mid file: the file ends inside an event of the track at byte ${guitar.length}`)
+		}
+		expect(instruments(cutInside, parsers.legacy)).toEqual(['guitar/expert'])
+		const cutBetween = withChunk(guitar, trackChunk([...trackNameBass, ...bassNote], 40))
+		for (const parse of [parsers.scanner, parsers.canonical]) expect(instruments(cutBetween, parse)).toEqual(['guitar/expert', 'bass/expert'])
+		expect(instruments(cutBetween, parsers.legacy)).toEqual(['guitar/expert'])
+	})
+
+	it('reads one whose fault comes after its end of track, which Clone Hero never reaches', () => {
+		const data = withChunk(guitar, trackChunk([...trackNameBass, ...bassNote, 0x00, 0xff, 0x2f, 0x00, 0x00, 0x3c, 0x64]))
+		for (const parse of [parsers.scanner, parsers.canonical]) expect(instruments(data, parse)).toEqual(['guitar/expert', 'bass/expert'])
+		expect(instruments(data, parsers.legacy)).toEqual(['guitar/expert'])
+		// A cut inside an event after the end of track, past the count or within it, which the frozen profile refuses.
+		const cut = withChunk(guitar, trackChunk([...trackNameBass, ...bassNote, 0x00, 0xff, 0x2f, 0x00, 0x00, 0x90], 40))
+		for (const counted of [cut, withCount(cut, 3)]) {
+			for (const parse of [parsers.scanner, parsers.canonical]) expect(instruments(counted, parse)).toEqual(['guitar/expert', 'bass/expert'])
+		}
+		expect(instruments(cut, parsers.legacy)).toEqual(['guitar/expert'])
+		expect(() => parsers.legacy(withCount(cut, 3), 'mid')).toThrow(`Invalid .mid file: the file ends inside an event of the track at byte ${guitar.length}`)
+	})
+})
+
 describe('events after the end of track are ignored (C20: R16)', () => {
 	const endOfTrack = (tick: number): TimedMidiEvent => ({ tick, event: { type: 'endOfTrack' } as TimedMidiEvent['event'] })
 	// The track ends at 600; the green at 960 and the red's note-off at 650 come after it.

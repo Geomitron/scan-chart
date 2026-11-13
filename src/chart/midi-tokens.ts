@@ -45,19 +45,21 @@ export interface MidiHeaderChunk extends MidiChunkFrame {
 }
 
 /**
- * An `MTrk` chunk, decoded into events: one within the header's track count, or one of the whole `MTrk` chunks that
- * follow those, up to a chunk of another kind (`pastHeaderCount`), which Clone Hero reads too (C20: R15) and `parseMidi`
- * never reads.
+ * An `MTrk` chunk, decoded into events: one within the header's track count, or one of the `MTrk` chunks that follow
+ * those, up to a chunk of another kind (`pastHeaderCount`), which Clone Hero reads too (C20: R15) and `parseMidi` never
+ * reads. Such a chunk that can't be decoded keeps the events before the fault, and what the reader threw there as
+ * `unreadable`, which a profile that reads the chunk throws as it would for a track within the count.
  */
 export interface MidiTrackChunk extends MidiChunkFrame {
 	kind: 'track'
 	events: MidiEventToken[]
 	pastHeaderCount?: true
+	unreadable?: { thrown: unknown }
 }
 
 /**
  * A chunk kept as bytes and not decoded: a chunk type other than `MTrk`, which the MIDI specification says readers
- * skip, or an `MTrk` chunk past the header's track count after a chunk of another kind, or that can't be decoded.
+ * skip, or an `MTrk` chunk past the header's track count after a chunk of another kind.
  */
 export interface MidiSkippedChunk extends MidiChunkFrame {
 	kind: 'skipped'
@@ -127,21 +129,22 @@ export function readMidiTokens(data: Uint8Array, unknownChunks: MidiUnknownChunk
 		previous = frame
 	}
 
-	// parseMidi reads nothing past the track count. Clone Hero reads on, each whole MTrk chunk up to a chunk of another
-	// kind, which are decoded as tracks when they can be. Whole chunks there are kept as chunks, and anything else as
-	// trailing bytes.
+	// parseMidi reads nothing past the track count. Clone Hero reads on, each MTrk chunk up to a chunk of another kind,
+	// with the reader it reads the counted ones with. They are decoded as those are, and one that can't be decoded ends
+	// them, keeping what was thrown. Whole chunks after them are kept as chunks, and anything else as trailing bytes.
 	let trailingStart = previous.end
 	while (trackCount === header.header.numTracks && trailingStart < data.length) {
 		const frame = readChunkFrame(data, trailingStart)
-		if (frame.id !== 'MTrk' || !isWholeChunk(data, frame)) break
-		let events: MidiEventToken[]
+		if (frame.id !== 'MTrk') break
+		const chunk: MidiTrackChunk = { ...frame, kind: 'track', events: [], pastHeaderCount: true }
 		try {
-			events = readTrackEvents(data.subarray(frame.bodyStart, frame.end), frame.bodyStart)
-		} catch {
-			break
+			readTrackEvents(data.subarray(frame.bodyStart, frame.end), frame.bodyStart, chunk.events)
+		} catch (thrown) {
+			chunk.unreadable = { thrown }
 		}
-		chunks.push({ ...frame, kind: 'track', events, pastHeaderCount: true })
+		chunks.push(chunk)
 		trailingStart = frame.end
+		if (chunk.unreadable !== undefined || !(frame.length >= 0)) break
 	}
 	while (trailingStart < data.length) {
 		const frame = readChunkFrame(data, trailingStart)
@@ -394,9 +397,9 @@ function readHeader(body: Uint8Array): MidiHeader {
 		: { format, numTracks, ticksPerBeat: timeDivision }
 }
 
-function readTrackEvents(body: Uint8Array, bodyStart: number): MidiEventToken[] {
+/** Decodes a track chunk's body into `tokens`, which keeps the events before a fault when the reader throws. */
+function readTrackEvents(body: Uint8Array, bodyStart: number, tokens: MidiEventToken[] = []): MidiEventToken[] {
 	const reader = new ChunkReader(body)
-	const tokens: MidiEventToken[] = []
 	let tick = 0
 	while (reader.pos < body.length) {
 		const start = reader.pos

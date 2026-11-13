@@ -292,10 +292,17 @@ function checkMidiFileTokens(tokens: MidiTokens, rules: MidiTrackRules): MidiTok
 		throw 'Invalid .mid file: no tracks detected'
 	}
 
-	// Clone Hero refuses a file cut short inside an event; one cut between two events is read up to the cut.
-	const cut = tokens.chunks.find(chunk => chunk.kind === 'track' && isCutInsideEvent(tokens, chunk))
-	if (cut !== undefined) {
-		throw `Invalid .mid file: the file ends inside an event of the track at byte ${cut.start}`
+	for (const chunk of tokens.chunks) {
+		if (!isReadTrack(chunk, rules)) continue
+		// A reader that stops at the end of track never reaches a fault after it. The events before a fault are whole, and
+		// a cut is inside the last event, so only an end of track before the last event comes before the cut.
+		const end = rules.midiEventsAfterEnd === 'ignored' ? chunk.events.findIndex(token => token.event.type === 'endOfTrack') : -1
+		// A track past the header's count that can't be decoded is refused as one within the count is (C20: R15).
+		if (chunk.unreadable !== undefined && end === -1) throw chunk.unreadable.thrown
+		// Clone Hero refuses a file cut short inside an event; one cut between two events is read up to the cut.
+		if ((end === -1 || end === chunk.events.length - 1) && isCutInsideEvent(tokens, chunk)) {
+			throw `Invalid .mid file: the file ends inside an event of the track at byte ${chunk.start}`
+		}
 	}
 
 	const exponent = largeTimeSignatureExponent(tokens)
