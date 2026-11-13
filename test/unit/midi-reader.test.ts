@@ -40,6 +40,20 @@ describe('the .mid reader refuses what Clone Hero refuses', () => {
 		}
 	})
 
+	it('refuses a file cut short inside an event in every profile, and reads one cut between two events up to the cut (Q1 B)', () => {
+		const data = guitarMidi(greens)
+		// The last track ends with a note-off at 310 and the end of track, 00 FF 2F 00.
+		for (const cut of [1, 2, 3, 5, 6]) {
+			for (const parse of Object.values(parsers)) expect(() => parse(data.subarray(0, data.length - cut), 'mid'), String(cut)).toThrow('the file ends inside an event')
+		}
+		for (const parse of Object.values(parsers)) {
+			expect(() => parse(data.subarray(0, data.length - 4), 'mid')).not.toThrow()
+			expect(tapTicks(data.subarray(0, data.length - 4), parse)).toEqual([])
+			// Cut before the last note-off, the note at 300 has no end, and is left out.
+			expect(parse(data.subarray(0, data.length - 8), 'mid').trackData[0].noteEventGroups.map(group => group[0].tick)).toEqual([0, 100, 200])
+		}
+	})
+
 	it('refuses a 5- or 6-fret tap or open SysEx event whose value byte is not 00 or 01, in every profile (R65)', () => {
 		const event = (tick: number, phrase: number, value: number, ...rest: number[]): TimedMidiEvent =>
 			({ tick, event: { type: 'sysEx', data: new Uint8Array([0x50, 0x53, 0, 0, 3, phrase, value, ...rest]) } as TimedMidiEvent['event'] })

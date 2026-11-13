@@ -1,7 +1,7 @@
 import { MidiData, MidiEvent, MidiSetTempoEvent, MidiTextEvent, MidiTimeSignatureEvent } from '@geomitron/midi-file'
 
 import { difficulties, Difficulty, getInstrumentType, Instrument, InstrumentType, instrumentTypes } from '../types'
-import { isReadTrack, midiTokensToMidiData, MidiTokens, midiTrackEvents, midiTrackIndex, type MidiTrackRules, readMidiTokens, readTrackTokens } from './midi-tokens'
+import { isCutInsideEvent, isReadTrack, midiTokensToMidiData, MidiTokens, midiTrackEvents, midiTrackIndex, type MidiTrackRules, readMidiTokens, readTrackTokens } from './midi-tokens'
 import { DrumMixEvent, EventType, eventTypes, RawChartData, VocalTrackData } from './raw-types'
 import { IniChartModifiers } from './types'
 import { readMixEvent } from './mix-event'
@@ -290,6 +290,12 @@ function checkMidiFileTokens(tokens: MidiTokens, rules: MidiTrackRules): MidiTok
 
 	if (!tokens.chunks.some(chunk => isReadTrack(chunk, rules))) {
 		throw 'Invalid .mid file: no tracks detected'
+	}
+
+	// Clone Hero refuses a file cut short inside an event; one cut between two events is read up to the cut.
+	const cut = tokens.chunks.find(chunk => chunk.kind === 'track' && isCutInsideEvent(tokens, chunk))
+	if (cut !== undefined) {
+		throw `Invalid .mid file: the file ends inside an event of the track at byte ${cut.start}`
 	}
 
 	if (hasLongDeltaTime(tokens, rules)) {

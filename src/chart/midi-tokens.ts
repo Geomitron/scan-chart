@@ -401,6 +401,19 @@ function readTrackEvents(body: Uint8Array, bodyStart: number): MidiEventToken[] 
 }
 
 /**
+ * Whether the file ends inside an event of the track chunk `chunk`: the file is cut short in the chunk's body, and its
+ * last event needs bytes past the file's end (Q1 B).
+ */
+export function isCutInsideEvent(tokens: MidiTokens, chunk: MidiTrackChunk): boolean {
+	if (chunk.end !== tokens.data.length || chunk.end - chunk.bodyStart === chunk.length) return false
+	const body = tokens.data.subarray(chunk.bodyStart, chunk.end)
+	const reader = new ChunkReader(body)
+	while (reader.pos < body.length) readEvent(reader)
+	// A variable-length number cut short reads as what it has so far, so the reader notes it.
+	return reader.cutShort || !(reader.pos <= body.length)
+}
+
+/**
  * Reads one event as `parseMidi` does, building the same fields in the same order, so even the key order matches.
  * A field read past the end of a truncated track is `undefined` or `NaN`, as it is in `parseMidi`.
  */
@@ -560,6 +573,8 @@ class ChunkReader {
 	 * which decodes as event type 0 and channel 0, just as this 0 does.
 	 */
 	runningStatus = 0
+	/** Whether a variable-length number ran past the end of the body. */
+	cutShort = false
 
 	constructor(bytes: Uint8Array) {
 		this.bytes = bytes
@@ -599,6 +614,7 @@ class ChunkReader {
 				return result + b
 			}
 		}
+		this.cutShort = true
 		return result
 	}
 
