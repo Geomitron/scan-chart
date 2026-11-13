@@ -115,11 +115,11 @@ export const issueSeverities: { readonly [code in IssueCode]: IssueSeverity } = 
 	discoNoflipDuringFlip: 'error',
 	chartModifierWithoutNote: 'recommendation',
 	midiDrumModifierWithoutNote: 'recommendation',
-	nonstandardMixEvent: 'warning',
-	nonstandardEnhancedOpens: 'warning',
-	wrongMidiTrackCount: 'warning',
-	eventsAfterEndOfTrack: 'warning',
-	nonstandardPhaseShiftSysEx: 'warning',
+	nonstandardMixEvent: 'error',
+	nonstandardEnhancedOpens: 'error',
+	wrongMidiTrackCount: 'error',
+	eventsAfterEndOfTrack: 'error',
+	nonstandardPhaseShiftSysEx: 'error',
 }
 
 /** A problem found in a song folder. Every issue has this shape, whatever its scope. */

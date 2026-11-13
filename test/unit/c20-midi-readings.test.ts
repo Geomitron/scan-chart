@@ -35,9 +35,9 @@ describe('ENHANCED_OPENS in any letter case (C20: R13)', () => {
 		}
 	})
 
-	it('reports it as a warning, and fixIssues rewrites it in capitals, keeping the hashes', async () => {
+	it('reports it as an error, and fixIssues rewrites it in capitals, keeping the hashes', async () => {
 		expect(issuesOf(data, 'nonstandardEnhancedOpens')).toEqual([{
-			instrument: 'guitar', difficulty: null, severity: 'warning',
+			instrument: 'guitar', difficulty: null, severity: 'error',
 			message: 'The ENHANCED_OPENS event "[enhanced_opens]" at tick 0 isn\'t in capitals. Clone Hero reads it in any letter case, and other programs, '
 				+ 'such as YARG, only in capitals. fixIssues can rewrite it in capitals.',
 		}])
@@ -70,13 +70,13 @@ describe('every MTrk chunk is a track (C20: R15)', () => {
 		expect(() => parsers.legacy(withCount(data, 0), 'mid')).toThrow('no tracks detected')
 	})
 
-	it('reports the wrong count as a warning, and fixIssues rewrites it, keeping the hashes', async () => {
+	it('reports the wrong count as an error, and fixIssues rewrites it, keeping the hashes', async () => {
 		expect(issuesOf(data, 'wrongMidiTrackCount')).toEqual([{
-			instrument: null, difficulty: null, severity: 'warning',
+			instrument: null, difficulty: null, severity: 'error',
 			message: 'The .mid file\'s header counts 2 tracks, but the file has 3. Clone Hero reads all 3, and other programs may read only the first 2. fixIssues can rewrite the count.',
 		}])
 		expect(issuesOf(withCount(data, 5), 'wrongMidiTrackCount')).toEqual([{
-			instrument: null, difficulty: null, severity: 'warning', message: 'The .mid file\'s header counts 5 tracks, but the file has only 3. fixIssues can rewrite the count.',
+			instrument: null, difficulty: null, severity: 'error', message: 'The .mid file\'s header counts 5 tracks, but the file has only 3. fixIssues can rewrite the count.',
 		}])
 		expect(issuesOf(withCount(data, 3), 'wrongMidiTrackCount')).toEqual([])
 		const result = await fixed(data, 'wrongMidiTrackCount')
@@ -151,9 +151,9 @@ describe('events after the end of track are ignored (C20: R16)', () => {
 		expect(expertNotes(data, parsers.legacy)).toEqual([[480, noteTypes.green], [500, noteTypes.red], [960, noteTypes.green]])
 	})
 
-	it('reports them as a warning, and fixIssues moves the end of track after them with changeHashes', async () => {
+	it('reports them as an error, and fixIssues moves the end of track after them with changeHashes', async () => {
 		expect(issuesOf(data, 'eventsAfterEndOfTrack')).toEqual([{
-			instrument: 'guitar', difficulty: null, severity: 'warning',
+			instrument: 'guitar', difficulty: null, severity: 'error',
 			message: 'The track "PART GUITAR" has 3 events, from tick 650, after its end of track. Clone Hero ignores them, and other programs may read them. '
 				+ 'fixIssues can move the end of track after them.',
 		}])
@@ -188,10 +188,10 @@ describe('a Phase Shift SysEx event is read only at exactly 8 bytes (C20: R12)',
 		}
 	})
 
-	it('reports one of another length as a warning, and fixIssues rewrites it in the 8-byte form with changeHashes', async () => {
+	it('reports one of another length as an error, and fixIssues rewrites it in the 8-byte form with changeHashes', async () => {
 		const data = taps([1], [0, 0, 0xf7])
 		expect(issuesOf(data, 'nonstandardPhaseShiftSysEx')).toEqual([{
-			instrument: 'guitar', difficulty: null, severity: 'warning',
+			instrument: 'guitar', difficulty: null, severity: 'error',
 			message: '2 tap and open SysEx events, such as the one at tick 0, which is 7 bytes long, aren\'t 8 bytes long. Clone Hero and YARG read only an 8-byte one, '
 				+ 'so they ignore them, and other programs may read them. fixIssues can rewrite them in the 8-byte form.',
 		}])

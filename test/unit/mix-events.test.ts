@@ -57,16 +57,16 @@ describe('mix events spelled another way (C20: R2, R10)', () => {
 		expect(mixes(drumsMidi(' [mix 3 drums0d]'), 'mid', parsers.legacy)).toEqual([{ tick: 0, configuration: 0, flag: 'd' }])
 	})
 
-	it('reports them as a warning, per difficulty, naming the first', () => {
+	it('reports them as an error, per difficulty, naming the first', () => {
 		expect(mixIssues([{ fileName: 'notes.chart', data: drumsChart('0 = E mix 3  drums0d', '960 = E mix 3 drumsxd') }])).toEqual([{
 			difficulty: 'expert',
-			severity: 'warning',
+			severity: 'error',
 			message: '2 mix events, such as "mix 3  drums0d" at tick 0, aren\'t spelled the standard way. Clone Hero reads that one as "mix 3 drums0d", '
 				+ 'and other programs may not. fixIssues can rewrite them in the standard spelling.',
 		}])
 		expect(mixIssues([{ fileName: 'notes.mid', data: drumsMidi(' [mix 3 drums0d]', '[mix 3 drums0d]', '[mix 2 drums0dnoflip]') }])).toEqual([{
 			difficulty: 'expert',
-			severity: 'warning',
+			severity: 'error',
 			message: 'The mix event " [mix 3 drums0d]" at tick 0 isn\'t spelled the standard way. Clone Hero ignores it, and other programs may read it as '
 				+ '"mix 3 drums0d". fixIssues can rewrite it in the standard spelling.',
 		}])
