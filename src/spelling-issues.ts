@@ -11,7 +11,7 @@ import {
 import { ChartEventSection, ChartLineSpelling, chartSectionSpellings, chartSongSpellings } from './chart/chart-line-spelling'
 import { chartModifiersWithoutNotes } from './chart/chart-modifiers'
 import { chartSectionMisspelledMixes, chartSectionNoflips, type MisspelledMixEvent, midiTrackMisspelledMixes, midiTrackNoflips, type NoflipDuringFlip } from './chart/disco-flip'
-import { midiDrumModifiersWithoutNotes, midiEnhancedOpensInOtherCase, midiEventsAfterEnd, midiSysExOfAnotherLength, midiTrackCounts, midiTrackInstrument, repeatedMidiInstruments } from './chart/midi-file-parser'
+import { midiDrumModifiersWithoutNotes, midiEnhancedOpensInOtherCase, midiEventsAfterEnd, midiSysExOfAnotherLength, midiTrackCounts, midiTrackInstrument, phaseShiftSysExTypes, repeatedMidiInstruments } from './chart/midi-file-parser'
 import { midiPitchKey } from './chart/midi-note-numbers'
 import { midiNormalizations } from './chart/midi-normalize'
 import type { MidiTokens } from './chart/midi-tokens'
@@ -147,7 +147,7 @@ export function chartSpellingIssues(source: ChartSource, styleNotes: boolean): I
 	for (const { instrument, events } of midiSysExOfAnotherLength(source.tokens)) {
 		const [first] = events
 		const one = events.length === 1
-		const which = one ? `The ${first.data[5] === 0x04 ? 'tap' : 'open'} SysEx event at tick ${first.tick} is ${first.data.length} bytes long`
+		const which = one ? `The ${first.data[5] === phaseShiftSysExTypes.tap ? 'tap' : 'open'} SysEx event at tick ${first.tick} is ${first.data.length} bytes long`
 			: `${events.length.toLocaleString('en-US')} tap and open SysEx events, such as the one at tick ${first.tick}, which is ${first.data.length} bytes long, aren't 8 bytes long`
 		add('nonstandardPhaseShiftSysEx', { instrument, difficulty: null }, `${which}. Clone Hero and YARG read only an 8-byte one, so they ignore ${one ? 'it' : 'them'}, `
 			+ `and other programs may read ${one ? 'it' : 'them'}. fixIssues can rewrite ${one ? 'it' : 'them'} in the 8-byte form.`)

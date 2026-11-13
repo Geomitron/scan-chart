@@ -163,6 +163,9 @@ export function midiEventsAfterEnd(tokens: MidiTokens): {
 	})
 }
 
+/** The type bytes of the Phase Shift SysEx events that are modifiers: an open, and a tap. */
+export const phaseShiftSysExTypes = Object.freeze({ open: 0x01, tap: 0x04 })
+
 /**
  * Whether a SysEx event's `data` is a Phase Shift event, `50 53 00 00 <difficulty> <type> <value>`: only at exactly 8
  * bytes, ending with F7, as Clone Hero reads it (C20: R12), or at 7 bytes or more.
@@ -180,7 +183,7 @@ export function midiSysExOfAnotherLength(tokens: MidiTokens): { name: string; in
 	return midiInstrumentTracks(tokens).flatMap(track => {
 		const chunk = tokens.chunks[track.chunkIndex]
 		const events = chunk.kind !== 'track' ? [] : chunk.events.flatMap(({ tick, event }, eventIndex) => event.type === 'sysEx'
-			&& isPhaseShiftSysEx(event.data, '7BytesOrMore') && !isPhaseShiftSysEx(event.data, 'exactly8Bytes') && (event.data[5] === 0x01 || event.data[5] === 0x04)
+			&& isPhaseShiftSysEx(event.data, '7BytesOrMore') && !isPhaseShiftSysEx(event.data, 'exactly8Bytes') && (event.data[5] === phaseShiftSysExTypes.open || event.data[5] === phaseShiftSysExTypes.tap)
 			? [{ eventIndex, tick, data: event.data }] : [])
 		return events.length === 0 ? [] : [{ ...track, events }]
 	})
@@ -954,13 +957,13 @@ function scanInstrumentTrack(
 		if (eventType === 'sysEx' || eventType === 'endSysEx') {
 			// Phase Shift SysEx event header: 50 53 00 00 <diff> <type> <isStart>
 			const isPhaseShiftHeader = isPhaseShiftSysEx(event.data, rules.phaseShiftSysEx)
-			if (sysExValue === null && isPhaseShiftSysEx(event.data, 'exactly8Bytes') && (event.data[5] === 0x01 || event.data[5] === 0x04) && event.data[6] > 0x01) {
-				sysExValue = { tick: event.deltaTime, phrase: event.data[5] === 0x04 ? 'tap' : 'open', value: event.data[6] }
+			if (sysExValue === null && isPhaseShiftSysEx(event.data, 'exactly8Bytes') && (event.data[5] === phaseShiftSysExTypes.open || event.data[5] === phaseShiftSysExTypes.tap) && event.data[6] > 0x01) {
+				sysExValue = { tick: event.deltaTime, phrase: event.data[5] === phaseShiftSysExTypes.tap ? 'tap' : 'open', value: event.data[6] }
 			}
 			const type =
 				!isPhaseShiftHeader ? null
-				: event.data[5] === 0x01 ? eventTypes.forceOpen
-				: event.data[5] === 0x04 ? eventTypes.forceTap
+				: event.data[5] === phaseShiftSysExTypes.open ? eventTypes.forceOpen
+				: event.data[5] === phaseShiftSysExTypes.tap ? eventTypes.forceTap
 				: null
 
 			if (type !== null) {

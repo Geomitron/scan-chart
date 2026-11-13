@@ -2,7 +2,7 @@ import { spliceChartText } from './chart/chart-edit'
 import { chartSectionLines, chartSectionTrack } from './chart/chart-file-parser'
 import { chartSectionMisspelledMixes, midiTrackMisspelledMixes } from './chart/disco-flip'
 import { editMidiTrack, midiTextEvent, type MidiTrackEdit } from './chart/midi-edit'
-import { midiEnhancedOpensInOtherCase, midiEventsAfterEnd, midiSysExOfAnotherLength, midiTrackCounts } from './chart/midi-file-parser'
+import { midiEnhancedOpensInOtherCase, midiEventsAfterEnd, midiSysExOfAnotherLength, midiTrackCounts, phaseShiftSysExTypes } from './chart/midi-file-parser'
 import { type MidiTokens, readMidiTokens } from './chart/midi-tokens'
 import type { FixOptions } from './fix-issues'
 import { chooseEdits, FixRecord, hashChanges, hashNames, issueFixTable } from './issue-fixes'
@@ -12,16 +12,24 @@ import { songHashes } from './song-hashes'
 
 /**
  * One rewrite of a form the canonical profile reads as Clone Hero does (C20), into the standard form: the code of the
- * issue it fixes, what it does, and its edit of the chart file's text or of one `.mid` track or the whole `.mid` file.
+ * issue it fixes, what it does as the report describes it (`Rewrote ...`) and as a skip reason starts (`Rewriting ...`),
+ * and its edit of the chart file's text or of one `.mid` track or the whole `.mid` file.
  */
 interface FormFix {
 	readonly code: IssueCode
 	readonly description: string
+	readonly skipping: string
 	readonly edit:
 		| { readonly kind: 'chart'; readonly start: number; readonly end: number; readonly text: string }
 		| { readonly kind: 'midiTrack'; readonly chunkIndex: number; readonly edits: readonly MidiTrackEdit[] }
 		| { readonly kind: 'midiFile'; readonly apply: (tokens: MidiTokens) => MidiTokens }
 }
+
+/** A fix's description and skip reason start, for a fix that rewrites `what`. */
+const rewriting = (what: string) => ({ description: `Rewrote ${what}.`, skipping: `Rewriting ${what}` })
+
+/** A fix's description and skip reason start, for a fix that moves `what`. */
+const moving = (what: string) => ({ description: `Moved ${what}.`, skipping: `Moving ${what}` })
 
 /** The codes `fixReadingForms` fixes. */
 const formCodes: readonly IssueCode[] = ['nonstandardMixEvent', 'nonstandardEnhancedOpens', 'wrongMidiTrackCount', 'eventsAfterEndOfTrack', 'nonstandardPhaseShiftSysEx']
@@ -49,7 +57,7 @@ export function fixReadingForms(song: SongDocument, issues: readonly Issue[], op
 					const start = tokens.text.indexOf(mix.line.text, mix.line.start)
 					fixes.push({
 						code: 'nonstandardMixEvent',
-						description: `Rewrote the mix event "${mix.text}" at tick ${mix.tick} in [${section.name}] as "${mix.standard}".`,
+						...rewriting(`the mix event "${mix.text}" at tick ${mix.tick} in [${section.name}] as "${mix.standard}"`),
 						edit: { kind: 'chart', start, end: start + mix.line.text.length, text: `${mix.tick} = E ${mix.standard}` },
 					})
 				}
@@ -61,7 +69,7 @@ export function fixReadingForms(song: SongDocument, issues: readonly Issue[], op
 		if (codes.has('wrongMidiTrackCount') && counted !== tracks) {
 			fixes.push({
 				code: 'wrongMidiTrackCount',
-				description: `Rewrote the header's track count from ${counted.toLocaleString('en-US')} to ${tracks.toLocaleString('en-US')}.`,
+				...rewriting(`the header's track count from ${counted.toLocaleString('en-US')} to ${tracks.toLocaleString('en-US')}`),
 				edit: { kind: 'midiFile', apply: current => withTrackCount(current, midiTrackCounts(current).tracks) },
 			})
 		}
@@ -70,8 +78,8 @@ export function fixReadingForms(song: SongDocument, issues: readonly Issue[], op
 			const endTick = original.kind === 'track' ? original.events[track.end].tick : 0
 			fixes.push({
 				code: 'eventsAfterEndOfTrack',
-				description: `Moved the end of track of "${track.name}" from tick ${endTick} to tick ${Math.max(endTick, track.lastTick)}, after the `
-					+ `${track.after === 1 ? 'event' : `${track.after.toLocaleString('en-US')} events`} that followed it.`,
+				...moving(`the end of track of "${track.name}" from tick ${endTick} to tick ${Math.max(endTick, track.lastTick)}, after the `
+					+ `${track.after === 1 ? 'event' : `${track.after.toLocaleString('en-US')} events`} that followed it`),
 				edit: {
 					kind: 'midiTrack',
 					chunkIndex: track.chunkIndex,
@@ -84,7 +92,7 @@ export function fixReadingForms(song: SongDocument, issues: readonly Issue[], op
 				const standard = new Uint8Array([...Array.from(data).slice(0, 7), 0xf7])
 				fixes.push({
 					code: 'nonstandardPhaseShiftSysEx',
-					description: `Rewrote the ${data.length}-byte ${data[5] === 0x04 ? 'tap' : 'open'} SysEx event at tick ${tick} in "${track.name}" in the 8-byte form.`,
+					...rewriting(`the ${data.length}-byte ${data[5] === phaseShiftSysExTypes.tap ? 'tap' : 'open'} SysEx event at tick ${tick} in "${track.name}" in the 8-byte form`),
 					edit: { kind: 'midiTrack', chunkIndex: track.chunkIndex, edits: [{ kind: 'delete', event: eventIndex }, { kind: 'insert', tick, event: { type: 'sysEx', data: standard } }] },
 				})
 			}
@@ -93,7 +101,7 @@ export function fixReadingForms(song: SongDocument, issues: readonly Issue[], op
 			for (const { eventIndex, tick, text } of track.events) {
 				fixes.push({
 					code: 'nonstandardEnhancedOpens',
-					description: `Rewrote the ENHANCED_OPENS event "${text}" at tick ${tick} in "${track.name}" as "${text.toUpperCase()}".`,
+					...rewriting(`the ENHANCED_OPENS event "${text}" at tick ${tick} in "${track.name}" as "${text.toUpperCase()}"`),
 					edit: { kind: 'midiTrack', chunkIndex: track.chunkIndex, edits: [{ kind: 'replace', event: eventIndex, with: midiTextEvent(text.toUpperCase()) }] },
 				})
 			}
@@ -104,7 +112,7 @@ export function fixReadingForms(song: SongDocument, issues: readonly Issue[], op
 			const event = original.kind === 'track' ? original.events[mix.eventIndex].event : undefined
 			fixes.push({
 				code: 'nonstandardMixEvent',
-				description: `Rewrote the mix event "${mix.text}" at tick ${mix.tick} in "${drums!.name}" as "${mix.standard}".`,
+				...rewriting(`the mix event "${mix.text}" at tick ${mix.tick} in "${drums!.name}" as "${mix.standard}"`),
 				edit: { kind: 'midiTrack', chunkIndex: drums!.chunkIndex, edits: [{ kind: 'replace', event: mix.eventIndex, with: midiTextEvent(mix.standard, event) }] },
 			})
 		}
@@ -143,8 +151,8 @@ export function fixReadingForms(song: SongDocument, issues: readonly Issue[], op
 		return changes.every(change => allowed.has(change.key)) ? null : `would change ${hashNames(changes)}`
 	}
 	const { song: fixed, chosen } = chooseEdits(song, fixes, apply, problem, (fix, problem) => record.skip(fix.code, chart.fileName, mayChange(fix)
-		? `${fix.description.replace(/^Rewrote/, 'Rewriting').replace(/\.$/, '')} ${problem}: fix it with changeHashes.`
-		: `${fix.description.replace(/^Rewrote/, 'Rewriting').replace(/\.$/, '')} ${problem}, so games would read the song differently.`))
+		? `${fix.skipping} ${problem}: fix it with changeHashes.`
+		: `${fix.skipping} ${problem}, so games would read the song differently.`))
 	for (const fix of chosen) record.fixed.push({ code: fix.code, file: chart.fileName, description: fix.description })
 	return fixed
 }
