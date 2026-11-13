@@ -10,7 +10,7 @@ import { deriveCanonicalSourceCase, deriveSongCase, deriveSourceCase, stableJson
 import { BTrackAcceptedVector, BTrackRejectedVector, FixtureFile, GoldenManifestV1, GoldenManifestV2, readManifest } from './schema'
 
 /** The approved suite that `npm run vectors:verify` checks. Promoting a new suite changes only this line. */
-const currentSuite = 'v5'
+const currentSuite = 'v6'
 
 function suiteArgument(): string {
 	const index = process.argv.indexOf('--suite')
