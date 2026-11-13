@@ -10,7 +10,7 @@ import {
 } from './chart/chart-file-parser'
 import { ChartEventSection, ChartLineSpelling, chartSectionSpellings, chartSongSpellings } from './chart/chart-line-spelling'
 import { chartModifiersWithoutNotes } from './chart/chart-modifiers'
-import { chartSectionNoflips, midiTrackNoflips, type NoflipDuringFlip } from './chart/disco-flip'
+import { chartSectionMisspelledMixes, chartSectionNoflips, type MisspelledMixEvent, midiTrackMisspelledMixes, midiTrackNoflips, type NoflipDuringFlip } from './chart/disco-flip'
 import { midiDrumModifiersWithoutNotes, midiTrackInstrument, repeatedMidiInstruments } from './chart/midi-file-parser'
 import { midiPitchKey } from './chart/midi-note-numbers'
 import { midiNormalizations } from './chart/midi-normalize'
@@ -39,6 +39,7 @@ export type SpellingIssueType =
 	| 'discoNoflipDuringFlip'
 	| 'chartModifierWithoutNote'
 	| 'midiDrumModifierWithoutNote'
+	| 'nonstandardMixEvent'
 
 /**
  * Each message says what Clone Hero does (StrikeCore's readers, which HashScanTool shares). The issues about
@@ -57,6 +58,7 @@ export const spellingIssueMessages: { readonly [code in SpellingIssueType]: stri
 	nonstandardChartSections: 'The chart\'s [Song] and [SyncTrack] sections aren\'t written the standard way. Saving an edit fixes them.',
 	discoNoflipDuringFlip: 'A "dnoflip" mix event comes while a "d" disco flip is on. Clone Hero 1.1 keeps the flip on, and other programs start no-flip there. Saving an edit turns the flip off first.',
 	chartModifierWithoutNote: 'A modifier in this section, such as a forced, tap, cymbal, accent or ghost marker, has no note at its tick to apply to. Games ignore it, but a cymbal marker still makes the chart pro. Saving an edit removes it, unless it\'s a cymbal marker the drum type may depend on.',
+	nonstandardMixEvent: 'A mix event in this track isn\'t spelled the standard way, "mix <difficulty> drums<configuration><flag>". Clone Hero and other programs may read it differently.',
 	midiDrumModifierWithoutNote: 'A drum modifier in this track, a tom marker or a flam, covers no note, so it changes none. Clone Hero 1.1 and YARG still read a tom marker as making the chart pro.',
 }
 
@@ -88,6 +90,12 @@ export function chartSpellingIssues(source: ChartSource, styleNotes: boolean): I
 			if (isRead && section.name === 'Song') respelled.push(...lineIssues(tokens, section, chartSongSpellings))
 			// Few drums sections have a dnoflip event.
 			const noflip = isRead && track?.instrument === 'drums' ? tokens.text.indexOf('dnoflip', section.bodyStart) : -1
+			// Few drums sections have a mix event.
+			const mix = isRead && track?.instrument === 'drums' ? tokens.text.indexOf('mix', section.bodyStart) : -1
+			if (track !== null && mix !== -1 && mix < section.bodyEnd) {
+				const found = chartSectionMisspelledMixes(chartSectionLines(tokens, section), track.difficulty)
+				if (found.length > 0) respelled.push(['nonstandardMixEvent', section.name, mixMessage(found)])
+			}
 			if (track !== null && noflip !== -1 && noflip < section.bodyEnd) {
 				const found = chartSectionNoflips(chartSectionLines(tokens, section).map(line => line.text), track.difficulty)
 				if (found.length > 0) respelled.push(['discoNoflipDuringFlip', section.name, noflipMessage(found)])
@@ -120,6 +128,11 @@ export function chartSpellingIssues(source: ChartSource, styleNotes: boolean): I
 	}
 	for (const [difficulty, found] of midiTrackNoflips(source.tokens)?.difficulties ?? []) {
 		if (found.length > 0) add('discoNoflipDuringFlip', { instrument: 'drums', difficulty }, noflipMessage(found))
+	}
+	const mixes = midiTrackMisspelledMixes(source.tokens)
+	for (const difficulty of ['expert', 'hard', 'medium', 'easy'] as const) {
+		const found = mixes?.events.filter(event => readDifficulty(event.standard) === difficulty) ?? []
+		if (found.length > 0) add('nonstandardMixEvent', { instrument: 'drums', difficulty }, mixMessage(found))
 	}
 	for (const { instrument, modifiers } of styleNotes ? midiDrumModifiersWithoutNotes(source.tokens) : []) {
 		add('midiDrumModifierWithoutNote', { instrument, difficulty: null }, drumModifierMessage(modifiers))
@@ -160,6 +173,22 @@ function modifierMessage(lines: readonly string[], kept: number): string {
 	return `${which} modifiers with no note at their tick to apply to. Games ignore them, but ${kept} of them, `
 		+ `${kept === 1 ? 'a cymbal marker, still makes' : 'cymbal markers, still make'} the chart pro. Saving an edit removes the others: `
 		+ moveFirst('them', 'their notes\' ticks', 'they')
+}
+
+/** The difficulty of a standard mix event's text, `mix <difficulty> ...`. */
+const readDifficulty = (standard: string) => (['easy', 'medium', 'hard', 'expert'] as const)[Number(standard[4])]
+
+/**
+ * The message about one difficulty's mix events spelled another way (C20: R2, R10), naming the first: Clone Hero reads
+ * each as its standard spelling, or ignores one other programs read.
+ */
+function mixMessage(found: readonly MisspelledMixEvent[]): string {
+	const [first] = found
+	const one = found.length === 1
+	const which = one ? `The mix event "${first.text}" at tick ${first.tick} isn't` : `${found.length.toLocaleString('en-US')} mix events, such as "${first.text}" at tick ${first.tick}, aren't`
+	const reading = first.isRead ? `Clone Hero reads ${one ? 'it' : 'that one'} as "${first.standard}", and other programs may not.`
+		: `Clone Hero ignores ${one ? 'it' : 'that one'}, and other programs may read it as "${first.standard}".`
+	return `${which} spelled the standard way. ${reading} fixIssues can rewrite ${one ? 'it' : 'them'} in the standard spelling.`
 }
 
 /** The message about one difficulty's `dnoflip` mix events that come while a `d` flip is on, naming the first. */

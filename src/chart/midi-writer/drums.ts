@@ -8,8 +8,7 @@ import type { NoteType } from '../types'
 import { noteFlags, noteTypes } from '../types'
 import { drumsDiffStarts } from '../midi-note-numbers'
 import type { ParsedChart } from '../parse-chart-and-ini'
-import { chartMixTextEvents, drumMixText } from '../disco-flip'
-import { midiDiscoFlipRegex } from '../midi-file-parser'
+import { chartMixTextEvents, drumMixText, isChartMixText } from '../disco-flip'
 import { drumMixEvents, wrapEventBrackets } from '../writer-shared'
 import {
 	addNoteOnOff,
@@ -130,7 +129,7 @@ export function buildDrumTrack(
 			const sourceIsMidi = chart.format === 'mid'
 			for (const te of td.textEvents) {
 				// A `.chart` file's mix events are written below, from every difficulty's section.
-				if (!sourceIsMidi && midiDiscoFlipRegex.test(te.text)) continue
+				if (!sourceIsMidi && isChartMixText(te.text)) continue
 				const text = sourceIsMidi ? te.text : wrapEventBrackets(te.text)
 				events.push({
 					tick: te.tick,

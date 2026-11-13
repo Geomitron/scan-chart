@@ -14,6 +14,7 @@ import { saveSong } from 'src/song-save'
 
 import { chartFile, chartText, expertChart, expertSection, midi } from './helpers/chart-files'
 import { jpeg, opus, png, vorbis } from './helpers/media-files'
+import { midiFile, midiNote, midiText } from './helpers/midi-files'
 
 const decode = (bytes: Uint8Array) => new TextDecoder().decode(bytes)
 
@@ -601,6 +602,11 @@ describe('issueFixes', () => {
 		audio,
 		...files,
 	]
+	const midSongOf = (ini: readonly string[], tracks: Parameters<typeof midiFile>[0]) => [
+		{ fileName: 'notes.mid', data: midiFile([{ name: 'PART GUITAR', events: [...midiNote(480, 96), ...midiNote(960, 97)] }, ...tracks]) },
+		{ fileName: 'song.ini', data: iniFile(['[song]', 'name = Song', ...ini]) },
+		audio,
+	]
 	const length = 'song_length = 10000'
 	/** For each code, a song whose fix keeps the hashes, and one whose fix changes them. */
 	const fixtures: { readonly [code: string]: { readonly keeps?: SongFile[]; readonly changes?: SongFile[] } } = {
@@ -626,6 +632,11 @@ describe('issueFixes', () => {
 		babySustain: { changes: songOf([length], ['768 = N 0 30', '960 = N 1 0']) },
 		// A chart with the pair has no hashes; turning the 5-lane green into a blue tom gives it some.
 		greenDrumPair: { changes: songOf([length, 'pro_drums = True'], undefined, [], ['[ExpertDrums]', '{', '  768 = N 4 0', '  768 = N 5 0', '  960 = N 1 0', '}']) },
+		// Clone Hero reads the first as a flip, as written in the standard spelling, and ignores the second.
+		nonstandardMixEvent: {
+			keeps: songOf([length], undefined, [], ['[ExpertDrums]', '{', '  0 = E mix 3 drumsxd', '  480 = N 1 0', '}']),
+			changes: midSongOf([length], [{ name: 'PART DRUMS', events: [midiText(0, ' [mix 3 drums0d]'), ...midiNote(480, 97)] }]),
+		},
 	}
 	const run = (files: readonly SongFile[], code: IssueCode, changeHashes: boolean) =>
 		fix(files, { codes: [code], changeHashes, resizeImage: async (_image, size) => jpeg(size, size) })

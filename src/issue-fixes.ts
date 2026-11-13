@@ -64,6 +64,7 @@ export const issueFixTable: { readonly [code in IssueCode]?: IssueFix } = {
 	emptyFlexLane: { hashes: 'keepsHashes', steps: ['chart'], phrases: { field: 'flexLanes', name: 'flex lane' } },
 	badSustainGap: { hashes: 'changesHashes', steps: ['chart'] },
 	babySustain: { hashes: 'changesHashes', steps: ['chart'] },
+	nonstandardMixEvent: { hashes: 'mayChangeHashes', steps: ['chart'] },
 }
 
 /** For each issue code `fixIssues` fixes, what its fix does to the canonical hashes. Each is proven by hashing. */

@@ -3,7 +3,8 @@ import { decodeCloneHeroText } from '../shared/decode-text'
 import { trimDotnet } from '../shared/text'
 import { ChartEncoding, decodeChartText, detectChartEncoding } from './chart-encoding'
 import { ChartEventSection, chartLineSpelling, readableChartLines } from './chart-line-spelling'
-import type { ParseRules } from './parse-rules'
+import { readMixEvent } from './mix-event'
+import { parseRules, type ParseRules } from './parse-rules'
 import { DrumMixEvent, EventType, eventTypes, RawChartData } from './raw-types'
 import { extractChartLyrics, extractChartVocalPhrases } from './lyric-parser'
 import { readChartEventsText } from './song-events'
@@ -213,17 +214,21 @@ export function readChartFile(data: Uint8Array): ChartFileSections {
 	return chartFileSections(tokenizeChartFile(data))
 }
 
+/** The rules that differ between profiles before a `.chart` file's notes are resolved. */
+export type ChartLineRules = Pick<ParseRules, 'chartNonstandardLines' | 'mixEvents'>
+
 /**
- * Classifies a `.chart` file's sections into chart data. The one rule that differs between profiles before the notes
- * are resolved is `nonstandardLines`: whether a nonstandard line is read as what it probably means.
+ * Classifies a `.chart` file's sections into chart data, with the rules `lineRules`: whether a nonstandard line is read
+ * as what it probably means, and how a mix event is read.
  *
- * Throws an exception if the resolution isn't a positive number, or is missing and `nonstandardLines` is `ignored`.
+ * Throws an exception if the resolution isn't a positive number, or is missing and nonstandard lines are ignored.
  */
 export function classifyChartFile(
 	fileSections: ChartFileSections,
 	classifySection: ChartSectionClassifier = (_name, _coda, classify) => classify(),
-	nonstandardLines: ParseRules['chartNonstandardLines'] = 'read',
+	lineRules: ChartLineRules = parseRules.scanner,
 ): RawChartData {
+	const nonstandardLines = lineRules.chartNonstandardLines
 	const fileSectionKeys = Object.keys(fileSections)
 	// The lines as scan-chart reads them: a nonstandard line that has a probable meaning is read as its standard
 	// spelling (chart-line-spelling.ts).
@@ -312,7 +317,7 @@ export function classifyChartFile(
 		unrecognizedMidiTracks: [], // MIDI-only
 		unrecognizedEventsTrackMidiEvents: [], // MIDI-only
 		unrecognizedChartSections: buildUnrecognizedChartSections(fileSections, fileSectionKeys),
-		trackData: classifyChartTrackSections(fileSections, firstCodaTick, classifySection, nonstandardLines),
+		trackData: classifyChartTrackSections(fileSections, firstCodaTick, classifySection, lineRules),
 	}
 }
 
@@ -439,14 +444,14 @@ export function classifyChartTrackSections(
 	fileSections: { [k: string]: string[] },
 	firstCodaTick: number | null,
 	classifySection: ChartSectionClassifier,
-	nonstandardLines: ParseRules['chartNonstandardLines'] = 'read',
+	lineRules: ChartLineRules = parseRules.scanner,
 ): RawChartData['trackData'] {
 	const out: RawChartData['trackData'] = []
 	// Iterate in `trackNameMap` order (matches lodash's `_.pick(fileSections, _.keys(trackNameMap))`)
 	// so `trackData` output order is deterministic regardless of how the chart file orders sections.
 	for (const trackName of Object.keys(trackNameMap) as TrackName[]) {
 		if (!(trackName in fileSections)) continue
-		out.push(classifySection(trackName, firstCodaTick, () => classifyChartTrackSection(trackName, fileSections[trackName], firstCodaTick, nonstandardLines)))
+		out.push(classifySection(trackName, firstCodaTick, () => classifyChartTrackSection(trackName, fileSections[trackName], firstCodaTick, lineRules)))
 	}
 	return out
 }
@@ -459,7 +464,7 @@ export function classifyChartTrackSection(
 	sectionName: string,
 	lines: readonly string[],
 	firstCodaTick: number | null,
-	nonstandardLines: ParseRules['chartNonstandardLines'] = 'read',
+	lineRules: ChartLineRules = parseRules.scanner,
 ): RawChartData['trackData'][number] {
 	const { instrument, difficulty } = trackNameMap[sectionName as TrackName]
 
@@ -467,7 +472,7 @@ export function classifyChartTrackSection(
 	// plus data-carrying events (text, versus).
 	const parsedEvents: ParsedTrackLine[] = []
 	for (const line of lines) {
-		const parsed = parseTrackLine(line, instrument, difficulty, nonstandardLines)
+		const parsed = parseTrackLine(line, instrument, difficulty, lineRules)
 		if (parsed !== null) parsedEvents.push(parsed)
 	}
 	// Most parsers reject charts that aren't already sorted, but sort here for safety.
@@ -691,7 +696,6 @@ function splitTrimmedNonEmptyLines(source: string, start: number, end: number): 
 const chartLineEQuoted = /^(\d+) = E "([^"\r\n]*)"$/
 const chartLineEUnquoted = /^(\d+) = E ([^\r\n]+?)$/
 const chartLineNS = /^(\d+) = ([NS]) (\w+)( \d+)?$/
-const chartLineDiscoFlipE = /^\s*\[?mix[ _]([0-3])[ _]drums([0-5])(d|dnoflip|easy|easynokick|)\]?\s*$/
 export const chartSyncTempo = /^(\d+) = B (\d+)$/
 export const chartSyncTS = /^(\d+) = TS (\d+)(?: (\d+))?$/
 const chartSyncUnknown = /^(\d+) = (.+)$/
@@ -781,14 +785,15 @@ export type ParsedTrackLine = ParsedNoteEvent | ParsedTextEvent | ParsedVersusEv
  *   TICK = S VALUE LENGTH    → starPower, flex lane, freestyle, or versus phrase
  *   TICK = N VALUE LENGTH    → note (with instrument-specific mapping)
  *
- * With `nonstandardLines` read, any other line is read as what it probably means, if anything (chart-line-spelling.ts).
+ * With nonstandard lines read, any other line is read as what it probably means, if anything (chart-line-spelling.ts).
  */
 export function parseTrackLine(
 	line: string,
 	instrument: Instrument,
 	difficulty: Difficulty,
-	nonstandardLines: ParseRules['chartNonstandardLines'] = 'read',
+	lineRules: ChartLineRules = parseRules.scanner,
 ): ParsedTrackLine | null {
+	const nonstandardLines = lineRules.chartNonstandardLines
 	// Most lines are N/S (notes). Try them first to short-circuit the common case.
 	const nsMatch = chartLineNS.exec(line)
 	if (nsMatch) {
@@ -813,7 +818,7 @@ export function parseTrackLine(
 	if (eMatch && (quoted !== null || nonstandardLines === 'ignored' || !/^[ \t]/.test(eMatch[2]))) {
 		const tick = Number(eMatch[1])
 		const value = eMatch[2]
-		const drumMix = chartDrumMix(value, difficulty, tick)
+		const drumMix = chartDrumMix(value, difficulty, tick, lineRules.mixEvents)
 		if (drumMix !== null) return { kind: 'note', tick, type: discoFlipEventTypes[drumMix.flag], length: 0, drumMix }
 		const recognizedType = getEEventType(value)
 		if (recognizedType !== null) return { kind: 'note', tick, type: recognizedType, length: 0 }
@@ -827,7 +832,7 @@ export function parseTrackLine(
 	if (nonstandardLines === 'ignored') return null
 	// Not a standard line: read what it probably means, if anything. A respelled line is always standard.
 	const spelling = chartLineSpelling(line, 'track')
-	return spelling?.kind === 'respelled' ? parseTrackLine(spelling.line, instrument, difficulty) : null
+	return spelling?.kind === 'respelled' ? parseTrackLine(spelling.line, instrument, difficulty, lineRules) : null
 }
 
 function getEEventType(value: string): EventType | null {
@@ -847,11 +852,11 @@ const discoFlipEventTypes: { readonly [flag in DrumMixEvent['flag']]: EventType 
 }
 
 /** The disco flip `mix <difficulty> drums<configuration><flag>` event `value` is, at `tick`, if it's one of `difficulty`. */
-function chartDrumMix(value: string, difficulty: Difficulty, tick: number): DrumMixEvent | null {
-	const match = chartLineDiscoFlipE.exec(value)
-	if (match === null || discoFlipDifficultyMap[Number(match[1])] !== difficulty) return null
-	const flag = match[3]
-	return flag === '' || flag === 'd' || flag === 'dnoflip' ? { tick, configuration: Number(match[2]), flag } : null
+function chartDrumMix(value: string, difficulty: Difficulty, tick: number, reading: ParseRules['mixEvents']): DrumMixEvent | null {
+	const mix = readMixEvent(value, reading)
+	if (mix === null || mix.difficulty !== difficulty) return null
+	const { configuration, flag } = mix
+	return flag === '' || flag === 'd' || flag === 'dnoflip' ? { tick, configuration, flag } : null
 }
 
 export function getSEventType(value: string): EventType | null {

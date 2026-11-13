@@ -48,6 +48,13 @@ export interface ParseRules {
 	 * is Clone Hero 1.1's reading, which moves the 5-lane green to a blue tom.
 	 */
 	readonly proDrumsGreenPair: 'invalid' | 'blueTom'
+	/**
+	 * How a drums `mix` event's text is read, in either format (C20: R2, R10). `cloneHero` reads it as Clone Hero's
+	 * `TryParseDiscoMixEvent` does: any spaces or `_` between the parts, a difficulty `int.TryParse` reads, any
+	 * configuration character, and any text after it that starts with `d` as a flip. `strict` is scan-chart 8's reading:
+	 * single separators, a configuration from 0 to 5, and only the flags `d`, `dnoflip`, `easy` and `easynokick`.
+	 */
+	readonly mixEvents: 'cloneHero' | 'strict'
 }
 
 const scanner: ParseRules = Object.freeze({
@@ -60,6 +67,7 @@ const scanner: ParseRules = Object.freeze({
 	chartFlam: 'read',
 	chartNonstandardLines: 'read',
 	proDrumsGreenPair: 'invalid',
+	mixEvents: 'cloneHero',
 })
 
 const frozenLegacy6142: ParseRules = Object.freeze({
@@ -72,6 +80,7 @@ const frozenLegacy6142: ParseRules = Object.freeze({
 	chartFlam: 'ignored',
 	chartNonstandardLines: 'ignored',
 	proDrumsGreenPair: 'blueTom',
+	mixEvents: 'strict',
 })
 
 const canonical20260801: ParseRules = Object.freeze({
@@ -84,6 +93,7 @@ const canonical20260801: ParseRules = Object.freeze({
 	chartFlam: 'read',
 	chartNonstandardLines: 'read',
 	proDrumsGreenPair: 'invalid',
+	mixEvents: 'cloneHero',
 })
 
 export const parseRules = Object.freeze({ scanner, frozenLegacy6142, canonical20260801 })

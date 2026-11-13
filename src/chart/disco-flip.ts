@@ -1,8 +1,9 @@
 import { type Difficulty, difficulties } from '../types'
-import { discoFlipDifficultyMap, parseTrackLine } from './chart-file-parser'
-import { midiDiscoFlipRegex, midiInstrumentTracks } from './midi-file-parser'
+import { type ChartLineToken, discoFlipDifficultyMap, parseTrackLine } from './chart-file-parser'
+import { midiInstrumentTracks } from './midi-file-parser'
 import { drumsDiffStarts } from './midi-note-numbers'
 import type { MidiTokens } from './midi-tokens'
+import { isMixEventSpelledAnotherWay, readMixEvent } from './mix-event'
 import { type DrumMixEvent, eventTypes } from './raw-types'
 
 /**
@@ -88,11 +89,8 @@ export function midiTrackNoflips(tokens: MidiTokens): MidiDrumsNoflips | null {
 	const flippedTicks = new Map<Difficulty, number[]>(difficulties.map(difficulty => [difficulty, []]))
 	for (const { tick, event } of chunk.events) {
 		if (event.type === 'text') {
-			const match = midiDiscoFlipRegex.exec(event.text)
-			const flag = match?.[3]
-			if (match !== null && (flag === '' || flag === 'd' || flag === 'dnoflip')) {
-				events.get(discoFlipDifficultyMap[Number(match[1])])!.push({ tick, configuration: Number(match[2]), flag })
-			}
+			const mix = readMixEvent(event.text, 'cloneHero')
+			if (mix !== null) events.get(mix.difficulty)!.push({ tick, configuration: mix.configuration, flag: mix.flag as DrumMixEvent['flag'] })
 		} else if (event.type === 'noteOn' && event.velocity > 0) {
 			// Red and yellow are the two notes after each difficulty's kick.
 			const difficulty = difficulties.find(candidate => [1, 2].includes(event.noteNumber - drumsDiffStarts[candidate]))
@@ -107,11 +105,23 @@ export function midiTrackNoflips(tokens: MidiTokens): MidiDrumsNoflips | null {
 	}
 }
 
+/** Whether the `.mid` export writes the `.chart` text event `text` with `chartMixTextEvents`, not as another text event. */
+export function isChartMixText(text: string): boolean {
+	return chartMixText(text) !== null
+}
+
+/** How the `.mid` export takes a `.chart` drums section's text: `read` for one a drums track would read as a mix event. */
+function chartMixText(text: string): 'kept' | 'read' | null {
+	if (readMixEvent(text, 'cloneHero') !== null) return 'read'
+	const flag = readMixEvent(text, 'strict')?.flag
+	return flag === 'easy' || flag === 'easynokick' ? 'kept' : null
+}
+
 /**
  * The mix events a `.chart` file's drums sections keep as text, which set no flip there, as the `.mid` export writes
  * them in the one drums track: `kept`, each with the flag `easy` or `easynokick`, once for each tick and text, as
- * written; and `leftOut`, the number of other difficulties' flips, which the `.chart` reader ignores and the drums
- * track would read as flips.
+ * written; and `leftOut`, the number of other difficulties' mix events, which the `.chart` reader ignores and the drums
+ * track would read.
  */
 export function chartMixTextEvents(tracks: readonly { readonly textEvents: readonly { tick: number; text: string }[] }[]): {
 	kept: { tick: number; text: string }[]
@@ -121,10 +131,55 @@ export function chartMixTextEvents(tracks: readonly { readonly textEvents: reado
 	let leftOut = 0
 	for (const { textEvents } of tracks) {
 		for (const event of textEvents) {
-			const flag = midiDiscoFlipRegex.exec(event.text)?.[3]
-			if (flag === 'easy' || flag === 'easynokick') kept.set(`${event.tick} ${event.text}`, event)
-			else if (flag !== undefined) leftOut++
+			const kind = chartMixText(event.text)
+			if (kind === 'kept') kept.set(`${event.tick} ${event.text}`, event)
+			else if (kind === 'read') leftOut++
 		}
 	}
 	return { kept: [...kept.values()], leftOut }
+}
+
+/**
+ * A mix event Clone Hero reads otherwise than scan-chart 8 did (C20: R2, R10), at `tick`, written as `text`. `standard`
+ * writes what Clone Hero reads in the standard spelling, or, when Clone Hero reads nothing (`isRead` is `false`), what
+ * scan-chart 8 read.
+ */
+export interface MisspelledMixEvent {
+	readonly tick: number
+	readonly text: string
+	readonly standard: string
+	readonly isRead: boolean
+}
+
+/** The misspelled mix events among the lines of a `.chart` drums section of `difficulty`, with each line. */
+export function chartSectionMisspelledMixes(lines: readonly ChartLineToken[], difficulty: Difficulty): (MisspelledMixEvent & { readonly line: ChartLineToken })[] {
+	const found: (MisspelledMixEvent & { line: ChartLineToken })[] = []
+	for (const line of lines) {
+		if (!line.text.includes('mix')) continue
+		const read = parseTrackLine(line.text, 'drums', difficulty, { chartNonstandardLines: 'read', mixEvents: 'cloneHero' })
+		const strict = parseTrackLine(line.text, 'drums', difficulty, { chartNonstandardLines: 'read', mixEvents: 'strict' })
+		const [mix, legacy] = [read?.kind === 'note' ? read.drumMix : undefined, strict?.kind === 'note' ? strict.drumMix : undefined]
+		if (mix?.flag === legacy?.flag && mix?.configuration === legacy?.configuration) continue
+		const meant = (mix ?? legacy)!
+		const text = read?.kind === 'text' ? read.text : strict?.kind === 'text' ? strict.text : line.text
+		found.push({ tick: meant.tick, text, standard: drumMixText(difficulty, meant), isRead: mix !== undefined, line })
+	}
+	return found
+}
+
+/**
+ * The misspelled mix events of the drums track a `.mid` file is read with, its first, each with its index among the
+ * chunk's events, or `null` when it has no drums track. Only text events, `FF 01`, are mix events.
+ */
+export function midiTrackMisspelledMixes(tokens: MidiTokens): { name: string; chunkIndex: number; events: (MisspelledMixEvent & { eventIndex: number })[] } | null {
+	const track = midiInstrumentTracks(tokens).find(candidate => candidate.instrument === 'drums')
+	const chunk = track === undefined ? undefined : tokens.chunks[track.chunkIndex]
+	if (track === undefined || chunk?.kind !== 'track') return null
+	const events: (MisspelledMixEvent & { eventIndex: number })[] = []
+	chunk.events.forEach(({ tick, event }, eventIndex) => {
+		if (event.type !== 'text' || !event.text.includes('mix') || !isMixEventSpelledAnotherWay(event.text)) return
+		const mix = readMixEvent(event.text, 'cloneHero') ?? readMixEvent(event.text, 'strict')!
+		events.push({ tick, text: event.text, standard: drumMixText(mix.difficulty, { configuration: mix.configuration, flag: mix.flag as DrumMixEvent['flag'] }), isRead: readMixEvent(event.text, 'cloneHero') !== null, eventIndex })
+	})
+	return { name: track.name, chunkIndex: track.chunkIndex, events }
 }

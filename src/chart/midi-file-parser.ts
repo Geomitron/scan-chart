@@ -1,10 +1,10 @@
 import { MidiData, MidiEvent, MidiSetTempoEvent, MidiTextEvent, MidiTimeSignatureEvent } from '@geomitron/midi-file'
 
 import { difficulties, Difficulty, getInstrumentType, Instrument, InstrumentType, instrumentTypes } from '../types'
-import { discoFlipDifficultyMap } from './chart-file-parser'
 import { midiTokensToMidiData, MidiTokens, midiTrackEvents, midiTrackIndex, readMidiTokens } from './midi-tokens'
 import { DrumMixEvent, EventType, eventTypes, RawChartData, VocalTrackData } from './raw-types'
 import { IniChartModifiers } from './types'
+import { readMixEvent } from './mix-event'
 import { parseRules, ParseRules } from './parse-rules'
 import { scanVocalTrack } from './lyric-parser'
 import { MidiEventsVocalEvent, readMidiEventsText, readMidiEventsVocalText } from './song-events'
@@ -117,7 +117,9 @@ export function repeatedMidiInstruments(tokens: MidiTokens): Instrument[] {
 const fiveFretDiffStarts = { easy: 59, medium: 71, hard: 83, expert: 95 }
 const sixFretDiffStarts = { easy: 58, medium: 70, hard: 82, expert: 94 }
 const drumsDiffStarts = { easy: 60, medium: 72, hard: 84, expert: 96 }
-export const midiDiscoFlipRegex = /^\s*\[?mix[ _]([0-3])[ _]drums([0-5])(d|dnoflip|easy|easynokick|)\]?\s*$/
+
+/** The rules that differ between profiles when a `.mid` file's tracks are classified. */
+export type MidiClassificationRules = Pick<ParseRules, 'mixEvents'>
 
 export interface TrackEventEnd {
 	tick: number
@@ -161,7 +163,7 @@ type MidiTrackEvent = RawChartData['trackData'][number]['trackEvents'][number] &
  * Real Drums (Phase Shift)
  */
 export function parseNotesFromMidi(data: Uint8Array, iniChartModifiers: IniChartModifiers, rules: ParseRules = parseRules.scanner): RawChartData {
-	return applyMidiRules(classifyMidiFile(readMidiFile(data)), iniChartModifiers, rules)
+	return applyMidiRules(classifyMidiFile(readMidiFile(data), rules), iniChartModifiers, rules)
 }
 
 /**
@@ -248,8 +250,8 @@ export interface ClassifiedMidi {
 	unrecognizedMidiTracks: RawChartData['unrecognizedMidiTracks']
 }
 
-/** Classifies a read `.mid` file's tracks and events. No rule profile is involved. */
-export function classifyMidiFile(midiFile: MidiData): ClassifiedMidi {
+/** Classifies a read `.mid` file's tracks and events with the classification rules of a profile, the scanner's by default. */
+export function classifyMidiFile(midiFile: MidiData, rules: MidiClassificationRules = parseRules.scanner): ClassifiedMidi {
 	checkPhaseShiftSysExStacks(midiFile)
 	const { tracks, unrecognizedMidiTracks } = getTracks(midiFile)
 
@@ -317,7 +319,7 @@ export function classifyMidiFile(midiFile: MidiData): ClassifiedMidi {
 	// Non-text events (noteOn/Off, sysEx, channel events, etc.) go to
 	// unrecognizedMidiEvents.
 	const eventsScan = scanEventsTrack(tracks)
-	const instrumentTracks = scanInstrumentTracks(tracks)
+	const instrumentTracks = scanInstrumentTracks(tracks, rules)
 
 	return {
 		ticksPerBeat: midiFile.header.ticksPerBeat!,
@@ -355,26 +357,30 @@ function checkPhaseShiftSysExStacks(midiFile: MidiData): void {
  * Scans each instrument track of a read `.mid` file, as classification does, without reading the conductor track. A
  * malformed tempo or time signature, which makes classification throw, doesn't stop it.
  */
-export function classifyMidiInstrumentTracks(midiFile: MidiData): ClassifiedMidi['instrumentTracks'] {
-	return scanInstrumentTracks(getTracks(midiFile).tracks)
+export function classifyMidiInstrumentTracks(midiFile: MidiData, rules: MidiClassificationRules = parseRules.scanner): ClassifiedMidi['instrumentTracks'] {
+	return scanInstrumentTracks(getTracks(midiFile).tracks, rules)
 }
 
 /**
  * Scans the track at `trackIndex` of a read `.mid` file as `classifyMidiInstrumentTracks` does, or returns `null` when
  * it isn't read as an instrument track. `events` are the track's events with each `deltaTime` replaced by its tick.
  */
-export function classifyMidiInstrumentTrack(trackIndex: number, events: MidiEvent[]): ClassifiedMidi['instrumentTracks'][number] | null {
+export function classifyMidiInstrumentTrack(
+	trackIndex: number,
+	events: MidiEvent[],
+	rules: MidiClassificationRules = parseRules.scanner,
+): ClassifiedMidi['instrumentTracks'][number] | null {
 	const track = recognizedTrack(trackIndex, events, trackSourceName(events))
-	return track === null ? null : scanInstrumentTracks([track])[0] ?? null
+	return track === null ? null : scanInstrumentTracks([track], rules)[0] ?? null
 }
 
-function scanInstrumentTracks(tracks: MidiSourceTrack[]): ClassifiedMidi['instrumentTracks'] {
+function scanInstrumentTracks(tracks: MidiSourceTrack[], rules: MidiClassificationRules): ClassifiedMidi['instrumentTracks'] {
 	const instrumentTracks: ClassifiedMidi['instrumentTracks'] = []
 	for (const t of tracks) {
 		const instrument = instrumentNameMap[t.trackName as InstrumentTrackName]
 		if (instrument === undefined) continue // vocal/EVENTS tracks handled elsewhere
 		const instrumentType = getInstrumentType(instrument)
-		instrumentTracks.push({ instrument, instrumentType, trackIndex: t.trackIndex, scan: scanInstrumentTrack(t.trackEvents, instrumentType, t.sourceName) })
+		instrumentTracks.push({ instrument, instrumentType, trackIndex: t.trackIndex, scan: scanInstrumentTrack(t.trackEvents, instrumentType, t.sourceName, rules) })
 	}
 	return instrumentTracks
 }
@@ -686,6 +692,7 @@ function scanInstrumentTrack(
 	events: MidiEvent[],
 	instrumentType: InstrumentType,
 	trackName: string,
+	rules: MidiClassificationRules,
 ): TrackScanResult {
 	let enhancedOpens = false
 	let chartDynamics = false
@@ -853,17 +860,16 @@ function scanInstrumentTrack(
 		} else if (eventType === 'text') {
 			let consumedAsNote = false
 			if (instrumentType === instrumentTypes.drums) {
-				const discoFlipMatch = midiDiscoFlipRegex.exec(event.text)
-				if (discoFlipMatch) {
-					const difficulty = discoFlipDifficultyMap[Number(discoFlipMatch[1])]
-					const flag = discoFlipMatch[3] as 'd' | 'dnoflip' | 'easy' | 'easynokick' | ''
+				const mix = readMixEvent(event.text, rules.mixEvents)
+				if (mix !== null) {
+					const { difficulty, flag } = mix
 					// An `easy` or `easynokick` event sets no disco flip, and stays a text event.
 					if (flag !== 'easy' && flag !== 'easynokick') {
 						const eventType = flag === '' ? eventTypes.discoFlipOff : flag === 'd' ? eventTypes.discoFlipOn : eventTypes.discoNoFlipOn
 						// Treat this like the other events that have a start and end, so it can be processed the same way later
 						eventEnds[difficulty].push({ tick: event.deltaTime, type: eventType, velocity: 127, channel: 1, isStart: true, eventIndex })
 						eventEnds[difficulty].push({ tick: event.deltaTime, type: eventType, velocity: 127, channel: 1, isStart: false, eventIndex })
-						drumMixes[difficulty].push({ tick: event.deltaTime, configuration: Number(discoFlipMatch[2]), flag })
+						drumMixes[difficulty].push({ tick: event.deltaTime, configuration: mix.configuration, flag })
 						consumedAsNote = true
 					}
 				}

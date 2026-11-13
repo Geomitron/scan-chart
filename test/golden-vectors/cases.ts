@@ -251,6 +251,7 @@ export const sourceCases: readonly AuthoredSourceCase[] = [
 	...discoCases(),
 	...syncTrackAndInstrumentCases(),
 	...tapEndCases(),
+	...mixSpellingCases(),
 ]
 
 function note(tick: number, noteNumber: number, length: number, velocity = 100): { tick: number; event: MidiEvent }[] {
@@ -613,6 +614,50 @@ function discoCases(): AuthoredSourceCase[] {
 		}
 	}
 	return cases
+}
+
+/** Red and yellow Expert drums at each probe tick, with each mix event written as given. */
+function spelledMixChart(mixes: readonly (readonly [tick: number, text: string])[]): Uint8Array {
+	const lines = [...mixes.map(([tick, text]) => ({ tick, order: 0, text: `E ${text}` })),
+		...discoProbeTicks().flatMap(tick => [{ tick, order: 1, text: 'N 1 0' }, { tick, order: 2, text: 'N 2 0' }])]
+	lines.sort((left, right) => left.tick - right.tick || left.order - right.order)
+	return chart({ Song: ['Resolution = 192'], SyncTrack: ['0 = TS 4', '0 = B 120000'], Events: [], ExpertDrums: lines.map(line => `${line.tick} = ${line.text}`) })
+}
+
+function spelledMixMidi(mixes: readonly (readonly [tick: number, text: string])[]): Uint8Array {
+	const events = mixes.map(([tick, text]) => textEvent(tick, text))
+	for (const tick of discoProbeTicks()) events.push(...note(tick, 97, 10), ...note(tick, 98, 10))
+	return midi([midiTrack('PART DRUMS', events)], 192)
+}
+
+/**
+ * C20 (R2, R10): a mix event is read as Clone Hero reads it, in any spelling its TryParseDiscoMixEvent and ParseDiscoMix
+ * read: a flip from 192 and off from 1344, each spelled another way.
+ */
+function mixSpellingCases(): AuthoredSourceCase[] {
+	const target = { instrument: 'drums', difficulty: 'expert' } as const
+	return [
+		{
+			id: 'source-chart-mix-two-spaces-and-drumsd',
+			purpose: '.chart: "mix 3  drums0d", with two spaces, flips at 192, and "mix 3 drumsd", with no configuration, turns the flip off at 1344.',
+			format: 'chart', bytes: spelledMixChart([[192, 'mix 3  drums0d'], [1344, 'mix 3 drumsd']]), target,
+		},
+		{
+			id: 'source-chart-mix-letter-configuration',
+			purpose: '.chart: "mix 3 drumsxd", with x as the configuration, flips at 192; "mix 3 drums0" turns it off at 1344.',
+			format: 'chart', bytes: spelledMixChart([[192, 'mix 3 drumsxd'], [1344, 'mix 3 drums0']]), target,
+		},
+		...([['leading-zero', '[mix 03 drums0d]'], ['configuration-6', '[mix 3 drums6d]'], ['flag-dx', '[mix 3 drums0dx]']] as const).map(([name, text]) => ({
+			id: `source-midi-mix-${name}`,
+			purpose: `.mid: "${text}" flips at 192, and "[mix 3 drumsd]", with no configuration, turns the flip off at 1344.`,
+			format: 'mid' as const, bytes: spelledMixMidi([[192, text], [1344, '[mix 3 drumsd]']]), target,
+		})),
+		{
+			id: 'source-midi-mix-leading-space',
+			purpose: '.mid: " [mix 3 drums0d]", which starts with a space, sets nothing, so no note flips.',
+			format: 'mid', bytes: spelledMixMidi([[192, ' [mix 3 drums0d]'], [1344, '[mix 3 drums0]']]), target,
+		},
+	]
 }
 
 /** The `.chart` `TS N ` trailing space, five-lane drums, GHL notes, and MIDI range shifts. */

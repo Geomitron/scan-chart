@@ -116,7 +116,7 @@ function parseReusing(
 
 	// When only instrument track chunks changed, each still read as the same instrument, everything parsed from the other
 	// chunks is unchanged: only the tracks and the drum type, which the drum tracks decide, are parsed again.
-	const rescanned = earlier && changed && rescanInstrumentChunks(tokens, changed, earlier.instruments)
+	const rescanned = earlier && changed && rescanInstrumentChunks(tokens, changed, earlier.instruments, rules)
 	if (rescanned) {
 		const { firstCodaTick } = earlier!
 		const trackData: ClassifiedTrack[] = []
@@ -132,7 +132,7 @@ function parseReusing(
 		return { key, bodies, instruments: earlier!.instruments, classified, resolved, firstCodaTick, parsed }
 	}
 
-	const classifiedMidi = classifyMidiFile(midiTokensToMidiData(tokens))
+	const classifiedMidi = classifyMidiFile(midiTokensToMidiData(tokens), rules)
 	const instruments = new Map(classifiedMidi.instrumentTracks.map(({ trackIndex, instrument }) => [trackChunks[trackIndex], instrument]))
 	const firstCodaTick = midiFirstCodaTick(classifiedMidi.eventsScan)
 	const raw = applyMidiRules(classifiedMidi, iniChartModifiers, rules, (instrumentTrack, build) =>
@@ -149,12 +149,13 @@ function rescanInstrumentChunks(
 	tokens: MidiTokens,
 	changed: ReadonlySet<number>,
 	instruments: ReadonlyMap<number, Instrument>,
+	rules: ParseRules,
 ): Map<number, ClassifiedMidi['instrumentTracks'][number]> | null {
 	const rescanned = new Map<number, ClassifiedMidi['instrumentTracks'][number]>()
 	for (const chunk of changed) {
 		const instrument = instruments.get(chunk)
 		if (instrument === undefined) return null
-		const scanned = classifyMidiInstrumentTrack(midiTrackIndex(tokens, chunk), midiTrackEvents(tokens.chunks[chunk] as MidiTrackChunk))
+		const scanned = classifyMidiInstrumentTrack(midiTrackIndex(tokens, chunk), midiTrackEvents(tokens.chunks[chunk] as MidiTrackChunk), rules)
 		if (scanned?.instrument !== instrument) return null
 		rescanned.set(chunk, scanned)
 	}

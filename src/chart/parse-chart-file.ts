@@ -88,8 +88,8 @@ export function parseChartSource(source: ChartSource, partialIniChartModifiers: 
  */
 export function classifyChartSource(source: ChartSource, iniChartModifiers: IniChartModifiers, rules: ParseRules): RawChartData {
 	return source.format === 'mid'
-		? applyMidiRules(classifyMidiFile(midiTokensToMidiData(midiTokensForParsing(source.tokens, source.bytes))), iniChartModifiers, rules)
-		: applyChartRules(classifyChartFile(chartFileSections(source.tokens), undefined, rules.chartNonstandardLines), rules)
+		? applyMidiRules(classifyMidiFile(midiTokensToMidiData(midiTokensForParsing(source.tokens, source.bytes)), rules), iniChartModifiers, rules)
+		: applyChartRules(classifyChartFile(chartFileSections(source.tokens), undefined, rules), rules)
 }
 
 /**

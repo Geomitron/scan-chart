@@ -115,6 +115,7 @@ export const issueSeverities: { readonly [code in IssueCode]: IssueSeverity } = 
 	discoNoflipDuringFlip: 'error',
 	chartModifierWithoutNote: 'recommendation',
 	midiDrumModifierWithoutNote: 'recommendation',
+	nonstandardMixEvent: 'warning',
 }
 
 /** A problem found in a song folder. Every issue has this shape, whatever its scope. */
