@@ -63,6 +63,23 @@ describe('the .mid reader refuses what Clone Hero refuses', () => {
 		}
 	})
 
+	it('checks only the time signatures a profile reads: one after the end of track only in the frozen profile (R211, C20: R16)', () => {
+		const data = new Uint8Array(writeMidi({
+			header: { format: 1, numTracks: 2, ticksPerBeat: 480 },
+			tracks: [
+				[
+					{ deltaTime: 0, type: 'setTempo', microsecondsPerBeat: 500000 },
+					{ deltaTime: 0, type: 'endOfTrack' },
+					{ deltaTime: 480, type: 'timeSignature', numerator: 4, denominator: 4, metronome: 24, thirtyseconds: 8 },
+				],
+				[{ deltaTime: 0, type: 'trackName', text: 'PART GUITAR' }, { deltaTime: 0, type: 'noteOn', channel: 0, noteNumber: 96, velocity: 100 }, { deltaTime: 10, type: 'noteOff', channel: 0, noteNumber: 96, velocity: 0 }, { deltaTime: 0, type: 'endOfTrack' }],
+			],
+		}))
+		data[data.findIndex((byte, index) => byte === 0xff && data[index + 1] === 0x58) + 4] = 8
+		for (const parse of [parsers.scanner, parsers.canonical]) expect(parse(data, 'mid').timeSignatures).toEqual([{ tick: 0, numerator: 4, denominator: 4, msTime: 0, msLength: 0 }])
+		expect(() => parsers.legacy(data, 'mid')).toThrow('Invalid .mid file: the time signature at tick 480 has the exponent 8, which is 8 or more.')
+	})
+
 	it('refuses a file cut short inside an event in every profile, and reads one cut between two events up to the cut (Q1 B)', () => {
 		const data = guitarMidi(greens)
 		// The last track ends with a note-off at 310 and the end of track, 00 FF 2F 00.

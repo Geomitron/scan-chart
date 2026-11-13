@@ -414,13 +414,17 @@ function readTrackEvents(body: Uint8Array, bodyStart: number, tokens: MidiEventT
 
 /** Whether the text of the meta event at `start` in `body` starts with a UTF-8 byte order mark, EF BB BF. */
 function startsWithByteOrderMark(body: Uint8Array, start: number): boolean {
-	// The delta time, FF and the type, then the length.
-	let at = start
-	while (body[at] & 0x80) at++
-	at += 3
-	while (body[at] & 0x80) at++
-	at++
+	const at = metaEventDataStart(body, start)
 	return body[at] === 0xef && body[at + 1] === 0xbb && body[at + 2] === 0xbf
+}
+
+/** The offset in `bytes` of the data of the meta event at `start`: after its delta time, FF, its type and its length. */
+export function metaEventDataStart(bytes: Uint8Array, start: number): number {
+	let at = start
+	while (bytes[at] & 0x80) at++
+	at += 3
+	while (bytes[at] & 0x80) at++
+	return at + 1
 }
 
 /**

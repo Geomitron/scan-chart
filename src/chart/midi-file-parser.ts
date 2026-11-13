@@ -1,7 +1,7 @@
 import { MidiData, MidiEvent, MidiSetTempoEvent, MidiTextEvent, MidiTimeSignatureEvent } from '@geomitron/midi-file'
 
 import { difficulties, Difficulty, getInstrumentType, Instrument, InstrumentType, instrumentTypes } from '../types'
-import { isCutInsideEvent, isReadTrack, midiTokensToMidiData, MidiTokens, midiTrackEvents, midiTrackIndex, type MidiTrackRules, readMidiTokens, readTrackTokens } from './midi-tokens'
+import { isCutInsideEvent, isReadTrack, metaEventDataStart, midiTokensToMidiData, MidiTokens, midiTrackEvents, midiTrackIndex, type MidiTrackRules, readMidiTokens, readTrackTokens } from './midi-tokens'
 import { DrumMixEvent, EventType, eventTypes, RawChartData, VocalTrackData } from './raw-types'
 import { IniChartModifiers } from './types'
 import { readMixEvent } from './mix-event'
@@ -305,7 +305,7 @@ function checkMidiFileTokens(tokens: MidiTokens, rules: MidiTrackRules): MidiTok
 		}
 	}
 
-	const exponent = largeTimeSignatureExponent(tokens)
+	const exponent = largeTimeSignatureExponent(tokens, rules)
 	if (exponent !== null) {
 		throw `Invalid .mid file: the time signature at tick ${exponent.tick} has the exponent ${exponent.value}, which is 8 or more.`
 	}
@@ -318,20 +318,16 @@ function checkMidiFileTokens(tokens: MidiTokens, rules: MidiTrackRules): MidiTok
 }
 
 /**
- * The first time signature in the conductor track whose denominator's exponent is 8 or more (R211), or `null`. Clone
- * Hero and YARG store the denominator, 2 to the power of the exponent, in one byte, which can't hold 256 or more, so
- * neither loads such a chart. The exponent is read from the file's bytes: the decoded denominator wraps past 31.
+ * The first time signature the rules read in the conductor track whose denominator's exponent is 8 or more (R211), or
+ * `null`. Clone Hero and YARG store the denominator, 2 to the power of the exponent, in one byte, which can't hold 256
+ * or more, so neither loads such a chart. The exponent is read from the file's bytes: the decoded denominator wraps past 31.
  */
-function largeTimeSignatureExponent({ data, chunks }: MidiTokens): { tick: number; value: number } | null {
-	const conductor = chunks.find(chunk => chunk.kind === 'track')
-	for (const { start, tick, event } of conductor?.kind === 'track' ? conductor.events : []) {
+function largeTimeSignatureExponent({ data, chunks }: MidiTokens, rules: MidiTrackRules): { tick: number; value: number } | null {
+	const conductor = chunks.find(chunk => isReadTrack(chunk, rules))
+	for (const { start, tick, event } of conductor === undefined ? [] : readTrackTokens(conductor, rules.midiEventsAfterEnd)) {
 		if (event.type !== 'timeSignature') continue
-		// The delta time, FF 58, the length, then the numerator and the exponent.
-		let at = start
-		while (data[at] & 0x80) at++
-		at += 3
-		while (data[at] & 0x80) at++
-		const value = data[at + 2]
+		// The data is the numerator, then the exponent.
+		const value = data[metaEventDataStart(data, start) + 1]
 		if (value >= 8) return { tick, value }
 	}
 	return null
