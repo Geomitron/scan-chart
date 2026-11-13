@@ -298,11 +298,36 @@ function checkMidiFileTokens(tokens: MidiTokens, rules: MidiTrackRules): MidiTok
 		throw `Invalid .mid file: the file ends inside an event of the track at byte ${cut.start}`
 	}
 
+	const exponent = largeTimeSignatureExponent(tokens)
+	if (exponent !== null) {
+		throw `Invalid .mid file: the time signature at tick ${exponent.tick} has the exponent ${exponent.value}, which is 8 or more.`
+	}
+
 	if (hasLongDeltaTime(tokens, rules)) {
 		throw 'Invalid .mid file: a delta time is longer than 4 bytes'
 	}
 
 	return tokens
+}
+
+/**
+ * The first time signature in the conductor track whose denominator's exponent is 8 or more (R211), or `null`. Clone
+ * Hero and YARG store the denominator, 2 to the power of the exponent, in one byte, which can't hold 256 or more, so
+ * neither loads such a chart. The exponent is read from the file's bytes: the decoded denominator wraps past 31.
+ */
+function largeTimeSignatureExponent({ data, chunks }: MidiTokens): { tick: number; value: number } | null {
+	const conductor = chunks.find(chunk => chunk.kind === 'track')
+	for (const { start, tick, event } of conductor?.kind === 'track' ? conductor.events : []) {
+		if (event.type !== 'timeSignature') continue
+		// The delta time, FF 58, the length, then the numerator and the exponent.
+		let at = start
+		while (data[at] & 0x80) at++
+		at += 3
+		while (data[at] & 0x80) at++
+		const value = data[at + 2]
+		if (value >= 8) return { tick, value }
+	}
+	return null
 }
 
 /**

@@ -1,3 +1,4 @@
+import { writeMidi } from '@geomitron/midi-file'
 import { describe, expect, it } from 'vitest'
 
 import { parseChartFile, parseChartFileCanonicalIdentity, parseChartFileFrozenLegacyIdentity } from 'src/chart/parse-chart-file'
@@ -37,6 +38,28 @@ describe('the .mid reader refuses what Clone Hero refuses', () => {
 		for (const parse of Object.values(parsers)) {
 			expect(() => parse(withDelta(0x10000000), 'mid')).toThrow('a delta time is longer than 4 bytes')
 			expect(() => parse(withDelta(0x0fffffff), 'mid')).not.toThrow()
+		}
+	})
+
+	it('refuses a time signature whose exponent is 8 or more in every profile, and reads one of 7 (R211)', () => {
+		/** A guitar chart whose conductor track has a 4/4 time signature at 480 with the exponent `exponent`. */
+		const withExponent = (exponent: number) => {
+			const data = new Uint8Array(writeMidi({
+				header: { format: 1, numTracks: 2, ticksPerBeat: 480 },
+				tracks: [
+					[{ deltaTime: 0, type: 'setTempo', microsecondsPerBeat: 500000 }, { deltaTime: 480, type: 'timeSignature', numerator: 4, denominator: 4, metronome: 24, thirtyseconds: 8 }, { deltaTime: 0, type: 'endOfTrack' }],
+					[{ deltaTime: 0, type: 'trackName', text: 'PART GUITAR' }, { deltaTime: 0, type: 'noteOn', channel: 0, noteNumber: 96, velocity: 100 }, { deltaTime: 10, type: 'noteOff', channel: 0, noteNumber: 96, velocity: 0 }, { deltaTime: 0, type: 'endOfTrack' }],
+				],
+			}))
+			const at = data.findIndex((byte, index) => byte === 0xff && data[index + 1] === 0x58)
+			data[at + 4] = exponent
+			return data
+		}
+		for (const parse of Object.values(parsers)) {
+			for (const exponent of [8, 31, 32, 40]) {
+				expect(() => parse(withExponent(exponent), 'mid'), String(exponent)).toThrow(`Invalid .mid file: the time signature at tick 480 has the exponent ${exponent}, which is 8 or more.`)
+			}
+			expect(parse(withExponent(7), 'mid').timeSignatures).toEqual([{ tick: 0, numerator: 4, denominator: 4, msTime: 0, msLength: 0 }, { tick: 480, numerator: 4, denominator: 128, msTime: 500, msLength: 0 }])
 		}
 	})
 
