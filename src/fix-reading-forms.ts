@@ -2,6 +2,7 @@ import { spliceChartText } from './chart/chart-edit'
 import { chartSectionLines, chartSectionTrack } from './chart/chart-file-parser'
 import { chartSectionMisspelledMixes, midiTrackMisspelledMixes } from './chart/disco-flip'
 import { editMidiTrack, midiTextEvent, type MidiTrackEdit } from './chart/midi-edit'
+import { midiEnhancedOpensInOtherCase } from './chart/midi-file-parser'
 import type { MidiTokens } from './chart/midi-tokens'
 import type { FixOptions } from './fix-issues'
 import { chooseEdits, FixRecord, hashChanges, hashNames, issueFixTable } from './issue-fixes'
@@ -23,7 +24,7 @@ interface FormFix {
 }
 
 /** The codes `fixReadingForms` fixes. */
-const formCodes: readonly IssueCode[] = ['nonstandardMixEvent']
+const formCodes: readonly IssueCode[] = ['nonstandardMixEvent', 'nonstandardEnhancedOpens']
 
 /**
  * Rewrites the forms of the chart file the issues report in their standard forms, each by its own edit so that each
@@ -56,6 +57,15 @@ export function fixReadingForms(song: SongDocument, issues: readonly Issue[], op
 		}
 	} else {
 		const tokens = chart.tokens!
+		for (const track of codes.has('nonstandardEnhancedOpens') ? midiEnhancedOpensInOtherCase(tokens) : []) {
+			for (const { eventIndex, tick, text } of track.events) {
+				fixes.push({
+					code: 'nonstandardEnhancedOpens',
+					description: `Rewrote the ENHANCED_OPENS event "${text}" at tick ${tick} in "${track.name}" as "${text.toUpperCase()}".`,
+					edit: { kind: 'midiTrack', chunkIndex: track.chunkIndex, edits: [{ kind: 'replace', event: eventIndex, with: midiTextEvent(text.toUpperCase()) }] },
+				})
+			}
+		}
 		const drums = codes.has('nonstandardMixEvent') ? midiTrackMisspelledMixes(tokens) : null
 		for (const mix of drums?.events ?? []) {
 			const original = tokens.chunks[drums!.chunkIndex]

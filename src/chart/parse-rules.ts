@@ -55,6 +55,8 @@ export interface ParseRules {
 	 * single separators, a configuration from 0 to 5, and only the flags `d`, `dnoflip`, `easy` and `easynokick`.
 	 */
 	readonly mixEvents: 'cloneHero' | 'strict'
+	/** Whether a `.mid` track's `ENHANCED_OPENS` is read in any letter case, as Clone Hero reads it (C20: R13), or only in capitals. */
+	readonly midiEnhancedOpens: 'anyCase' | 'capitals'
 }
 
 const scanner: ParseRules = Object.freeze({
@@ -68,6 +70,7 @@ const scanner: ParseRules = Object.freeze({
 	chartNonstandardLines: 'read',
 	proDrumsGreenPair: 'invalid',
 	mixEvents: 'cloneHero',
+	midiEnhancedOpens: 'anyCase',
 })
 
 const frozenLegacy6142: ParseRules = Object.freeze({
@@ -81,6 +84,7 @@ const frozenLegacy6142: ParseRules = Object.freeze({
 	chartNonstandardLines: 'ignored',
 	proDrumsGreenPair: 'blueTom',
 	mixEvents: 'strict',
+	midiEnhancedOpens: 'capitals',
 })
 
 const canonical20260801: ParseRules = Object.freeze({
@@ -94,6 +98,7 @@ const canonical20260801: ParseRules = Object.freeze({
 	chartNonstandardLines: 'read',
 	proDrumsGreenPair: 'invalid',
 	mixEvents: 'cloneHero',
+	midiEnhancedOpens: 'anyCase',
 })
 
 export const parseRules = Object.freeze({ scanner, frozenLegacy6142, canonical20260801 })

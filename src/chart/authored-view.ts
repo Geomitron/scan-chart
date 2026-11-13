@@ -6,6 +6,7 @@ import {
 	classifyMidiInstrumentTracks,
 	compareTickAscTypeDesc,
 	findMidiEventsTrack,
+	isEnhancedOpensText,
 	isTextLikeEvent,
 	pairEventEnds,
 	TrackEventEnd,
@@ -20,6 +21,7 @@ import {
 	midiTrackEvents,
 	midiTrackIndex,
 } from './midi-tokens'
+import { parseRules } from './parse-rules'
 import type { EventType } from './raw-types'
 
 /**
@@ -225,7 +227,7 @@ function midiAuthoredTrack(
 	for (const difficulty of difficulties) read(scan.eventEnds[difficulty], difficulty)
 	events.sort((a, b) => a.tick - b.tick)
 	const chunkEvents = tokens.chunks[chunk].kind === 'track' ? tokens.chunks[chunk].events : []
-	const enhancedOpens = chunkEvents.find(({ event }) => event.type === 'text' && (event.text === 'ENHANCED_OPENS' || event.text === '[ENHANCED_OPENS]'))
+	const enhancedOpens = chunkEvents.find(({ event }) => event.type === 'text' && isEnhancedOpensText(event.text, parseRules.scanner.midiEnhancedOpens))
 	return { instrument, chunk, isFirst, enhancedOpensFrom: enhancedOpens?.tick ?? null, events }
 }
 

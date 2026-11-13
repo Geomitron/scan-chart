@@ -252,6 +252,7 @@ export const sourceCases: readonly AuthoredSourceCase[] = [
 	...syncTrackAndInstrumentCases(),
 	...tapEndCases(),
 	...mixSpellingCases(),
+	...enhancedOpensCaseCases(),
 ]
 
 function note(tick: number, noteNumber: number, length: number, velocity = 100): { tick: number; event: MidiEvent }[] {
@@ -658,6 +659,17 @@ function mixSpellingCases(): AuthoredSourceCase[] {
 			format: 'mid', bytes: spelledMixMidi([[192, ' [mix 3 drums0d]'], [1344, '[mix 3 drums0]']]), target,
 		},
 	]
+}
+
+/** C20 (R13): a `.mid` track's ENHANCED_OPENS is read in any letter case, as Clone Hero reads it, so note 95 is an open note. */
+function enhancedOpensCaseCases(): AuthoredSourceCase[] {
+	return ([['capitals', '[ENHANCED_OPENS]'], ['lowercase', '[enhanced_opens]'], ['mixed-case-bare', 'Enhanced_Opens']] as const).map(([name, text]) => ({
+		id: `source-midi-enhanced-opens-${name}`,
+		purpose: `"${text}" at tick 0 makes the Expert note 95 at 480 an open note, before a green at 960.`,
+		format: 'mid' as const,
+		bytes: midi([midiTrack('PART GUITAR', [textEvent(0, text), ...note(480, 95, 10), ...note(960, 96, 10)])]),
+		target: { instrument: 'guitar', difficulty: 'expert' } as const,
+	}))
 }
 
 /** The `.chart` `TS N ` trailing space, five-lane drums, GHL notes, and MIDI range shifts. */

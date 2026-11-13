@@ -637,6 +637,7 @@ describe('issueFixes', () => {
 			keeps: songOf([length], undefined, [], ['[ExpertDrums]', '{', '  0 = E mix 3 drumsxd', '  480 = N 1 0', '}']),
 			changes: midSongOf([length], [{ name: 'PART DRUMS', events: [midiText(0, ' [mix 3 drums0d]'), ...midiNote(480, 97)] }]),
 		},
+		nonstandardEnhancedOpens: { keeps: midSongOf([length], [{ name: 'PART BASS', events: [midiText(0, '[enhanced_opens]'), ...midiNote(480, 95, 10)] }]) },
 	}
 	const run = (files: readonly SongFile[], code: IssueCode, changeHashes: boolean) =>
 		fix(files, { codes: [code], changeHashes, resizeImage: async (_image, size) => jpeg(size, size) })

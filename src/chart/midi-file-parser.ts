@@ -93,6 +93,17 @@ export function midiSourceTrackInstrument(sourceName: string): Instrument | null
  * The tracks of a `.mid` file that Clone Hero's names make an instrument's, in file order, each with its name as written
  * and the index of its chunk.
  */
+/**
+ * Whether a text event's `text` is `ENHANCED_OPENS` or `[ENHANCED_OPENS]`: in any letter case, as Clone Hero compares it
+ * (`OrdinalIgnoreCase`, here for ASCII letters), or only in capitals.
+ */
+export function isEnhancedOpensText(text: string, reading: ParseRules['midiEnhancedOpens']): boolean {
+	return reading === 'anyCase' ? enhancedOpensAnyCase.test(text) : text === 'ENHANCED_OPENS' || text === '[ENHANCED_OPENS]'
+}
+
+// Without the u flag, a case-insensitive match folds only ASCII letters to ASCII letters.
+const enhancedOpensAnyCase = /^(?:ENHANCED_OPENS|\[ENHANCED_OPENS\])$/i
+
 export function midiInstrumentTracks(tokens: MidiTokens): { name: string; instrument: Instrument; chunkIndex: number }[] {
 	const tracks: { name: string; instrument: Instrument; chunkIndex: number }[] = []
 	// The first track is the conductor track. A track is named by its last name at tick 0.
@@ -107,6 +118,19 @@ export function midiInstrumentTracks(tokens: MidiTokens): { name: string; instru
 	return tracks
 }
 
+/**
+ * The `ENHANCED_OPENS` text events of each instrument track that Clone Hero reads and that aren't in capitals (C20: R13),
+ * each with its index among its chunk's events.
+ */
+export function midiEnhancedOpensInOtherCase(tokens: MidiTokens): { name: string; instrument: Instrument; chunkIndex: number; events: { eventIndex: number; tick: number; text: string }[] }[] {
+	return midiInstrumentTracks(tokens).flatMap(track => {
+		const chunk = tokens.chunks[track.chunkIndex]
+		const events = chunk.kind !== 'track' ? [] : chunk.events.flatMap(({ tick, event }, eventIndex) =>
+			event.type === 'text' && isEnhancedOpensText(event.text, 'anyCase') && !isEnhancedOpensText(event.text, 'capitals') ? [{ eventIndex, tick, text: event.text }] : [])
+		return events.length === 0 ? [] : [{ ...track, events }]
+	})
+}
+
 /** The instruments a `.mid` file has more than one track for, of which Clone Hero reads only the first. */
 export function repeatedMidiInstruments(tokens: MidiTokens): Instrument[] {
 	const trackCounts = new Map<Instrument, number>()
@@ -119,7 +143,7 @@ const sixFretDiffStarts = { easy: 58, medium: 70, hard: 82, expert: 94 }
 const drumsDiffStarts = { easy: 60, medium: 72, hard: 84, expert: 96 }
 
 /** The rules that differ between profiles when a `.mid` file's tracks are classified. */
-export type MidiClassificationRules = Pick<ParseRules, 'mixEvents'>
+export type MidiClassificationRules = Pick<ParseRules, 'mixEvents' | 'midiEnhancedOpens'>
 
 export interface TrackEventEnd {
 	tick: number
@@ -875,7 +899,7 @@ function scanInstrumentTrack(
 				}
 			}
 
-			if (event.text === 'ENHANCED_OPENS' || event.text === '[ENHANCED_OPENS]') {
+			if (isEnhancedOpensText(event.text, rules.midiEnhancedOpens)) {
 				enhancedOpens = true
 				consumedAsNote = true
 			} else if (event.text === 'ENABLE_CHART_DYNAMICS' || event.text === '[ENABLE_CHART_DYNAMICS]') {
