@@ -546,7 +546,11 @@ export function buildMidiInstrumentTrackData(
 ): RawChartData['trackData'] {
 	const out: RawChartData['trackData'] = []
 	const allocatesEmptyExpert = rules.midiTrackAllocation === 'difficultiesWithNotesAndExpert'
-	const { eventEnds, textEvents, versusPhrases, animations, unrecognizedEvents: trackUnrecognized, drumMixes, unloadableSysEx } = scan
+	const { eventEnds, textEvents, versusPhrases, animations, unrecognizedEvents: trackUnrecognized, drumMixes, unloadableSysEx, sysExValue } = scan
+	if (sysExValue !== null && (instrumentType === instrumentTypes.fiveFret || instrumentType === instrumentTypes.sixFret)) {
+		const value = sysExValue.value.toString(16).toUpperCase().padStart(2, '0')
+		throw `Invalid .mid file: The ${sysExValue.phrase} SysEx event at tick ${sysExValue.tick} has the value ${value}, which isn't 00 or 01.`
+	}
 	if (unloadableSysEx !== null && (instrumentType === instrumentTypes.fiveFret || instrumentType === instrumentTypes.sixFret)) {
 		const phrase = unloadableSysEx.type === eventTypes.forceTap ? 'tap' : 'open'
 		throw `Invalid .mid file: The ${phrase} SysEx phrase at tick ${unloadableSysEx.tick} has difficulty ${unloadableSysEx.sysExDifficulty}, which isn't 0 to 3 or 255.`
@@ -759,6 +763,11 @@ interface TrackScanResult {
 	 * on a drum track, and a start with no end.
 	 */
 	unloadableSysEx: TrackEventEnd | null
+	/**
+	 * The first tap or open Phase Shift SysEx event, as Clone Hero reads one, whose value byte isn't 00 or 01. Clone Hero
+	 * fails to load a 5- or 6-fret track with one, in every profile's reading (R65); it ignores one in a drums track.
+	 */
+	sysExValue: { tick: number; phrase: 'tap' | 'open'; value: number } | null
 }
 
 /**
@@ -806,6 +815,7 @@ function scanInstrumentTrack(
 	const unrecognizedEvents: MidiEvent[] = []
 	const drumMixes: TrackScanResult['drumMixes'] = { expert: [], hard: [], medium: [], easy: [] }
 	const otherDifficultySysEx: TrackEventEnd[] = []
+	let sysExValue: TrackScanResult['sysExValue'] = null
 
 	for (let eventIndex = 0; eventIndex < events.length; eventIndex++) {
 		const event = events[eventIndex]
@@ -910,6 +920,9 @@ function scanInstrumentTrack(
 		if (eventType === 'sysEx' || eventType === 'endSysEx') {
 			// Phase Shift SysEx event header: 50 53 00 00 <diff> <type> <isStart>
 			const isPhaseShiftHeader = isPhaseShiftSysEx(event.data, rules.phaseShiftSysEx)
+			if (sysExValue === null && isPhaseShiftSysEx(event.data, 'exactly8Bytes') && (event.data[5] === 0x01 || event.data[5] === 0x04) && event.data[6] > 0x01) {
+				sysExValue = { tick: event.deltaTime, phrase: event.data[5] === 0x04 ? 'tap' : 'open', value: event.data[6] }
+			}
 			const type =
 				!isPhaseShiftHeader ? null
 				: event.data[5] === 0x01 ? eventTypes.forceOpen
@@ -985,7 +998,7 @@ function scanInstrumentTrack(
 	animations.sort((a, b) => a.tick - b.tick)
 	const unrecognized = instrumentType === instrumentTypes.drums ? withUncoveredTomMarkers(events, eventEnds, unrecognizedEvents) : unrecognizedEvents
 	const unloadableSysEx = pairEventEnds(otherDifficultySysEx)[0]?.start ?? null
-	return { eventEnds, textEvents, versusPhrases, animations, unrecognizedEvents: unrecognized, drumMixes, unloadableSysEx }
+	return { eventEnds, textEvents, versusPhrases, animations, unrecognizedEvents: unrecognized, drumMixes, unloadableSysEx, sysExValue }
 }
 
 const drumNoteEventTypes: EventType[] = [

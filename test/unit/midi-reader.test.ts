@@ -40,6 +40,26 @@ describe('the .mid reader refuses what Clone Hero refuses', () => {
 		}
 	})
 
+	it('refuses a 5- or 6-fret tap or open SysEx event whose value byte is not 00 or 01, in every profile (R65)', () => {
+		const event = (tick: number, phrase: number, value: number, ...rest: number[]): TimedMidiEvent =>
+			({ tick, event: { type: 'sysEx', data: new Uint8Array([0x50, 0x53, 0, 0, 3, phrase, value, ...rest]) } as TimedMidiEvent['event'] })
+		for (const trackName of ['PART GUITAR', 'PART GUITAR GHL']) {
+			const tap = guitarMidi([...greens, event(100, 4, 2, 0xf7)], trackName)
+			for (const parse of Object.values(parsers)) expect(() => parse(tap, 'mid')).toThrow("Invalid .mid file: The tap SysEx event at tick 100 has the value 02, which isn't 00 or 01.")
+			const open = guitarMidi([...greens, event(100, 1, 0x7f, 0xf7)], trackName)
+			for (const parse of Object.values(parsers)) expect(() => parse(open, 'mid')).toThrow('The open SysEx event at tick 100 has the value 7F')
+		}
+		// Clone Hero reads only an 8-byte event, ignores one in a drums track, and one of another type.
+		for (const data of [
+			guitarMidi([...greens, event(100, 4, 2)]),
+			guitarMidi([...greens, event(100, 4, 2, 0, 0xf7)]),
+			guitarMidi([...greens, event(100, 4, 2, 0xf7)], 'PART DRUMS'),
+			guitarMidi([...greens, event(100, 3, 2, 0xf7)]),
+		]) {
+			for (const parse of Object.values(parsers)) expect(() => parse(data, 'mid')).not.toThrow()
+		}
+	})
+
 	it('refuses a 5- or 6-fret tap or open SysEx phrase whose difficulty byte is not 0 to 3 or 255', () => {
 		for (const trackName of ['PART GUITAR', 'PART GUITAR GHL']) {
 			const data = guitarMidi([...greens, sysEx(100, 5, 4, true), sysEx(300, 5, 4, false)], trackName)
