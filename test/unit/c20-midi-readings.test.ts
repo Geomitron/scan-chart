@@ -216,4 +216,18 @@ describe('a UTF-8 byte order mark at the start of a .mid text', () => {
 		for (const parse of [parsers.scanner, parsers.canonical]) expect(expertNotes(data, parse)).toEqual([[960, noteTypes.green]])
 		expect(expertNotes(data, parsers.legacy)).toEqual([[480, noteTypes.open], [960, noteTypes.green]])
 	})
+
+	it('reads "[coda]" after the mark as the coda, and "coda" after it as no coda, except in the frozen profile', () => {
+		/** Whether the drum fill at 960 is in the coda, with the EVENTS text `text` at 480. */
+		const isCoda = (text: string, parse: Parse) => parse(midiFile([
+			{ name: 'EVENTS', events: [midiText(480, text)] },
+			{ name: 'PART DRUMS', events: [...midiNote(0, 97, 10), ...midiNote(960, 120, 100), ...midiNote(1200, 97, 10)] },
+		]), 'mid').trackData.find(track => track.instrument === 'drums' && track.difficulty === 'expert')!.drumFreestyleSections.map(section => section.isCoda)
+		for (const parse of [parsers.scanner, parsers.canonical]) {
+			expect(isCoda('﻿coda', parse)).toEqual([false])
+			expect(isCoda('﻿[coda]', parse)).toEqual([true])
+		}
+		expect(isCoda('﻿coda', parsers.legacy)).toEqual([true])
+		expect(isCoda('﻿[coda]', parsers.legacy)).toEqual([true])
+	})
 })
