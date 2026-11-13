@@ -293,6 +293,11 @@ export function midiTokensForParsing(tokens: MidiTokens | null, data: Uint8Array
 }
 
 function checkMidiFileTokens(tokens: MidiTokens, rules: MidiTrackRules): MidiTokens {
+	// A counted track that can't be decoded after its end of track: parseMidi throws while it reads the file, before any
+	// check, and so does a profile that reads the events after the end. Clone Hero stops at the end, before the fault.
+	const counted = tokens.chunks.find(chunk => chunk.kind === 'track' && chunk.pastHeaderCount !== true && chunk.unreadable !== undefined)
+	if (counted?.kind === 'track' && rules.midiEventsAfterEnd === 'read') throw counted.unreadable!.thrown
+
 	const { header } = tokens.header
 	if (header.format !== 1) {
 		throw `Invavlid .mid file: unsupported header format "${header.format}"`
@@ -311,7 +316,7 @@ function checkMidiFileTokens(tokens: MidiTokens, rules: MidiTrackRules): MidiTok
 		// A reader that stops at the end of track never reaches a fault after it. The events before a fault are whole, and
 		// a cut is inside the last event, so only an end of track before the last event comes before the cut.
 		const end = rules.midiEventsAfterEnd === 'ignored' ? chunk.events.findIndex(token => token.event.type === 'endOfTrack') : -1
-		// A track past the header's count that can't be decoded is refused as one within the count is (C20: R15).
+		// A track that can't be decoded before its end of track is refused, past the header's count as within it (C20: R15).
 		if (chunk.unreadable !== undefined && end === -1) throw chunk.unreadable.thrown
 		// Clone Hero refuses a file cut short inside an event; one cut between two events is read up to the cut.
 		if ((end === -1 || end === chunk.events.length - 1) && isCutInsideEvent(tokens, chunk)) {

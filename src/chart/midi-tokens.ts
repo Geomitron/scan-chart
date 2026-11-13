@@ -47,8 +47,9 @@ export interface MidiHeaderChunk extends MidiChunkFrame {
 /**
  * An `MTrk` chunk, decoded into events: one within the header's track count, or one of the `MTrk` chunks that follow
  * those, up to a chunk of another kind (`pastHeaderCount`), which Clone Hero reads too (C20: R15) and `parseMidi` never
- * reads. Such a chunk that can't be decoded keeps the events before the fault, and what the reader threw there as
- * `unreadable`, which a profile that reads the chunk throws as it would for a track within the count.
+ * reads. A chunk that can't be decoded keeps the events before the fault, and what the reader threw there as
+ * `unreadable`: within the count, only for a fault after a whole end of track, since `readMidiTokens` throws any other.
+ * A profile that reads the chunk up to the fault throws it.
  */
 export interface MidiTrackChunk extends MidiChunkFrame {
 	kind: 'track'
@@ -89,9 +90,11 @@ export type MidiUnknownChunkPolicy = 'skip' | 'reject'
 
 /**
  * Reads `data` as MIDI tokens. The header and the track chunks decode exactly as `parseMidi` from
- * `@geomitron/midi-file` decodes them, and the reader throws where it throws, with the same messages, as strings.
+ * `@geomitron/midi-file` decodes them, and the reader throws where it throws, with the same messages, as strings,
+ * except at a fault after a track's end of track, where Clone Hero stops reading the track. Such a track keeps what the
+ * reader threw as `unreadable`, and reading goes on; a later fault throws the first one, as `parseMidi` would.
  *
- * Two things differ. With the `skip` policy, a whole chunk of another type with a 4-character ASCII id is kept and
+ * Two more things differ. With the `skip` policy, a whole chunk of another type with a 4-character ASCII id is kept and
  * skipped instead of rejected. And a chunk length of 2 GiB or more, which `parseMidi` reads as negative and then
  * steps backwards through the file, is rejected whenever `parseMidi` would read on from it.
  */
@@ -106,45 +109,50 @@ export function readMidiTokens(data: Uint8Array, unknownChunks: MidiUnknownChunk
 	const chunks: MidiChunk[] = []
 	let trackCount = 0
 	let previous: MidiChunkFrame = header
+	// The first counted track with a fault after its end of track, whose fault parseMidi throws before any later one
+	let firstUnreadable: MidiTrackChunk | undefined
 	while (trackCount < header.header.numTracks) {
-		if (Number.isNaN(previous.length)) {
-			// parseMidi goes on reading at position `NaN`, where every chunk id decodes as ''
-			throw `Bad MIDI file.  Expected 'MTrk', got: ''`
-		}
-		if (previous.length < 0) {
-			throw `Bad MIDI file.  The '${previous.id}' chunk at byte ${previous.start} declares a negative length: ${previous.length}`
-		}
-		if (previous.end >= data.length) {
+		if (previous.end >= data.length && previous.length >= 0) {
 			break
 		}
-		const frame = readChunkFrame(data, previous.end)
-		if (frame.id === 'MTrk') {
-			chunks.push({ ...frame, kind: 'track', events: readTrackEvents(data.subarray(frame.bodyStart, frame.end), frame.bodyStart) })
-			trackCount++
-		} else if (unknownChunks === 'skip' && isWholeChunk(data, frame)) {
-			chunks.push({ ...frame, kind: 'skipped' })
-		} else {
-			throw `Bad MIDI file.  Expected 'MTrk', got: '${frame.id}'`
+		try {
+			if (Number.isNaN(previous.length)) {
+				// parseMidi goes on reading at position `NaN`, where every chunk id decodes as ''
+				throw `Bad MIDI file.  Expected 'MTrk', got: ''`
+			}
+			if (previous.length < 0) {
+				throw `Bad MIDI file.  The '${previous.id}' chunk at byte ${previous.start} declares a negative length: ${previous.length}`
+			}
+			const frame = readChunkFrame(data, previous.end)
+			if (frame.id === 'MTrk') {
+				const chunk = readTrackChunk(data, frame)
+				// Clone Hero stops reading a track at its end of track, so only a fault before it throws here
+				if (chunk.unreadable !== undefined && !chunk.events.some(token => token.event.type === 'endOfTrack')) throw chunk.unreadable.thrown
+				if (chunk.unreadable !== undefined) firstUnreadable ??= chunk
+				chunks.push(chunk)
+				trackCount++
+			} else if (unknownChunks === 'skip' && isWholeChunk(data, frame)) {
+				chunks.push({ ...frame, kind: 'skipped' })
+			} else {
+				throw `Bad MIDI file.  Expected 'MTrk', got: '${frame.id}'`
+			}
+			previous = frame
+		} catch (thrown) {
+			throw firstUnreadable === undefined ? thrown : firstUnreadable.unreadable!.thrown
 		}
-		previous = frame
 	}
 
 	// parseMidi reads nothing past the track count. Clone Hero reads on, each MTrk chunk up to a chunk of another kind,
-	// with the reader it reads the counted ones with. They are decoded as those are, and one that can't be decoded ends
-	// them, keeping what was thrown. Whole chunks after them are kept as chunks, and anything else as trailing bytes.
+	// with the reader it reads the counted ones with, each from the end its length gives the one before. They are decoded
+	// as those are, keeping what the reader threw at a fault. Whole chunks after them are kept as chunks, and anything else
+	// as trailing bytes.
 	let trailingStart = previous.end
 	while (trackCount === header.header.numTracks && trailingStart < data.length) {
 		const frame = readChunkFrame(data, trailingStart)
 		if (frame.id !== 'MTrk') break
-		const chunk: MidiTrackChunk = { ...frame, kind: 'track', events: [], pastHeaderCount: true }
-		try {
-			readTrackEvents(data.subarray(frame.bodyStart, frame.end), frame.bodyStart, chunk.events)
-		} catch (thrown) {
-			chunk.unreadable = { thrown }
-		}
-		chunks.push(chunk)
+		chunks.push({ ...readTrackChunk(data, frame), pastHeaderCount: true })
 		trailingStart = frame.end
-		if (chunk.unreadable !== undefined || !(frame.length >= 0)) break
+		if (!(frame.length >= 0)) break
 	}
 	while (trailingStart < data.length) {
 		const frame = readChunkFrame(data, trailingStart)
@@ -156,6 +164,17 @@ export function readMidiTokens(data: Uint8Array, unknownChunks: MidiUnknownChunk
 	}
 
 	return { data, header, chunks, trailingStart }
+}
+
+/** The `MTrk` chunk `frame` decoded, with the events before a fault and what the reader threw there as `unreadable`. */
+function readTrackChunk(data: Uint8Array, frame: MidiChunkFrame): MidiTrackChunk {
+	const chunk: MidiTrackChunk = { ...frame, kind: 'track', events: [] }
+	try {
+		readTrackEvents(data.subarray(frame.bodyStart, frame.end), frame.bodyStart, chunk.events)
+	} catch (thrown) {
+		chunk.unreadable = { thrown }
+	}
+	return chunk
 }
 
 /**

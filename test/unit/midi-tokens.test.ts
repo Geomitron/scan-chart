@@ -71,13 +71,19 @@ function expectDecodesLikeParseMidi(data: Uint8Array, unknownChunks: MidiUnknown
 	return tokens
 }
 
-/** Checks that the reader throws what `parseMidi` throws, or decodes like it when it returns. */
+/**
+ * Checks that the reader throws what `parseMidi` throws, or decodes like it when it returns. At a fault after a counted
+ * track's end of track, the reader keeps what it threw on the first such track instead, which the frozen profile throws.
+ */
 function expectReadsLikeParseMidi(data: Uint8Array, unknownChunks: MidiUnknownChunkPolicy = 'skip') {
 	const expectedError = thrownBy(() => parseMidi(data))
 	if (expectedError === undefined) {
 		expectDecodesLikeParseMidi(data, unknownChunks)
 	} else {
-		expect(thrownBy(() => readMidiTokens(data, unknownChunks))).toBe(expectedError)
+		expect(thrownBy(() => {
+			const unreadable = readMidiTokens(data, unknownChunks).chunks.find(chunk => chunk.kind === 'track' && chunk.pastHeaderCount !== true && chunk.unreadable !== undefined)
+			if (unreadable?.kind === 'track') throw unreadable.unreadable!.thrown
+		})).toBe(expectedError)
 	}
 }
 
@@ -237,11 +243,11 @@ describe('readMidiTokens', () => {
 				.toEqual([['track', 'MTrk', false], ['track', 'MTrk', true], ['track', 'MTrk', true], ['skipped', 'XFIH', false], ['skipped', 'MTrk', false]])
 			expect(midiTokensToMidiData(tokens, parseRules.canonical20260801).tracks).toHaveLength(3)
 			expect(midiTokensToMidiData(tokens, parseRules.frozenLegacy6142).tracks).toHaveLength(1)
-			// One that can't be decoded, with a running status before any status byte, ends them. It is kept as a track with what
-			// the reader threw, which the profiles that read it throw, and the chunks after it are skipped.
+			// One that can't be decoded, with a running status before any status byte, is kept as a track with what the reader
+			// threw, which the profiles that read it throw, and reading goes on from the end its length gives, as Clone Hero's does.
 			const undecodable = readMidiTokens(file(headerChunk(1, 1, 480), tempoTrack, chunk('MTrk', 0x00, 0x3c, 0x64), track))
 			expect(undecodable.chunks.map(chunk => [chunk.kind, chunk.kind === 'track' ? chunk.unreadable : undefined]))
-				.toEqual([['track', undefined], ['track', { thrown: 'Unrecognised MIDI event type: 0' }], ['skipped', undefined]])
+				.toEqual([['track', undefined], ['track', { thrown: 'Unrecognised MIDI event type: 0' }], ['track', undefined]])
 		})
 
 		it('keeps trailing bytes after the last chunk', () => {

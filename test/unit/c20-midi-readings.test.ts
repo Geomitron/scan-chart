@@ -158,6 +158,31 @@ describe('a track past the header count is read as one within it is (C20: R15)',
 	})
 })
 
+describe('a track with a fault after its end of track (C20: R15, R16)', () => {
+	const named = (name: string) => { const text = new TextEncoder().encode(name); return [0x00, 0xff, 0x03, text.length, ...text] }
+	const endOfTrack = [0x00, 0xff, 0x2f, 0x00]
+	// A conductor alone, counted, then PART GUITAR with an F1 byte after its end of track, then PART DRUMS.
+	const data = withChunk(withChunk(midiFile([]), trackChunk([...named('PART GUITAR'), ...bassNote, ...endOfTrack, 0x00, 0xf1])),
+		trackChunk([...named('PART DRUMS'), 0x00, 0x90, 0x61, 0x64, 0x0a, 0x80, 0x61, 0x00, ...endOfTrack]))
+	const fault = 'Unrecognised MIDI event type byte: 241'
+
+	it('reads the tracks after it past the header count, as Clone Hero does, in the scanner and canonical profiles', () => {
+		for (const parse of [parsers.scanner, parsers.canonical]) expect(instruments(data, parse)).toEqual(['guitar/expert', 'drums/expert'])
+		expect(instruments(data, parsers.legacy)).toEqual([])
+	})
+
+	it('reads it within the header count in the scanner and canonical profiles, and the frozen profile refuses it as parseMidi does', () => {
+		const counted = withCount(data, 3)
+		for (const parse of [parsers.scanner, parsers.canonical]) expect(instruments(counted, parse)).toEqual(['guitar/expert', 'drums/expert'])
+		expect(() => parsers.legacy(counted, 'mid')).toThrow(fault)
+		// Before anything else is checked, as parseMidi throws while it reads: here before the unsupported format.
+		const format0 = counted.slice()
+		format0[9] = 0
+		expect(() => parsers.legacy(format0, 'mid')).toThrow(fault)
+		for (const parse of [parsers.scanner, parsers.canonical]) expect(() => parse(format0, 'mid')).toThrow('unsupported header format "0"')
+	})
+})
+
 describe('events after the end of track are ignored (C20: R16)', () => {
 	const endOfTrack = (tick: number): TimedMidiEvent => ({ tick, event: { type: 'endOfTrack' } as TimedMidiEvent['event'] })
 	// The track ends at 600; the green at 960 and the red's note-off at 650 come after it.
