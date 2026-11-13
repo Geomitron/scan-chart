@@ -104,6 +104,17 @@ export function isEnhancedOpensText(text: string, reading: ParseRules['midiEnhan
 // Without the u flag, a case-insensitive match folds only ASCII letters to ASCII letters.
 const enhancedOpensAnyCase = /^(?:ENHANCED_OPENS|\[ENHANCED_OPENS\])$/i
 
+/**
+ * The events a finder finds in one instrument track of a `.mid` file: the track's name, instrument and chunk index,
+ * and each event found, with its index among the chunk's events.
+ */
+export interface MidiTrackFinding<Found> {
+	name: string
+	instrument: Instrument
+	chunkIndex: number
+	events: (Found & { eventIndex: number })[]
+}
+
 export function midiInstrumentTracks(tokens: MidiTokens): { name: string; instrument: Instrument; chunkIndex: number }[] {
 	const tracks: { name: string; instrument: Instrument; chunkIndex: number }[] = []
 	// The first track is the conductor track. A track is named by its last name at tick 0.
@@ -122,7 +133,7 @@ export function midiInstrumentTracks(tokens: MidiTokens): { name: string; instru
  * The `ENHANCED_OPENS` text events of each instrument track that Clone Hero reads and that aren't in capitals (C20: R13),
  * each with its index among its chunk's events.
  */
-export function midiEnhancedOpensInOtherCase(tokens: MidiTokens): { name: string; instrument: Instrument; chunkIndex: number; events: { eventIndex: number; tick: number; text: string }[] }[] {
+export function midiEnhancedOpensInOtherCase(tokens: MidiTokens): MidiTrackFinding<{ tick: number; text: string }>[] {
 	return midiInstrumentTracks(tokens).flatMap(track => {
 		const chunk = tokens.chunks[track.chunkIndex]
 		const events = chunk.kind !== 'track' ? [] : chunk.events.flatMap(({ tick, event }, eventIndex) =>
@@ -179,7 +190,7 @@ export function isPhaseShiftSysEx(data: ArrayLike<number>, reading: ParseRules['
  * Each instrument track's tap and open SysEx events that scan-chart 8 read as Phase Shift events and Clone Hero doesn't,
  * as they aren't exactly 8 bytes ending with F7 (C20: R12), each with its index among its chunk's events.
  */
-export function midiSysExOfAnotherLength(tokens: MidiTokens): { name: string; instrument: Instrument; chunkIndex: number; events: { eventIndex: number; tick: number; data: ArrayLike<number> }[] }[] {
+export function midiSysExOfAnotherLength(tokens: MidiTokens): MidiTrackFinding<{ tick: number; data: ArrayLike<number> }>[] {
 	return midiInstrumentTracks(tokens).flatMap(track => {
 		const chunk = tokens.chunks[track.chunkIndex]
 		const events = chunk.kind !== 'track' ? [] : chunk.events.flatMap(({ tick, event }, eventIndex) => event.type === 'sysEx'

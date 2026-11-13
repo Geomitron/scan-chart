@@ -437,7 +437,7 @@ export function isCutInsideEvent(tokens: MidiTokens, chunk: MidiTrackChunk): boo
 	const reader = new ChunkReader(body)
 	while (reader.pos < body.length) readEvent(reader)
 	// A variable-length number cut short reads as what it has so far, so the reader notes it.
-	return reader.cutShort || !(reader.pos <= body.length)
+	return reader.cutShort || reader.pos > body.length
 }
 
 /**

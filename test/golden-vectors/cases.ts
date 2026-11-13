@@ -252,7 +252,7 @@ export const sourceCases: readonly AuthoredSourceCase[] = [
 	...syncTrackAndInstrumentCases(),
 	...tapEndCases(),
 	...mixSpellingCases(),
-	...enhancedOpensCaseCases(),
+	...enhancedOpensLetterCaseCases(),
 	...byteOrderMarkCases(),
 	...trackCountCases(),
 	...eventsAfterEndCases(),
@@ -666,7 +666,7 @@ function mixSpellingCases(): AuthoredSourceCase[] {
 }
 
 /** C20 (R13): a `.mid` track's ENHANCED_OPENS is read in any letter case, as Clone Hero reads it, so note 95 is an open note. */
-function enhancedOpensCaseCases(): AuthoredSourceCase[] {
+function enhancedOpensLetterCaseCases(): AuthoredSourceCase[] {
 	return ([['capitals', '[ENHANCED_OPENS]'], ['lowercase', '[enhanced_opens]'], ['mixed-case-bare', 'Enhanced_Opens']] as const).map(([name, text]) => ({
 		id: `source-midi-enhanced-opens-${name}`,
 		purpose: `"${text}" at tick 0 makes the Expert note 95 at 480 an open note, before a green at 960.`,

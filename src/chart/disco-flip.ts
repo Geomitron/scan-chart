@@ -1,6 +1,6 @@
 import { type Difficulty, difficulties } from '../types'
 import { type ChartLineToken, discoFlipDifficultyMap, parseTrackLine } from './chart-file-parser'
-import { midiInstrumentTracks } from './midi-file-parser'
+import { midiInstrumentTracks, type MidiTrackFinding } from './midi-file-parser'
 import { drumsDiffStarts } from './midi-note-numbers'
 import type { MidiTokens } from './midi-tokens'
 import { isMixEventSpelledAnotherWay, readMixEvent } from './mix-event'
@@ -173,15 +173,15 @@ export function chartSectionMisspelledMixes(lines: readonly ChartLineToken[], di
  * The misspelled mix events of the drums track a `.mid` file is read with, its first, each with its index among the
  * chunk's events, or `null` when it has no drums track. Only text events, `FF 01`, are mix events.
  */
-export function midiTrackMisspelledMixes(tokens: MidiTokens): { name: string; chunkIndex: number; events: (MisspelledMixEvent & { eventIndex: number })[] } | null {
+export function midiTrackMisspelledMixes(tokens: MidiTokens): MidiTrackFinding<MisspelledMixEvent> | null {
 	const track = midiInstrumentTracks(tokens).find(candidate => candidate.instrument === 'drums')
 	const chunk = track === undefined ? undefined : tokens.chunks[track.chunkIndex]
 	if (track === undefined || chunk?.kind !== 'track') return null
-	const events: (MisspelledMixEvent & { eventIndex: number })[] = []
+	const events: MidiTrackFinding<MisspelledMixEvent>['events'] = []
 	chunk.events.forEach(({ tick, event }, eventIndex) => {
 		if (event.type !== 'text' || !event.text.includes('mix') || !isMixEventSpelledAnotherWay(event.text)) return
 		const mix = readMixEvent(event.text, 'cloneHero') ?? readMixEvent(event.text, 'strict')!
 		events.push({ difficulty: mix.difficulty, tick, text: event.text, standard: drumMixText(mix.difficulty, { configuration: mix.configuration, flag: mix.flag as DrumMixEvent['flag'] }), isRead: readMixEvent(event.text, 'cloneHero') !== null, eventIndex })
 	})
-	return { name: track.name, chunkIndex: track.chunkIndex, events }
+	return { ...track, events }
 }
