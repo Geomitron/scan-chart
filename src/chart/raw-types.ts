@@ -2,9 +2,8 @@ import type { MidiEvent } from '@geomitron/midi-file'
 
 import { defaultMetadata } from '../ini/metadata'
 import { Difficulty, Instrument, NotesData } from '../types'
-import { ObjectValues } from '../shared/type-utils'
 
-export type EventType = ObjectValues<typeof eventTypes>
+export type EventType = (typeof eventTypes)[keyof typeof eventTypes]
 export const eventTypes = {
 	starPower: 0,
 	soloSection: 1, // .mid

@@ -20,7 +20,7 @@ export interface CanonicalTrackKey {
 	readonly difficulty: Difficulty
 }
 
-interface RangeShiftSourceDetails {
+export interface RangeShiftSourceDetails {
 	readonly instrument: Instrument
 	readonly eventIndex: number
 	readonly tick: number

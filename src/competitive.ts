@@ -75,6 +75,16 @@ export type {
 	CanonicalSongBundleRequest,
 	ChartSource,
 	FrozenLegacy6142Api,
+	FrozenLegacyParsedChart,
+	FrozenLegacyParseOutcome,
+	FrozenLegacySongBundleIdentity,
+	FrozenLegacyTrackIdentity,
+	FrozenLegacyTrackRequest,
+	LegacyBlake3Digest,
+	LegacyBundleTrackIdentity,
+	LegacyPhysicalBTrack,
+	LegacyTrackHash,
+	LegacyTrackHashProjection,
 	SongBundle20251010Api,
 	SongBundleIdentityOutcome,
 	SongBundleIdentityRequest,
@@ -82,15 +92,21 @@ export type {
 	SourceParseRequest,
 } from './chart/identity/public'
 export type { CanonicalChartDuration, TrackDuration } from './chart/chart-duration'
-export type { CanonicalChartDurationMs, TrackDurationMs } from './chart/identity/duration-types'
+export type { CanonicalChartDurationMs, HistoricalSongHashDurationMs, TrackDurationMs } from './chart/identity/duration-types'
 export type {
 	CanonicalSongHash,
 	CanonicalSongIdentity,
 	CanonicalSongHashMember,
 	CanonicalSongIdentityRequest,
+	LegacySongHash,
+	LegacySongHashMember,
+	LegacySongIdentity,
+	LegacySongIdentityRequest,
 	SongHashMetadata,
 } from './chart/identity/song-hash-20251010'
 export type {
+	BTrackReadError,
+	BTrackRecordField,
 	CanonicalBlake3Digest,
 	CanonicalBTrackReadOutcome,
 	CanonicalDrumFreestyle,
@@ -113,6 +129,10 @@ export type {
 	CanonicalParseOutcome,
 	CanonicalSourceNotice,
 	CanonicalTrackKey,
+	RangeShiftSourceDetails,
 	RangeShiftSourceLocation,
 } from './chart/identity/canonical-source'
 export type { CanonicalTempoMap } from './chart/identity/tempo-map-hash'
+export type { IniChartModifiers, NoteEvent } from './chart/types'
+export type { DrumMixEvent } from './chart/raw-types'
+export type { UntimedNoteEvent } from './chart/parse-chart-file'

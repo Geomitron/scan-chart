@@ -29,7 +29,7 @@ import {
 } from './natural-hopo'
 
 type TrackEvent = RawChartData['trackData'][number]['trackEvents'][number]
-type UntimedNoteEvent = Omit<NoteEvent, 'msTime' | 'msLength'>
+export type UntimedNoteEvent = Omit<NoteEvent, 'msTime' | 'msLength'>
 
 export type ParsedChartFile = ReturnType<typeof parseChartFile>
 

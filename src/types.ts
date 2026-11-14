@@ -1,5 +1,3 @@
-import { ObjectValues } from './shared/type-utils'
-
 /**
  * A single file from a chart folder: the (case-preserved) file name and the
  * raw bytes. Every scan-chart API that takes "a chart folder" takes a
@@ -261,7 +259,7 @@ export const instruments = [
 	'keysghl', // GHL (6-fret) Keys
 ] as const
 
-export type InstrumentType = ObjectValues<typeof instrumentTypes>
+export type InstrumentType = (typeof instrumentTypes)[keyof typeof instrumentTypes]
 export const instrumentTypes = {
 	sixFret: 0,
 	fiveFret: 1,
@@ -277,7 +275,7 @@ export function getInstrumentType(instrument: Instrument) {
 	}
 }
 
-export type DrumType = ObjectValues<typeof drumTypes>
+export type DrumType = (typeof drumTypes)[keyof typeof drumTypes]
 export const drumTypes = {
 	fourLane: 0,
 	fourLanePro: 1,

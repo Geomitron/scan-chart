@@ -1,6 +1,5 @@
 import type { MidiEvent } from '@geomitron/midi-file'
 
-import { ObjectValues } from '../shared/type-utils'
 import { defaultMetadata } from '../ini/metadata'
 
 /** The subset of `defaultMetadata` that influences chart parsing. */
@@ -48,7 +47,7 @@ export interface NoteEvent {
 }
 
 /** Note: specific values here are standardized; they are constants used in the track hash calculation. */
-export type NoteType = ObjectValues<typeof noteTypes>
+export type NoteType = (typeof noteTypes)[keyof typeof noteTypes]
 export const noteTypes = {
 	open: 1,
 	green: 2,
