@@ -5,3 +5,5 @@ title: "UntimedNoteEvent"
 ```ts
 type UntimedNoteEvent = Omit<NoteEvent, "msTime" | "msLength">;
 ```
+
+A note as the chart file gives it, before the tempo map times it: a `NoteEvent` without `msTime` and `msLength`.

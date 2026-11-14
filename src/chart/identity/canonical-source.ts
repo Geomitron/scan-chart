@@ -20,6 +20,7 @@ export interface CanonicalTrackKey {
 	readonly difficulty: Difficulty
 }
 
+/** Where a range shift event is in the chart: its track's instrument, its index among the track's text events, its tick and its text as written. */
 export interface RangeShiftSourceDetails {
 	readonly instrument: Instrument
 	readonly eventIndex: number

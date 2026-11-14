@@ -135,4 +135,4 @@ export type {
 export type { CanonicalTempoMap } from './chart/identity/tempo-map-hash'
 export type { IniChartModifiers, NoteEvent } from './chart/types'
 export type { DrumMixEvent } from './chart/raw-types'
-export type { UntimedNoteEvent } from './chart/parse-chart-file'
+export type { ParsedChartFile, UntimedNoteEvent } from './chart/parse-chart-file'

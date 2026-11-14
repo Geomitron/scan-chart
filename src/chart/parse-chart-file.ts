@@ -29,9 +29,13 @@ import {
 } from './natural-hopo'
 
 type TrackEvent = RawChartData['trackData'][number]['trackEvents'][number]
+/** A note as the chart file gives it, before the tempo map times it: a `NoteEvent` without `msTime` and `msLength`. */
 export type UntimedNoteEvent = Omit<NoteEvent, 'msTime' | 'msLength'>
 
-export type ParsedChartFile = ReturnType<typeof parseChartFile>
+/** A chart file parsed to its tracks, events and tempo map, the input of the duration and hash calculations. */
+// An interface, not a type alias, so declarations and the API reference name it instead of spelling out its fields.
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
+export interface ParsedChartFile extends ReturnType<typeof parseChartFile> {}
 
 /**
  * Parses `buffer` as a chart in the .chart or .mid format.

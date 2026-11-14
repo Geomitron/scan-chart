@@ -7,9 +7,10 @@ import { dirname, join, posix, resolve } from 'node:path'
 
 import { format, resolveConfig } from 'prettier'
 
-export const repositoryRoot = resolve(__dirname, '../..')
-/** The folder of the generated pages, and the docs.json path of each page, relative to `docs/`. */
+const repositoryRoot = resolve(__dirname, '../..')
+/** The folder of the generated pages. */
 export const apiFolder = join(repositoryRoot, 'docs/scan-chart/api')
+/** The docs.json path of the API folder, relative to `docs/`. */
 const apiRoute = 'scan-chart/api'
 export const docsJsonPath = join(repositoryRoot, 'docs/docs.json')
 const docsTab = 'scan-chart'
@@ -52,10 +53,20 @@ export async function generateApiReference(): Promise<ApiReference> {
 	}
 }
 
-async function convertTypedocOutput(typedocOutput: string): Promise<ApiReference> {
-	const files = (await readdir(typedocOutput, { recursive: true, withFileTypes: true }))
+/** The paths of the files under `folder`, relative to it, with `/` between their parts on every platform. */
+export async function filesUnder(folder: string): Promise<string[]> {
+	return (await readdir(folder, { recursive: true, withFileTypes: true }))
 		.filter(entry => entry.isFile())
-		.map(entry => posix.join(...join(entry.parentPath, entry.name).slice(typedocOutput.length + 1).split(/[\\/]/)))
+		.map(entry => posix.join(...join(entry.parentPath, entry.name).slice(folder.length + 1).split(/[\\/]/)))
+}
+
+/** The text with LF line endings, as the generator writes it whatever the checkout's line endings are. */
+export function toLf(text: string): string {
+	return text.replace(/\r\n/g, '\n')
+}
+
+async function convertTypedocOutput(typedocOutput: string): Promise<ApiReference> {
+	const files = await filesUnder(typedocOutput)
 	const pages = new Map<string, string>()
 	const navigation: NavigationGroup[] = []
 	for (const entryPoint of entryPoints) {
@@ -80,7 +91,7 @@ async function convertTypedocOutput(typedocOutput: string): Promise<ApiReference
  * line endings of the source checkout, so the page is converted to LF line endings to be the same on every checkout.
  */
 function toMintlifyPage(file: string, typedocPage: string): string {
-	const markdown = typedocPage.replace(/\r\n/g, '\n')
+	const markdown = toLf(typedocPage)
 	const heading = /^# (.+)\n\n/.exec(markdown)
 	if (!heading) throw new Error(`${file}: TypeDoc's page doesn't start with a heading`)
 	const title = heading[1].replace(/\\(.)/g, '$1')

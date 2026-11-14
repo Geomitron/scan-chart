@@ -285,6 +285,7 @@
 									"scan-chart/api/competitive/interfaces/LegacyTrackHash",
 									"scan-chart/api/competitive/interfaces/LegacyTrackHashProjection",
 									"scan-chart/api/competitive/interfaces/NoteEvent",
+									"scan-chart/api/competitive/interfaces/ParsedChartFile",
 									"scan-chart/api/competitive/interfaces/RangeShiftSourceDetails",
 									"scan-chart/api/competitive/type-aliases/RangeShiftSourceLocation",
 									"scan-chart/api/competitive/interfaces/SongBundle20251010Api",
