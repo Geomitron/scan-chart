@@ -1,4 +1,4 @@
-import { load } from 'exifreader'
+import ExifReader from 'exifreader'
 
 import type { FolderFinding } from '../issues'
 import { fileBytes, type SongFile } from '../song-files'
@@ -48,7 +48,7 @@ export function decodeAlbumArt(file: string, data: Uint8Array, sizes: readonly n
 export function imageSize(data: Uint8Array): { width: number; height: number } | null {
 	try {
 		// exifreader reads the whole buffer, so a view into a larger one is copied.
-		const image = load(data.byteOffset === 0 && data.byteLength === data.buffer.byteLength ? data.buffer : data.slice().buffer)
+		const image = ExifReader.load(data.byteOffset === 0 && data.byteLength === data.buffer.byteLength ? data.buffer : data.slice().buffer)
 		const height = image.ImageHeight || image['Image Height']
 		const width = image.ImageWidth || image['Image Width']
 		const size = { width: Number(width!.value), height: Number(height!.value) }
