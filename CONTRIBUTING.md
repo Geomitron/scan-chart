@@ -16,6 +16,8 @@
 | `npm run build` | The build, then a check that plain Node loads each entry point with `import` and with `require` |
 | `npm run vectors:verify` | The golden vectors: charts with the BTracks, TrackHashes, and SongHashes every implementation must calculate |
 
+GitHub runs these checks on each push and pull request (`.github/workflows/checks.yml`).
+
 `npm test` type-checks and runs every TypeScript block in `readme.md`, so an example that stops compiling or running fails the tests. A block marked `ts browser` is only type-checked.
 
 ## Compare scan-chart with a chart library
