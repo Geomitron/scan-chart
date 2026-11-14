@@ -166,7 +166,7 @@ A scanner reads the first 6 bytes, as Clone Hero and scan-chart do. YARG's song 
 </Accordion>
 
 <Accordion title="A track count that doesn't match the tracks">
-A scanner reads every track, whatever the header counts, up to a chunk of another kind after the counted tracks, as Clone Hero and YARG do. scan-chart reports the wrong count. Saving with scan-chart keeps the header as it is, and its export writes the right count.
+A scanner reads every track, whatever the header counts, up to a chunk of another kind after the counted tracks, as Clone Hero and YARG do. scan-chart reports the wrong count, and `fixIssues` can rewrite it. Saving with scan-chart keeps the header as it is, and its export writes the right count.
 </Accordion>
 
 <Accordion title="A chunk of another kind among the tracks">
@@ -192,7 +192,7 @@ A scanner ignores the events after the end of track, as Clone Hero and YARG do. 
 </Accordion>
 
 <Accordion title="A damaged file">
-A scanner reads a file cut short between two events up to the cut, as Clone Hero and scan-chart do. It refuses a file cut inside an event, as Clone Hero does, and a tempo or time signature of the wrong length, as scan-chart does. scan-chart reads every complete event before a cut inside an event. Clone Hero reads the fixed fields of a tempo or time signature of the wrong length. YARG's song scan doesn't read a cut-short track up to the cut, since it doesn't check a track's length against the file.
+A scanner reads a file cut short between two events up to the cut, as Clone Hero and scan-chart do. It refuses a file cut inside an event, unless the event comes after the track's end of track, as Clone Hero and scan-chart do. It also refuses a tempo or time signature of the wrong length, as scan-chart does. Clone Hero reads the fixed fields of a tempo or time signature of the wrong length. YARG's song scan doesn't read a cut-short track up to the cut, since it doesn't check a track's length against the file.
 </Accordion>
 
 <Accordion title="A resolution of 0, or in SMPTE frames">
@@ -224,7 +224,7 @@ Clone Hero and YARG use the later one. scan-chart times the notes with the later
 </Accordion>
 
 <Accordion title="An exponent of 8 or more">
-A scanner refuses the file. Clone Hero and YARG store the denominator in one byte, which can't hold 256 or more, and from their code neither loads the chart. scan-chart reads 2 to the power of the exponent, which is exact up to an exponent of 30.
+A scanner refuses the file, as scan-chart does. Clone Hero and YARG store the denominator in one byte, which can't hold 256 or more, and from their code neither loads the chart.
 </Accordion>
 
 <Accordion title="Text of another type in EVENTS or an instrument track">
