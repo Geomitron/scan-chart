@@ -1,0 +1,293 @@
+---
+title: "SongEditBatch"
+---
+
+The edits one call of `editSong` collects; they apply together, as one change.
+
+## Methods
+
+### addEvent()
+
+```ts
+addEvent(
+   track, 
+   tick, 
+   type, 
+   length, 
+   options?
+): void;
+```
+
+Adds a note, note modifier or phrase to a track from `authoredTracks` or `addTrack`. It's refused, with the reason, when it
+means nothing on the track's instrument or the format can't write it. A `.mid` track holds every difficulty, so
+`scope` says which one, or `instrument`; an event the format stores once for the instrument, such as star power,
+is added for the instrument whichever difficulty asks. A `.mid` note's velocity defaults to 100 and its channel
+to 0.
+
+#### Parameters
+
+| Parameter | Type |
+| ------ | ------ |
+| `track` | [`AuthoredTrack`](/scan-chart/api/index/interfaces/AuthoredTrack) |
+| `tick` | `number` |
+| `type` | [`AuthoredEventType`](/scan-chart/api/index/type-aliases/AuthoredEventType) |
+| `length` | `number` |
+| `options?` | \{ `channel?`: `number`; `scope?`: `"expert"` \| `"hard"` \| `"medium"` \| `"easy"` \| `"instrument"`; `velocity?`: `number`; \} |
+| `options.channel?` | `number` |
+| `options.scope?` | `"expert"` \| `"hard"` \| `"medium"` \| `"easy"` \| `"instrument"` |
+| `options.velocity?` | `number` |
+
+#### Returns
+
+`void`
+
+***
+
+### addTempo()
+
+```ts
+addTempo(tick, beatsPerMinute): void;
+```
+
+Adds a tempo marker to the `[SyncTrack]` section or the conductor track, rounded as `setTempo` rounds.
+
+#### Parameters
+
+| Parameter | Type |
+| ------ | ------ |
+| `tick` | `number` |
+| `beatsPerMinute` | `number` |
+
+#### Returns
+
+`void`
+
+***
+
+### addTextEvent()
+
+```ts
+addTextEvent(tick, text): void;
+```
+
+Adds a text event, such as a practice section, to the `[Events]` section or the events track.
+
+#### Parameters
+
+| Parameter | Type |
+| ------ | ------ |
+| `tick` | `number` |
+| `text` | `string` |
+
+#### Returns
+
+`void`
+
+***
+
+### addTimeSignature()
+
+```ts
+addTimeSignature(
+   tick, 
+   numerator, 
+   denominator
+): void;
+```
+
+Adds a time signature to the `[SyncTrack]` section or the conductor track.
+
+#### Parameters
+
+| Parameter | Type |
+| ------ | ------ |
+| `tick` | `number` |
+| `numerator` | `number` |
+| `denominator` | `number` |
+
+#### Returns
+
+`void`
+
+***
+
+### addTrack()
+
+```ts
+addTrack(instrument, difficulty): AuthoredTrack;
+```
+
+Adds a track for an instrument and difficulty, and returns it, so `addEvent` can fill it in the same batch.
+
+- In a `.chart` file, it's an empty section, such as `[ExpertSingle]`, at the end of the file. An empty section of
+  that name that Clone Hero reads is returned instead.
+- In a `.mid` file, a track holds every difficulty: a new one, such as `PART GUITAR`, goes after the last track.
+  When the instrument has a track, that one is returned. Either way, the returned track's `difficulty` is the one
+  asked for, so `addEvent` adds to that difficulty.
+
+Throws a `RangeError` when Clone Hero already reads events for that instrument and difficulty.
+
+#### Parameters
+
+| Parameter | Type |
+| ------ | ------ |
+| `instrument` | \| `"guitar"` \| `"guitarcoop"` \| `"rhythm"` \| `"bass"` \| `"drums"` \| `"keys"` \| `"guitarghl"` \| `"guitarcoopghl"` \| `"rhythmghl"` \| `"bassghl"` \| `"keysghl"` |
+| `difficulty` | `"expert"` \| `"hard"` \| `"medium"` \| `"easy"` |
+
+#### Returns
+
+[`AuthoredTrack`](/scan-chart/api/index/interfaces/AuthoredTrack)
+
+***
+
+### remove()
+
+```ts
+remove(element): void;
+```
+
+Removes an authored element.
+
+#### Parameters
+
+| Parameter | Type |
+| ------ | ------ |
+| `element` | [`AuthoredElement`](/scan-chart/api/index/interfaces/AuthoredElement) |
+
+#### Returns
+
+`void`
+
+***
+
+### setLength()
+
+```ts
+setLength(event, length): void;
+```
+
+Changes an authored event's length.
+
+#### Parameters
+
+| Parameter | Type |
+| ------ | ------ |
+| `event` | [`AuthoredElement`](/scan-chart/api/index/interfaces/AuthoredElement) & \{ `length`: `number`; \} |
+| `length` | `number` |
+
+#### Returns
+
+`void`
+
+***
+
+### setMetadata()
+
+```ts
+setMetadata(key, value): void;
+```
+
+Sets a song.ini value, as song.ini's text (a time in milliseconds, a difficulty as a whole number), or removes it
+with `null`. A song without song.ini gets one, holding the `.chart` `[Song]` values Clone Hero read, so only the
+edited value reads differently. A value song.ini can't hold as written, such as one with a line break, is refused.
+
+#### Parameters
+
+| Parameter | Type |
+| ------ | ------ |
+| `key` | \| `"charter"` \| `"album_track"` \| `"pro_drums"` \| `"multiplier_note"` \| `"name"` \| `"delay"` \| `"hopo_frequency"` \| `"eighthnote_hopo"` \| `"sustain_cutoff_threshold"` \| `"chord_snap_threshold"` \| `"video_start_time"` \| `"five_lane_drums"` \| `"end_events"` \| `"preview"` \| `"video_end_time"` \| `"video_loop"` \| `"background"` \| `"video"` \| `"cover"` \| `"rating"` \| `"tags"` \| `"diff_vocals_harm"` \| `"diff_guitar_real"` \| `"diff_guitar_real_22"` \| `"diff_bass_real"` \| `"diff_bass_real_22"` \| `"diff_keys_real"` \| `"diff_elite_drums"` \| `"sub_genre"` \| `"covered_by"` \| `"date_released"` \| `"location"` \| `"credit_album_art_designed_by"` \| `"credit_arranged_by"` \| `"credit_background"` \| `"credit_composed_by"` \| `"credit_courtesy_of"` \| `"credit_engineered_by"` \| `"credit_license"` \| `"credit_mastered_by"` \| `"credit_mixed_by"` \| `"credit_other"` \| `"credit_performed_by"` \| `"credit_produced_by"` \| `"credit_published_by"` \| `"credit_written_by"` \| `"charter_guitar"` \| `"charter_rhythm"` \| `"charter_bass"` \| `"charter_drums"` \| `"charter_elite_drums"` \| `"charter_keys"` \| `"charter_pro_guitar"` \| `"charter_pro_bass"` \| `"charter_pro_keys"` \| `"charter_guitar_6f"` \| `"charter_rhythm_6f"` \| `"charter_bass_6f"` \| `"charter_vocals"` \| `"charter_lower_diff"` \| `"charter_venue"` \| `"charter_audio"` \| `"link_bandcamp"` \| `"link_bluesky"` \| `"link_facebook"` \| `"link_instagram"` \| `"link_spotify"` \| `"link_twitter"` \| `"link_other"` \| `"link_youtube"` \| `"vocal_gender"` \| `"vocal_scroll_speed"` \| `"clean_vocals"` \| `"venue_hint"` \| `"vocal_character_hint"` \| `"tuning_offset_cents"` \| `"artist"` \| `"album"` \| `"genre"` \| `"year"` \| `"song_length"` \| `"diff_band"` \| `"diff_guitar"` \| `"diff_guitar_coop"` \| `"diff_rhythm"` \| `"diff_bass"` \| `"diff_drums"` \| `"diff_drums_real"` \| `"diff_keys"` \| `"diff_keys_ghl"` \| `"diff_guitarghl"` \| `"diff_guitar_coop_ghl"` \| `"diff_rhythm_ghl"` \| `"diff_bassghl"` \| `"diff_vocals"` \| `"preview_start_time"` \| `"preview_end_time"` \| `"icon"` \| `"loading_phrase"` \| `"playlist_track"` \| `"playlist"` \| `"sub_playlist"` \| `"modchart"` \| `"explicit_lyrics"` |
+| `value` | `string` \| `null` |
+
+#### Returns
+
+`void`
+
+***
+
+### setTempo()
+
+```ts
+setTempo(tempo, beatsPerMinute): void;
+```
+
+Changes a tempo marker's tempo. It's rounded to what the format holds: thousandths of a BPM in `.chart`, whole
+microseconds per beat in `.mid`.
+
+#### Parameters
+
+| Parameter | Type |
+| ------ | ------ |
+| `tempo` | [`AuthoredTempo`](/scan-chart/api/index/interfaces/AuthoredTempo) |
+| `beatsPerMinute` | `number` |
+
+#### Returns
+
+`void`
+
+***
+
+### setText()
+
+```ts
+setText(textEvent, text): void;
+```
+
+Changes a text event's text.
+
+#### Parameters
+
+| Parameter | Type |
+| ------ | ------ |
+| `textEvent` | [`AuthoredTextEvent`](/scan-chart/api/index/interfaces/AuthoredTextEvent) |
+| `text` | `string` |
+
+#### Returns
+
+`void`
+
+***
+
+### setTick()
+
+```ts
+setTick(element, tick): void;
+```
+
+Moves an authored element, keeping its length.
+
+#### Parameters
+
+| Parameter | Type |
+| ------ | ------ |
+| `element` | [`AuthoredElement`](/scan-chart/api/index/interfaces/AuthoredElement) |
+| `tick` | `number` |
+
+#### Returns
+
+`void`
+
+***
+
+### setTimeSignature()
+
+```ts
+setTimeSignature(
+   timeSignature, 
+   numerator, 
+   denominator
+): void;
+```
+
+Changes a time signature. The denominator is a power of two.
+
+#### Parameters
+
+| Parameter | Type |
+| ------ | ------ |
+| `timeSignature` | [`AuthoredTimeSignature`](/scan-chart/api/index/interfaces/AuthoredTimeSignature) |
+| `numerator` | `number` |
+| `denominator` | `number` |
+
+#### Returns
+
+`void`

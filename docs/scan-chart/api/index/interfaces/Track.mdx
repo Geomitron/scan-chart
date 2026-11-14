@@ -1,0 +1,18 @@
+---
+title: "Track"
+---
+
+One instrument at one difficulty, as Clone Hero plays it.
+
+## Properties
+
+| Property | Modifier | Type | Description |
+| ------ | ------ | ------ | ------ |
+| <a id="property-difficulty"></a> `difficulty` | `readonly` | `"expert"` \| `"hard"` \| `"medium"` \| `"easy"` | - |
+| <a id="property-drumfills"></a> `drumFills` | `readonly` | readonly [`DrumFill`](/scan-chart/api/index/interfaces/DrumFill)[] | - |
+| <a id="property-flexlanes"></a> `flexLanes` | `readonly` | readonly [`FlexLane`](/scan-chart/api/index/interfaces/FlexLane)[] | - |
+| <a id="property-instrument"></a> `instrument` | `readonly` | \| `"guitar"` \| `"guitarcoop"` \| `"rhythm"` \| `"bass"` \| `"drums"` \| `"keys"` \| `"guitarghl"` \| `"guitarcoopghl"` \| `"rhythmghl"` \| `"bassghl"` \| `"keysghl"` | - |
+| <a id="property-notegroups"></a> `noteGroups` | `readonly` | readonly (readonly [`Note`](/scan-chart/api/index/interfaces/Note)[])[] | The notes, grouped by tick: a note group is all the notes that start on the same tick. |
+| <a id="property-solos"></a> `solos` | `readonly` | readonly [`Phrase`](/scan-chart/api/index/interfaces/Phrase)[] | - |
+| <a id="property-starpower"></a> `starPower` | `readonly` | readonly [`Phrase`](/scan-chart/api/index/interfaces/Phrase)[] | - |
+| <a id="property-textevents"></a> `textEvents` | `readonly` | readonly [`TextEvent`](/scan-chart/api/index/interfaces/TextEvent)[] | - |

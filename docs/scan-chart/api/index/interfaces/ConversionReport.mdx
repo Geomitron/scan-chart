@@ -1,0 +1,15 @@
+---
+title: "ConversionReport"
+---
+
+What a conversion did, found by reading the converted song back.
+
+## Properties
+
+| Property | Modifier | Type | Description |
+| ------ | ------ | ------ | ------ |
+| <a id="property-dropped"></a> `dropped` | `readonly` | readonly \{ `content`: `string`; `count`: `number`; \}[] | Content the target format can't hold, left out. |
+| <a id="property-forced"></a> `forced` | `readonly` | readonly [`ConversionLimit`](/scan-chart/api/index/interfaces/ConversionLimit)[] | Values the target can't store, written as the nearest it can because the conversion was forced. |
+| <a id="property-settings"></a> `settings` | `readonly` | readonly \{ `key`: \| `"multiplier_note"` \| `"delay"` \| `"sustain_cutoff_threshold"` \| `"preview_start_time"` \| `"preview_end_time"`; `value`: `string`; \}[] | song.ini settings written because the target format needs them. |
+| <a id="property-songhashkept"></a> `songHashKept` | `readonly` | `boolean` \| `null` | Whether the SongHash survived; `null` when either song has no SongHash. |
+| <a id="property-tracks"></a> `tracks` | `readonly` | readonly \{ `causes`: readonly [`ConversionCause`](/scan-chart/api/index/type-aliases/ConversionCause)[]; `difficulty`: `"expert"` \| `"hard"` \| `"medium"` \| `"easy"`; `instrument`: \| `"guitar"` \| `"guitarcoop"` \| `"rhythm"` \| `"bass"` \| `"drums"` \| `"keys"` \| `"guitarghl"` \| `"guitarcoopghl"` \| `"rhythmghl"` \| `"bassghl"` \| `"keysghl"`; `kept`: `boolean`; \}[] | Each track of either song, and whether its TrackHash survived; empty when either song has no TrackHashes. |

@@ -1,0 +1,18 @@
+---
+title: "SongBundleIdentityRequest"
+---
+
+## Extends
+
+- [`SourceParseRequest`](/scan-chart/api/competitive/interfaces/SourceParseRequest)
+
+## Properties
+
+| Property | Modifier | Type | Description | Inherited from |
+| ------ | ------ | ------ | ------ | ------ |
+| <a id="property-canonicalmetadata"></a> `canonicalMetadata` | `readonly` | [`SongHashMetadata`](/scan-chart/api/competitive/interfaces/SongHashMetadata) | The metadata for the canonical SongHash, which its writer resolves (see `CanonicalSongIdentityRequest`). | - |
+| <a id="property-legacydurationms"></a> `legacyDurationMs?` | `readonly` | [`HistoricalSongHashDurationMs`](/scan-chart/api/competitive/type-aliases/HistoricalSongHashDurationMs) | - | - |
+| <a id="property-legacymetadata"></a> `legacyMetadata` | `readonly` | [`SongHashMetadata`](/scan-chart/api/competitive/interfaces/SongHashMetadata) | The header strings for the legacy SongHash, written as given. | - |
+| <a id="property-legacymodifiers"></a> `legacyModifiers` | `readonly` | [`IniChartModifiers`](/scan-chart/api/competitive/interfaces/IniChartModifiers) | The modifiers the legacy hashes read, from `frozenLegacy6142.readModifiers`. They can differ from `modifiers`, since Clone Hero 1.1.0.6142 didn't read song.ini's `pro_drum` or `star_power_note`. | - |
+| <a id="property-modifiers"></a> `modifiers` | `readonly` | [`IniChartModifiers`](/scan-chart/api/competitive/interfaces/IniChartModifiers) | - | [`SourceParseRequest`](/scan-chart/api/competitive/interfaces/SourceParseRequest).[`modifiers`](/scan-chart/api/competitive/interfaces/SourceParseRequest#property-modifiers) |
+| <a id="property-source"></a> `source` | `readonly` | [`ChartSource`](/scan-chart/api/competitive/type-aliases/ChartSource) | - | [`SourceParseRequest`](/scan-chart/api/competitive/interfaces/SourceParseRequest).[`source`](/scan-chart/api/competitive/interfaces/SourceParseRequest#property-source) |

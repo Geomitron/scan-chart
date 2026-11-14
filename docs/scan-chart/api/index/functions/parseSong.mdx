@@ -1,0 +1,21 @@
+---
+title: "parseSong()"
+---
+
+```ts
+function parseSong(files): Promise<SongDocument>;
+```
+
+Parses a song folder into a document. Only the chart and .ini files are read; other files, such as audio, video
+and album art, can be byte sources, and are read only when something needs them. Never rejects: a malformed chart
+or song.ini is reported when it's read.
+
+## Parameters
+
+| Parameter | Type |
+| ------ | ------ |
+| `files` | readonly [`SongFile`](/scan-chart/api/index/interfaces/SongFile)[] |
+
+## Returns
+
+`Promise`\<[`SongDocument`](/scan-chart/api/index/interfaces/SongDocument)\>

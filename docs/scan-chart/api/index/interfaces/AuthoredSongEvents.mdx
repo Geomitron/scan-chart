@@ -1,0 +1,13 @@
+---
+title: "AuthoredSongEvents"
+---
+
+What a chart stores for the whole song rather than for one instrument, as written.
+
+## Properties
+
+| Property | Modifier | Type | Description |
+| ------ | ------ | ------ | ------ |
+| <a id="property-tempos"></a> `tempos` | `readonly` | readonly [`AuthoredTempo`](/scan-chart/api/index/interfaces/AuthoredTempo)[] | - |
+| <a id="property-textevents"></a> `textEvents` | `readonly` | readonly [`AuthoredTextEvent`](/scan-chart/api/index/interfaces/AuthoredTextEvent)[] \| `null` | The text events of the `[Events]` section or the MIDI events track: practice sections, the end event, and any other text, such as `.chart` lyrics. `null` when the file has no such section or track. |
+| <a id="property-timesignatures"></a> `timeSignatures` | `readonly` | readonly [`AuthoredTimeSignature`](/scan-chart/api/index/interfaces/AuthoredTimeSignature)[] | - |

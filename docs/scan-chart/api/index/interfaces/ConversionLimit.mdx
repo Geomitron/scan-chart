@@ -1,0 +1,14 @@
+---
+title: "ConversionLimit"
+---
+
+A value the `.mid` format can't store (r3 5.4).
+
+## Properties
+
+| Property | Modifier | Type | Description |
+| ------ | ------ | ------ | ------ |
+| <a id="property-kind"></a> `kind` | `readonly` | `"timeSignature"` \| `"resolution"` \| `"tempo"` | - |
+| <a id="property-nearest"></a> `nearest` | `readonly` | `number` \| `null` | The nearest value `.mid` can store, written when the conversion is forced; `null` when there's none. |
+| <a id="property-tick"></a> `tick` | `readonly` | `number` \| `null` | Where it is, or `null` for the resolution. |
+| <a id="property-value"></a> `value` | `readonly` | `number` | - |

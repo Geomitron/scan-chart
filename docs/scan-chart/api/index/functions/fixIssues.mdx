@@ -1,0 +1,28 @@
+---
+title: "fixIssues()"
+---
+
+```ts
+function fixIssues(song, options?): Promise<{
+  report: FixReport;
+  song: SongDocument;
+}>;
+```
+
+Fixes the song's issues that `issueFixes` lists and returns the fixed song with a report, leaving `song` as it was.
+A fix is made only where a scan reports its issue, and not for a code song.ini's `ignored_issues` lists. Save the
+fixed song like any other.
+
+## Parameters
+
+| Parameter | Type |
+| ------ | ------ |
+| `song` | [`SongDocument`](/scan-chart/api/index/interfaces/SongDocument) |
+| `options?` | [`FixOptions`](/scan-chart/api/index/interfaces/FixOptions) |
+
+## Returns
+
+`Promise`\<\{
+  `report`: [`FixReport`](/scan-chart/api/index/interfaces/FixReport);
+  `song`: [`SongDocument`](/scan-chart/api/index/interfaces/SongDocument);
+\}\>

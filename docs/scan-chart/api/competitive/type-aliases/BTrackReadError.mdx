@@ -1,0 +1,82 @@
+---
+title: "BTrackReadError"
+---
+
+```ts
+type BTrackReadError = 
+  | {
+  actualLength: number;
+  code: "headerTruncated";
+}
+  | {
+  actual: readonly number[];
+  code: "magicInvalid";
+}
+  | {
+  actual: number;
+  code: "physicalVersionUnsupported";
+}
+  | {
+  code: "sectionMapTruncated";
+  expectedEnd: bigint;
+  fileLength: bigint;
+}
+  | {
+  code: "sectionIdsNotStrictlyIncreasing";
+  current: bigint;
+  index: number;
+  previous: bigint;
+}
+  | {
+  code: "sectionRangeArithmeticOverflow";
+  sectionId: bigint;
+}
+  | {
+  code: "sectionRangeOutOfBounds";
+  fileLength: bigint;
+  length: number;
+  offset: bigint;
+  sectionId: bigint;
+}
+  | {
+  actual: bigint;
+  code: "sectionOffsetNoncanonical";
+  expected: bigint;
+  sectionId: bigint;
+}
+  | {
+  actualLength: bigint;
+  code: "trailingBytes";
+  expectedLength: bigint;
+}
+  | {
+  code: "resolutionMissing";
+}
+  | {
+  actual: number;
+  code: "recognizedPayloadLengthInvalid";
+  expected: bigint;
+  sectionId: bigint;
+}
+  | {
+  code: "emptyOptionalSection";
+  sectionId: bigint;
+}
+  | {
+  code: "recordValueInvalid";
+  field: BTrackRecordField;
+  reason:   | "negative"
+     | "notFinite"
+     | "zero"
+     | "booleanNotZeroOrOne"
+     | "enumUnknown"
+     | "flagBitsUnknown"
+     | "flagCombinationInvalid"
+     | "rangeOutOfBounds"
+     | "orderNoncanonical"
+     | "overlapNoncanonical"
+     | "containsNoNotes";
+  recordIndex: number;
+  sectionId: bigint;
+};
+```

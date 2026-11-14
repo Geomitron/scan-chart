@@ -1,0 +1,51 @@
+---
+title: "ConversionError"
+---
+
+Converting a song's chart to the other format.
+
+## Extends
+
+- `RangeError`
+
+## Constructors
+
+### Constructor
+
+```ts
+new ConversionError(limits): ConversionError;
+```
+
+#### Parameters
+
+| Parameter | Type |
+| ------ | ------ |
+| `limits` | readonly [`ConversionLimit`](/scan-chart/api/index/interfaces/ConversionLimit)[] |
+
+#### Returns
+
+`ConversionError`
+
+#### Overrides
+
+`RangeError.constructor`
+
+## Properties
+
+### limits
+
+```ts
+readonly limits: readonly ConversionLimit[];
+```
+
+***
+
+### name
+
+```ts
+readonly name: "ConversionError" = 'ConversionError';
+```
+
+#### Overrides
+
+`RangeError.name`

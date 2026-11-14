@@ -1,0 +1,17 @@
+---
+title: "VocalNote"
+---
+
+A single timed vocal event inside a vocal phrase, either a sung pitch target or vocals percussion cue.
+
+## Properties
+
+| Property | Type | Description |
+| ------ | ------ | ------ |
+| <a id="property-length"></a> `length` | `number` | Length of the vocal note, in ticks. |
+| <a id="property-mslength"></a> `msLength` | `number` | Length of the vocal note, in ms. |
+| <a id="property-mstime"></a> `msTime` | `number` | Time where the vocal note begins, in ms. |
+| <a id="property-pitch"></a> `pitch` | `number` | The MIDI note number for the vocal pitch of this note. |
+| <a id="property-pitchslide"></a> `pitchSlide?` | `true` | Set when the note slides from the note before it: its lyric, or the last lyric since that note, ends in `+`. A `+` on its own isn't kept as a lyric. YARG sings a pitch slide as part of the note before it. |
+| <a id="property-tick"></a> `tick` | `number` | Tick position where the vocal note begins. |
+| <a id="property-type"></a> `type` | `"pitched"` \| `"percussion"` | Whether this note is a sung pitch note (MIDI 36-84) or vocals percussion cue (MIDI 96). |

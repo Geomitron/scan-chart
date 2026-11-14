@@ -1,0 +1,16 @@
+---
+title: "CanonicalBTrackReadOutcome"
+---
+
+```ts
+type CanonicalBTrackReadOutcome = 
+  | {
+  identity: CanonicalTrackIdentity;
+  kind: "accepted";
+  semantics: CanonicalTrackSemantics;
+}
+  | {
+  errors: readonly [BTrackReadError, ...BTrackReadError[]];
+  kind: "rejected";
+};
+```

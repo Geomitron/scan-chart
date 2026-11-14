@@ -1,0 +1,28 @@
+---
+title: "createSong()"
+---
+
+```ts
+function createSong(options): SongDocument;
+```
+
+A new song: a chart file with a tempo of 120 BPM and a 4/4 time signature at tick 0 and nothing else, and a song.ini
+holding `metadata`. A `.chart` file's `[Song]` section gets the metadata it has keys for, as saving makes it agree
+with song.ini; a `.mid` file has an empty events track, for practice sections. The resolution defaults to each
+format's usual one: 192 ticks per beat in `.chart`, 480 in `.mid`.
+
+Throws for a resolution the format can't hold, a metadata value song.ini can't hold, or `chartOffsetMs`: a new
+song's offset is song.ini's `delay`.
+
+## Parameters
+
+| Parameter | Type |
+| ------ | ------ |
+| `options` | \{ `format`: [`ChartFormat`](/scan-chart/api/index/type-aliases/ChartFormat); `metadata?`: `Partial`\<[`SongMetadata`](/scan-chart/api/index/type-aliases/SongMetadata)\>; `resolution?`: `number`; \} |
+| `options.format` | [`ChartFormat`](/scan-chart/api/index/type-aliases/ChartFormat) |
+| `options.metadata?` | `Partial`\<[`SongMetadata`](/scan-chart/api/index/type-aliases/SongMetadata)\> |
+| `options.resolution?` | `number` |
+
+## Returns
+
+[`SongDocument`](/scan-chart/api/index/interfaces/SongDocument)

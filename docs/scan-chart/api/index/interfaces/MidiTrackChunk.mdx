@@ -1,0 +1,29 @@
+---
+title: "MidiTrackChunk"
+---
+
+An `MTrk` chunk, decoded into events: one within the header's track count, or one of the `MTrk` chunks that follow
+those, up to a chunk of another kind (`pastHeaderCount`), which Clone Hero reads too (C20: R15) and `parseMidi` never
+reads. A chunk that can't be decoded keeps the events before the fault, and what the reader threw there as
+`unreadable`: within the count, only for a fault after a whole end of track, since `readMidiTokens` throws any other.
+A profile that reads the chunk up to the fault throws it.
+
+## Extends
+
+- `MidiChunkFrame`
+
+## Properties
+
+| Property | Type | Description | Inherited from |
+| ------ | ------ | ------ | ------ |
+| <a id="property-bodystart"></a> `bodyStart` | `number` | Offset of the body. | `MidiChunkFrame.bodyStart` |
+| <a id="property-end"></a> `end` | `number` | Offset after the chunk's last byte. | `MidiChunkFrame.end` |
+| <a id="property-events"></a> `events` | [`MidiEventToken`](/scan-chart/api/index/interfaces/MidiEventToken)[] | - | - |
+| <a id="property-id"></a> `id` | `string` | The chunk type, decoded from its id bytes as `parseMidi` decodes them. | `MidiChunkFrame.id` |
+| <a id="property-kind"></a> `kind` | `"track"` | - | - |
+| <a id="property-length"></a> `length` | `number` | The body length the length field declares, as `parseMidi` reads it: `NaN` when the file ends inside the field. | `MidiChunkFrame.length` |
+| <a id="property-lengthstart"></a> `lengthStart` | `number` | Offset of the 4-byte length field. | `MidiChunkFrame.lengthStart` |
+| <a id="property-pastheadercount"></a> `pastHeaderCount?` | `true` | - | - |
+| <a id="property-start"></a> `start` | `number` | Offset of the id, the chunk's first byte. | `MidiChunkFrame.start` |
+| <a id="property-unreadable"></a> `unreadable?` | \{ `thrown`: `unknown`; \} | - | - |
+| `unreadable.thrown` | `unknown` | - | - |

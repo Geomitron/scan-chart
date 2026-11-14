@@ -1,0 +1,20 @@
+---
+title: "ScanOptions"
+---
+
+What `scanSongFolder` calculates besides metadata, issues and statistics. Every cost is opt-in.
+
+## Properties
+
+| Property | Modifier | Type | Description |
+| ------ | ------ | ------ | ------ |
+| <a id="property-albumart"></a> `albumArt?` | `readonly` | `boolean` | The album art, and the issues found decoding it. Default: `false`. |
+| <a id="property-albumartsizes"></a> `albumArtSizes?` | `readonly` | readonly `number`[] | The album art sizes accepted, in pixels: art that isn't a square of one of them is reported. Default: `[512]`. |
+| <a id="property-competitivehashes"></a> `competitiveHashes?` | `readonly` | \| `boolean` \| \{ `btracks?`: `boolean`; \} | The competitive hashes, optionally with each track's BTrack. Default: `false`. |
+| <a id="property-extrafiles"></a> `extraFiles?` | `readonly` | readonly (`string` \| `RegExp`)[] | Files your game reads that Clone Hero and YARG don't, so they aren't reported as unrecognized: a name, matched in any letter case, or a pattern. Files an operating system made, such as `desktop.ini`, are always reported. |
+| <a id="property-extrainikeys"></a> `extraIniKeys?` | `readonly` | readonly (`string` \| `RegExp`)[] | song.ini tags your game reads that Clone Hero and YARG don't, so they aren't reported as unknown: a tag, or a pattern of its lowercase name. |
+| <a id="property-filehashes"></a> `fileHashes?` | `readonly` | `boolean` | The folder, chart and album art file hashes. Default: `false`. |
+| <a id="property-mediaissues"></a> `mediaIssues?` | `readonly` | `boolean` | The issues found reading the audio, image and video files, such as an audio bitrate or a background image's size. It reads each audio and video file's headers, and the album art and background images whole. Default: `false`. |
+| <a id="property-metadatastyle"></a> `metadataStyle?` | `readonly` | `boolean` | Guesses about the metadata's style, such as credits joined with "and", which can be wrong. Default: `false`. One guess, `missingExplicitLyrics`, is reported without it. |
+| <a id="property-removestyletags"></a> `removeStyleTags?` | `readonly` | `boolean` | Remove style tags, such as `<b>`, from the metadata's text values, for plain-text display. Default: `false`. |
+| <a id="property-stylenotes"></a> `styleNotes?` | `readonly` | `boolean` | Style notes: what every reader reads alike. These are nonstandard spellings, such as a repeated `.chart` line, and song.ini lines: tags out of the standard order, `-1` numbers and blank text values, and lines that change nothing. Default: `false`. |

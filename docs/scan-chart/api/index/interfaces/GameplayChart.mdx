@@ -1,0 +1,21 @@
+---
+title: "GameplayChart"
+---
+
+A chart as Clone Hero plays it: every note resolved (HOPO or strum, tap, open, cymbal or tom, accent), sustains
+trimmed, chords snapped, and times in milliseconds. It's read-only, and it's shared with the competitive hashes.
+
+## Properties
+
+| Property | Modifier | Type | Description |
+| ------ | ------ | ------ | ------ |
+| <a id="property-drumtype"></a> `drumType` | `readonly` | [`DrumType`](/scan-chart/api/index/type-aliases/DrumType) \| `null` | The type of the drum tracks, or `null` when the chart has none. |
+| <a id="property-endevents"></a> `endEvents` | `readonly` | readonly \{ `msTime`: `number`; `tick`: `number`; \}[] | - |
+| <a id="property-format"></a> `format` | `readonly` | [`ChartFormat`](/scan-chart/api/index/type-aliases/ChartFormat) | - |
+| <a id="property-resolution"></a> `resolution` | `readonly` | `number` | Ticks per quarter note. |
+| <a id="property-sections"></a> `sections` | `readonly` | readonly [`Section`](/scan-chart/api/index/interfaces/Section)[] | - |
+| <a id="property-settings"></a> `settings` | `readonly` | [`ChartParseSettings`](/scan-chart/api/index/interfaces/ChartParseSettings) | - |
+| <a id="property-tempos"></a> `tempos` | `readonly` | readonly [`Tempo`](/scan-chart/api/index/interfaces/Tempo)[] | - |
+| <a id="property-timesignatures"></a> `timeSignatures` | `readonly` | readonly [`TimeSignature`](/scan-chart/api/index/interfaces/TimeSignature)[] | - |
+| <a id="property-tracks"></a> `tracks` | `readonly` | readonly [`Track`](/scan-chart/api/index/interfaces/Track)[] | - |
+| <a id="property-vocals"></a> `vocals` | `readonly` | [`VocalTrack`](/scan-chart/api/index/interfaces/VocalTrack) \| `null` | The vocal parts, or `null` when no part has a phrase. |

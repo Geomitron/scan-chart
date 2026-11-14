@@ -1,0 +1,22 @@
+{
+	"$schema": "https://typedoc-plugin-markdown.org/schema.json",
+	"plugin": ["typedoc-plugin-markdown"],
+	"entryPoints": ["src/index.ts", "src/competitive.ts"],
+	"treatWarningsAsErrors": true,
+	"intentionallyNotExported": ["eventTypes", "chartFormatCapabilities"],
+	"fileExtension": ".mdx",
+	"outputFileStrategy": "members",
+	"pageTitleTemplates": { "member": "{name}" },
+	"hidePageHeader": true,
+	"hideBreadcrumbs": true,
+	"disableSources": true,
+	"excludeExternals": true,
+	"excludePrivate": true,
+	"excludeInternal": true,
+	"readme": "none",
+	"useCodeBlocks": true,
+	"expandObjects": true,
+	"parametersFormat": "table",
+	"interfacePropertiesFormat": "table",
+	"typeDeclarationFormat": "table"
+}

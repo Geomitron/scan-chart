@@ -1,0 +1,53 @@
+---
+title: "CompetitiveHashes"
+---
+
+```ts
+type CompetitiveHashes = 
+  | {
+  accepted: true;
+  songDurationMs: number;
+  songHash: string;
+  tempoMapHash: string;
+  tracks: readonly CompetitiveTrackHash[];
+}
+  | {
+  accepted: false;
+  reason: string;
+};
+```
+
+A song's competitive hashes, or the reason the canonical rules reject its chart.
+
+## Union Members
+
+### Type Literal
+
+```ts
+{
+  accepted: true;
+  songDurationMs: number;
+  songHash: string;
+  tempoMapHash: string;
+  tracks: readonly CompetitiveTrackHash[];
+}
+```
+
+| Name | Type | Description |
+| ------ | ------ | ------ |
+| `accepted` | `true` | - |
+| `songDurationMs` | `number` | The canonical song duration in milliseconds: the latest note end at speed 1.0 plus a quarter-note, rounded up. |
+| `songHash` | `string` | The canonical SongHash, as unpadded base64url. |
+| `tempoMapHash` | `string` | Clone Hero's tempo map hash, which the leaderboard backend compares across scores. |
+| `tracks` | readonly [`CompetitiveTrackHash`](/scan-chart/api/competitive/interfaces/CompetitiveTrackHash)[] | Every track's TrackHash, in SongHash order: by instrument, then Easy to Expert. |
+
+***
+
+### Type Literal
+
+```ts
+{
+  accepted: false;
+  reason: string;
+}
+```

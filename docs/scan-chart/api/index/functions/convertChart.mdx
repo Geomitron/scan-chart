@@ -1,0 +1,51 @@
+---
+title: "convertChart()"
+---
+
+```ts
+function convertChart(
+   song, 
+   format, 
+   options?
+): {
+  report: ConversionReport;
+  song: SongDocument;
+};
+```
+
+Converts a song's chart to the other format and returns the converted song with a report, leaving `song` as it was
+(r5 Q10). The report reads the converted song back: each track's TrackHash is kept or changed, with its cause.
+
+- **To `.mid`:** each instrument's phrases are its Expert track's (r4 Q4), and zero-length phrases stay zero-length.
+  song.ini gets the settings `.mid` needs: `multiplier_note` when a solo would otherwise read as star power, and
+  `sustain_cutoff_threshold` only when a sustain would otherwise be trimmed, as the largest value that keeps every
+  sustain (r4 Q5). The `.chart` `[Song]` Offset, PreviewStart and PreviewEnd, which games read only from a `.chart`,
+  are copied into song.ini when it doesn't set them.
+- **To `.chart`:** vocal pitches, harmonies, and MIDI-only tracks and events such as the venue are left out; lyrics
+  and vocal phrases are kept. `[Song]` agrees with song.ini.
+
+song.ini is otherwise kept as written (D4). Throws `ConversionError` for a value the target can't store, unless
+`force` is set, and then writes the nearest one; a resolution over 32767 has none.
+
+## Parameters
+
+| Parameter | Type |
+| ------ | ------ |
+| `song` | [`SongDocument`](/scan-chart/api/index/interfaces/SongDocument) |
+| `format` | [`ChartFormat`](/scan-chart/api/index/type-aliases/ChartFormat) |
+| `options?` | \{ `force?`: `boolean`; \} |
+| `options.force?` | `boolean` |
+
+## Returns
+
+```ts
+{
+  report: ConversionReport;
+  song: SongDocument;
+}
+```
+
+| Name | Type |
+| ------ | ------ |
+| `report` | [`ConversionReport`](/scan-chart/api/index/interfaces/ConversionReport) |
+| `song` | [`SongDocument`](/scan-chart/api/index/interfaces/SongDocument) |

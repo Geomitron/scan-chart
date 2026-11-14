@@ -1,0 +1,11 @@
+---
+title: "FixHashes"
+---
+
+```ts
+type FixHashes = "keepsHashes" | "mayChangeHashes" | "changesHashes";
+```
+
+What a fix does to the canonical hashes. `keepsHashes`: it keeps them, and is made by default. `mayChangeHashes`: it's
+made by default where it keeps them, and otherwise only with `changeHashes`. `changesHashes`: it's made only with
+`changeHashes`.

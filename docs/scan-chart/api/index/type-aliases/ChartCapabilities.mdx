@@ -1,0 +1,9 @@
+---
+title: "ChartCapabilities"
+---
+
+```ts
+type ChartCapabilities = { readonly [feature in keyof typeof chartFormatCapabilities["chart"]]: FormatSupport };
+```
+
+What a chart format can store, and how: for each difficulty, once for the instrument, per note, or not at all.

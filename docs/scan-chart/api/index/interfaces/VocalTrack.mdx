@@ -1,0 +1,13 @@
+---
+title: "VocalTrack"
+---
+
+Top-level vocals data containing every singer lane and shared track-level shift markers.
+
+## Properties
+
+| Property | Type | Description |
+| ------ | ------ | ------ |
+| <a id="property-lyricshifts"></a> `lyricShifts` | \{ `length`: `number`; `msLength`: `number`; `msTime`: `number`; `tick`: `number`; \}[] | Shared lyric shift markers sourced from the lead vocals or first harmony part. |
+| <a id="property-parts"></a> `parts` | \{ \[`partName`: `string`\]: [`VocalPart`](/scan-chart/api/index/interfaces/VocalPart); \} | Vocal parts keyed by canonical part name, such as `vocals` or `harmony1`. |
+| <a id="property-rangeshifts"></a> `rangeShifts` | \{ `length`: `number`; `msLength`: `number`; `msTime`: `number`; `tick`: `number`; \}[] | Shared range shift markers sourced from the lead vocals or first harmony part. |

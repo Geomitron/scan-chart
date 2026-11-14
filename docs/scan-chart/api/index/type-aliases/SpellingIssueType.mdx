@@ -1,0 +1,29 @@
+---
+title: "SpellingIssueType"
+---
+
+```ts
+type SpellingIssueType = 
+  | "unsortedChartLines"
+  | "quotedChartTrackEvent"
+  | "multipleMidiTrackNames"
+  | "multipleMidiTracks"
+  | "overlappingMidiNotes"
+  | "duplicateIniKey"
+  | "duplicateChartLine"
+  | "nonstandardChartLine"
+  | "unreadableChartLine"
+  | "nonstandardChartSections"
+  | "discoNoflipDuringFlip"
+  | "chartModifierWithoutNote"
+  | "midiDrumModifierWithoutNote"
+  | "nonstandardMixEvent"
+  | "nonstandardEnhancedOpens"
+  | "wrongMidiTrackCount"
+  | "eventsAfterEndOfTrack"
+  | "nonstandardPhaseShiftSysEx";
+```
+
+Nonstandard spellings of a chart file or song.ini (r4 Q6). Compatibility issues are spellings another program may
+read differently; style notes are spellings every reader reads alike, reported only when asked for. Saving an edited
+song rewrites each in the standard spelling where that changes no hash the edits didn't (E7).

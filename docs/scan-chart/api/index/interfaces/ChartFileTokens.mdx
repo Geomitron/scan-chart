@@ -1,0 +1,15 @@
+---
+title: "ChartFileTokens"
+---
+
+A `.chart` file as read, kept whole so an unedited file is written back byte for byte.
+
+## Properties
+
+| Property | Modifier | Type | Description |
+| ------ | ------ | ------ | ------ |
+| <a id="property-bytes"></a> `bytes` | `readonly` | `Uint8Array` | - |
+| <a id="property-encoding"></a> `encoding` | `readonly` | [`ChartEncoding`](/scan-chart/api/index/type-aliases/ChartEncoding) | - |
+| <a id="property-sections"></a> `sections` | `readonly` | readonly [`ChartSectionToken`](/scan-chart/api/index/interfaces/ChartSectionToken)[] | Every section in file order, duplicates included. |
+| <a id="property-structureerror"></a> `structureError` | `readonly` | `string` \| `null` | Why the file isn't a valid `.chart`, found while finding its sections; reported when it is classified. |
+| <a id="property-text"></a> `text` | `readonly` | `string` | The decoded text, without the byte-order mark. |

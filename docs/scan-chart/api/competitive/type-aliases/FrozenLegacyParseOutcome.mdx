@@ -1,0 +1,15 @@
+---
+title: "FrozenLegacyParseOutcome"
+---
+
+```ts
+type FrozenLegacyParseOutcome = 
+  | {
+  chart: FrozenLegacyParsedChart;
+  kind: "accepted";
+}
+  | {
+  errors: readonly [SourceParseError, ...SourceParseError[]];
+  kind: "rejected";
+};
+```

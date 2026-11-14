@@ -1,0 +1,27 @@
+---
+title: "savePlanToBlobs()"
+---
+
+```ts
+function savePlanToBlobs(plan): readonly {
+  blob: Blob;
+  fileName: string;
+}[];
+```
+
+A save plan's files as `Blob`s, such as for a browser download. A byte range is copied from its `Blob` without
+being read, so it has to come from `byteSourceFromBlob`; throws for another byte source, which
+`writeSavePlanFile` can write.
+
+## Parameters
+
+| Parameter | Type |
+| ------ | ------ |
+| `plan` | [`SavePlan`](/scan-chart/api/index/interfaces/SavePlan) |
+
+## Returns
+
+readonly \{
+  `blob`: `Blob`;
+  `fileName`: `string`;
+\}[]

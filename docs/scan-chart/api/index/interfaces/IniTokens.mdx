@@ -1,0 +1,13 @@
+---
+title: "IniTokens"
+---
+
+A song.ini file as read, kept whole so an unedited file is written back byte for byte.
+
+## Properties
+
+| Property | Modifier | Type | Description |
+| ------ | ------ | ------ | ------ |
+| <a id="property-bytes"></a> `bytes` | `readonly` | `Uint8Array` | - |
+| <a id="property-decodeerror"></a> `decodeError` | `readonly` | `Error` \| `null` | - |
+| <a id="property-text"></a> `text` | `readonly` | `string` \| `null` | The decoded text, or `null` when the file can't be decoded; `decodeError` then says why. |

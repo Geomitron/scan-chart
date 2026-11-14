@@ -1,0 +1,20 @@
+---
+title: "AuthoredSource"
+---
+
+```ts
+type AuthoredSource = 
+  | {
+  format: "chart";
+  line: number;
+  section: number;
+}
+  | {
+  chunk: number;
+  events: readonly [start: number, end: number];
+  format: "mid";
+};
+```
+
+Where an authored element is in its file, so an edit can rewrite exactly that source: a `.chart` line, or the start
+and end events of a MIDI note or phrase (indices in the track chunk's events).

@@ -1,0 +1,21 @@
+---
+title: "calculateCompetitiveHashes()"
+---
+
+```ts
+function calculateCompetitiveHashes(song, options?): CompetitiveHashes;
+```
+
+Calculates a song's competitive hashes from its document, reusing the parse its gameplay chart is resolved from.
+
+## Parameters
+
+| Parameter | Type |
+| ------ | ------ |
+| `song` | [`SongDocument`](/scan-chart/api/index/interfaces/SongDocument) |
+| `options?` | \{ `btracks?`: `boolean`; \} |
+| `options.btracks?` | `boolean` |
+
+## Returns
+
+[`CompetitiveHashes`](/scan-chart/api/competitive/type-aliases/CompetitiveHashes)

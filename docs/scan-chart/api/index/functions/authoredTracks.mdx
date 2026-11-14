@@ -1,0 +1,19 @@
+---
+title: "authoredTracks()"
+---
+
+```ts
+function authoredTracks(chart): readonly AuthoredTrack[];
+```
+
+Every instrument track of a chart file, as the file writes it, in file order. Empty for a `.mid` file that can't be read.
+
+## Parameters
+
+| Parameter | Type |
+| ------ | ------ |
+| `chart` | [`ChartDocument`](/scan-chart/api/index/type-aliases/ChartDocument) |
+
+## Returns
+
+readonly [`AuthoredTrack`](/scan-chart/api/index/interfaces/AuthoredTrack)[]

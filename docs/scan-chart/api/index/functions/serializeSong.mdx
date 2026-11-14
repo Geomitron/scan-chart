@@ -1,0 +1,22 @@
+---
+title: "serializeSong()"
+---
+
+```ts
+function serializeSong(song): SavePlan;
+```
+
+Plans saving a song: every file of its folder. A song no edit made comes back byte for byte. An edited song is
+also normalized wherever that changes no hash its edits didn't (E7), against the hashes of the song its chain of
+edits started from; the report lists the hashes the edits spent and what was normalized or withheld. Files
+scan-chart didn't read stay byte sources, read only when the plan is written.
+
+## Parameters
+
+| Parameter | Type |
+| ------ | ------ |
+| `song` | [`SongDocument`](/scan-chart/api/index/interfaces/SongDocument) |
+
+## Returns
+
+[`SavePlan`](/scan-chart/api/index/interfaces/SavePlan)

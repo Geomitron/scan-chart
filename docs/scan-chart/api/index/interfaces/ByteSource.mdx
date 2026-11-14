@@ -1,0 +1,30 @@
+---
+title: "ByteSource"
+---
+
+A file read on demand, such as a browser `File` or Node's `fs.openAsBlob`, so large files never have to be loaded.
+
+## Properties
+
+| Property | Modifier | Type |
+| ------ | ------ | ------ |
+| <a id="property-size"></a> `size` | `readonly` | `number` |
+
+## Methods
+
+### read()
+
+```ts
+read(offset, length): Promise<Uint8Array<ArrayBufferLike>>;
+```
+
+#### Parameters
+
+| Parameter | Type |
+| ------ | ------ |
+| `offset` | `number` |
+| `length` | `number` |
+
+#### Returns
+
+`Promise`\<`Uint8Array`\<`ArrayBufferLike`\>\>

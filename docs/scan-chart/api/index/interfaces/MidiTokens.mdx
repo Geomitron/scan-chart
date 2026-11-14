@@ -1,0 +1,18 @@
+---
+title: "MidiTokens"
+---
+
+A `.mid` file read as tokens that cover every byte of it: the header chunk, every later chunk in file order, and
+any bytes after the last chunk. Every offset indexes into `data`.
+
+The header, the chunks and the trailing bytes tile the file in that order. An unedited file serializes back byte
+for byte, and a changed track chunk can be re-encoded on its own while every other chunk is copied.
+
+## Properties
+
+| Property | Type | Description |
+| ------ | ------ | ------ |
+| <a id="property-chunks"></a> `chunks` | [`MidiChunk`](/scan-chart/api/index/type-aliases/MidiChunk)[] | The chunks after the header, in file order. |
+| <a id="property-data"></a> `data` | `Uint8Array` | The file the tokens were read from. |
+| <a id="property-header"></a> `header` | [`MidiHeaderChunk`](/scan-chart/api/index/interfaces/MidiHeaderChunk) | - |
+| <a id="property-trailingstart"></a> `trailingStart` | `number` | Offset of the bytes after the last chunk, which run to the end of `data`. |

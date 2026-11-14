@@ -1,0 +1,133 @@
+---
+title: "Canonical20260801Api"
+---
+
+## Methods
+
+### calculateSongBundle()
+
+```ts
+calculateSongBundle(request): CanonicalSongBundle;
+```
+
+Calculates every member track's identity and duration, and the song's SongHash, from one parsed chart.
+
+#### Parameters
+
+| Parameter | Type |
+| ------ | ------ |
+| `request` | [`CanonicalSongBundleRequest`](/scan-chart/api/competitive/interfaces/CanonicalSongBundleRequest) |
+
+#### Returns
+
+[`CanonicalSongBundle`](/scan-chart/api/competitive/interfaces/CanonicalSongBundle)
+
+***
+
+### calculateSongIdentity()
+
+```ts
+calculateSongIdentity(request): CanonicalSongIdentity;
+```
+
+#### Parameters
+
+| Parameter | Type |
+| ------ | ------ |
+| `request` | [`CanonicalSongIdentityRequest`](/scan-chart/api/competitive/interfaces/CanonicalSongIdentityRequest) |
+
+#### Returns
+
+[`CanonicalSongIdentity`](/scan-chart/api/competitive/interfaces/CanonicalSongIdentity)
+
+***
+
+### calculateTempoMapHash()
+
+```ts
+calculateTempoMapHash(chart): string;
+```
+
+Calculates Clone Hero's tempo map hash, which the leaderboard backend compares across scores.
+
+#### Parameters
+
+| Parameter | Type |
+| ------ | ------ |
+| `chart` | [`CanonicalParsedChart`](/scan-chart/api/competitive/interfaces/CanonicalParsedChart) |
+
+#### Returns
+
+`string`
+
+***
+
+### calculateTrackDuration()
+
+```ts
+calculateTrackDuration(semantics): TrackDuration;
+```
+
+#### Parameters
+
+| Parameter | Type |
+| ------ | ------ |
+| `semantics` | [`CanonicalTrackSemantics`](/scan-chart/api/competitive/interfaces/CanonicalTrackSemantics) |
+
+#### Returns
+
+[`TrackDuration`](/scan-chart/api/competitive/interfaces/TrackDuration)
+
+***
+
+### calculateTrackIdentity()
+
+```ts
+calculateTrackIdentity(track): CanonicalTrackIdentity;
+```
+
+#### Parameters
+
+| Parameter | Type |
+| ------ | ------ |
+| `track` | [`CanonicalParsedTrack`](/scan-chart/api/competitive/interfaces/CanonicalParsedTrack) |
+
+#### Returns
+
+[`CanonicalTrackIdentity`](/scan-chart/api/competitive/interfaces/CanonicalTrackIdentity)
+
+***
+
+### parseSource()
+
+```ts
+parseSource(request): CanonicalParseOutcome;
+```
+
+#### Parameters
+
+| Parameter | Type |
+| ------ | ------ |
+| `request` | [`SourceParseRequest`](/scan-chart/api/competitive/interfaces/SourceParseRequest) |
+
+#### Returns
+
+[`CanonicalParseOutcome`](/scan-chart/api/competitive/type-aliases/CanonicalParseOutcome)
+
+***
+
+### readBTrack()
+
+```ts
+readBTrack(bytes): CanonicalBTrackReadOutcome;
+```
+
+#### Parameters
+
+| Parameter | Type |
+| ------ | ------ |
+| `bytes` | `Uint8Array` |
+
+#### Returns
+
+[`CanonicalBTrackReadOutcome`](/scan-chart/api/competitive/type-aliases/CanonicalBTrackReadOutcome)

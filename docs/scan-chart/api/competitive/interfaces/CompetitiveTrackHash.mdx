@@ -1,0 +1,13 @@
+---
+title: "CompetitiveTrackHash"
+---
+
+## Properties
+
+| Property | Modifier | Type | Description |
+| ------ | ------ | ------ | ------ |
+| <a id="property-btrack"></a> `btrack` | `readonly` | `Uint8Array`\<`ArrayBufferLike`\> \| `null` | The track's `CHNF/20260801` BTrack, which `trackHash` is derived from; `null` unless asked for. |
+| <a id="property-difficulty"></a> `difficulty` | `readonly` | `"expert"` \| `"hard"` \| `"medium"` \| `"easy"` | - |
+| <a id="property-durationms"></a> `durationMs` | `readonly` | `number` | - |
+| <a id="property-instrument"></a> `instrument` | `readonly` | \| `"guitar"` \| `"guitarcoop"` \| `"rhythm"` \| `"bass"` \| `"drums"` \| `"keys"` \| `"guitarghl"` \| `"guitarcoopghl"` \| `"rhythmghl"` \| `"bassghl"` \| `"keysghl"` | - |
+| <a id="property-trackhash"></a> `trackHash` | `readonly` | `string` | The canonical TrackHash, as unpadded base64url. |

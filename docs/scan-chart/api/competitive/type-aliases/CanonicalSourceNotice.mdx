@@ -1,0 +1,32 @@
+---
+title: "CanonicalSourceNotice"
+---
+
+```ts
+type CanonicalSourceNotice = 
+  | {
+  code: "rangeShiftMalformed";
+  source: RangeShiftSourceLocation;
+}
+  | {
+  code: "rangeShiftDifficultyInvalid";
+  declared: number;
+  source: RangeShiftSourceLocation;
+}
+  | {
+  code: "rangeShiftDifficultyMismatch";
+  containing: Difficulty;
+  declared: Difficulty;
+  source: RangeShiftSourceLocation;
+}
+  | {
+  code: "rangeShiftInstrumentInapplicable";
+  source: RangeShiftSourceLocation;
+}
+  | {
+  code: "rangeShiftOutOfBounds";
+  position: number;
+  size: number;
+  source: RangeShiftSourceLocation;
+};
+```

@@ -1,0 +1,23 @@
+---
+title: "VocalPhrase"
+---
+
+A range created by a vocals phrase marker, used during gameplay to decide
+which pitch/percussion notes and lyric syllables belong to the same sung line.
+The game scores and displays vocals phrase-by-phrase as playback crosses
+these ranges instead of treating every note as an unrelated standalone event.
+A phrase holds the notes and lyrics from its tick through its end tick,
+unless the next phrase starts on its end tick.
+
+## Properties
+
+| Property | Type | Description |
+| ------ | ------ | ------ |
+| <a id="property-ispercussion"></a> `isPercussion` | `boolean` | Whether every note in this phrase is a vocals percussion cue. |
+| <a id="property-length"></a> `length` | `number` | Length of the vocal phrase, in ticks. |
+| <a id="property-lyrics"></a> `lyrics` | [`LyricEvent`](/scan-chart/api/index/interfaces/LyricEvent)[] | All lyric events contained inside this phrase range. |
+| <a id="property-mslength"></a> `msLength` | `number` | Length of the vocal phrase, in ms. |
+| <a id="property-mstime"></a> `msTime` | `number` | Time where the vocal phrase begins, in ms. |
+| <a id="property-notes"></a> `notes` | [`VocalNote`](/scan-chart/api/index/interfaces/VocalNote)[] | All vocal note events contained inside this phrase range. |
+| <a id="property-player"></a> `player?` | `1` \| `2` | Lead-vocals singer assigned to this phrase in two-player modes; omitted for harmony phrases. |
+| <a id="property-tick"></a> `tick` | `number` | Tick position where the vocal phrase begins. |

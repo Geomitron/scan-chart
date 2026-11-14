@@ -32,6 +32,10 @@ These commands need a local library of song folders, which isn't in the reposito
 
 The vectors are in `test/golden-vectors/suites`, one folder for each approved suite, and approved suites never change. The next suite is drafted from `test/golden-vectors/cases.ts` with `npm run vectors:generate -- --out <new-folder>`, and needs review before it's promoted, because Clone Hero and the leaderboards must calculate the same results. The [golden vectors README](test/golden-vectors/README.md) has the steps.
 
+## Update the API reference
+
+The docs site's API reference, in `docs/scan-chart/api`, has a page for each name the package exports, generated from the doc comments by TypeDoc. After you change an export or its doc comment, run `npm run docs:api` and commit the pages and `docs/docs.json` with the change. `npm run test:integration` fails while they're out of date, and `npm run docs:api` fails when the API uses a type that the package doesn't export.
+
 ## Release a change
 
 Run `npx changeset` before you commit a change that users will notice, and describe the change for the release notes. [changeset-usage.md](changeset-usage.md) lists the release steps.

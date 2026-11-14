@@ -1,0 +1,16 @@
+---
+title: "CanonicalParseOutcome"
+---
+
+```ts
+type CanonicalParseOutcome = 
+  | {
+  chart: CanonicalParsedChart;
+  kind: "accepted";
+  notices: readonly CanonicalSourceNotice[];
+}
+  | {
+  errors: readonly [SourceParseError, ...SourceParseError[]];
+  kind: "rejected";
+};
+```

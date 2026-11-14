@@ -1,0 +1,12 @@
+---
+title: "IssueSeverity"
+---
+
+```ts
+type IssueSeverity = "error" | "warning" | "recommendation";
+```
+
+How much an issue matters:
+- `error`: a game can't read the file, or games read it differently;
+- `warning`: games read it alike, but it's probably a mistake;
+- `recommendation`: it works, but doesn't follow a charting recommendation, such as the Chorus Encore guidelines'.

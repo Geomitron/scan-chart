@@ -1,0 +1,9 @@
+---
+title: "AuthoredEventType"
+---
+
+```ts
+type AuthoredEventType = Exclude<keyof typeof eventTypes, "rejectedStarPower">;
+```
+
+An event type, by name: a note, a note modifier or a phrase, such as `green`, `forceTap` or `starPower`.

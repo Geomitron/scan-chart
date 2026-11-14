@@ -1,0 +1,19 @@
+---
+title: "ScannedSong"
+---
+
+A song folder, scanned. What wasn't asked for is `null`.
+
+## Properties
+
+| Property | Modifier | Type | Description |
+| ------ | ------ | ------ | ------ |
+| <a id="property-albumart"></a> `albumArt` | `readonly` | [`AlbumArt`](/scan-chart/api/index/interfaces/AlbumArt) \| `null` | `null` unless asked for, or when the song has none. |
+| <a id="property-competitive"></a> `competitive` | `readonly` | \| [`CompetitiveHashes`](/scan-chart/api/competitive/type-aliases/CompetitiveHashes) \| `null` | `null` unless asked for, or when there's no readable chart. |
+| <a id="property-filehashes"></a> `fileHashes` | `readonly` | [`FileHashes`](/scan-chart/api/index/interfaces/FileHashes) \| `null` | `null` unless asked for. |
+| <a id="property-hasvideobackground"></a> `hasVideoBackground` | `readonly` | `boolean` | - |
+| <a id="property-ignoredissues"></a> `ignoredIssues` | `readonly` | readonly [`Issue`](/scan-chart/api/index/interfaces/Issue)[] | The issues found whose codes song.ini's `ignored_issues` lists, in the same order. |
+| <a id="property-issues"></a> `issues` | `readonly` | readonly [`Issue`](/scan-chart/api/index/interfaces/Issue)[] | Every issue found, but those song.ini's `ignored_issues` lists: the folder's, then the metadata's, then the chart's. |
+| <a id="property-metadata"></a> `metadata` | `readonly` | [`SongMetadata`](/scan-chart/api/index/type-aliases/SongMetadata) | - |
+| <a id="property-playable"></a> `playable` | `readonly` | `boolean` | Whether the song can be played: it has a readable chart and an audio file. |
+| <a id="property-stats"></a> `stats` | `readonly` | [`ChartStats`](/scan-chart/api/index/interfaces/ChartStats) \| `null` | The chart's statistics, or `null` when there's no readable chart. |

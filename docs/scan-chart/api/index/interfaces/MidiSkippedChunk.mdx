@@ -1,0 +1,22 @@
+---
+title: "MidiSkippedChunk"
+---
+
+A chunk kept as bytes and not decoded: a chunk type other than `MTrk`, which the MIDI specification says readers
+skip, or an `MTrk` chunk past the header's track count after a chunk of another kind.
+
+## Extends
+
+- `MidiChunkFrame`
+
+## Properties
+
+| Property | Type | Description | Inherited from |
+| ------ | ------ | ------ | ------ |
+| <a id="property-bodystart"></a> `bodyStart` | `number` | Offset of the body. | `MidiChunkFrame.bodyStart` |
+| <a id="property-end"></a> `end` | `number` | Offset after the chunk's last byte. | `MidiChunkFrame.end` |
+| <a id="property-id"></a> `id` | `string` | The chunk type, decoded from its id bytes as `parseMidi` decodes them. | `MidiChunkFrame.id` |
+| <a id="property-kind"></a> `kind` | `"skipped"` | - | - |
+| <a id="property-length"></a> `length` | `number` | The body length the length field declares, as `parseMidi` reads it: `NaN` when the file ends inside the field. | `MidiChunkFrame.length` |
+| <a id="property-lengthstart"></a> `lengthStart` | `number` | Offset of the 4-byte length field. | `MidiChunkFrame.lengthStart` |
+| <a id="property-start"></a> `start` | `number` | Offset of the id, the chunk's first byte. | `MidiChunkFrame.start` |

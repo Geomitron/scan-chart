@@ -1,0 +1,13 @@
+---
+title: "FileHashes"
+---
+
+Hashes that answer "is this the same file?", for caching, deduplication and downloads.
+
+## Properties
+
+| Property | Modifier | Type | Description |
+| ------ | ------ | ------ | ------ |
+| <a id="property-albumarthash"></a> `albumArtHash` | `readonly` | `string` \| `null` | MD5 of the album art file a scanner reads (see `findAlbumArt`), or `null` when there's none. |
+| <a id="property-charthash"></a> `chartHash` | `readonly` | `string` \| `null` | BLAKE3 of the chart file and its non-default parse settings, or `null` when there's no readable chart. |
+| <a id="property-folderhash"></a> `folderHash` | `readonly` | `string` | MD5 of every file's name and bytes, by file name. |

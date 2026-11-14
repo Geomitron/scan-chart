@@ -1,0 +1,19 @@
+---
+title: "Issue"
+---
+
+A problem found in a song folder. Every issue has this shape, whatever its scope.
+
+## Properties
+
+| Property | Modifier | Type | Description |
+| ------ | ------ | ------ | ------ |
+| <a id="property-code"></a> `code` | `readonly` | [`IssueCode`](/scan-chart/api/index/type-aliases/IssueCode) | - |
+| <a id="property-difficulty"></a> `difficulty` | `readonly` | `"expert"` \| `"hard"` \| `"medium"` \| `"easy"` \| `null` | The difficulty it's about, or `null` when it's about more than one. |
+| <a id="property-file"></a> `file` | `readonly` | `string` \| `null` | The file it's about, as named in the folder, such as a misnamed audio file or the song.ini a metadata issue is in. `null` for a chart issue, and for an issue about no one file, such as a missing chart. |
+| <a id="property-instrument"></a> `instrument` | `readonly` | \| `"guitar"` \| `"guitarcoop"` \| `"rhythm"` \| `"bass"` \| `"drums"` \| `"keys"` \| `"guitarghl"` \| `"guitarcoopghl"` \| `"rhythmghl"` \| `"bassghl"` \| `"keysghl"` \| `null` | The instrument it's about, or `null` when it's about more than one. |
+| <a id="property-message"></a> `message` | `readonly` | `string` | - |
+| <a id="property-mstime"></a> `msTime` | `readonly` | `number` \| `null` | - |
+| <a id="property-scope"></a> `scope` | `readonly` | [`IssueScope`](/scan-chart/api/index/type-aliases/IssueScope) | - |
+| <a id="property-severity"></a> `severity` | `readonly` | [`IssueSeverity`](/scan-chart/api/index/type-aliases/IssueSeverity) | - |
+| <a id="property-tick"></a> `tick` | `readonly` | `number` \| `null` | Where in the chart, or `null` for an issue about a whole track, chart or file. |

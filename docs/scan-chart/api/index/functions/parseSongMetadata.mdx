@@ -1,0 +1,27 @@
+---
+title: "parseSongMetadata()"
+---
+
+```ts
+function parseSongMetadata(files, options?): Promise<{
+  issues: readonly Issue[];
+  metadata: SongMetadata;
+}>;
+```
+
+Reads a song folder's metadata and the issues with its song.ini and chart file names, without reading the notes:
+only song.ini and the `.chart` `[Song]` section are read.
+
+## Parameters
+
+| Parameter | Type |
+| ------ | ------ |
+| `files` | readonly [`SongFile`](/scan-chart/api/index/interfaces/SongFile)[] |
+| `options?` | [`SongMetadataOptions`](/scan-chart/api/index/interfaces/SongMetadataOptions) |
+
+## Returns
+
+`Promise`\<\{
+  `issues`: readonly [`Issue`](/scan-chart/api/index/interfaces/Issue)[];
+  `metadata`: [`SongMetadata`](/scan-chart/api/index/type-aliases/SongMetadata);
+\}\>

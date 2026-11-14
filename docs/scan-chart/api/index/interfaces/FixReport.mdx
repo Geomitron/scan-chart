@@ -1,0 +1,14 @@
+---
+title: "FixReport"
+---
+
+What `fixIssues` did. The hashes are the canonical ones, keyed as `canonical:guitar:expert` and `canonical:song`.
+
+## Properties
+
+| Property | Modifier | Type | Description |
+| ------ | ------ | ------ | ------ |
+| <a id="property-fixed"></a> `fixed` | `readonly` | readonly \{ `code`: [`IssueCode`](/scan-chart/api/index/type-aliases/IssueCode); `description`: `string`; `file`: `string`; \}[] | Each fix made: the code of the issue it fixes, the file it changes, and what it does. |
+| <a id="property-hashes"></a> `hashes` | `readonly` | readonly \{ `after`: `string` \| `null`; `before`: `string` \| `null`; `key`: `string`; \}[] | Each hash the fixes changed, with its value before and after, or `null` where the song had or has no such hash. |
+| <a id="property-renamed"></a> `renamed` | `readonly` | readonly \{ `from`: `string`; `to`: `string`; \}[] | Files renamed. Writing the song back to its folder, remove each `from` file. |
+| <a id="property-skipped"></a> `skipped` | `readonly` | readonly \{ `code`: [`IssueCode`](/scan-chart/api/index/type-aliases/IssueCode); `file`: `string` \| `null`; `reason`: `string`; \}[] | Each issue found that wasn't fixed, and why. |

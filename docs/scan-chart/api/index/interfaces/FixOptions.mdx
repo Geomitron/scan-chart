@@ -1,0 +1,16 @@
+---
+title: "FixOptions"
+---
+
+What `fixIssues` fixes, and how.
+
+## Properties
+
+| Property | Modifier | Type | Description |
+| ------ | ------ | ------ | ------ |
+| <a id="property-albumartsizes"></a> `albumArtSizes?` | `readonly` | readonly `number`[] | The album art sizes accepted, as in `ScanOptions`: square art of another size is resized to the first. Default: `[512]`. |
+| <a id="property-changehashes"></a> `changeHashes?` | `readonly` | `boolean` | Also make the fixes that change a canonical hash. Default: `false`. |
+| <a id="property-codes"></a> `codes?` | `readonly` | readonly [`IssueCode`](/scan-chart/api/index/type-aliases/IssueCode)[] | Only these codes. Default: every code in `issueFixes`. |
+| <a id="property-minsustainms"></a> `minSustainMs?` | `readonly` | `number` | The shortest sustain the short sustain fix keeps, in milliseconds. Default: 200, the charting guidelines'. |
+| <a id="property-resizeimage"></a> `resizeImage?` | `readonly` | (`image`, `size`) => `Promise`\<`Uint8Array`\<`ArrayBufferLike`\>\> | Resizes an image to a square of `size` pixels, and returns it in the format and quality the caller chooses, PNG or JPEG. scan-chart has no image codec: without it, album art isn't resized. |
+| <a id="property-sustaingapms"></a> `sustainGapMs?` | `readonly` | `number` | The gap the sustain gap fix leaves before the next note, in milliseconds. Default: 60, the charting guidelines'. |

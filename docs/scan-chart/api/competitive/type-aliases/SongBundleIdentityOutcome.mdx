@@ -1,0 +1,24 @@
+---
+title: "SongBundleIdentityOutcome"
+---
+
+```ts
+type SongBundleIdentityOutcome = 
+  | {
+  canonical20260801: {
+     duration: CanonicalParsedChart["duration"];
+     notices: readonly CanonicalSourceNotice[];
+     song: CanonicalSongIdentity;
+     tracks: readonly CanonicalBundleTrackIdentity[];
+  };
+  frozenLegacy6142: {
+     song: FrozenLegacySongBundleIdentity;
+     tracks: readonly LegacyBundleTrackIdentity[];
+  };
+  kind: "accepted";
+}
+  | {
+  errors: readonly [SourceParseError, ...SourceParseError[]];
+  kind: "rejected";
+};
+```

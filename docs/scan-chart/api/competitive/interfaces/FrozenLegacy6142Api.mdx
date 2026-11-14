@@ -1,0 +1,97 @@
+---
+title: "FrozenLegacy6142Api"
+---
+
+## Methods
+
+### calculateSongIdentity()
+
+```ts
+calculateSongIdentity(request): LegacySongIdentity;
+```
+
+#### Parameters
+
+| Parameter | Type |
+| ------ | ------ |
+| `request` | [`LegacySongIdentityRequest`](/scan-chart/api/competitive/interfaces/LegacySongIdentityRequest) |
+
+#### Returns
+
+[`LegacySongIdentity`](/scan-chart/api/competitive/interfaces/LegacySongIdentity)
+
+***
+
+### calculateTrackDuration()
+
+```ts
+calculateTrackDuration(request): TrackDuration;
+```
+
+#### Parameters
+
+| Parameter | Type |
+| ------ | ------ |
+| `request` | [`FrozenLegacyTrackRequest`](/scan-chart/api/competitive/interfaces/FrozenLegacyTrackRequest) |
+
+#### Returns
+
+[`TrackDuration`](/scan-chart/api/competitive/interfaces/TrackDuration)
+
+***
+
+### calculateTrackIdentity()
+
+```ts
+calculateTrackIdentity(request): FrozenLegacyTrackIdentity;
+```
+
+#### Parameters
+
+| Parameter | Type |
+| ------ | ------ |
+| `request` | [`FrozenLegacyTrackRequest`](/scan-chart/api/competitive/interfaces/FrozenLegacyTrackRequest) |
+
+#### Returns
+
+[`FrozenLegacyTrackIdentity`](/scan-chart/api/competitive/interfaces/FrozenLegacyTrackIdentity)
+
+***
+
+### parseSource()
+
+```ts
+parseSource(request): FrozenLegacyParseOutcome;
+```
+
+#### Parameters
+
+| Parameter | Type |
+| ------ | ------ |
+| `request` | [`SourceParseRequest`](/scan-chart/api/competitive/interfaces/SourceParseRequest) |
+
+#### Returns
+
+[`FrozenLegacyParseOutcome`](/scan-chart/api/competitive/type-aliases/FrozenLegacyParseOutcome)
+
+***
+
+### readModifiers()
+
+```ts
+readModifiers(songIni): IniChartModifiers;
+```
+
+The chart modifiers Clone Hero 1.1.0.6142 read from a song folder's song.ini, given its bytes or `null` without one,
+for `parseSource` and `songBundle20251010`. They're read as for the canonical hashes, but without `pro_drum` and
+`star_power_note`, the older names of `pro_drums` and `multiplier_note`, which it didn't read.
+
+#### Parameters
+
+| Parameter | Type |
+| ------ | ------ |
+| `songIni` | `Uint8Array`\<`ArrayBufferLike`\> \| `null` |
+
+#### Returns
+
+[`IniChartModifiers`](/scan-chart/api/competitive/interfaces/IniChartModifiers)

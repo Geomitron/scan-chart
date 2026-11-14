@@ -1,0 +1,15 @@
+---
+title: "RangeShiftSourceLocation"
+---
+
+```ts
+type RangeShiftSourceLocation = 
+  | RangeShiftSourceDetails & {
+  containingDifficulty: Difficulty;
+  format: "chart";
+}
+  | RangeShiftSourceDetails & {
+  containingDifficulty: null;
+  format: "mid";
+};
+```

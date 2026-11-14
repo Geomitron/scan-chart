@@ -1,0 +1,21 @@
+---
+title: "writeSavePlanFile()"
+---
+
+```ts
+function writeSavePlanFile(file, stream): Promise<void>;
+```
+
+Writes one file of a save plan to a stream, reading its byte ranges in chunks, then closes the stream. If writing
+fails, the stream is aborted and the error is thrown.
+
+## Parameters
+
+| Parameter | Type |
+| ------ | ------ |
+| `file` | [`PlannedFile`](/scan-chart/api/index/interfaces/PlannedFile) |
+| `stream` | `WritableStream`\<`Uint8Array`\<`ArrayBufferLike`\>\> |
+
+## Returns
+
+`Promise`\<`void`\>

@@ -1,0 +1,13 @@
+---
+title: "SaveReport"
+---
+
+What saving did. The hashes it names are the canonical ones, keyed as `songHashes` keys them.
+
+## Properties
+
+| Property | Modifier | Type | Description |
+| ------ | ------ | ------ | ------ |
+| <a id="property-normalized"></a> `normalized` | `readonly` | readonly \{ `kind`: \| `"order"` \| `"trackNames"` \| `"noflipDuringFlip"` \| `"duplicateKeys"` \| `"songSection"` \| `"hopoTags"` \| `"multiplierNote"` \| `"deprecatedTags"` \| `"lineEndings"` \| `"lineSpelling"` \| `"unreadableLines"` \| `"spacing"` \| `"duplicateLines"` \| `"repeatedMarkers"` \| `"quotedTrackEvents"` \| `"modifiersWithoutNotes"` \| `"repeatedSections"` \| `"sectionOrder"`; `section`: `string` \| `null`; \}[] | - |
+| <a id="property-spenthashes"></a> `spentHashes` | `readonly` | readonly `string`[] \| `null` | The hashes the edits changed, which normalization may change too; `null` when there was nothing to normalize. |
+| <a id="property-withheld"></a> `withheld` | `readonly` | readonly \{ `hashes`: readonly `string`[]; `kind`: \| `"order"` \| `"trackNames"` \| `"noflipDuringFlip"` \| `"duplicateKeys"` \| `"songSection"` \| `"hopoTags"` \| `"multiplierNote"` \| `"deprecatedTags"` \| `"lineEndings"` \| `"lineSpelling"` \| `"unreadableLines"` \| `"spacing"` \| `"duplicateLines"` \| `"repeatedMarkers"` \| `"quotedTrackEvents"` \| `"modifiersWithoutNotes"` \| `"repeatedSections"` \| `"sectionOrder"`; `section`: `string` \| `null`; \}[] | Normalizations left out because each would change a hash the edits didn't, listed with those hashes. |

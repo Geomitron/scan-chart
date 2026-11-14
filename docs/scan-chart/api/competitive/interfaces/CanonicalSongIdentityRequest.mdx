@@ -1,0 +1,11 @@
+---
+title: "CanonicalSongIdentityRequest"
+---
+
+## Properties
+
+| Property | Modifier | Type | Description |
+| ------ | ------ | ------ | ------ |
+| <a id="property-durationms"></a> `durationMs` | `readonly` | [`CanonicalChartDurationMs`](/scan-chart/api/competitive/type-aliases/CanonicalChartDurationMs) | - |
+| <a id="property-members"></a> `members` | `readonly` | readonly [`CanonicalSongHashMember`](/scan-chart/api/competitive/interfaces/CanonicalSongHashMember)[] | - |
+| <a id="property-metadata"></a> `metadata` | `readonly` | [`SongHashMetadata`](/scan-chart/api/competitive/interfaces/SongHashMetadata) | The song's metadata before the canonical writer resolves it, as Clone Hero holds it on the song. The writer treats `null`, "0", and "-1" as unset, strips style tags, lowercases the icon, and clears an icon that equals the charter. Use `ParsedChart.songHashMetadata` for a chart folder. |

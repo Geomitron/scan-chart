@@ -1,0 +1,15 @@
+---
+title: "FrozenLegacySongBundleIdentity"
+---
+
+```ts
+type FrozenLegacySongBundleIdentity = 
+  | {
+  identity: LegacySongIdentity;
+  kind: "available";
+}
+  | {
+  kind: "unavailable";
+  reason: "historicalDurationUnavailable";
+};
+```

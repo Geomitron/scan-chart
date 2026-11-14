@@ -1,0 +1,20 @@
+---
+title: "scanSongFolder()"
+---
+
+```ts
+function scanSongFolder(files, options?): Promise<ScannedSong>;
+```
+
+Scans a song folder in one call: its metadata, issues and statistics, and whatever else `options` asks for.
+
+## Parameters
+
+| Parameter | Type |
+| ------ | ------ |
+| `files` | readonly [`SongFile`](/scan-chart/api/index/interfaces/SongFile)[] |
+| `options?` | [`ScanOptions`](/scan-chart/api/index/interfaces/ScanOptions) |
+
+## Returns
+
+`Promise`\<[`ScannedSong`](/scan-chart/api/index/interfaces/ScannedSong)\>

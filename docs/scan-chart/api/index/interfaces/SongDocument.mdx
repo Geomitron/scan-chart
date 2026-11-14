@@ -1,0 +1,14 @@
+---
+title: "SongDocument"
+---
+
+A song folder as a document: the chart file and song.ini that Clone Hero reads, tokenized, and every file as
+given. Every view of the song is derived from it.
+
+## Properties
+
+| Property | Modifier | Type | Description |
+| ------ | ------ | ------ | ------ |
+| <a id="property-chart"></a> `chart` | `readonly` | [`ChartDocument`](/scan-chart/api/index/type-aliases/ChartDocument) \| `null` | The chart file Clone Hero reads, or `null` when the folder has none. |
+| <a id="property-files"></a> `files` | `readonly` | readonly [`SongFile`](/scan-chart/api/index/interfaces/SongFile)[] | Every file of the folder, in the order given. Files scan-chart doesn't read can stay byte sources. |
+| <a id="property-ini"></a> `ini` | `readonly` | [`IniDocument`](/scan-chart/api/index/interfaces/IniDocument) \| `null` | The song.ini Clone Hero reads, or `null` when the folder has none. |

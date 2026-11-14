@@ -1,0 +1,55 @@
+---
+title: "ChartDocument"
+---
+
+```ts
+type ChartDocument = 
+  | {
+  fileName: string;
+  format: "chart";
+  tokens: ChartFileTokens;
+}
+  | {
+  bytes: Uint8Array;
+  fileName: string;
+  format: "mid";
+  readError: string | null;
+  tokens: MidiTokens | null;
+};
+```
+
+The chart file of a song, tokenized in its format.
+
+## Union Members
+
+### Type Literal
+
+```ts
+{
+  fileName: string;
+  format: "chart";
+  tokens: ChartFileTokens;
+}
+```
+
+***
+
+### Type Literal
+
+```ts
+{
+  bytes: Uint8Array;
+  fileName: string;
+  format: "mid";
+  readError: string | null;
+  tokens: MidiTokens | null;
+}
+```
+
+| Name | Type | Description |
+| ------ | ------ | ------ |
+| `bytes` | `Uint8Array` | - |
+| `fileName` | `string` | - |
+| `format` | `"mid"` | - |
+| `readError` | `string` \| `null` | - |
+| `tokens` | [`MidiTokens`](/scan-chart/api/index/interfaces/MidiTokens) \| `null` | Every chunk of the file, unknown types included, or `null` when the file can't be read as MIDI. |

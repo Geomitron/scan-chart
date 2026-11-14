@@ -1,0 +1,16 @@
+---
+title: "NoteEvent"
+---
+
+A single note event in a chart's track. Note that more than one note event can occur at the same time.
+
+## Properties
+
+| Property | Type | Description |
+| ------ | ------ | ------ |
+| <a id="property-flags"></a> `flags` | `number` | bitmask of `noteFlags`, which define the modifiers that apply to this note event. (strum, tap, cymbal, accent, etc...) |
+| <a id="property-length"></a> `length` | `number` | Length of the note event, in ticks. |
+| <a id="property-mslength"></a> `msLength` | `number` | Length of the note event, in ms. |
+| <a id="property-mstime"></a> `msTime` | `number` | Time where the note event begins, in ms. |
+| <a id="property-tick"></a> `tick` | `number` | Tick position where the note event begins. |
+| <a id="property-type"></a> `type` | [`NoteType`](/scan-chart/api/index/type-aliases/NoteType) | The type of the note. (green, open, redDrum, kick, etc...) |

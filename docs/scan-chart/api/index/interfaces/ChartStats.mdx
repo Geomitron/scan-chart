@@ -1,0 +1,24 @@
+---
+title: "ChartStats"
+---
+
+Statistics about a chart's gameplay.
+
+## Properties
+
+| Property | Modifier | Type | Description |
+| ------ | ------ | ------ | ------ |
+| <a id="property-drumtype"></a> `drumType` | `readonly` | [`DrumType`](/scan-chart/api/index/type-aliases/DrumType) \| `null` | The type of drums that are charted. `null` if drums are not charted. |
+| <a id="property-has2xkick"></a> `has2xKick` | `readonly` | `boolean` | If a 2x kick note occurs in any drums track. |
+| <a id="property-hasflexlanes"></a> `hasFlexLanes` | `readonly` | `boolean` | If a roll or trill lane occurs in any track. |
+| <a id="property-hasforcednotes"></a> `hasForcedNotes` | `readonly` | `boolean` | If a note in any track is forced to the other of HOPO or strum than it would naturally be. |
+| <a id="property-haslyrics"></a> `hasLyrics` | `readonly` | `boolean` | If the chart contains any lyric events. |
+| <a id="property-hasopennotes"></a> `hasOpenNotes` | `readonly` | `boolean` | If an open note occurs in any track. |
+| <a id="property-hassolos"></a> `hasSolos` | `readonly` | `boolean` | If a solo occurs in any track. |
+| <a id="property-hastapnotes"></a> `hasTapNotes` | `readonly` | `boolean` | If a tap note occurs in any track. |
+| <a id="property-hasvocals"></a> `hasVocals` | `readonly` | `boolean` | If the chart has a vocal part with a vocal note. |
+| <a id="property-instruments"></a> `instruments` | `readonly` | readonly ( \| `"guitar"` \| `"guitarcoop"` \| `"rhythm"` \| `"bass"` \| `"drums"` \| `"keys"` \| `"guitarghl"` \| `"guitarcoopghl"` \| `"rhythmghl"` \| `"bassghl"` \| `"keysghl"`)[] | The instruments that have a track. |
+| <a id="property-maxnps"></a> `maxNps` | `readonly` | readonly \{ `difficulty`: `"expert"` \| `"hard"` \| `"medium"` \| `"easy"`; `instrument`: \| `"guitar"` \| `"guitarcoop"` \| `"rhythm"` \| `"bass"` \| `"drums"` \| `"keys"` \| `"guitarghl"` \| `"guitarcoopghl"` \| `"rhythmghl"` \| `"bassghl"` \| `"keysghl"`; `msTime`: `number`; `nps`: `number`; \}[] | The one-second window in each track where the notes per second are highest. |
+| <a id="property-notecounts"></a> `noteCounts` | `readonly` | readonly \{ `count`: `number`; `difficulty`: `"expert"` \| `"hard"` \| `"medium"` \| `"easy"`; `instrument`: \| `"guitar"` \| `"guitarcoop"` \| `"rhythm"` \| `"bass"` \| `"drums"` \| `"keys"` \| `"guitarghl"` \| `"guitarcoopghl"` \| `"rhythmghl"` \| `"bassghl"` \| `"keysghl"`; \}[] | The number of notes in each track: drum notes counted one by one, fret note groups as one each. |
+| <a id="property-notespanms"></a> `noteSpanMs` | `readonly` | `number` | The time between the first and the last note start across every track, in milliseconds, rounded to 3 decimal places. The song.ini `song_length` when the chart has no notes. |
+| <a id="property-tempomarkercount"></a> `tempoMarkerCount` | `readonly` | `number` | The number of tempo markers. |

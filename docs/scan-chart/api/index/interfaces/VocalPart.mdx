@@ -1,0 +1,17 @@
+---
+title: "VocalPart"
+---
+
+Data for one singer lane, such as lead vocals or a single harmony part.
+
+## Properties
+
+| Property | Type | Description |
+| ------ | ------ | ------ |
+| <a id="property-lyricshifts"></a> `lyricShifts` | \{ `length`: `number`; `msLength`: `number`; `msTime`: `number`; `tick`: `number`; \}[] | Lyric shift markers for this part's static lyric display. |
+| <a id="property-notephrases"></a> `notePhrases` | [`VocalPhrase`](/scan-chart/api/index/interfaces/VocalPhrase)[] | Vocal phrases that group the notes and lyrics sung and scored together. |
+| <a id="property-rangeshifts"></a> `rangeShifts` | \{ `length`: `number`; `msLength`: `number`; `msTime`: `number`; `tick`: `number`; \}[] | Range shift markers for this part's vocals note display. |
+| <a id="property-starpowersections"></a> `starPowerSections` | \{ `length`: `number`; `msLength`: `number`; `msTime`: `number`; `tick`: `number`; \}[] | Star Power phrase ranges available to this vocal part. |
+| <a id="property-staticlyricphrases"></a> `staticLyricPhrases` | [`VocalPhrase`](/scan-chart/api/index/interfaces/VocalPhrase)[] | Vocal phrases that group lyrics for fixed-position static lyric display. |
+| <a id="property-textevents"></a> `textEvents` | \{ `msTime`: `number`; `text`: `string`; `tick`: `number`; \}[] | Raw vocal text events for this part, excluding parsed lyric syllables. |
+| <a id="property-unrecognizedmidievents"></a> `unrecognizedMidiEvents?` | `MidiEvent`[] | The events of the part's `.mid` track that no scanner reads, kept so that saving writes them back, each with its tick as its `deltaTime`: a note outside every phrase, as its note-on and note-off; note 97 and the other note numbers no scanner reads; and any other event a vocal track doesn't use. Reading always sets it, empty for a `.chart` file; a part built without it has none. |

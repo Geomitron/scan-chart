@@ -1,0 +1,15 @@
+---
+title: "MidiEventToken"
+---
+
+One event of a track chunk: its delta time, its status byte unless it uses running status, and its data bytes.
+
+## Properties
+
+| Property | Type | Description |
+| ------ | ------ | ------ |
+| <a id="property-byteordermark"></a> `byteOrderMark?` | `true` | On a text-like meta event whose text starts with a UTF-8 byte order mark, which `parseMidi` drops from `text`. |
+| <a id="property-end"></a> `end` | `number` | Offset after the event's last byte. |
+| <a id="property-event"></a> `event` | `MidiEvent` | The event exactly as `parseMidi` decodes it. Its `deltaTime` is the delta time as written. |
+| <a id="property-start"></a> `start` | `number` | Offset of the delta time, the event's first byte. |
+| <a id="property-tick"></a> `tick` | `number` | The absolute tick: the sum of the track's delta times up to and including this event's. |
