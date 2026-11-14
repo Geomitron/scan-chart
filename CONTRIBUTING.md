@@ -13,6 +13,7 @@
 | `npm test` | The unit tests, including the examples in `readme.md` |
 | `npm run test:integration` | The tests that use the file system and the tools |
 | `npm run lint` | The type checks of the source, the tests, and the tools |
+| `npm run build` | The build, then a check that plain Node loads each entry point with `import` and with `require` |
 | `npm run vectors:verify` | The golden vectors: charts with the BTracks, TrackHashes, and SongHashes every implementation must calculate |
 
 `npm test` type-checks and runs every TypeScript block in `readme.md`, so an example that stops compiling or running fails the tests. A block marked `ts browser` is only type-checked.
