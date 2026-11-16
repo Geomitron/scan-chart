@@ -528,7 +528,8 @@ function chartFlamCases(): AuthoredSourceCase[] {
 /**
  * A kick and a double kick on one tick read as the kick, with the kick's own length, whatever the two lengths: on each of
  * three ticks the double kick is longer, the kick is longer, and the two are the same length. A kick or double kick that
- * snaps onto such a pair joins the kick, which takes the longer length.
+ * snaps onto such a pair joins the kick, which takes the longer of the kicks' lengths. A pair that snaps together onto
+ * a chord without a kick keeps the kick, with its own length.
  */
 function kickPairCases(): AuthoredSourceCase[] {
 	const pairs = [[0, 240, 480], [960, 480, 240], [1920, 240, 240]] as const
@@ -572,6 +573,38 @@ function kickPairCases(): AuthoredSourceCase[] {
 			target: { instrument: 'drums', difficulty: 'expert' } as const,
 			modifiers: { ...resolvedModifiers, chord_snap_threshold: 2 },
 		}]),
+		{
+			id: 'source-chart-kick-snaps-onto-kick-and-longer-double-kick',
+			purpose: '.chart, chord_snap_threshold 2: N 0 0 ticks long and N 32 480 ticks long at tick 0, and a 192-tick N 0 at tick 1, which snaps onto them: one kick at 0, 192 ticks long, the double kick dropped with its length.',
+			format: 'chart',
+			bytes: chart({ Song: ['Resolution = 480'], SyncTrack: ['0 = B 120000'], Events: [], ExpertDrums: ['0 = N 0 0', '0 = N 32 480', '1 = N 0 192'] }),
+			target: { instrument: 'drums', difficulty: 'expert' },
+			modifiers: { ...resolvedModifiers, chord_snap_threshold: 2 },
+		},
+		{
+			id: 'source-midi-kick-snaps-onto-kick-and-longer-double-kick',
+			purpose: '.mid, chord_snap_threshold 2: notes 96 0 ticks long and 95 480 ticks long at tick 0, and a 192-tick 96 at tick 1, which snaps onto them: one kick at 0, 192 ticks long, the double kick dropped with its length.',
+			format: 'mid',
+			bytes: midi([midiTrack('PART DRUMS', [...note(0, 96, 0), ...note(0, 95, 480), ...note(1, 96, 192)])]),
+			target: { instrument: 'drums', difficulty: 'expert' },
+			modifiers: { ...resolvedModifiers, chord_snap_threshold: 2 },
+		},
+		{
+			id: 'source-chart-kick-and-double-kick-snap-onto-red',
+			purpose: '.chart, chord_snap_threshold 2: a red note at tick 0, and N 0 0 ticks long and N 32 480 ticks long at tick 1, which snap onto it together: the chord has no kick to join, so the pair keeps the kick, 0 ticks long.',
+			format: 'chart',
+			bytes: chart({ Song: ['Resolution = 480'], SyncTrack: ['0 = B 120000'], Events: [], ExpertDrums: ['0 = N 1 0', '1 = N 0 0', '1 = N 32 480'] }),
+			target: { instrument: 'drums', difficulty: 'expert' },
+			modifiers: { ...resolvedModifiers, chord_snap_threshold: 2 },
+		},
+		{
+			id: 'source-midi-kick-and-double-kick-snap-onto-red',
+			purpose: '.mid, chord_snap_threshold 2: note 97 at tick 0, and 96 0 ticks long and 95 480 ticks long at tick 1, which snap onto it together: the chord has no kick to join, so the pair keeps the kick, 0 ticks long.',
+			format: 'mid',
+			bytes: midi([midiTrack('PART DRUMS', [...note(0, 97, 0), ...note(1, 96, 0), ...note(1, 95, 480)])]),
+			target: { instrument: 'drums', difficulty: 'expert' },
+			modifiers: { ...resolvedModifiers, chord_snap_threshold: 2 },
+		},
 	]
 }
 

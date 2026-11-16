@@ -56,6 +56,15 @@ describe('a kick snapping onto a chord with a kick and a double kick', () => {
 		}
 	}
 
+	it('keeps the kick with its own length when the pair snaps together onto a chord without a kick', () => {
+		const chart = chartFile(['[ExpertDrums]', '{', '  0 = N 1 0', '  1 = N 0 0', '  1 = N 32 480', '}'])
+		const mid = midiFile([{ name: 'PART DRUMS', events: [...midiNote(0, 97, 0), ...midiNote(1, 96, 0), ...midiNote(1, 95, 480)] }])
+		for (const parse of [parseChartFile, parseChartFileCanonicalIdentity]) {
+			expect(expertKicks(chart, 'chart', parse, snap)).toEqual([[0, 0, false]])
+			expect(expertKicks(mid, 'mid', parse, snap)).toEqual([[0, 0, false]])
+		}
+	})
+
 	it('drops the written double kick with its length', () => {
 		const chart = chartFile(['[ExpertDrums]', '{', '  0 = N 0 0', '  0 = N 32 480', '  1 = N 0 192', '}'])
 		const mid = midiFile([{ name: 'PART DRUMS', events: [...midiNote(0, 96, 0), ...midiNote(0, 95, 480), ...midiNote(1, 96, 192)] }])
