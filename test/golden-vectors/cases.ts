@@ -527,7 +527,8 @@ function chartFlamCases(): AuthoredSourceCase[] {
 
 /**
  * A kick and a double kick on one tick read as the kick, with the kick's own length, whatever the two lengths: on each of
- * three ticks the double kick is longer, the kick is longer, and the two are the same length.
+ * three ticks the double kick is longer, the kick is longer, and the two are the same length. A kick or double kick that
+ * snaps onto such a pair joins the kick, which takes the longer length.
  */
 function kickPairCases(): AuthoredSourceCase[] {
 	const pairs = [[0, 240, 480], [960, 480, 240], [1920, 240, 240]] as const
@@ -551,6 +552,26 @@ function kickPairCases(): AuthoredSourceCase[] {
 			bytes: midi([midiTrack('PART DRUMS', pairs.flatMap(([tick, kick, doubleKick]) => [...note(tick, 96, kick), ...note(tick, 95, doubleKick)]))]),
 			target: { instrument: 'drums', difficulty: 'expert' },
 		},
+		...([['kick', 0, 96], ['double-kick', 32, 95]] as const).flatMap(([name, chartNote, midiNote]) => [{
+			id: `source-chart-${name}-snaps-onto-kick-and-double-kick`,
+			purpose: `.chart, chord_snap_threshold 2: N 0 and then N 32 at tick 0, each 0 ticks long, and a 192-tick N ${chartNote} at tick 1, which snaps onto them: one kick at 0, 192 ticks long.`,
+			format: 'chart' as const,
+			bytes: chart({
+				Song: ['Resolution = 480'],
+				SyncTrack: ['0 = B 120000'],
+				Events: [],
+				ExpertDrums: ['0 = N 0 0', '0 = N 32 0', `1 = N ${chartNote} 192`],
+			}),
+			target: { instrument: 'drums', difficulty: 'expert' } as const,
+			modifiers: { ...resolvedModifiers, chord_snap_threshold: 2 },
+		}, {
+			id: `source-midi-${name}-snaps-onto-kick-and-double-kick`,
+			purpose: `.mid, chord_snap_threshold 2: notes 96 and then 95 at tick 0, each 0 ticks long, and a 192-tick ${midiNote} at tick 1, which snaps onto them: one kick at 0, 192 ticks long.`,
+			format: 'mid' as const,
+			bytes: midi([midiTrack('PART DRUMS', [...note(0, 96, 0), ...note(0, 95, 0), ...note(1, midiNote, 192)])]),
+			target: { instrument: 'drums', difficulty: 'expert' } as const,
+			modifiers: { ...resolvedModifiers, chord_snap_threshold: 2 },
+		}]),
 	]
 }
 

@@ -178,7 +178,7 @@ export function resolveTrack(track: RawChartData['trackData'][number], context: 
 	const resolved = track.instrument === 'drums'
 		? resolveDrumModifiers(grouped, drumType!, format, proDrumsGreenPair, greenPairTicks)
 		: resolveFretModifiers(grouped, iniChartModifiers, tpb, format)
-	const snapped = snapChords(resolved, iniChartModifiers.chord_snap_threshold, track.instrument)
+	const snapped = snapChords(resolved, iniChartModifiers.chord_snap_threshold, track.instrument, kickPair)
 	sortAndFixInvalidNoteOverlaps(snapped, kickPair)
 	return {
 		instrument: track.instrument,
@@ -1021,7 +1021,12 @@ function getFretNoteTypeFromEventType(eventType: EventType): NoteType | null {
 	}
 }
 
-function snapChords(noteGroups: UntimedNoteEvent[][], chord_snap_threshold: number, instrument: Instrument) {
+/**
+ * Moves each note within `chord_snap_threshold` ticks of the chord before it onto that chord. A moved drum note takes the
+ * flags of the chord's note on its pad. With `kickPair` `kick`, a chord with a kick and a double kick gives a moved kick
+ * the kick's flags, so the moved note joins the kick the chord keeps.
+ */
+function snapChords(noteGroups: UntimedNoteEvent[][], chord_snap_threshold: number, instrument: Instrument, kickPair: ParseRules['kickPair']) {
 	if (chord_snap_threshold <= 0 || noteGroups.length === 0) {
 		return noteGroups
 	}
@@ -1039,7 +1044,9 @@ function snapChords(noteGroups: UntimedNoteEvent[][], chord_snap_threshold: numb
 			if (instrument === 'drums') {
 				for (const note of noteGroup) {
 					if (note.type === noteTypes.kick) {
-						const lastKickFlags = lastNoteGroup.find(n => n.type === noteTypes.kick)?.flags ?? null
+						const kicks = lastNoteGroup.filter(n => n.type === noteTypes.kick)
+						const keptKick = kickPair === 'kick' ? kicks.find(n => !(n.flags & noteFlags.doubleKick)) ?? kicks[0] : kicks[0]
+						const lastKickFlags = keptKick?.flags ?? null
 						note.flags = lastKickFlags === null ? note.flags : lastKickFlags
 					} else if (note.type === noteTypes.redDrum) {
 						const lastRedDrumFlags = lastNoteGroup.find(n => n.type === noteTypes.redDrum)?.flags ?? null
