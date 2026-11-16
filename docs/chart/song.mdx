@@ -48,7 +48,7 @@ Each line names one value, as [Named entries](/chart/syntax#named-entries) descr
 
 **Edge case: `Year` after `, `.** Older charts, and charts Moonscraper saves, write `Year = ", 2002"`: the comma made the year look better in Guitar Hero III. A scanner removes a leading `, `, so it means the same as `Year = "2002"`. YARG also removes a leading `,` without the space. scan-chart's exporter writes `Year` without the `, `. When it saves an edited song, it keeps an existing line's form.
 
-**Edge case: `PreviewEnd = 0`.** It means there's no preview end: a preview can't end at the start of the song. Moonscraper writes it in every chart.
+**Edge case: `PreviewStart = 0` and `PreviewEnd = 0`.** A scanner reads each as not set, as YARG does, so the preview plays as it does when no time is set: see [Previews](/ini/metadata#previews). Moonscraper writes both lines in every chart, whether or not the charter chose a preview, and a preview can't end at the start of the song. Clone Hero starts the preview at 0:00 for `PreviewStart = 0` until the release with its preview change. A `song.ini` `preview_start_time = 0` still starts the preview at 0:00.
 
 ## [Song] and song.ini
 
