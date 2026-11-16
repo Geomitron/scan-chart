@@ -442,10 +442,9 @@ describe('.chart: per-track text events', () => {
 		expect(track.textEvents).toEqual([
 			{ tick: 0, text: '[mix 0 drums0]' },
 			{ tick: 192, text: '[mix 1 drums2d]' },
-			{ tick: 288, text: 'mix 3 drums2easy' },
 			{ tick: 384, text: '[idle]' },
 		])
-		expect(track.drumMixes).toEqual([{ tick: 192, configuration: 2, flag: 'd' }])
+		expect(track.drumMixes).toEqual([{ tick: 192, configuration: 2, flag: 'd' }, { tick: 288, configuration: 2, flag: 'easy' }])
 	})
 })
 

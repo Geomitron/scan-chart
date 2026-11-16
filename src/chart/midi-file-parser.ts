@@ -4,7 +4,7 @@ import { difficulties, Difficulty, getInstrumentType, Instrument, InstrumentType
 import { isCutInsideEvent, isReadTrack, metaEventDataStart, midiTokensToMidiData, MidiTokens, midiTrackEvents, midiTrackIndex, type MidiTrackRules, readMidiTokens, readTrackTokens } from './midi-tokens'
 import { DrumMixEvent, EventType, eventTypes, RawChartData, VocalTrackData } from './raw-types'
 import { IniChartModifiers } from './types'
-import { readMixEvent } from './mix-event'
+import { discoFlipEventTypes, readMixEvent, setsDiscoFlip } from './mix-event'
 import { parseRules, ParseRules } from './parse-rules'
 import { scanVocalTrack } from './lyric-parser'
 import { MidiEventsVocalEvent, readMidiEventsText, readMidiEventsVocalText } from './song-events'
@@ -1008,9 +1008,9 @@ function scanInstrumentTrack(
 				const mix = readMixEvent(event.text, rules.mixEvents)
 				if (mix !== null) {
 					const { difficulty, flag } = mix
-					// An `easy` or `easynokick` event sets no disco flip, and stays a text event.
-					if (flag !== 'easy' && flag !== 'easynokick') {
-						const eventType = flag === '' ? eventTypes.discoFlipOff : flag === 'd' ? eventTypes.discoFlipOn : eventTypes.discoNoFlipOn
+					// A mix event that sets no disco flip stays a text event.
+					if (setsDiscoFlip(mix, rules.mixEvents)) {
+						const eventType = discoFlipEventTypes[flag]
 						// Treat this like the other events that have a start and end, so it can be processed the same way later
 						eventEnds[difficulty].push({ tick: event.deltaTime, type: eventType, velocity: 127, channel: 1, isStart: true, eventIndex })
 						eventEnds[difficulty].push({ tick: event.deltaTime, type: eventType, velocity: 127, channel: 1, isStart: false, eventIndex })

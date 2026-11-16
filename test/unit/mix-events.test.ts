@@ -4,6 +4,7 @@ import { analyzeChart } from 'src/analyze-chart'
 import { frozenLegacy6142 } from 'src/chart/identity/public'
 import { readMixEvent } from 'src/chart/mix-event'
 import { parseChartFile, parseChartFileCanonicalIdentity, parseChartFileFrozenLegacyIdentity } from 'src/chart/parse-chart-file'
+import { noteFlags } from 'src/chart/types'
 import { fixIssues } from 'src/fix-issues'
 import { resolveChart } from 'src/gameplay-chart'
 import { defaultMetadata } from 'src/ini/metadata'
@@ -29,9 +30,14 @@ describe('mix events spelled another way (C20: R2, R10)', () => {
 		expect(readMixEvent('[mix 3 drums0dx]', 'cloneHero')).toEqual({ difficulty: 'expert', configuration: 0, flag: 'd' })
 		expect(readMixEvent('[mix 3 drumsd]', 'cloneHero')).toEqual({ difficulty: 'expert', configuration: 0, flag: '' })
 		expect(readMixEvent('[mix_2_drums4dnoflip]', 'cloneHero')).toEqual({ difficulty: 'hard', configuration: 4, flag: 'dnoflip' })
-		// Clone Hero reads only text that starts with "[mix" or "mix", and ignores a flag that doesn't start with d.
+		// Any other flag turns the flip off: easy and easynokick as written, an unknown one as no flag.
+		expect(readMixEvent('[mix 3 drums0easy]', 'cloneHero')).toEqual({ difficulty: 'expert', configuration: 0, flag: 'easy' })
+		expect(readMixEvent('mix 1 drums2easynokick', 'cloneHero')).toEqual({ difficulty: 'medium', configuration: 2, flag: 'easynokick' })
+		expect(readMixEvent('[mix 3 drums0x]', 'cloneHero')).toEqual({ difficulty: 'expert', configuration: 0, flag: '' })
+		expect(readMixEvent("[mix 3 drums0']", 'cloneHero')).toEqual({ difficulty: 'expert', configuration: 0, flag: '' })
+		expect(readMixEvent('[mix 3 drums 0d]', 'cloneHero')).toEqual({ difficulty: 'expert', configuration: 0, flag: '' })
+		// Clone Hero reads only text that starts with "[mix" or "mix".
 		expect(readMixEvent(' [mix 3 drums0d]', 'cloneHero')).toBeNull()
-		expect(readMixEvent('[mix 3 drums0x]', 'cloneHero')).toBeNull()
 		expect(readMixEvent('[mix 4 drums0d]', 'cloneHero')).toBeNull()
 		// scan-chart 8's reading, which the frozen profile keeps, reads none of the other spellings.
 		expect(readMixEvent('[mix 03 drums0d]', 'strict')).toBeNull()
@@ -72,7 +78,13 @@ describe('mix events spelled another way (C20: R2, R10)', () => {
 			message: 'The mix event " [mix 3 drums0d]" at tick 0 isn\'t spelled the standard way. Clone Hero ignores it, and other programs may read it as '
 				+ '"mix 3 drums0d". fixIssues can rewrite it in the standard spelling.',
 		}])
-		expect(mixIssues([{ fileName: 'notes.chart', data: drumsChart('0 = E mix 3 drums0d', '960 = E mix 3 drums0easy') }])).toEqual([])
+		expect(mixIssues([{ fileName: 'notes.chart', data: drumsChart('0 = E mix 3 drums0d', '960 = E mix 3 drums0easy', '1440 = E mix 3 drums0easynokick') }])).toEqual([])
+		expect(mixIssues([{ fileName: 'notes.mid', data: drumsMidi('[mix 3 drums0easy]', 'mix 3 drums0easynokick') }])).toEqual([])
+		// An unknown flag is invalid.
+		for (const [fileName, data, text] of [['notes.chart', drumsChart('0 = E mix 3 drums0x'), 'mix 3 drums0x'], ['notes.mid', drumsMidi('[mix 3 drums0x]'), '[mix 3 drums0x]']] as const) {
+			expect(mixIssues([{ fileName, data }]).map(issue => issue.message), fileName).toEqual([
+				`The mix event "${text}" at tick 0 isn't spelled the standard way. Clone Hero reads it as "mix 3 drums0", and other programs may not. fixIssues can rewrite it in the standard spelling.`])
+		}
 	})
 
 	it('rewrites them in the standard spelling, keeping the bytes until fixed', async () => {
@@ -101,5 +113,37 @@ describe('mix events spelled another way (C20: R2, R10)', () => {
 		const made = await fixIssues(mid, { codes: ['nonstandardMixEvent'], changeHashes: true })
 		expect(made.report.fixed.map(entry => entry.description)).toEqual(['Rewrote the mix event " [mix 3 drums0d]" at tick 0 in "PART DRUMS" as "mix 3 drums0d".'])
 		expect(made.report.hashes.map(change => change.key)).toEqual(['canonical:drums:expert', 'canonical:song'])
+	})
+})
+
+describe('a mix event whose flag does not start with d', () => {
+	/** Whether the Expert red note at tick 480 is in a flip. */
+	const isFlipped = (data: Uint8Array, format: 'chart' | 'mid', parse: typeof parseChartFile) =>
+		(parse(data, format).trackData.find(track => track.instrument === 'drums' && track.difficulty === 'expert')!.noteEventGroups
+			.flat().find(note => note.tick === 480)!.flags & noteFlags.disco) !== 0
+	const chartWith = (...texts: [number, string][]) => drumsChart(...texts.map(([tick, text]) => `${tick} = E ${text}`))
+	const midiWith = (...texts: [number, string][]) => midiFile([{ name: 'PART DRUMS', events: [...texts.map(([tick, text]) => midiText(tick, text)), ...midiNote(480, 97)] }])
+
+	for (const flag of ['easy', 'easynokick', 'x', "'"]) {
+		it(`turns the flip off in the scanner and canonical profiles, and not in the frozen one (drums0${flag})`, () => {
+			for (const [format, data] of [['chart', chartWith([0, 'mix 3 drums0d'], [240, `mix 3 drums0${flag}`])], ['mid', midiWith([0, '[mix 3 drums0d]'], [240, `[mix 3 drums0${flag}]`])]] as const) {
+				expect(isFlipped(data, format, parsers.scanner), format).toBe(false)
+				expect(isFlipped(data, format, parsers.canonical), format).toBe(false)
+				expect(isFlipped(data, format, parsers.legacy), format).toBe(true)
+			}
+		})
+	}
+
+	it('wins over d at one tick', () => {
+		expect(isFlipped(chartWith([0, 'mix 3 drums0d'], [0, 'mix 3 drums0easy']), 'chart', parsers.scanner)).toBe(false)
+		expect(isFlipped(midiWith([0, '[mix 3 drums0easy]'], [0, '[mix 3 drums0d]']), 'mid', parsers.scanner)).toBe(false)
+	})
+
+	it('reads easy and easynokick with their flag, which fixIssues keeps', async () => {
+		const song = await parseSong([{ fileName: 'notes.chart', data: chartWith([0, 'mix 3 drums0d'], [240, 'mix 3 drums0easy'], [360, 'mix 3 drums0easynokick']) }])
+		const fixed = await fixIssues(song, { changeHashes: true })
+		expect(fixed.report.fixed.filter(entry => entry.code === 'nonstandardMixEvent')).toEqual([])
+		expect(mixes(chartWith([0, 'mix 3 drums0d'], [240, 'mix 3 drums0easy'], [360, 'mix 3 drums0easynokick']), 'chart', parsers.scanner)).toEqual([
+			{ tick: 0, configuration: 0, flag: 'd' }, { tick: 240, configuration: 0, flag: 'easy' }, { tick: 360, configuration: 0, flag: 'easynokick' }])
 	})
 })

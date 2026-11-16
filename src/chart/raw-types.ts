@@ -139,13 +139,14 @@ export interface RawChartData {
 
 /**
  * A `mix <difficulty> drums<configuration><flag>` event that sets a disco flip, `[mix …]` in a `.mid` file. The notes'
- * disco flags hold what it means; the drum stem configuration, which no game reads, is kept so that the writers can
- * write it back.
+ * disco flags hold what it means: `d` starts a flip, `dnoflip` no-flip, and no flag, `easy` or `easynokick` turns the
+ * flip off. `easy` and `easynokick`, which choose the easy-difficulty drum audio, and the drum stem configuration, which
+ * no game reads, are kept so that the writers can write them back.
  */
 export interface DrumMixEvent {
 	tick: number
 	configuration: number
-	flag: '' | 'd' | 'dnoflip'
+	flag: '' | 'd' | 'dnoflip' | 'easy' | 'easynokick'
 }
 
 export interface VocalTrackData {

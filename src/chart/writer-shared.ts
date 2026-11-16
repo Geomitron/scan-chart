@@ -5,6 +5,7 @@
  */
 
 import { noflipsDuringFlips } from './disco-flip'
+import { isEasyMixFlag } from './mix-event'
 import type { ParsedChart } from './parse-chart-and-ini'
 import type { DrumMixEvent } from './raw-types'
 import { noteFlags, noteTypes } from './types'
@@ -68,10 +69,11 @@ export function drumMixEvents(td: ParsedChart['trackData'][number]): DrumMixEven
 	const written: DrumMixEvent[] = []
 	let readIndex = 0
 	let configuration = read[0]?.configuration ?? 0
+	// The flip the last event gives: `easy` and `easynokick` turn it off.
 	let flag: DrumMixEvent['flag'] = ''
 	const write = (event: DrumMixEvent) => {
 		configuration = event.configuration
-		flag = event.flag
+		flag = isEasyMixFlag(event.flag) ? '' : event.flag
 		if (written[written.length - 1]?.tick === event.tick) written[written.length - 1] = event
 		else written.push(event)
 	}

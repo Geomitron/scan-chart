@@ -27,7 +27,7 @@ export interface MidiDrumsNoflips {
 }
 
 /** How readers rank one difficulty's mix events at one tick: an event turning the flip off, then `d`, then `dnoflip`. */
-const flagRank: { readonly [flag in DrumMixEvent['flag']]: number } = { '': 0, d: 1, dnoflip: 2 }
+const flagRank: { readonly [flag in DrumMixEvent['flag']]: number } = { '': 0, easy: 0, easynokick: 0, d: 1, dnoflip: 2 }
 
 /** A mix event's text, as the writers write it in either format: `mix <difficulty> drums<configuration><flag>`, without brackets. */
 export function drumMixText(difficulty: Difficulty, { configuration, flag }: Pick<DrumMixEvent, 'configuration' | 'flag'>): string {
@@ -91,7 +91,7 @@ export function midiTrackNoflips(tokens: MidiTokens): MidiDrumsNoflips | null {
 	for (const { tick, event } of chunk.events) {
 		if (event.type === 'text') {
 			const mix = readMixEvent(event.text, 'cloneHero')
-			if (mix !== null) events.get(mix.difficulty)!.push({ tick, configuration: mix.configuration, flag: mix.flag as DrumMixEvent['flag'] })
+			if (mix !== null) events.get(mix.difficulty)!.push({ tick, configuration: mix.configuration, flag: mix.flag })
 		} else if (event.type === 'noteOn' && event.velocity > 0) {
 			// Red and yellow are the two notes after each difficulty's kick.
 			const difficulty = difficulties.find(candidate => [1, 2].includes(event.noteNumber - drumsDiffStarts[candidate]))
@@ -120,9 +120,9 @@ function chartMixText(text: string): 'kept' | 'read' | null {
 
 /**
  * The mix events a `.chart` file's drums sections keep as text, which set no flip there, as the `.mid` export writes
- * them in the one drums track: `kept`, each with the flag `easy` or `easynokick`, once for each tick and text, as
- * written; and `leftOut`, the number of other difficulties' mix events, which the `.chart` reader ignores and the drums
- * track would read.
+ * them in the one drums track: `kept`, the ones with the flag `easy` or `easynokick` that only scan-chart 8 reads, such
+ * as ` mix 3 drums0easy`, once for each tick and text, as written; and `leftOut`, the number of other difficulties' mix
+ * events, which the `.chart` reader ignores and the drums track would read.
  */
 export function chartMixTextEvents(tracks: readonly { readonly textEvents: readonly { tick: number; text: string }[] }[]): {
 	kept: { tick: number; text: string }[]
@@ -161,7 +161,9 @@ export function chartSectionMisspelledMixes(lines: readonly ChartLineToken[], di
 		const read = parseTrackLine(line.text, 'drums', difficulty, mixEventReadingRules.cloneHero)
 		const strict = parseTrackLine(line.text, 'drums', difficulty, mixEventReadingRules.strict)
 		const [mix, legacy] = [read?.kind === 'note' ? read.drumMix : undefined, strict?.kind === 'note' ? strict.drumMix : undefined]
-		if (mix?.flag === legacy?.flag && mix?.configuration === legacy?.configuration) continue
+		// scan-chart 8 kept an `easy` or `easynokick` event as text, and reads it as Clone Hero does.
+		const isKeptEasyMix = mix !== undefined && strict?.kind === 'text' && !isMixEventSpelledAnotherWay(strict.text)
+		if (isKeptEasyMix || (mix?.flag === legacy?.flag && mix?.configuration === legacy?.configuration)) continue
 		const meant = (mix ?? legacy)!
 		const text = read?.kind === 'text' ? read.text : strict?.kind === 'text' ? strict.text : line.text
 		found.push({ difficulty, tick: meant.tick, text, standard: drumMixText(difficulty, meant), isRead: mix !== undefined, line })
@@ -181,7 +183,7 @@ export function midiTrackMisspelledMixes(tokens: MidiTokens): MidiTrackFinding<M
 	chunk.events.forEach(({ tick, event }, eventIndex) => {
 		if (event.type !== 'text' || !event.text.includes('mix') || !isMixEventSpelledAnotherWay(event.text)) return
 		const mix = readMixEvent(event.text, 'cloneHero') ?? readMixEvent(event.text, 'strict')!
-		events.push({ difficulty: mix.difficulty, tick, text: event.text, standard: drumMixText(mix.difficulty, { configuration: mix.configuration, flag: mix.flag as DrumMixEvent['flag'] }), isRead: readMixEvent(event.text, 'cloneHero') !== null, eventIndex })
+		events.push({ difficulty: mix.difficulty, tick, text: event.text, standard: drumMixText(mix.difficulty, mix), isRead: readMixEvent(event.text, 'cloneHero') !== null, eventIndex })
 	})
 	return { ...track, events }
 }

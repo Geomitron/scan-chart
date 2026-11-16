@@ -90,17 +90,15 @@ describe('convertChart', () => {
 		expect(chartText.split('\r\n').filter(line => line.includes('mix '))).toEqual(['  0 = E mix 3 drums2', '  480 = E mix 3 drums2d', '  960 = E mix 3 drums2'])
 	})
 
-	it('keeps the .chart mix events that set no flip, writing each easy and easynokick one once, without changing a note', () => {
+	it("writes the .chart easy and easynokick mix events with their flag, and leaves out other difficulties' mix events, without changing a note", () => {
 		const drums = [
 			'[ExpertDrums]', '{', '  0 = E mix 3 drums0easy', '  0 = N 1 0', '  240 = E mix 2 drums0d', '  240 = N 1 0', '  480 = E mix 2 drums0easynokick', '}',
 			'[HardDrums]', '{', '  0 = E mix 2 drums0easy', '  0 = N 1 0', '  240 = N 1 0', '  480 = E mix 2 drums0easynokick', '}',
 		]
 		const song = chartSong(drums)
 		const tracks = resolveChart(song).tracks.filter(track => track.instrument === 'drums')
-		expect(tracks.map(track => track.textEvents.map(({ tick, text }) => [tick, text]))).toEqual([
-			[[0, 'mix 3 drums0easy'], [240, 'mix 2 drums0d'], [480, 'mix 2 drums0easynokick']],
-			[[0, 'mix 2 drums0easy'], [480, 'mix 2 drums0easynokick']],
-		])
+		// The section's own easy and easynokick events turn the flip off, and the other difficulty's events stay text.
+		expect(tracks.map(track => track.textEvents.map(({ tick, text }) => [tick, text]))).toEqual([[[240, 'mix 2 drums0d'], [480, 'mix 2 drums0easynokick']], []])
 		const trackHashes = (song: SongDocument) => {
 			const hashes = calculateCompetitiveHashes(song)
 			return hashes.accepted ? hashes.tracks.map(track => track.trackHash) : null
@@ -116,20 +114,19 @@ describe('convertChart', () => {
 		expect(legacyTrackHashes(song)).toEqual(legacyTrackHashes(withoutMixes))
 		expect(resolveChart(song).tracks.map(track => track.noteGroups)).toEqual(resolveChart(withoutMixes).tracks.map(track => track.noteGroups))
 
-		// The other difficulty's flip would flip Hard in the drums track, so it's left out.
+		// The other difficulty's events would set Hard's flip in the drums track, so they're left out.
 		const { song: asMidi, report } = convertChart(song, 'mid')
 		expect(report.tracks.every(track => track.kept)).toBe(true)
-		expect(report.dropped).toEqual([{ content: "mix events for another difficulty than their drums section's", count: 1 }])
+		expect(report.dropped).toEqual([{ content: "mix events for another difficulty than their drums section's", count: 2 }])
 		const midiFile = fileBytes(documentFiles(asMidi).find(file => file.fileName === 'notes.mid')!)
 		const midiMixes = parseMidi(midiFile).tracks.flatMap(track => trackTexts(track).filter(([, text]) => text.includes('mix')))
 		expect(midiMixes).toEqual([[0, 'mix 3 drums0easy'], [0, 'mix 2 drums0easy'], [480, 'mix 2 drums0easynokick']])
 		expect(trackHashes(asMidi)).toEqual(trackHashes(song))
 
-		// The drums track's text goes into each difficulty's section, where the .chart reader keeps it.
+		// Each difficulty's mix events go into its own section.
 		const { song: asChart } = convertChart(asMidi, 'chart')
 		const chartText = decode(fileBytes(documentFiles(asChart).find(file => file.fileName === 'notes.chart')!))
 		expect(chartText.split('\r\n').filter(line => line.includes('mix '))).toEqual([
-			'  0 = E mix 3 drums0easy', '  0 = E mix 2 drums0easy', '  480 = E mix 2 drums0easynokick',
 			'  0 = E mix 3 drums0easy', '  0 = E mix 2 drums0easy', '  480 = E mix 2 drums0easynokick',
 		])
 		const { song: asMidiAgain } = convertChart(asChart, 'mid')

@@ -57,8 +57,9 @@ export interface ParseRules {
 	/**
 	 * How a drums `mix` event's text is read, in either format (C20: R2, R10). `cloneHero` reads it as Clone Hero's
 	 * `TryParseDiscoMixEvent` does: any spaces or `_` between the parts, a difficulty `int.TryParse` reads, any
-	 * configuration character, and any text after it that starts with `d` as a flip. `strict` is scan-chart 8's reading:
-	 * single separators, a configuration from 0 to 5, and only the flags `d`, `dnoflip`, `easy` and `easynokick`.
+	 * configuration character, any text after it that starts with `d` as a flip, and any other text as turning the flip
+	 * off. `strict` is scan-chart 8's reading: single separators, a configuration from 0 to 5, and only the flags `d`,
+	 * `dnoflip`, `easy` and `easynokick`, the last two setting nothing.
 	 */
 	readonly mixEvents: 'cloneHero' | 'strict'
 	/** Whether a `.mid` track's `ENHANCED_OPENS` is read in any letter case, as Clone Hero reads it (C20: R13), or only in capitals. */

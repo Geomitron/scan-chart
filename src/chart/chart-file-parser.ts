@@ -3,7 +3,7 @@ import { decodeCloneHeroText } from '../shared/decode-text'
 import { trimDotnet } from '../shared/text'
 import { ChartEncoding, decodeChartText, detectChartEncoding } from './chart-encoding'
 import { ChartEventSection, chartLineSpelling, readableChartLines } from './chart-line-spelling'
-import { readMixEvent } from './mix-event'
+import { discoFlipEventTypes, readMixEvent, setsDiscoFlip } from './mix-event'
 import { parseRules, type ParseRules } from './parse-rules'
 import { DrumMixEvent, EventType, eventTypes, RawChartData } from './raw-types'
 import { extractChartLyrics, extractChartVocalPhrases } from './lyric-parser'
@@ -822,8 +822,8 @@ export function parseTrackLine(
 		if (drumMix !== null) return { kind: 'note', tick, type: discoFlipEventTypes[drumMix.flag], length: 0, drumMix }
 		const recognizedType = getEEventType(value)
 		if (recognizedType !== null) return { kind: 'note', tick, type: recognizedType, length: 0 }
-		// A mix event that sets no flip here, one of another difficulty or with the flag `easy` or `easynokick`, stays a
-		// text event, as in a `.mid` file, so the writers keep it.
+		// A mix event that sets no flip here, one of another difficulty, or one with the flag `easy` or `easynokick` in
+		// the `strict` reading, stays a text event, as in a `.mid` file, so the writers keep it.
 		// Skip directives consumed by chart processing (not stored as text events)
 		const stripped = value.replace(/^\[/, '').replace(/\]$/, '').trim()
 		if (stripped === 'ENABLE_CHART_DYNAMICS' || stripped === 'ENHANCED_OPENS') return null
@@ -845,18 +845,11 @@ function getEEventType(value: string): EventType | null {
 	return null
 }
 
-const discoFlipEventTypes: { readonly [flag in DrumMixEvent['flag']]: EventType } = {
-	'': eventTypes.discoFlipOff,
-	d: eventTypes.discoFlipOn,
-	dnoflip: eventTypes.discoNoFlipOn,
-}
-
 /** The disco flip `mix <difficulty> drums<configuration><flag>` event `value` is, at `tick`, if it's one of `difficulty`. */
 function chartDrumMix(value: string, difficulty: Difficulty, tick: number, reading: ParseRules['mixEvents']): DrumMixEvent | null {
 	const mix = readMixEvent(value, reading)
-	if (mix === null || mix.difficulty !== difficulty) return null
-	const { configuration, flag } = mix
-	return flag === '' || flag === 'd' || flag === 'dnoflip' ? { tick, configuration, flag } : null
+	if (mix === null || mix.difficulty !== difficulty || !setsDiscoFlip(mix, reading)) return null
+	return { tick, configuration: mix.configuration, flag: mix.flag }
 }
 
 export function getSEventType(value: string): EventType | null {

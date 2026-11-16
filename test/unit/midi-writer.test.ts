@@ -421,8 +421,8 @@ describe('writeMidiFile round-trip: drum tracks', () => {
 		const mixEvents = (data: Uint8Array) => parseMidi(data).tracks.flatMap(trackTexts).filter(([, text]) => /^\[?mix /.test(text))
 		const discoTicks = (chart: ParsedChart) => flatNotes(findTrack(chart, 'drums')).filter(n => n.flags & noteFlags.disco).map(n => n.tick)
 		const written = writeMidiFile(parsed)
-		// An easy mix event, which scan-chart doesn't read, is written back as it was.
-		expect(mixEvents(written)).toEqual([[0, 'mix 3 drums2'], [0, 'mix 0 drums4'], [480, 'mix 3 drums2d'], [1440, 'mix 3 drums2'], [1920, '[mix 3 drums2easy]']])
+		// An easy mix event, which turns the flip off, is written back with its flag.
+		expect(mixEvents(written)).toEqual([[0, 'mix 3 drums2'], [0, 'mix 0 drums4'], [480, 'mix 3 drums2d'], [1440, 'mix 3 drums2'], [1920, 'mix 3 drums2easy']])
 		const reparsed = parseChartAndIni([{ fileName: 'notes.mid', data: written }]).parsedChart!
 		expect(discoTicks(reparsed)).toEqual([480, 480, 960])
 		expect(findTrack(reparsed, 'drums').drumMixes).toEqual(findTrack(parsed, 'drums').drumMixes)
@@ -430,7 +430,7 @@ describe('writeMidiFile round-trip: drum tracks', () => {
 		// An edit takes the flip off the red note at 960.
 		for (const n of findTrack(parsed, 'drums').noteEventGroups.flat()) if (n.tick === 960) n.flags &= ~noteFlags.disco
 		const edited = writeMidiFile(parsed)
-		expect(mixEvents(edited)).toEqual([[0, 'mix 3 drums2'], [0, 'mix 0 drums4'], [480, 'mix 3 drums2d'], [960, 'mix 3 drums2'], [1440, 'mix 3 drums2'], [1920, '[mix 3 drums2easy]']])
+		expect(mixEvents(edited)).toEqual([[0, 'mix 3 drums2'], [0, 'mix 0 drums4'], [480, 'mix 3 drums2d'], [960, 'mix 3 drums2'], [1440, 'mix 3 drums2'], [1920, 'mix 3 drums2easy']])
 		expect(discoTicks(parseChartAndIni([{ fileName: 'notes.mid', data: edited }]).parsedChart!)).toEqual([480, 480])
 	})
 

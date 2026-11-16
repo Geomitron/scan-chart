@@ -253,6 +253,7 @@ export const sourceCases: readonly AuthoredSourceCase[] = [
 	...syncTrackAndInstrumentCases(),
 	...tapEndCases(),
 	...mixSpellingCases(),
+	...mixOtherFlagCases(),
 	...enhancedOpensLetterCaseCases(),
 	...byteOrderMarkCases(),
 	...trackCountCases(),
@@ -745,6 +746,36 @@ function mixSpellingCases(): AuthoredSourceCase[] {
 			id: 'source-midi-mix-leading-space',
 			purpose: '.mid: " [mix 3 drums0d]", which starts with a space, sets nothing, so no note flips.',
 			format: 'mid', bytes: spelledMixMidi([[192, ' [mix 3 drums0d]'], [1344, '[mix 3 drums0]']]), target,
+		},
+	]
+}
+
+/**
+ * A mix event whose flag doesn't start with `d` turns the flip off, as one with no flag does: `easy`, `easynokick` and
+ * an unknown flag, each after a flip from 192, and beside a `d` on its tick, which it wins over.
+ */
+function mixOtherFlagCases(): AuthoredSourceCase[] {
+	const target = { instrument: 'drums', difficulty: 'expert' } as const
+	const flags = [['easy', 'easy'], ['easynokick', 'easynokick'], ['unknown', 'x'], ['apostrophe', "'"]] as const
+	return [
+		...flags.flatMap(([name, flag]) => [{
+			id: `source-chart-mix-flag-${name}`,
+			purpose: `.chart: "mix 3 drums0d" flips at 192, and "mix 3 drums0${flag}" turns the flip off at 768.`,
+			format: 'chart' as const, bytes: spelledMixChart([[192, 'mix 3 drums0d'], [768, `mix 3 drums0${flag}`]]), target,
+		}, {
+			id: `source-midi-mix-flag-${name}`,
+			purpose: `.mid: "[mix 3 drums0d]" flips at 192, and "[mix 3 drums0${flag}]" turns the flip off at 768.`,
+			format: 'mid' as const, bytes: spelledMixMidi([[192, '[mix 3 drums0d]'], [768, `[mix 3 drums0${flag}]`]]), target,
+		}]),
+		{
+			id: 'source-chart-mix-easy-beside-d',
+			purpose: '.chart: "mix 3 drums0d" flips at 192, and at 768 "mix 3 drums0d" then "mix 3 drums0easy" turn the flip off.',
+			format: 'chart', bytes: spelledMixChart([[192, 'mix 3 drums0d'], [768, 'mix 3 drums0d'], [768, 'mix 3 drums0easy']]), target,
+		},
+		{
+			id: 'source-midi-mix-easy-beside-d',
+			purpose: '.mid: "[mix 3 drums0d]" flips at 192, and at 768 "[mix 3 drums0d]" then "[mix 3 drums0easy]" turn the flip off.',
+			format: 'mid', bytes: spelledMixMidi([[192, '[mix 3 drums0d]'], [768, '[mix 3 drums0d]'], [768, '[mix 3 drums0easy]']]), target,
 		},
 	]
 }
