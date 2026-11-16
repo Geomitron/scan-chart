@@ -1,5 +1,5 @@
 import { readChartSongEntries } from './chart/chart-file-parser'
-import { chartSongIniEntries, previewEndMs, secondsToMs } from './ini/chart-song-entries'
+import { chartSongIniEntries, previewEndMs, previewStartMs, secondsToMs } from './ini/chart-song-entries'
 import { defaultMetadata } from './ini/metadata'
 import { tokenizeIni } from './ini/parse-ini'
 import { extractSongMetadata, findIniData, scanIni } from './ini/scan-ini'
@@ -71,7 +71,7 @@ export function songMetadata(song: SongDocument, options: SongMetadataOptions = 
 }
 
 function previewFallbacks(metadata: Pick<SongMetadata, 'preview_start_time' | 'preview_end_time'>, chartSong: ReadonlyMap<string, string> | null): Partial<SongMetadata> {
-	const start = secondsToMs(chartSong?.get('PreviewStart'))
+	const start = previewStartMs(chartSong?.get('PreviewStart'))
 	const end = previewEndMs(chartSong?.get('PreviewEnd'))
 	return {
 		...(metadata.preview_start_time === -1 && start !== null ? { preview_start_time: start } : {}),
@@ -84,8 +84,8 @@ const documentMetadata = new ObjectCache<SongDocument, { plain?: SongMetadata; a
 function songMetadataFrom(ini: ReturnType<typeof scanIni>, chartSong: ReadonlyMap<string, string> | null, removeStyleTags: boolean): SongMetadata {
 	const chartOffsetMs = secondsToMs(chartSong?.get('Offset')) ?? 0
 	// Clone Hero reads only song.ini, in any letter case; scanIni also reads another .ini file when there's no song.ini.
-	// A preview time song.ini leaves unset is read from [Song], as Clone Hero reads PreviewStart. An end that isn't
-	// after 0 isn't set either (see previewEndMs).
+	// A preview time song.ini leaves unset is read from [Song], as Clone Hero reads PreviewStart. A [Song] start of 0
+	// isn't set (see previewStartMs), and nor is an end that isn't after 0 (see previewEndMs).
 	if (ini.metadata !== null && ini.songSection !== null) return { ...ini.metadata, ...previewFallbacks(ini.metadata, chartSong), chartOffsetMs }
 	// Without song.ini, [Song]'s values go through song.ini's reading and cleaning; its issues are about song.ini.
 	return { ...extractSongMetadata(Object.fromEntries(chartSong === null ? [] : chartSongIniEntries(chartSong)), { removeStyleTags }).metadata, chartOffsetMs }

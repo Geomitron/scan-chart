@@ -28,7 +28,7 @@ export function chartSongIniEntries(chartSong: ReadonlyMap<string, string>): [ke
 		if (value === undefined) continue
 		if (!inSeconds) entries.push([iniKey, chartKey === 'Year' && value.startsWith(', ') ? value.slice(2) : value])
 		else {
-			const ms = chartKey === 'PreviewEnd' ? previewEndMs(value) : secondsToMs(value)
+			const ms = chartKey === 'PreviewEnd' ? previewEndMs(value) : chartKey === 'PreviewStart' ? previewStartMs(value) : secondsToMs(value)
 			if (ms !== null) entries.push([iniKey, String(ms)])
 		}
 	}
@@ -43,6 +43,16 @@ export function chartSongIniEntries(chartSong: ReadonlyMap<string, string>): [ke
 export function secondsToMs(seconds: string | undefined): number | null {
 	const value = seconds === undefined ? NaN : Number(seconds)
 	return Number.isFinite(value) ? Math.ceil(Math.fround(Math.fround(value) * 1000)) : null
+}
+
+/**
+ * A `[Song]` PreviewStart in milliseconds, or `null` if it isn't set. Moonscraper writes `PreviewStart = 0` whether or
+ * not the charter chose a preview, so a start that reads as 0 isn't set, and the preview starts at the default. A
+ * song.ini `preview_start_time` of 0 is still a start at 0.
+ */
+export function previewStartMs(seconds: string | undefined): number | null {
+	const ms = secondsToMs(seconds)
+	return ms !== null && ms !== 0 ? ms : null
 }
 
 /**

@@ -158,6 +158,9 @@ describe('convertChart', () => {
 	it('copies a [Song] Offset into song.ini when it doesn\'t set delay, which only a .chart reads from [Song]', () => {
 		const { report } = convertChart(chartSong(expert(['0 = N 0 0']), '[song]\r\nname = Song\r\ndelay = 0\r\n', ['Offset = 0.5']), 'mid')
 		expect(report.settings).toEqual([{ key: 'delay', value: '500' }])
+		// A delay with a decimal point reads by the whole milliseconds before it: 0.1 is 0, so the Offset applies.
+		const pointDelay = convertChart(chartSong(expert(['0 = N 0 0']), '[song]\r\nname = Song\r\ndelay = 0.1\r\n', ['Offset = 0.5']), 'mid')
+		expect(pointDelay.report.settings).toEqual([{ key: 'delay', value: '500' }])
 	})
 
 	it('copies [Song] preview times into song.ini when it doesn\'t set them, but not Moonscraper\'s PreviewEnd = 0', () => {
@@ -166,6 +169,9 @@ describe('convertChart', () => {
 		expect(previews('0')).toEqual([{ key: 'preview_start_time', value: '30000' }])
 		const iniEndZero = convertChart(chartSong(expert(['0 = N 0 0']), '[song]\r\nname = Song\r\npreview_end_time = 0\r\n', ['PreviewEnd = 60']), 'mid')
 		expect(iniEndZero.report.settings).toEqual([{ key: 'preview_end_time', value: '60000' }])
+		// Nor Moonscraper's PreviewStart = 0, which reads as not set.
+		const startZero = convertChart(chartSong(expert(['0 = N 0 0']), '[song]\r\nname = Song\r\n', ['PreviewStart = 0', 'PreviewEnd = 60']), 'mid')
+		expect(startZero.report.settings).toEqual([{ key: 'preview_end_time', value: '60000' }])
 	})
 
 	it('writes multiplier_note when .mid would read solos as star power', () => {

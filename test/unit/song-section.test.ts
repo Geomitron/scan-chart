@@ -65,6 +65,13 @@ describe('the [Song] normalization', () => {
 		expect(songSectionAgreement(song(['Name = "Song"'], '[song]\nname = Song\npreview_end_time = 0\n'))).toBeNull()
 	})
 
+	it('leaves Moonscraper\'s PreviewStart = 0 alone, which reads as not set, but keeps song.ini\'s preview_start_time = 0', () => {
+		expect(songSectionAgreement(song(['Name = "Song"', 'PreviewStart = 0'], '[song]\nname = Song\n'))).toBeNull()
+		// song.ini's 0 is a start at 0, which [Song] already holds.
+		expect(songSectionAgreement(song(['Name = "Song"', 'PreviewStart = 0'], '[song]\nname = Song\npreview_start_time = 0\n'))).toBeNull()
+		expect(songLines(songSectionAgreement(song(['Name = "Song"', 'PreviewStart = 45.28'], '[song]\nname = Song\npreview_start_time = 0\n')))).toEqual(['Name = "Song"', 'PreviewStart = 0'])
+	})
+
 	it('compares times as the milliseconds Clone Hero rounds them to, and writes one that reads back exactly', () => {
 		expect(songSectionAgreement(song(['Offset = 0.5604', 'Name = "Song"'], '[song]\nname = Song\ndelay = 561\n'))).toBeNull()
 		expect(songLines(songSectionAgreement(song(['Offset = 0.25'], '[song]\ndelay = 500\n')))).toEqual(['Offset = 0.5'])
@@ -74,9 +81,9 @@ describe('the [Song] normalization', () => {
 		expect(songSectionAgreement(song(['Offset = -2.046'], '[song]\ndelay = -2046\n'))).toBeNull()
 	})
 
-	it('reads song.ini\'s numbers as Clone Hero does: a delay with a decimal point in seconds, and int.TryParse otherwise', () => {
-		expect(songSectionAgreement(song(['Offset = 0.5'], '[song]\ndelay = 0.5\n'))).toBeNull()
-		expect(songLines(songSectionAgreement(song(['Offset = 0.25'], '[song]\ndelay = 0.5\n')))).toEqual(['Offset = 0.5'])
+	it('reads song.ini\'s numbers as Clone Hero does: a delay with a decimal point by the whole milliseconds before it, and int.TryParse otherwise', () => {
+		expect(songSectionAgreement(song(['Offset = 0.5'], '[song]\ndelay = 500.9\n'))).toBeNull()
+		expect(songLines(songSectionAgreement(song(['Offset = 0.25'], '[song]\ndelay = 500.9\n')))).toEqual(['Offset = 0.5'])
 		// Clone Hero reads diff_band = 4abc as not set, so [Song]'s Difficulty, which it doesn't read, is removed.
 		expect(songLines(songSectionAgreement(song(['Difficulty = 4', 'Resolution = 192'], '[song]\ndiff_band = 4abc\n')))).toEqual(['Resolution = 192'])
 	})

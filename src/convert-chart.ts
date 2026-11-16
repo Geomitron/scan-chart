@@ -9,7 +9,7 @@ import { midiSustainCutoff, midiTextForChartEventsText, writeMidiFile } from './
 import { ParsedChart, parseSongChartAndIni } from './chart/parse-chart-and-ini'
 import { calculateCompetitiveHashes } from './competitive'
 import { ChartFormat, ChartReadError } from './gameplay-chart'
-import { previewEndMs, secondsToMs } from './ini/chart-song-entries'
+import { previewEndMs, previewStartMs, secondsToMs } from './ini/chart-song-entries'
 import { asUtf8Ini, setSongIniValue } from './ini/ini-edit'
 import { IniTokens, parseIniTokens } from './ini/parse-ini'
 import { readIniNumber } from './ini/scan-ini'
@@ -121,7 +121,7 @@ export function convertChart(
 		// Games read these [Song] values when song.ini doesn't set them, from a .chart only.
 		const offset = secondsToMs(chartSong.get('Offset'))
 		if (offset !== null && offset !== 0 && !isSet('delay', 0)) settings.push({ key: 'delay', value: String(offset) })
-		const previewStart = secondsToMs(chartSong.get('PreviewStart'))
+		const previewStart = previewStartMs(chartSong.get('PreviewStart'))
 		if (previewStart !== null && previewStart !== -1 && !isSet('preview_start_time', -1)) settings.push({ key: 'preview_start_time', value: String(previewStart) })
 		const previewEnd = previewEndMs(chartSong.get('PreviewEnd'))
 		if (previewEnd !== null && !isSet('preview_end_time', -1, 0)) settings.push({ key: 'preview_end_time', value: String(previewEnd) })

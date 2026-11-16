@@ -12,9 +12,10 @@ type Unit = 'text' | 'year' | 'number' | 'seconds'
 /**
  * The `.chart` `[Song]` keys with a song.ini counterpart (GuitarGame_ChartFormats: the `.chart` Format Overview and
  * song.ini's Standard Tags). `unset` holds the numbers that mean "not set" to games; a song.ini `delay` of 0 or
- * `preview_start_time` of -1 makes them read `[Song]`'s Offset or PreviewStart instead.
+ * `preview_start_time` of -1 makes them read `[Song]`'s Offset or PreviewStart instead. `chartUnset` holds the
+ * numbers that also mean "not set" in `[Song]` alone.
  */
-const pairs: readonly { readonly chartKey: string; readonly iniKey: string; readonly unit: Unit; readonly unset?: readonly number[] }[] = [
+const pairs: readonly { readonly chartKey: string; readonly iniKey: string; readonly unit: Unit; readonly unset?: readonly number[]; readonly chartUnset?: readonly number[] }[] = [
 	{ chartKey: 'Name', iniKey: 'name', unit: 'text' },
 	{ chartKey: 'Artist', iniKey: 'artist', unit: 'text' },
 	{ chartKey: 'Album', iniKey: 'album', unit: 'text' },
@@ -24,7 +25,8 @@ const pairs: readonly { readonly chartKey: string; readonly iniKey: string; read
 	{ chartKey: 'Difficulty', iniKey: 'diff_band', unit: 'number', unset: [-1] },
 	{ chartKey: 'Length', iniKey: 'song_length', unit: 'seconds', unset: [0] },
 	{ chartKey: 'Offset', iniKey: 'delay', unit: 'seconds', unset: [0] },
-	{ chartKey: 'PreviewStart', iniKey: 'preview_start_time', unit: 'seconds', unset: [-1] },
+	// Moonscraper writes PreviewStart = 0 whether or not the charter chose a preview (see previewStartMs).
+	{ chartKey: 'PreviewStart', iniKey: 'preview_start_time', unit: 'seconds', unset: [-1], chartUnset: [0] },
 	// Moonscraper writes PreviewEnd = 0 when there's no preview end (see previewEndMs).
 	{ chartKey: 'PreviewEnd', iniKey: 'preview_end_time', unit: 'seconds', unset: [-1, 0] },
 ]
@@ -70,7 +72,8 @@ export function songSectionAgreement(song: SongDocument): SongDocument | null {
 		const iniValue = iniSong[pair.iniKey] ?? ''
 		const iniSet = iniValue !== '' && isSet(pair, iniValue, 'ini')
 
-		if (iniSet && !(chartSet && agree(pair, chartValue!, iniValue))) {
+		// A [Song] value that agrees needs no edit, even one only [Song] reads as not set (a PreviewStart of 0).
+		if (iniSet && !(chartValue !== null && agree(pair, chartValue, iniValue))) {
 			// Rules 1 and 2: [Song] takes song.ini's value, on the line Clone Hero reads, or the key's first line.
 			const target = readLine ?? keyLines[0]
 			const text = target === undefined ? newLineText(pair, iniValue) : editedLineText(pair, lines[target], iniValue)
@@ -102,7 +105,8 @@ function isSet(pair: (typeof pairs)[number], value: string, side: 'chart' | 'ini
 	let number: number | null
 	if (side === 'ini') number = readIniNumber(pair.iniKey, value)
 	else number = pair.unit === 'seconds' ? secondsToMs(value) : parseFloat(value)
-	return number !== null && Number.isFinite(number) && !(pair.unset ?? []).includes(number)
+	const unset = [...pair.unset ?? [], ...side === 'chart' ? pair.chartUnset ?? [] : []]
+	return number !== null && Number.isFinite(number) && !unset.includes(number)
 }
 
 function agree(pair: (typeof pairs)[number], chartValue: string, iniValue: string): boolean {

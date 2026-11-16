@@ -210,6 +210,8 @@ describe('song.ini values', () => {
 		const offset = chartFile([], ['Offset = 0.2'])
 		expect(await values(['song_length = 2100'], codes, offset)).toEqual(short(2100, 2200))
 		expect(await values(['song_length = 2100', 'delay = -500'], codes, offset)).toEqual([])
+		// delay = 0.1 reads as 0, which leaves the Offset to apply.
+		expect(await values(['song_length = 2100', 'delay = 0.1'], codes, offset)).toEqual(short(2100, 2200))
 	})
 
 	it('recommends album_track, unless the album is a single', async () => {
@@ -330,9 +332,9 @@ describe('song.ini default values', () => {
 			'In "song.ini", "delay = 0", "modchart = False", "video_start_time = 0" and 2 more change nothing: games read the song the same without them. Remove those lines.',
 		])
 		expect(await unneeded(['delay = 50', 'modchart = True', 'video_start_time = 1000', 'chord_snap_threshold = 2', 'explicit_lyrics = True'])).toEqual([])
-		// A delay with a decimal point reads as seconds, so 0.0004 is 0 and 0.1 is 100 ms.
-		expect(await keys(['delay = 0.0004'])).toEqual([['"delay = ']])
-		expect(await unneeded(['delay = 0.1'])).toEqual([])
+		// A delay with a decimal point reads by the whole milliseconds before it, so 0.1 is 0 and 100.5 is 100.
+		expect(await keys(['delay = 0.1'])).toEqual([['"delay = ']])
+		expect(await unneeded(['delay = 100.5'])).toEqual([])
 	})
 
 	it('reports the values of the keys only YARG reads that it reads the same without', async () => {

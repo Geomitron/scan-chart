@@ -208,7 +208,7 @@ export function extractSongMetadata(
 		const read = writtenKey(songSection, key)
 		const value = songSection[read]
 		if (value === undefined || value === '' || isQuoted(value)) continue
-		if (isDelayInSeconds(key, value) || parseDotnetInt(value) === null) {
+		if (isDelayWithPoint(key, value) || parseDotnetInt(value) === null) {
 			metadataIssues.push({
 				metadataIssue: 'invalidValue',
 				description: `The "${read}" value in "song.ini" is "${value}", which is not an integer.`,
@@ -296,12 +296,13 @@ function getIniInteger<K extends MetaIntegerKey>(songSection: { readonly [key: s
 }
 
 /**
- * Reads a song.ini number as Clone Hero does: `int.TryParse` (see `parseDotnetInt`), but a `delay` containing "." as
- * seconds (see `parseSecondsAsMs`). -1, which a scanner reads as not set, is returned as -1.
+ * Reads a song.ini number as Clone Hero does: `int.TryParse` (see `parseDotnetInt`), but a `delay` containing "." by
+ * the text before the first ".", as whole milliseconds (StrikeCore `IniFile.GetTimeMs`, as YARG reads it). -1, which a
+ * scanner reads as not set, is returned as -1.
  * @returns the number, or `null` when the value isn't one a scanner reads, so the key's default is read instead.
  */
 export function readIniNumber(key: string, value: string): number | null {
-	return isDelayInSeconds(key, value) ? parseSecondsAsMs(value) : parseDotnetInt(value)
+	return parseDotnetInt(isDelayWithPoint(key, value) ? value.slice(0, value.indexOf('.')) : value)
 }
 
 /** Whether `value` is in quotation marks, which games keep as part of it. */
@@ -309,32 +310,9 @@ export function isQuoted(value: string): boolean {
 	return value.length >= 2 && value.startsWith('"') && value.endsWith('"')
 }
 
-/** Whether `value` is a `delay` that Clone Hero reads as seconds (StrikeCore `IniFile.GetTimeMs`): one containing ".". */
-function isDelayInSeconds(key: string, value: string): boolean {
+/** Whether `value` is a `delay` with a decimal point, which games read by the whole milliseconds before it. */
+function isDelayWithPoint(key: string, value: string): boolean {
 	return key === 'delay' && value.includes('.')
-}
-
-/**
- * Parses `value` as .NET's `float.TryParse` with `NumberStyles.Float` and the invariant culture accepts it (optional
- * ASCII whitespace, an optional sign, digits with a decimal point, an optional exponent, optional whitespace, then
- * optional NUL characters), as seconds, and returns the milliseconds truncated toward 0. It truncates the exact
- * decimal, so `1.001` is 1001 and `0.251` is 251, where Clone Hero's single precision gives 250.
- * @returns the milliseconds, or `null` when .NET would not parse the value, or when the milliseconds are outside the
- * signed 32-bit range, which Clone Hero's cast to `int` doesn't read reliably.
- */
-export function parseSecondsAsMs(value: string): number | null {
-	const match = /^[\x09-\x0d ]*([+-]?)(?=\.?[0-9])([0-9]*)(?:\.([0-9]*))?(?:[eE]([+-]?[0-9]+))?[\x09-\x0d ]*\x00*$/.exec(value)
-	if (match === null) return null
-	const [, sign, whole, fraction = '', exponent = '0'] = match
-	const digits = whole + fraction
-	const significant = digits.replace(/^0+/, '')
-	// How many of the significant digits come before the millisecond's decimal point.
-	const msDigits = whole.length + Number(exponent) + 3 - (digits.length - significant.length)
-	if (significant === '' || msDigits <= 0) return 0
-	if (msDigits > 10) return null
-	const ms = Number(significant.slice(0, msDigits).padEnd(msDigits, '0')) * (sign === '-' ? -1 : 1)
-	// "+ 0" turns -0, from a negative value under 1 ms, into 0.
-	return ms < -2147483648 || ms > 2147483647 ? null : ms + 0
 }
 
 /**

@@ -57,10 +57,14 @@ describe('song files', () => {
 		expect(await read('[song]\r\npreview_start_time = 0\r\n')).toMatchObject({ preview_start_time: 0, preview_end_time: 75500 })
 		// A preview can't end at the song's start, so song.ini's 0 isn't set either.
 		expect(await read('[song]\r\npreview_end_time = 0\r\n')).toMatchObject({ preview_end_time: 75500 })
-		// Moonscraper writes PreviewEnd = 0 when there's no preview end.
+		// Moonscraper writes PreviewStart = 0 and PreviewEnd = 0 whether or not the charter chose a preview, so neither is
+		// set, with song.ini or without it. song.ini's preview_start_time = 0 is still a start at 0.
 		const moonscraper = encode('[Song]\r\n{\r\n  PreviewStart = 0\r\n  PreviewEnd = 0\r\n  Resolution = 192\r\n}\r\n')
 		const { metadata } = await parseSongMetadata([{ fileName: 'notes.chart', data: moonscraper }])
-		expect(metadata).toMatchObject({ preview_start_time: 0, preview_end_time: -1 })
+		expect(metadata).toMatchObject({ preview_start_time: -1, preview_end_time: -1 })
+		const withIni = async (iniText: string) => (await parseSongMetadata([{ fileName: 'notes.chart', data: moonscraper }, { fileName: 'song.ini', data: encode(iniText) }])).metadata
+		expect(await withIni('[song]\r\nname = Song\r\n')).toMatchObject({ preview_start_time: -1 })
+		expect(await withIni('[song]\r\npreview_start_time = 0\r\n')).toMatchObject({ preview_start_time: 0 })
 	})
 
 	it('give a song document\'s metadata the same way, with style tags or without', async () => {
