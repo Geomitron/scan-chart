@@ -43,12 +43,12 @@ export interface ParseRules {
 	 */
 	readonly chartNonstandardLines: 'read' | 'ignored'
 	/**
-	 * A pro drums chart's 5-lane green note on the tick of a green note, on one difficulty. `invalid` is the spec's rule:
-	 * the chart is invalid, so games refuse it, and the parser reads the green note alone and records the tick. `blueTom`
-	 * is Clone Hero 1.1's reading, which moves the 5-lane green to a blue tom, or, beside a blue note, keeps that note's
-	 * type, accent and ghost with the longer of the two lengths.
+	 * A pro drums chart's 5-lane green note on the tick of a green note, on one difficulty. Both read the 5-lane green as
+	 * a blue tom with its own length and accent or ghost. `blueTom` is the spec's rule: where a blue note is also on the
+	 * tick, the 5-lane green is dropped, and the blue note keeps its own type, flags and length. `longerBlue` is Clone
+	 * Hero 1.1's reading, where the blue note keeps its own type, accent and ghost with the longer of the two lengths.
 	 */
-	readonly proDrumsGreenPair: 'invalid' | 'blueTom'
+	readonly proDrumsGreenPair: 'blueTom' | 'longerBlue'
 	/**
 	 * A kick and a double kick on one tick of one difficulty (`.mid` 96 and 95, `.chart` `N 0` and `N 32`). `kick` is the
 	 * spec's rule: the note is the kick, with the kick's own length. `longer` is Clone Hero 1.1's reading, which keeps the
@@ -93,7 +93,7 @@ const scanner: ParseRules = Object.freeze({
 	midiKickDynamics: 'ignored',
 	chartFlam: 'read',
 	chartNonstandardLines: 'read',
-	proDrumsGreenPair: 'invalid',
+	proDrumsGreenPair: 'blueTom',
 	kickPair: 'kick',
 	mixEvents: 'cloneHero',
 	midiEnhancedOpens: 'anyCase',
@@ -112,7 +112,7 @@ const frozenLegacy6142: ParseRules = Object.freeze({
 	midiKickDynamics: 'applied',
 	chartFlam: 'ignored',
 	chartNonstandardLines: 'ignored',
-	proDrumsGreenPair: 'blueTom',
+	proDrumsGreenPair: 'longerBlue',
 	kickPair: 'longer',
 	mixEvents: 'strict',
 	midiEnhancedOpens: 'capitals',
@@ -131,7 +131,7 @@ const canonical20260801: ParseRules = Object.freeze({
 	midiKickDynamics: 'ignored',
 	chartFlam: 'read',
 	chartNonstandardLines: 'read',
-	proDrumsGreenPair: 'invalid',
+	proDrumsGreenPair: 'blueTom',
 	kickPair: 'kick',
 	mixEvents: 'cloneHero',
 	midiEnhancedOpens: 'anyCase',

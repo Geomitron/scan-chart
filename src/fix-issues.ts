@@ -88,7 +88,7 @@ export async function fixIssues(song: SongDocument, options: FixOptions = {}): P
 	// The chart file's forms first, so the other fixes read the file as every reader does.
 	let fixed = fixReadingForms(song, issues, options, record)
 	fixed = fixMultiplierNote(fixHopoTags(fixed, issues, findings, record), issues, findings, record)
-	fixed = fixGreenDrumPairs(fixed, issues, record)
+	fixed = fixGreenDrumPairs(fixed, issues, options.changeHashes === true, record)
 	fixed = fixSustains(fixed, issues, { gapMs: options.sustainGapMs ?? 60, minMs: options.minSustainMs ?? 200, removeShort: makes('babySustain') }, record)
 	fixed = fixEmptyTracks(fixEmptyPhrases(fixed, issues, record), issues, record)
 	const songLength = issues.some(issue => issue.code === 'missingSongLength' || issue.code === 'songLengthMismatch') ? await longestAudio(song.files) : null

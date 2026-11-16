@@ -391,11 +391,12 @@ interface GreenPairFix {
 
 /**
  * Fixes `greenDrumPair`: turns each 5-lane green note on the tick of a green note in a pro drums chart into a blue tom,
- * as Clone Hero 1.1 plays it, keeping its accent or ghost, or removes it where a blue note is already on that tick. In a
+ * as a scanner reads it, keeping its accent or ghost, or removes it where a blue note is already on that tick. In a
  * `.mid` file the blue note is a tom under a blue tom marker, which covers every difficulty, so where another difficulty
- * has a blue note on the tick that a new marker would turn into a tom, the 5-lane green is removed instead.
+ * has a blue note on the tick that a new marker would turn into a tom, the 5-lane green is removed instead, which
+ * changes the hashes, so it's made only with `changeHashes`.
  */
-export function fixGreenDrumPairs(song: SongDocument, issues: readonly Issue[], record: FixRecord): SongDocument {
+export function fixGreenDrumPairs(song: SongDocument, issues: readonly Issue[], changeHashes: boolean, record: FixRecord): SongDocument {
 	const { chart } = song
 	const found = issues.filter(issue => issue.code === 'greenDrumPair' && issue.tick !== null && issue.difficulty !== null)
 	const before = parsedChart(song)
@@ -466,6 +467,7 @@ export function fixGreenDrumPairs(song: SongDocument, issues: readonly Issue[], 
 			}
 		}
 	})
+	const hashesBefore = songHashes(song)
 	// The other notes play as before, the green note stays, a converted tick gains its blue tom, and the pair is gone.
 	const notesOf = (groups: readonly (readonly NoteEvent[])[]) => groups.map(group => group.map(({ tick, length, type, flags }) => [tick, length, type, flags]))
 	const tomFlags = noteFlags.tom | noteFlags.accent | noteFlags.ghost
@@ -482,7 +484,9 @@ export function fixGreenDrumPairs(song: SongDocument, issues: readonly Issue[], 
 				return `would change other ${trackLabel(track)} notes`
 			}
 			for (const fix of own) {
-				const was = notesOf([track.noteEventGroups.find(group => group[0].tick === fix.tick) ?? []])[0]
+				// Removing the 5-lane green beside another difficulty's blue cymbal removes the blue tom it was read as.
+				const wasGroup = track.noteEventGroups.find(group => group[0].tick === fix.tick) ?? []
+				const was = notesOf([fix.reason === 'markerChangesOther' ? wasGroup.filter(note => note.type !== noteTypes.blueDrum) : wasGroup])[0]
 				const group = editedTrack.noteEventGroups.find(group => group[0].tick === fix.tick) ?? []
 				const now = notesOf([group])[0]
 				if (!was.every(note => now.some(other => sameAsJson(other, note)))) return `would change the other ${trackLabel(track)} notes at tick ${fix.tick}`
@@ -494,7 +498,8 @@ export function fixGreenDrumPairs(song: SongDocument, issues: readonly Issue[], 
 				}
 			}
 		}
-		return null
+		const changes = changeHashes ? [] : hashChanges(hashesBefore, songHashes(edited))
+		return changes.length === 0 ? null : `would change ${hashNames(changes)}: fix it with changeHashes`
 	}
 	const { song: fixed, chosen } = chooseEdits(song, fixes, apply, problem, (fix, reason) =>
 		record.skip('greenDrumPair', chart.fileName, `Fixing the ${fix.difficulty} drums 5-lane green note at tick ${fix.tick} ${reason}.`))

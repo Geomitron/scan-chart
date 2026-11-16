@@ -310,7 +310,7 @@ export type ChartIssueType =
 	| 'invalidPhraseEnd' // A phrase_end text event was found on the EVENTS track in a .mid chart (vocal phrases use MIDI notes 105/106 on PART VOCALS, not text events)
 	| 'chartOffset' // The .chart [Song] Offset isn't 0
 	| 'emptyTrack' // This instrument section or track has no notes, so games don't list it
-	| 'greenDrumPair' // In this pro drums chart, a 5-lane green note shares a tick with a green note, which makes the chart invalid
+	| 'greenDrumPair' // In this pro drums chart, a 5-lane green note shares a tick with a green note, which games read differently
 	| 'misplacedLyricSymbol' // This lyric has a "-" or "+" that isn't at its end, which Clone Hero and YARG read differently
 
 export type FolderIssueType =

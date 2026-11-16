@@ -192,11 +192,7 @@
 							},
 							{
 								"group": "Classes",
-								"pages": [
-									"scan-chart/api/index/classes/ChartReadError",
-									"scan-chart/api/index/classes/ConversionError",
-									"scan-chart/api/index/classes/InvalidChartError"
-								]
+								"pages": ["scan-chart/api/index/classes/ChartReadError", "scan-chart/api/index/classes/ConversionError"]
 							},
 							{
 								"group": "Variables",

@@ -646,8 +646,12 @@ describe('issueFixes', () => {
 		emptyFlexLane: { keeps: songOf([length], ['768 = N 0 0', '960 = N 1 0', '1800 = S 65 100']) },
 		badSustainGap: { changes: songOf([length], ['768 = N 0 170', '960 = N 1 0']) },
 		babySustain: { changes: songOf([length], ['768 = N 0 30', '960 = N 1 0']) },
-		// A chart with the pair has no hashes; turning the 5-lane green into a blue tom gives it some.
-		greenDrumPair: { changes: songOf([length, 'pro_drums = True'], undefined, [], ['[ExpertDrums]', '{', '  768 = N 4 0', '  768 = N 5 0', '  960 = N 1 0', '}']) },
+		// A scanner reads the 5-lane green as the blue tom the fix writes. In a .mid file, the fix removes it instead where
+		// a blue tom marker would turn Hard's blue cymbal on the tick into a tom.
+		greenDrumPair: {
+			keeps: songOf([length, 'pro_drums = True'], undefined, [], ['[ExpertDrums]', '{', '  768 = N 4 0', '  768 = N 5 0', '  960 = N 1 0', '}']),
+			changes: midSongOf([length, 'pro_drums = True'], [{ name: 'PART DRUMS', events: [...midiNote(960, 100), ...midiNote(960, 101), ...midiNote(960, 87)] }]),
+		},
 		// Clone Hero reads the first as a flip, as written in the standard spelling, and ignores the second.
 		nonstandardMixEvent: {
 			keeps: songOf([length], undefined, [], ['[ExpertDrums]', '{', '  0 = E mix 3 drumsxd', '  480 = N 1 0', '}']),
@@ -688,14 +692,7 @@ describe('issueFixes', () => {
 			const withheld = await run(changes, code, false)
 			expect(withheld.report.fixed.map(entry => entry.code), code).not.toContain(code)
 			expect(withheld.codes, code).toContain(code)
-			// A chart with a green pair has no hashes until its fix gives it some.
-			if (code === 'greenDrumPair') {
-				expect(withheld.before, code).toBeNull()
-				expect(withheld.after, code).toBeNull()
-				expect(withheld.report.hashes, code).toEqual([])
-			} else {
-				expectHashesKept(withheld)
-			}
+			expectHashesKept(withheld)
 			const made = await run(changes, code, true)
 			expect(made.report.fixed.map(entry => entry.code), code).toContain(code)
 			expect(made.codes, code).not.toContain(code)

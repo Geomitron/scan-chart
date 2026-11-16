@@ -24,7 +24,7 @@ describe('parse profiles', () => {
 			    "midiTrackChunks": "every",
 			    "mixEvents": "cloneHero",
 			    "phaseShiftSysEx": "exactly8Bytes",
-			    "proDrumsGreenPair": "invalid",
+			    "proDrumsGreenPair": "blueTom",
 			    "profile": "canonical20260801",
 			  },
 			  "frozenLegacy6142": {
@@ -42,7 +42,7 @@ describe('parse profiles', () => {
 			    "midiTrackChunks": "headerCount",
 			    "mixEvents": "strict",
 			    "phaseShiftSysEx": "7BytesOrMore",
-			    "proDrumsGreenPair": "blueTom",
+			    "proDrumsGreenPair": "longerBlue",
 			    "profile": "frozenLegacy6142",
 			  },
 			  "scanner": {
@@ -60,7 +60,7 @@ describe('parse profiles', () => {
 			    "midiTrackChunks": "every",
 			    "mixEvents": "cloneHero",
 			    "phaseShiftSysEx": "exactly8Bytes",
-			    "proDrumsGreenPair": "invalid",
+			    "proDrumsGreenPair": "blueTom",
 			    "profile": "scanner",
 			  },
 			}

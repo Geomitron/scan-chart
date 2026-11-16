@@ -249,6 +249,7 @@ export const sourceCases: readonly AuthoredSourceCase[] = [
 	...drumMarkerCases(),
 	...chartFlamCases(),
 	...kickPairCases(),
+	...greenPairCases(),
 	...discoCases(),
 	...syncTrackAndInstrumentCases(),
 	...tapEndCases(),
@@ -521,6 +522,46 @@ function chartFlamCases(): AuthoredSourceCase[] {
 				ExpertDrums: ['0 = N 0 0', '0 = N 2 0', '0 = N 109 480', '240 = N 1 0'],
 				HardDrums: ['0 = N 0 0', '0 = N 2 0'],
 			}),
+			target: { instrument: 'drums', difficulty: 'expert' },
+		},
+	]
+}
+
+/**
+ * In a pro drums chart, a 5-lane green note on the tick of a green note, tom or cymbal, is a blue tom with its own
+ * length and accent or ghost, whatever the blue markers say; where a blue note is also on the tick, the 5-lane green is
+ * dropped, and the blue note keeps its own type and length. A yellow at tick 0 makes each chart pro: a cymbal in the
+ * `.chart`, and in the `.mid` a tom under a yellow tom marker.
+ */
+function greenPairCases(): AuthoredSourceCase[] {
+	return [
+		{
+			id: 'source-chart-pro-drums-green-pair',
+			purpose: 'Pro .chart drums: N 4 with a 240-tick N 5, its accent N 38 and a blue cymbal marker N 67 at 480 (a 240-tick accented blue tom and a green tom); N 4 cymbal and N 5 at 960 (a blue tom and a green cymbal); N 3 under N 67, N 4, and a 480-tick N 5 with its ghost N 44 at 1440 (the N 5 dropped: a 0-tick blue cymbal and a green tom).',
+			format: 'chart',
+			bytes: chart({
+				Song: ['Resolution = 480'],
+				SyncTrack: ['0 = B 120000'],
+				Events: [],
+				ExpertDrums: [
+					'0 = N 2 0', '0 = N 66 0',
+					'480 = N 4 0', '480 = N 5 240', '480 = N 38 0', '480 = N 67 0',
+					'960 = N 4 0', '960 = N 68 0', '960 = N 5 0',
+					'1440 = N 3 0', '1440 = N 67 0', '1440 = N 4 0', '1440 = N 5 480', '1440 = N 44 0',
+				],
+			}),
+			target: { instrument: 'drums', difficulty: 'expert' },
+		},
+		{
+			id: 'source-midi-pro-drums-green-pair',
+			purpose: 'Pro .mid drums: 100 and a 240-tick 101 at 480 (a 240-tick blue tom with no tom marker 111, and a green cymbal); 100 under a green tom marker 112 and 101 at 960 (a blue tom and a green tom); 99, 100 and a 480-tick 101 at 1440 (the 101 dropped: a 0-tick blue cymbal and a green cymbal).',
+			format: 'mid',
+			bytes: midi([midiTrack('PART DRUMS', [
+				...note(0, 98, 0), ...note(0, 110, 0),
+				...note(480, 100, 0), ...note(480, 101, 240),
+				...note(960, 100, 0), ...note(960, 101, 0), ...note(960, 112, 0),
+				...note(1440, 99, 0), ...note(1440, 100, 0), ...note(1440, 101, 480),
+			])]),
 			target: { instrument: 'drums', difficulty: 'expert' },
 		},
 	]

@@ -173,7 +173,7 @@ export function resolveTrack(track: RawChartData['trackData'][number], context: 
 	const { timedTempos, drumType, iniChartModifiers, resolution: tpb, format, proDrumsGreenPair, kickPair } = context
 	const trimmed = trimSustains(track.trackEvents, iniChartModifiers.sustain_cutoff_threshold, tpb, format)
 	const grouped = groupByTick(trimmed)
-	// The ticks of a pro chart where a 5-lane green note shares a tick with the green note, which makes the chart invalid.
+	// The ticks of a pro chart where a 5-lane green note shares a tick with the green note.
 	const greenPairTicks: number[] = []
 	const resolved = track.instrument === 'drums'
 		? resolveDrumModifiers(grouped, drumType!, format, proDrumsGreenPair, greenPairTicks)
@@ -654,9 +654,10 @@ function trimSustains(
 }
 
 /**
- * The note groups of a drum track. In a pro chart, a 5-lane green note on the tick of a green note is dropped and its
- * tick added to `greenPairTicks` when `greenPair` is `invalid`, and moved to a blue tom when it's `blueTom`. Beside a blue
- * note, the moved 5-lane green takes that note's type, accent and ghost.
+ * The note groups of a drum track. In a pro chart, a 5-lane green note on the tick of a green note is a blue tom, and
+ * its tick is added to `greenPairTicks`. Where a blue note is also on the tick, `blueTom` drops the 5-lane green, and
+ * `longerBlue` gives it the blue note's type, accent and ghost and keeps both, so the longer is kept (see
+ * `sortAndFixInvalidNoteOverlaps`).
  */
 function resolveDrumModifiers(
 	trackEventGroups: TrackEvent[][],
@@ -678,6 +679,7 @@ function resolveDrumModifiers(
 		let flamFlag: number = noteFlags.none
 		let hasOrange = false
 		let hasGreen = false
+		let hasBlue = false
 		let discoFlipModifier: number | null = null
 
 		for (const e of events) {
@@ -688,6 +690,7 @@ function resolveDrumModifiers(
 				notes.push(e)
 				if (t === eventTypes.fiveGreenDrum) hasGreen = true
 				else if (t === eventTypes.fiveOrangeFourGreenDrum) hasOrange = true
+				else if (t === eventTypes.blueDrum) hasBlue = true
 			} else {
 				modifiers.push(t)
 				if (t === eventTypes.forceFlam) flamFlag = noteFlags.flam
@@ -715,10 +718,10 @@ function resolveDrumModifiers(
 
 		const hasOrangeAndGreen = hasOrange && hasGreen
 		const isGreenPair = hasOrangeAndGreen && drumType === drumTypes.fourLanePro
-		const dropsGreen = isGreenPair && greenPair === 'invalid'
-		if (dropsGreen) greenPairTicks.push(events[0].tick)
+		if (isGreenPair) greenPairTicks.push(events[0].tick)
+		const dropsGreen = isGreenPair && hasBlue && greenPair === 'blueTom'
 		// Clone Hero 1.1 gives a moved 5-lane green the blue note's flags, then keeps the longer of the two.
-		const greenTakesBlueFlags = isGreenPair && greenPair === 'blueTom' && notes.some(note => note.type === eventTypes.blueDrum)
+		const greenTakesBlueFlags = isGreenPair && hasBlue && greenPair === 'longerBlue'
 
 		for (const note of notes) {
 			if (dropsGreen && note.type === eventTypes.fiveGreenDrum) continue

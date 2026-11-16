@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest'
 import { parseChartFile, parseChartFileCanonicalIdentity, parseChartFileFrozenLegacyIdentity } from 'src/chart/parse-chart-file'
 import { noteFlags, noteTypes } from 'src/chart/types'
 import { calculateCompetitiveHashes } from 'src/competitive'
-import { convertChart, InvalidChartError } from 'src/convert-chart'
+import { convertChart } from 'src/convert-chart'
 import { fixIssues } from 'src/fix-issues'
 import { scanSongFolder } from 'src/scan-song-folder'
 import { editSong, parseSong, parseSongFiles } from 'src/song-document'
@@ -32,34 +32,54 @@ function notesAt(parse: Parse, data: Uint8Array, format: 'chart' | 'mid', tick: 
 const pairsOf = (parse: Parse, data: Uint8Array, format: 'chart' | 'mid') =>
 	parse(data, format).trackData.flatMap(track => (track.greenDrumPairs ?? []).map(pair => `${track.difficulty} ${pair.tick}`))
 
+/** The notes at `tick` of a track, as type, tom or cymbal, length, and accent or ghost. */
+function notesWithLengthAt(parse: Parse, data: Uint8Array, format: 'chart' | 'mid', tick: number, difficulty = 'expert') {
+	const track = parse(data, format).trackData.find(track => track.instrument === 'drums' && track.difficulty === difficulty)!
+	const group = track.noteEventGroups.find(group => group[0].tick === tick) ?? []
+	const name = (type: number) => Object.entries(noteTypes).find(([, value]) => value === type)![0]
+	return group.map(note => [name(note.type), note.flags & noteFlags.tom ? 'tom' : 'cymbal', note.length,
+		...note.flags & noteFlags.accent ? ['accent'] : [], ...note.flags & noteFlags.ghost ? ['ghost'] : []].join(' '))
+}
+
 describe('a 5-lane green note on the tick of a green note in a pro drums chart', () => {
-	it('is read as the green note alone and recorded, except in the frozen legacy profile, which moves it to a blue tom', () => {
-		const data = drumsChart(['768 = N 4 0', '768 = N 5 0', '960 = N 4 0', '960 = N 68 0', '960 = N 5 0'])
-		for (const parse of [parsers.scanner, parsers.canonical]) {
-			expect(notesAt(parse, data, 'chart', 768)).toEqual(['greenDrum tom'])
-			expect(notesAt(parse, data, 'chart', 960)).toEqual(['greenDrum cymbal'])
+	it('is a blue tom with its own length and accent or ghost, whatever the blue markers say, and is recorded', () => {
+		// N 38 accents the 5-lane green, and N 67 would make a blue note a cymbal.
+		const data = drumsChart(['768 = N 4 0', '768 = N 5 96', '768 = N 38 0', '960 = N 4 0', '960 = N 68 0', '960 = N 5 0', '960 = N 67 0'])
+		for (const parse of Object.values(parsers)) {
+			expect(notesWithLengthAt(parse, data, 'chart', 768)).toEqual(['blueDrum tom 96 accent', 'greenDrum tom 0'])
+			expect(notesWithLengthAt(parse, data, 'chart', 960)).toEqual(['blueDrum tom 0', 'greenDrum cymbal 0'])
 			expect(pairsOf(parse, data, 'chart')).toEqual(['expert 768', 'expert 960'])
 		}
-		expect(notesAt(parsers.legacy, data, 'chart', 768)).toEqual(['blueDrum tom', 'greenDrum tom'])
-		expect(notesAt(parsers.legacy, data, 'chart', 960)).toEqual(['blueDrum tom', 'greenDrum cymbal'])
-		expect(pairsOf(parsers.legacy, data, 'chart')).toEqual([])
 	})
 
-	it('reads the same in a .mid file, whether a tom marker covers the green note or not', () => {
+	it('is dropped where a blue note is on the tick, which keeps its own type, accent or ghost, and length', () => {
+		// N 44 makes the 5-lane green a ghost, and N 67 makes the blue note a cymbal.
+		const data = drumsChart(['768 = N 3 0', '768 = N 4 0', '768 = N 5 96', '768 = N 44 0', '768 = N 67 0', '960 = N 3 48', '960 = N 4 0', '960 = N 5 0'])
+		for (const parse of [parsers.scanner, parsers.canonical]) {
+			expect(notesWithLengthAt(parse, data, 'chart', 768)).toEqual(['blueDrum cymbal 0', 'greenDrum tom 0'])
+			expect(notesWithLengthAt(parse, data, 'chart', 960)).toEqual(['blueDrum tom 48', 'greenDrum tom 0'])
+			expect(pairsOf(parse, data, 'chart')).toEqual(['expert 768', 'expert 960'])
+		}
+		// Clone Hero 1.1 merges it into the blue note, which takes the 5-lane green's length when that's longer.
+		const legacy = drumsChart(['768 = N 3 0', '768 = N 4 0', '768 = N 5 96', '960 = N 3 48', '960 = N 4 0', '960 = N 5 0'])
+		expect(notesWithLengthAt(parsers.legacy, legacy, 'chart', 768)).toEqual(['blueDrum tom 96', 'greenDrum tom 0'])
+		expect(notesWithLengthAt(parsers.legacy, legacy, 'chart', 960)).toEqual(['blueDrum tom 48', 'greenDrum tom 0'])
+	})
+
+	it('reads the same in a .mid file, whether tom markers cover the tick or not', () => {
 		const data = midi({ 'PART DRUMS': [
 			{ tick: 0, noteNumber: 98 }, { tick: 0, noteNumber: 110 },
-			{ tick: 960, noteNumber: 100 }, { tick: 960, noteNumber: 101 }, { tick: 960, noteNumber: 112 },
+			{ tick: 960, noteNumber: 100 }, { tick: 960, noteNumber: 101, length: 240 }, { tick: 960, noteNumber: 112 },
 			{ tick: 1920, noteNumber: 100 }, { tick: 1920, noteNumber: 101 },
-			{ tick: 2880, noteNumber: 64 }, { tick: 2880, noteNumber: 65 },
+			{ tick: 2880, noteNumber: 64 }, { tick: 2880, noteNumber: 65 }, { tick: 2880, noteNumber: 63 },
 		] })
 		for (const parse of [parsers.scanner, parsers.canonical]) {
-			expect(notesAt(parse, data, 'mid', 960)).toEqual(['greenDrum tom'])
-			expect(notesAt(parse, data, 'mid', 1920)).toEqual(['greenDrum cymbal'])
-			expect(notesAt(parse, data, 'mid', 2880, 'easy')).toEqual(['greenDrum cymbal'])
+			expect(notesWithLengthAt(parse, data, 'mid', 960)).toEqual(['blueDrum tom 240', 'greenDrum tom 0'])
+			expect(notesWithLengthAt(parse, data, 'mid', 1920)).toEqual(['blueDrum tom 0', 'greenDrum cymbal 0'])
+			// With 63 on the tick, 65 is dropped and the blue cymbal stays.
+			expect(notesWithLengthAt(parse, data, 'mid', 2880, 'easy')).toEqual(['blueDrum cymbal 0', 'greenDrum cymbal 0'])
 			expect(pairsOf(parse, data, 'mid')).toEqual(['expert 960', 'expert 1920', 'easy 2880'])
 		}
-		expect(notesAt(parsers.legacy, data, 'mid', 960)).toEqual(['blueDrum tom', 'greenDrum tom'])
-		expect(notesAt(parsers.legacy, data, 'mid', 2880, 'easy')).toEqual(['blueDrum tom', 'greenDrum cymbal'])
 	})
 
 	it('takes the blue note\'s own type, accent and ghost with the longer length in the frozen legacy profile, as Clone Hero 1.1 does', () => {
@@ -93,23 +113,25 @@ describe('a 5-lane green note on the tick of a green note in a pro drums chart',
 		}
 	})
 
-	it('is reported, and gives the chart no hashes', async () => {
+	it('is reported as an error, and the chart has hashes', async () => {
 		const files = folder(drumsChart(['768 = N 4 0', '768 = N 5 0']))
-		const hashes = calculateCompetitiveHashes(parseSongFiles(files))
-		expect(hashes.accepted).toBe(false)
-		if (!hashes.accepted) expect(hashes.reason).toContain('at tick 768')
+		expect(calculateCompetitiveHashes(parseSongFiles(files)).accepted).toBe(true)
 		const scanned = await scanSongFolder(files, { competitiveHashes: true })
 		expect(scanned.issues.filter(issue => issue.code === 'greenDrumPair').map(({ difficulty, tick, severity }) => ({ difficulty, tick, severity })))
 			.toEqual([{ difficulty: 'expert', tick: 768, severity: 'error' }])
-		expect(scanned.issues.map(issue => issue.code)).toContain('badChartIdentity')
+		expect(scanned.issues.map(issue => issue.code)).not.toContain('badChartIdentity')
 	})
 
-	it('is kept as written by saving, and refused by conversion until it is fixed', async () => {
-		const song = await parseSong(folder(drumsChart(['768 = N 4 0', '768 = N 5 0'])))
+	it('is kept as written by saving, and converted as a scanner reads it', async () => {
+		const song = await parseSong(folder(drumsChart(['768 = N 3 0', '768 = N 4 0', '768 = N 5 0', '960 = N 4 0', '960 = N 5 96', '960 = N 38 0'])))
 		const saved = saveSong(song, editSong(song, batch => batch.setMetadata('name', 'Other'))).files
 		expect(new TextDecoder().decode(fileBytes(saved.find(file => file.fileName === 'notes.chart')!))).toContain('768 = N 5 0')
-		expect(() => convertChart(song, 'mid')).toThrow(InvalidChartError)
-		expect(() => convertChart(song, 'mid')).toThrow('Fix it with fixIssues (greenDrumPair) before converting.')
+		const converted = convertChart(song, 'mid').song.chart!
+		const bytes = converted.format === 'mid' ? converted.bytes : new Uint8Array()
+		// The .mid file keeps the .chart file's 192 ticks per beat.
+		expect(notesWithLengthAt(parsers.scanner, bytes, 'mid', 768)).toEqual(['blueDrum tom 0', 'greenDrum tom 0'])
+		expect(notesWithLengthAt(parsers.scanner, bytes, 'mid', 960)).toEqual(['blueDrum tom 96 accent', 'greenDrum tom 0'])
+		expect(pairsOf(parsers.scanner, bytes, 'mid')).toEqual([])
 	})
 })
 
@@ -127,7 +149,7 @@ describe('fixIssues on greenDrumPair', () => {
 		expect(calculateCompetitiveHashes(song).accepted).toBe(true)
 	})
 
-	it('gives the blue tom the 5-lane green\'s accent or ghost in a .chart file, as Clone Hero 1.1 plays it', async () => {
+	it('gives the blue tom the 5-lane green\'s accent or ghost in a .chart file, as a scanner reads it', async () => {
 		const { song, report } = await fix(folder(drumsChart(['768 = N 4 0', '768 = N 5 0', '768 = N 38 0', '960 = N 4 0', '960 = N 5 0', '960 = N 44 0', '960 = N 36 0'])))
 		expect(drumLines(chartText(song))).toEqual(['{', '0 = N 2 0', '0 = N 66 0', '768 = N 4 0', '768 = N 3 0', '768 = N 36 0', '960 = N 4 0', '960 = N 3 0', '960 = N 42 0'])
 		const fixedChart = new TextEncoder().encode(chartText(song)!)
@@ -160,5 +182,17 @@ describe('fixIssues on greenDrumPair', () => {
 				+ 'where a blue tom marker would turn another difficulty\'s blue cymbal on the tick into a tom.',
 			'Turned the hard drums 5-lane green note that shares a tick with a green note into a blue tom at tick 960.',
 		])
+	})
+
+	it('makes a fix that changes the hashes only with changeHashes, and the .chart fix keeps them', async () => {
+		const mid = midi({ 'PART DRUMS': [{ tick: 0, noteNumber: 98 }, { tick: 0, noteNumber: 110 }, { tick: 960, noteNumber: 100 }, { tick: 960, noteNumber: 101 }, { tick: 960, noteNumber: 87 }] })
+		const withheld = await fixIssues(await parseSong(folder(mid, 'notes.mid')), { codes: ['greenDrumPair'] })
+		expect(withheld.report.fixed).toEqual([])
+		expect(withheld.report.skipped.map(entry => entry.reason)).toEqual([
+			'Fixing the expert drums 5-lane green note at tick 960 would change the SongHash and a TrackHash: fix it with changeHashes.',
+		])
+		const chart = await fixIssues(await parseSong(folder(drumsChart(['768 = N 4 0', '768 = N 5 0']))), { codes: ['greenDrumPair'] })
+		expect(chart.report.fixed.map(entry => entry.code)).toEqual(['greenDrumPair'])
+		expect(chart.report.hashes).toEqual([])
 	})
 })

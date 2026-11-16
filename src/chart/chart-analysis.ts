@@ -106,7 +106,7 @@ export const chartIssueMessages: { readonly [issue in ChartIssueType]: string } 
 	invalidPhraseEnd: 'This phrase_end is on the EVENTS track. Vocal phrase boundaries in .mid charts must be MIDI note 105 (player 1) or 106 (player 2) on PART VOCALS.',
 	chartOffset: "The chart's [Song] Offset isn't 0.",
 	emptyTrack: "This track has no notes, so games don't list it.",
-	greenDrumPair: 'This pro drums chart has a 5-lane green note on the tick of a green note, which makes the chart invalid. Move one of them, or turn the 5-lane green into a blue tom.',
+	greenDrumPair: 'This pro drums chart has a 5-lane green note on the tick of a green note, which games read differently: some read the 5-lane green as a blue tom, and others refuse the chart. Turn the 5-lane green into a blue tom, or move one of them.',
 	misplacedLyricSymbol: 'This lyric has a "-" or "+" that isn\'t at its end. Clone Hero joins the next syllable to a lyric with a "-" anywhere in it, '
 		+ 'and a lyric that starts with "+" to the one before it, and YARG doesn\'t. To join the next syllable, put the "-" at the very end, '
 		+ 'after a closing tag such as "</i>". For a hyphen shown inside a lyric, write "=".',
