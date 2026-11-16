@@ -68,7 +68,7 @@ Two deprecated `song.ini` keys change the threshold in older charts. See [Deprec
 
 So every note of a chord has one type, in every scanner that snaps.
 
-**On drums,** a pad is its color, so a yellow tom and a yellow cymbal are one pad. A moved note on a pad the chord already has takes that note's tom or cymbal, accent or ghost, flam, double kick and disco, and the longer length stays: see [Remove duplicate notes](#remove-duplicate-notes). A moved note on another pad keeps its own flags, except that a red or yellow note takes the disco or disco no-flip of the chord's red or yellow note, when there is one. Clone Hero and scan-chart snap drums so.
+**On drums,** a pad is its color, so a yellow tom and a yellow cymbal are one pad. A moved note on a pad the chord already has takes that note's tom or cymbal, accent or ghost, flam, double kick and disco, and the longer length stays: see [Remove duplicate notes](#remove-duplicate-notes). When the chord has both a kick and a double kick, a moved kick or double kick joins the kick: the chord has one kick, with the longer length, and the double kick is dropped with its length. So a 0-tick kick and a 480-tick double kick, with a 192-tick kick that snaps onto them, become one 192-tick kick. Clone Hero snaps so from the release with its kick change. A moved note on another pad keeps its own flags, except that a red or yellow note takes the disco or disco no-flip of the chord's red or yellow note, when there is one. Clone Hero and scan-chart snap drums so.
 
 **Recommended:** leave `chord_snap_threshold` out of a new chart, and write the notes of each chord at one tick. Charts that set it stay valid.
 

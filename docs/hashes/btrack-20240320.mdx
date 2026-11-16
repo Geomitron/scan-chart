@@ -100,7 +100,7 @@ Clone Hero 1.1 fills the lists as [version 20260801](/hashes/btrack#from-a-chart
 | A `.mid` kick at the velocity of an accent or ghost | An accented or ghost kick | A kick |
 | `.chart` `N 109` | Ignored | A [flam](/chart/drums#flams) |
 | Tracks | Every recognized `.chart` section, and in a `.mid` file each instrument's Expert and each difficulty a modifier gives, even without notes | Only tracks with a note |
-| Two notes of one type at one tick | The longer, or the first of equal length, with the other's flags added. So a kick and a double kick are a double kick, and a note can be both ghost and accent | The [longer](/chart/note-resolution#remove-duplicate-notes) |
+| Two notes of one type at one tick | The longer, or the first of equal length, with the other's flags added. So a kick and a double kick are a double kick, and a note can be both ghost and accent | The [longer](/chart/note-resolution#remove-duplicate-notes). A kick and a double kick are the kick, with its own length |
 | A lane whose notes are all on its end tick | Left out | [Kept](/chart/phrases#lanes): a lane covers its end tick |
 | A note that `chord_snap_threshold` moves onto a note of its fret | The chord's type, and the next note's HOPO, come from the tick it moves to | They come from the [written ticks](/chart/note-resolution#snap-close-notes-into-chords) |
 | A `.chart` file without `[Song]` | Resolution 192, with no HOPO threshold and no sustain cutoff, so no natural HOPOs | Read as `Resolution = 192` |
