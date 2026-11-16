@@ -121,7 +121,7 @@ A `mix` event sets up the drum audio for one difficulty, and its `d` flag turns 
 |---|---|
 | Difficulty | `0` Easy, `1` Medium, `2` Hard, `3` Expert |
 | Configuration | `0` to `5`: which drum audio stems the song has. Games find the stems from the audio files, and ignore it |
-| Flag | `d` turns disco flip on, and no flag turns it off. `dnoflip` swaps the snare and the other drum audio, as `d` does on 4-lane drums, without swapping notes |
+| Flag | `d` turns disco flip on. No flag, `easy`, and `easynokick` turn it off. `dnoflip` swaps the snare and the other drum audio, as `d` does on 4-lane drums, without swapping notes |
 
 ```text
 3072 = E mix 3 drums0d
@@ -133,19 +133,20 @@ A `mix` event sets up the drum audio for one difficulty, and its `d` flag turns 
 - **Required:** one `mix` event of a difficulty at most at a tick.
 - On pro drums, a scanner swaps red and yellow back: red becomes a yellow cymbal, and yellow becomes red. On 4-lane drums the notes don't change. The snare and the other drum audio swap instead, so yellow plays the snare.
 - **Required:** single spaces between the parts, and a configuration from `0` to `5`.
-- **Required:** a flag from the table, or `easy` or `easynokick`.
+- **Required:** a flag from the table.
 - **Recommended:** disco flip events only in 4-lane and pro charts.
 
 **Edge case:** a scanner also accepts `_` between the parts, and square brackets around the text.
 
 **Edge case: `dnoflip` in Clone Hero.** Clone Hero swaps no audio for `dnoflip`, in a `.chart` or `.mid` file: red still plays the snare, as with no flip. YARG swaps the audio.
 
+**Edge case: other flags in Clone Hero.** In Clone Hero, a flip stays on at an event whose flag doesn't start with `d`, such as `easy`, in a `.chart` or `.mid` file, until the release with its disco flip change. YARG turns the flip off there, as a scanner does.
+
 **Edge case: disco flip in a 5-lane chart.** Clone Hero and scan-chart mark the red and yellow notes as flipped, and Clone Hero swaps them when the chart is played on a pro kit. YARG ignores `mix` events in a 5-lane chart.
 
 ## Ignored
 
 - **A `mix` event that names another difficulty** than its section's.
-- **The `mix` flags `easy` and `easynokick`,** which have no effect on the notes.
 - **`N 33` and `N 39`,** which some charts write for kick accents and ghosts. No scanner gives them a meaning.
 
 ## Invalid forms
@@ -167,7 +168,7 @@ A scanner reads other spellings as Clone Hero does, as the `.mid` [Drums](/mid/d
 </Accordion>
 
 <Accordion title="A mix event with another flag, such as drums0x">
-A scanner ignores it, as Clone Hero and YARG do, and scan-chart writes it back as it is.
+A scanner reads it as an event that turns the flip off, as YARG and scan-chart do. Clone Hero ignores it until the release with its disco flip change. Saving with scan-chart keeps the text as written, and its export writes the event without its flag, as `mix 3 drums0`. scan-chart reports it, and `fixIssues` can rewrite it the same way.
 </Accordion>
 
 <Accordion title="Two mix events of one difficulty at one tick">
