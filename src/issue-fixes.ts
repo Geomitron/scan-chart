@@ -50,6 +50,7 @@ export const issueFixTable: { readonly [code in IssueCode]?: IssueFix } = {
 		describe: fixes => `Renamed ${fixes.map(fix => `"${fix.subject}" to "${fix.value}"`).join(' and ')}.`,
 	},
 	redundantDrumType: { hashes: 'keepsHashes', steps: ['songIni'], describe: removed('games read the drums the same without') },
+	extraValue: { hashes: 'keepsHashes', steps: ['songIni'], describe: removed('rate instruments the chart doesn\'t have', 'rates an instrument the chart doesn\'t have') },
 	missingSongLength: { hashes: 'keepsHashes', steps: ['songIni'], describe: ([fix]) => `Set "song_length" to ${fix.value}, the length of the longest audio file in milliseconds.` },
 	songLengthMismatch: {
 		hashes: 'keepsHashes',

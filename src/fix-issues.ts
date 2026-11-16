@@ -10,13 +10,14 @@ import { isBooleanTag, isNumberTag, newerTag, olderTags } from './ini/metadata'
 import { IniTokens, parseIniTokens } from './ini/parse-ini'
 import { chooseEdits, FixRecord, hashChanges, hashNames, IniFixSubject, issueFixTable } from './issue-fixes'
 import type { Issue, IssueCode, MetadataFinding } from './issues'
-import { scanSong, songIniFindings } from './scan-song-folder'
+import { difficultyIssues, scanSong, songIniFindings } from './scan-song-folder'
 import { getBasename, hasCrowdOrPreviewName } from './shared/file-names'
 import { trimDotnet } from './shared/text'
 import { songContext } from './song-context'
 import { continueEdits, SongDocument, withSongIni } from './song-document'
 import { readFileBytes, readRange, type SongFile } from './song-files'
 import { songHashes } from './song-hashes'
+import { songMetadata } from './song-metadata'
 
 /** What `fixIssues` fixes, and how. */
 export interface FixOptions {
@@ -79,7 +80,10 @@ export async function fixIssues(song: SongDocument, options: FixOptions = {}): P
 			: 'Its fix changes a canonical hash: fix it with changeHashes.')
 	}
 	const issues = scanned.issues.filter(issue => makes(issue.code))
-	const findings = songIniFindings(song, context, scanned.stats, { styleNotes: true })
+	const findings = [
+		...songIniFindings(song, context, scanned.stats, { styleNotes: true }),
+		...(scanned.stats === null ? [] : difficultyIssues(songMetadata(song), scanned.stats)),
+	]
 
 	// The chart file's forms first, so the other fixes read the file as every reader does.
 	let fixed = fixReadingForms(song, issues, options, record)
@@ -185,7 +189,7 @@ function fixSongIni(
 	const fixes: IniFix[] = []
 	if (codes.has('iniLayout')) fixes.push({ code: 'iniLayout', subject: 'the layout', layout: true })
 	if (codes.has('iniTagOrder')) fixes.push({ code: 'iniTagOrder', subject: 'the tag order', order: true })
-	for (const code of ['blankIniValue', 'blankIniNumber', 'defaultIniValue', 'redundantDrumType'] as const) {
+	for (const code of ['blankIniValue', 'blankIniNumber', 'defaultIniValue', 'redundantDrumType', 'extraValue'] as const) {
 		for (const key of keysOf(code)) {
 			const fix = removalFix(code, key, songSection)
 			if (fix !== null) fixes.push(fix)

@@ -248,8 +248,8 @@ function chartedDifficultyKeys(stats: ChartStats): string[] {
 }
 
 /** song.ini difficulty ratings missing for a charted instrument, or set for one that isn't charted. */
-function difficultyIssues(metadata: SongMetadata, stats: ChartStats) {
-	const issues: { metadataIssue: 'missingValue' | 'extraValue'; description: string }[] = []
+export function difficultyIssues(metadata: SongMetadata, stats: ChartStats): MetadataFinding[] {
+	const issues: MetadataFinding[] = []
 	for (const [instrument, key] of ratings) {
 		if (stats.instruments.includes(instrument) && metadata[key] === defaultMetadata[key]) {
 			issues.push({ metadataIssue: 'missingValue', description: `Metadata is missing a "${key}" value.` })
@@ -260,11 +260,11 @@ function difficultyIssues(metadata: SongMetadata, stats: ChartStats) {
 	}
 	for (const [instrument, key] of ratings) {
 		if (metadata[key] !== defaultMetadata[key] && !stats.instruments.includes(instrument)) {
-			issues.push({ metadataIssue: 'extraValue', description: `Metadata contains "${key}", but ${instrument} is not charted.` })
+			issues.push({ metadataIssue: 'extraValue', description: `Metadata contains "${key}", but ${instrument} is not charted.`, keys: [key] })
 		}
 	}
 	if (metadata.diff_vocals !== defaultMetadata.diff_vocals && !stats.hasVocals) {
-		issues.push({ metadataIssue: 'extraValue', description: 'Metadata contains "diff_vocals", but vocals are not charted.' })
+		issues.push({ metadataIssue: 'extraValue', description: 'Metadata contains "diff_vocals", but vocals are not charted.', keys: ['diff_vocals'] })
 	}
 	return issues
 }

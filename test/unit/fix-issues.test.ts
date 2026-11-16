@@ -101,6 +101,16 @@ describe('fixIssues: song.ini', () => {
 		expectHashesKept(result)
 	})
 
+	it('removes the difficulties of instruments the chart doesn\'t have, keeping the ones it has and the hashes', async () => {
+		const result = await fix(folder(['[song]', 'name = Song', 'diff_guitar = 3', 'diff_keys = 4', 'diff_vocals = 2']))
+		expect(result.ini).toBe('[song]\r\nname = Song\r\ndiff_guitar = 3\r\n')
+		expect(result.report.fixed).toEqual([
+			{ code: 'extraValue', file: 'song.ini', description: 'Removed "diff_keys" and "diff_vocals", which rate instruments the chart doesn\'t have.' },
+		])
+		expect(result.codes).not.toContain('extraValue')
+		expectHashesKept(result)
+	})
+
 	it('fixes what a fix leaves changing nothing, such as pro_drum = True renamed on a chart the notes make pro', async () => {
 		const drums = chartFile(['[ExpertDrums]', '{', '  768 = N 2 0', '  768 = N 66 0', '}'])
 		const result = await fix(folder(['[song]', 'name = Song', 'pro_drum = True'], drums), { codes: ['deprecatedIniTag', 'redundantDrumType'] })
@@ -627,6 +637,7 @@ describe('issueFixes', () => {
 		iconName: { keeps: songOf([length, 'icon = Geo']), changes: songOf([length, 'icon = geo.png']) },
 		deprecatedIniTag: { keeps: songOf([length, 'frets = Someone']) },
 		redundantDrumType: { keeps: songOf([length, 'pro_drums = True']) },
+		extraValue: { keeps: songOf([length, 'diff_drums = 2']) },
 		missingSongLength: { keeps: songOf([]) },
 		songLengthMismatch: { keeps: songOf(['song_length = 200000']) },
 		emptyTrack: { keeps: songOf([length], undefined, [], ['[HardSingle]', '{', '}']) },
