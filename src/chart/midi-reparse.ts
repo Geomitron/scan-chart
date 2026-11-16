@@ -129,7 +129,7 @@ function parseReusing(
 		}
 		const { tempos, resolution } = earlier!.parsed
 		const drumType = chartDrumType(trackData, iniChartModifiers)
-		const context: TrackResolutionContext = { timedTempos: tempos, drumType, iniChartModifiers, resolution, format: 'mid', proDrumsGreenPair: rules.proDrumsGreenPair }
+		const context: TrackResolutionContext = { timedTempos: tempos, drumType, iniChartModifiers, resolution, format: 'mid', proDrumsGreenPair: rules.proDrumsGreenPair, kickPair: rules.kickPair }
 		const resolvedTracks = trackData.map(track => resolveOne(track, context))
 		const parsed = { ...earlier!.parsed, drumType, trackData: resolvedTracks.filter(track => isTrackAllocated(track.noteEventGroups, 'mid', rules)) }
 		return { key, bodies, instruments: earlier!.instruments, classified, resolved, firstCodaTick, parsed }

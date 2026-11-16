@@ -49,6 +49,12 @@ export interface ParseRules {
 	 */
 	readonly proDrumsGreenPair: 'invalid' | 'blueTom'
 	/**
+	 * A kick and a double kick on one tick of one difficulty (`.mid` 96 and 95, `.chart` `N 0` and `N 32`). `kick` is the
+	 * spec's rule: the note is the kick, with the kick's own length. `longer` is Clone Hero 1.1's reading, which keeps the
+	 * longer of the two, or the double kick when their lengths are equal.
+	 */
+	readonly kickPair: 'kick' | 'longer'
+	/**
 	 * How a drums `mix` event's text is read, in either format (C20: R2, R10). `cloneHero` reads it as Clone Hero's
 	 * `TryParseDiscoMixEvent` does: any spaces or `_` between the parts, a difficulty `int.TryParse` reads, any
 	 * configuration character, and any text after it that starts with `d` as a flip. `strict` is scan-chart 8's reading:
@@ -86,6 +92,7 @@ const scanner: ParseRules = Object.freeze({
 	chartFlam: 'read',
 	chartNonstandardLines: 'read',
 	proDrumsGreenPair: 'invalid',
+	kickPair: 'kick',
 	mixEvents: 'cloneHero',
 	midiEnhancedOpens: 'anyCase',
 	midiTrackChunks: 'every',
@@ -104,6 +111,7 @@ const frozenLegacy6142: ParseRules = Object.freeze({
 	chartFlam: 'ignored',
 	chartNonstandardLines: 'ignored',
 	proDrumsGreenPair: 'blueTom',
+	kickPair: 'longer',
 	mixEvents: 'strict',
 	midiEnhancedOpens: 'capitals',
 	midiTrackChunks: 'headerCount',
@@ -122,6 +130,7 @@ const canonical20260801: ParseRules = Object.freeze({
 	chartFlam: 'read',
 	chartNonstandardLines: 'read',
 	proDrumsGreenPair: 'invalid',
+	kickPair: 'kick',
 	mixEvents: 'cloneHero',
 	midiEnhancedOpens: 'anyCase',
 	midiTrackChunks: 'every',

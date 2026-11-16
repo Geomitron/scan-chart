@@ -114,6 +114,7 @@ export function resolveChartData(
 	// Evaluate trackData first — normalizedVocalTracks is used below for phrase-level hasLyrics check.
 	const context: TrackResolutionContext = {
 		timedTempos, drumType, iniChartModifiers, resolution: rawChartData.chartTicksPerBeat, format, proDrumsGreenPair: rules.proDrumsGreenPair,
+		kickPair: rules.kickPair,
 	}
 	const resolvedTracks = rawChartData.trackData.map(track => resolveOne(track, context))
 
@@ -146,6 +147,7 @@ export interface TrackResolutionContext {
 	readonly resolution: number
 	readonly format: 'chart' | 'mid'
 	readonly proDrumsGreenPair: ParseRules['proDrumsGreenPair']
+	readonly kickPair: ParseRules['kickPair']
 }
 
 /**
@@ -168,7 +170,7 @@ export type ResolvedTrack = ReturnType<typeof resolveTrack>
 
 /** Resolves one classified track: its notes and phrases, with times in milliseconds. Consumes the track's events. */
 export function resolveTrack(track: RawChartData['trackData'][number], context: TrackResolutionContext) {
-	const { timedTempos, drumType, iniChartModifiers, resolution: tpb, format, proDrumsGreenPair } = context
+	const { timedTempos, drumType, iniChartModifiers, resolution: tpb, format, proDrumsGreenPair, kickPair } = context
 	const trimmed = trimSustains(track.trackEvents, iniChartModifiers.sustain_cutoff_threshold, tpb, format)
 	const grouped = groupByTick(trimmed)
 	// The ticks of a pro chart where a 5-lane green note shares a tick with the green note, which makes the chart invalid.
@@ -177,7 +179,7 @@ export function resolveTrack(track: RawChartData['trackData'][number], context: 
 		? resolveDrumModifiers(grouped, drumType!, format, proDrumsGreenPair, greenPairTicks)
 		: resolveFretModifiers(grouped, iniChartModifiers, tpb, format)
 	const snapped = snapChords(resolved, iniChartModifiers.chord_snap_threshold, track.instrument)
-	sortAndFixInvalidNoteOverlaps(snapped)
+	sortAndFixInvalidNoteOverlaps(snapped, kickPair)
 	return {
 		instrument: track.instrument,
 		difficulty: track.difficulty,
@@ -1128,11 +1130,16 @@ function sortAndFixInvalidEventOverlaps(events: { tick: number; length: number; 
 	return events
 }
 
-function sortAndFixInvalidNoteOverlaps(noteGroups: UntimedNoteEvent[][]) {
+/**
+ * Keeps one note of each type at a tick, the longest, and sorts each group by type. With `kickPair` `kick`, a kick and
+ * a double kick on one tick keep the kick, whatever their lengths.
+ */
+function sortAndFixInvalidNoteOverlaps(noteGroups: UntimedNoteEvent[][], kickPair: ParseRules['kickPair']) {
+	const doubleKickOf = (note: UntimedNoteEvent) => kickPair === 'kick' && note.type === noteTypes.kick ? note.flags & noteFlags.doubleKick : 0
 	for (const noteGroup of noteGroups) {
 		if (noteGroup.length <= 1) continue
-		noteGroup.sort((a, b) => a.type - b.type || b.length - a.length || b.flags - a.flags) // Longest sustain is kept for duplicates
-		// In-place dedup on consecutive same-type entries (first is kept — has longest sustain).
+		noteGroup.sort((a, b) => a.type - b.type || doubleKickOf(a) - doubleKickOf(b) || b.length - a.length || b.flags - a.flags)
+		// In-place dedup on consecutive same-type entries: the first is kept.
 		let w = 1
 		for (let r = 1; r < noteGroup.length; r++) {
 			if (noteGroup[r].type !== noteGroup[w - 1].type) {

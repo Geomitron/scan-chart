@@ -248,6 +248,7 @@ export const sourceCases: readonly AuthoredSourceCase[] = [
 	...chartDynamicsCases(),
 	...drumMarkerCases(),
 	...chartFlamCases(),
+	...kickPairCases(),
 	...discoCases(),
 	...syncTrackAndInstrumentCases(),
 	...tapEndCases(),
@@ -519,6 +520,35 @@ function chartFlamCases(): AuthoredSourceCase[] {
 				ExpertDrums: ['0 = N 0 0', '0 = N 2 0', '0 = N 109 480', '240 = N 1 0'],
 				HardDrums: ['0 = N 0 0', '0 = N 2 0'],
 			}),
+			target: { instrument: 'drums', difficulty: 'expert' },
+		},
+	]
+}
+
+/**
+ * A kick and a double kick on one tick read as the kick, with the kick's own length, whatever the two lengths: on each of
+ * three ticks the double kick is longer, the kick is longer, and the two are the same length.
+ */
+function kickPairCases(): AuthoredSourceCase[] {
+	const pairs = [[0, 240, 480], [960, 480, 240], [1920, 240, 240]] as const
+	return [
+		{
+			id: 'source-chart-kick-and-double-kick',
+			purpose: 'N 0 and N 32 on each of three ticks, the N 32 longer, shorter, and the same length: each reads as the kick with its own length.',
+			format: 'chart',
+			bytes: chart({
+				Song: ['Resolution = 480'],
+				SyncTrack: ['0 = B 120000'],
+				Events: [],
+				ExpertDrums: pairs.flatMap(([tick, kick, doubleKick]) => [`${tick} = N 0 ${kick}`, `${tick} = N 32 ${doubleKick}`]),
+			}),
+			target: { instrument: 'drums', difficulty: 'expert' },
+		},
+		{
+			id: 'source-midi-kick-and-double-kick',
+			purpose: 'Notes 96 and 95 on each of three ticks, the 95 longer, shorter, and the same length: each reads as the kick with its own length.',
+			format: 'mid',
+			bytes: midi([midiTrack('PART DRUMS', pairs.flatMap(([tick, kick, doubleKick]) => [...note(tick, 96, kick), ...note(tick, 95, doubleKick)]))]),
 			target: { instrument: 'drums', difficulty: 'expert' },
 		},
 	]
