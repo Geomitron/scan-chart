@@ -32,13 +32,13 @@ function notesAt(parse: Parse, data: Uint8Array, format: 'chart' | 'mid', tick: 
 const pairsOf = (parse: Parse, data: Uint8Array, format: 'chart' | 'mid') =>
 	parse(data, format).trackData.flatMap(track => (track.greenDrumPairs ?? []).map(pair => `${track.difficulty} ${pair.tick}`))
 
-/** The notes at `tick` of a track, as type, tom or cymbal, length, and accent or ghost. */
+/** The notes at `tick` of a track, as type, tom or cymbal, length, accent or ghost, and disco flip. */
 function notesWithLengthAt(parse: Parse, data: Uint8Array, format: 'chart' | 'mid', tick: number, difficulty = 'expert') {
 	const track = parse(data, format).trackData.find(track => track.instrument === 'drums' && track.difficulty === difficulty)!
 	const group = track.noteEventGroups.find(group => group[0].tick === tick) ?? []
 	const name = (type: number) => Object.entries(noteTypes).find(([, value]) => value === type)![0]
 	return group.map(note => [name(note.type), note.flags & noteFlags.tom ? 'tom' : 'cymbal', note.length,
-		...note.flags & noteFlags.accent ? ['accent'] : [], ...note.flags & noteFlags.ghost ? ['ghost'] : []].join(' '))
+		...note.flags & noteFlags.accent ? ['accent'] : [], ...note.flags & noteFlags.ghost ? ['ghost'] : [], ...note.flags & noteFlags.disco ? ['disco'] : []].join(' '))
 }
 
 describe('a 5-lane green note on the tick of a green note in a pro drums chart', () => {
@@ -79,6 +79,16 @@ describe('a 5-lane green note on the tick of a green note in a pro drums chart',
 			// With 63 on the tick, 65 is dropped and the blue cymbal stays.
 			expect(notesWithLengthAt(parse, data, 'mid', 2880, 'easy')).toEqual(['blueDrum cymbal 0', 'greenDrum cymbal 0'])
 			expect(pairsOf(parse, data, 'mid')).toEqual(['expert 960', 'expert 1920', 'easy 2880'])
+		}
+		expect(notesWithLengthAt(parsers.legacy, data, 'mid', 960)).toEqual(['blueDrum tom 240', 'greenDrum tom 0'])
+		expect(notesWithLengthAt(parsers.legacy, data, 'mid', 1920)).toEqual(['blueDrum tom 0', 'greenDrum cymbal 0'])
+		expect(notesWithLengthAt(parsers.legacy, data, 'mid', 2880, 'easy')).toEqual(['blueDrum cymbal 0', 'greenDrum cymbal 0'])
+	})
+
+	it('stays a blue tom under a disco flip, which swaps only the red and yellow notes', () => {
+		const data = drumsChart(['0 = E mix 3 drums0d', '768 = N 1 0', '768 = N 4 0', '768 = N 5 0'])
+		for (const parse of Object.values(parsers)) {
+			expect(notesWithLengthAt(parse, data, 'chart', 768)).toEqual(['redDrum tom 0 disco', 'blueDrum tom 0', 'greenDrum tom 0'])
 		}
 	})
 
