@@ -564,6 +564,22 @@ function greenPairCases(): AuthoredSourceCase[] {
 			])]),
 			target: { instrument: 'drums', difficulty: 'expert' },
 		},
+		{
+			id: 'source-chart-pro-drums-two-green-pair',
+			purpose: 'Pro .chart drums: N 4 with two N 5 lines, 120 then 240 ticks, at 480, and 240 then 120 ticks at 960 (each a 240-tick blue tom and a green tom: both N 5 lines become blue toms and the longer stays, in either order).',
+			format: 'chart',
+			bytes: chart({
+				Song: ['Resolution = 480'],
+				SyncTrack: ['0 = B 120000'],
+				Events: [],
+				ExpertDrums: [
+					'0 = N 2 0', '0 = N 66 0',
+					'480 = N 4 0', '480 = N 5 120', '480 = N 5 240',
+					'960 = N 4 0', '960 = N 5 240', '960 = N 5 120',
+				],
+			}),
+			target: { instrument: 'drums', difficulty: 'expert' },
+		},
 	]
 }
 

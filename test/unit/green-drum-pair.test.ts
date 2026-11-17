@@ -85,6 +85,15 @@ describe('a 5-lane green note on the tick of a green note in a pro drums chart',
 		expect(notesWithLengthAt(parsers.legacy, data, 'mid', 2880, 'easy')).toEqual(['blueDrum cymbal 0', 'greenDrum cymbal 0'])
 	})
 
+	it('turns two 5-lane greens on one tick into blue toms, keeping the longer, in either line order', () => {
+		for (const lines of [['768 = N 4 0', '768 = N 5 48', '768 = N 5 96'], ['768 = N 4 0', '768 = N 5 96', '768 = N 5 48']]) {
+			const data = drumsChart(lines)
+			for (const parse of Object.values(parsers)) {
+				expect(notesWithLengthAt(parse, data, 'chart', 768)).toEqual(['blueDrum tom 96', 'greenDrum tom 0'])
+			}
+		}
+	})
+
 	it('stays a blue tom under a disco flip, which swaps only the red and yellow notes', () => {
 		const data = drumsChart(['0 = E mix 3 drums0d', '768 = N 1 0', '768 = N 4 0', '768 = N 5 0'])
 		for (const parse of Object.values(parsers)) {
@@ -157,6 +166,17 @@ describe('fixIssues on greenDrumPair', () => {
 			'Removed the expert drums 5-lane green note that shares a tick with a green note at tick 960, where a blue note is already on the tick.',
 		])
 		expect(calculateCompetitiveHashes(song).accepted).toBe(true)
+	})
+
+	it('turns two .chart 5-lane greens on one tick into the longer blue tom, keeping the hashes', async () => {
+		for (const greens of [['768 = N 5 48', '768 = N 5 96'], ['768 = N 5 96', '768 = N 5 48']]) {
+			const { song, report } = await fixIssues(await parseSong(folder(drumsChart(['768 = N 4 0', ...greens]))), { codes: ['greenDrumPair'] })
+			expect(drumLines(chartText(song))).toEqual(['{', '0 = N 2 0', '0 = N 66 0', '768 = N 4 0', '768 = N 3 96'])
+			expect(report.fixed.map(entry => entry.description)).toEqual([
+				'Turned the expert drums 5-lane green note that shares a tick with a green note into a blue tom at tick 768.',
+			])
+			expect(report.hashes).toEqual([])
+		}
 	})
 
 	it('gives the blue tom the 5-lane green\'s accent or ghost in a .chart file, as a scanner reads it', async () => {

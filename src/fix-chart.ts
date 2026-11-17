@@ -38,6 +38,9 @@ const chartSectionOf = (tokens: ChartFileTokens, instrument: Instrument, difficu
 
 /** The `.mid` track a reader reads for an instrument. */
 const midiTrackOf = (tokens: MidiTokens, instrument: Instrument) => midiAuthoredTracks(tokens).find(track => track.isFirst && track.instrument === instrument)
+/** The longest of `events`, the first among equals, or `undefined` when there are none. */
+const longest = <E extends { readonly length: number }>(events: readonly E[]) =>
+	events.reduce<E | undefined>((kept, event) => kept === undefined || event.length > kept.length ? event : kept, undefined)
 
 const isFret = (instrument: Instrument) => getInstrumentType(instrument) !== instrumentTypes.drums
 
@@ -372,7 +375,8 @@ export function fixSustains(
 interface GreenPairFix {
 	readonly difficulty: Difficulty
 	readonly tick: number
-	readonly green: AuthoredElement & { readonly length: number }
+	/** Every 5-lane green on the tick: a scanner reads them as one blue tom, with the longest length. */
+	readonly greens: readonly AuthoredElement[]
 	/**
 	 * The blue tom to add, with the flags the parse should give it (`null` to check only that it's a tom), or `null`
 	 * where the fix removes the 5-lane green only, for `reason`.
@@ -391,7 +395,8 @@ interface GreenPairFix {
 
 /**
  * Fixes `greenDrumPair`: turns each 5-lane green note on the tick of a green note in a pro drums chart into a blue tom,
- * as a scanner reads it, keeping its accent or ghost, or removes it where a blue note is already on that tick. In a
+ * as a scanner reads it, keeping its accent or ghost, or removes it where a blue note is already on that tick. Two
+ * 5-lane greens on one tick become one blue tom with the longer length. In a
  * `.mid` file the blue note is a tom under a blue tom marker, which covers every difficulty, so where another difficulty
  * has a blue note on the tick that a new marker would turn into a tom, the 5-lane green is removed instead, which
  * changes the hashes, so it's made only with `changeHashes`.
@@ -409,7 +414,8 @@ export function fixGreenDrumPairs(song: SongDocument, issues: readonly Issue[], 
 		if (chart.format === 'chart') {
 			const section = chartSectionOf(chart.tokens, 'drums', difficulty)
 			const onTick = section?.events.filter(event => event.tick === tick) ?? []
-			const green = onTick.find(event => event.type === eventTypes.fiveGreenDrum)
+			const greens = onTick.filter(event => event.type === eventTypes.fiveGreenDrum)
+			const green = longest(greens)
 			if (section === undefined || green === undefined) {
 				notFound()
 				continue
@@ -421,7 +427,7 @@ export function fixGreenDrumPairs(song: SongDocument, issues: readonly Issue[], 
 			const blueMarkers = hasBlue ? [] : [eventTypes.blueCymbalMarker, eventTypes.blueAccent, eventTypes.blueGhost].flatMap(ofType)
 			const accentFlag = accents.length > 0 ? noteFlags.accent : ghosts.length > 0 ? noteFlags.ghost : noteFlags.none
 			fixes.push({
-				difficulty, tick, green, container: section.section, tomMarker: false,
+				difficulty, tick, greens, container: section.section, tomMarker: false,
 				blueTom: hasBlue ? null : { length: green.length, flags: noteFlags.tom | accentFlag },
 				reason: hasBlue ? 'blueOnTick' : null,
 				removals: [...accents, ...ghosts, ...blueMarkers],
@@ -430,7 +436,8 @@ export function fixGreenDrumPairs(song: SongDocument, issues: readonly Issue[], 
 		} else {
 			const track = midiTrackOf(chart.tokens!, 'drums')
 			const onTick = track?.events.filter(event => event.tick === tick) ?? []
-			const green = onTick.find(event => event.scope === difficulty && event.type === eventTypes.fiveGreenDrum)
+			const greens = onTick.filter(event => event.scope === difficulty && event.type === eventTypes.fiveGreenDrum)
+			const green = longest(greens)
 			if (track === undefined || green === undefined) {
 				notFound()
 				continue
@@ -441,7 +448,7 @@ export function fixGreenDrumPairs(song: SongDocument, issues: readonly Issue[], 
 			// A new marker would turn another difficulty's blue cymbal on the tick into a tom.
 			const reason = blues.some(event => event.scope === difficulty) ? 'blueOnTick' : !covered && blues.length > 0 ? 'markerChangesOther' : null
 			fixes.push({
-				difficulty, tick, green, container: track.chunk, removals: [], modifiers: [], reason,
+				difficulty, tick, greens, container: track.chunk, removals: [], modifiers: [], reason,
 				// The velocity carries an accent or ghost, as the 5-lane green had.
 				blueTom: reason !== null ? null : { length: green.length, velocity: green.velocity, channel: green.channel, flags: null },
 				tomMarker: reason === null && !covered,
@@ -453,7 +460,7 @@ export function fixGreenDrumPairs(song: SongDocument, issues: readonly Issue[], 
 		// One tom marker covers every difficulty, so two fixes on a tick add one.
 		const markedTicks = new Set<number>()
 		for (const fix of chosen) {
-			batch.remove(fix.green)
+			for (const green of fix.greens) batch.remove(green)
 			for (const element of fix.removals) batch.remove(element)
 			if (fix.blueTom === null) continue
 			if (chart.format === 'chart') {
