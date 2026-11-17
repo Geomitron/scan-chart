@@ -102,12 +102,7 @@ describe('a 5-lane green note on the tick of a green note in a pro drums chart',
 	})
 
 	it('takes the blue note\'s own type, accent and ghost with the longer length in the frozen legacy profile, as Clone Hero 1.1 does', () => {
-		const notes = (data: Uint8Array, format: 'chart' | 'mid', tick: number) => {
-			const track = parsers.legacy(data, format).trackData.find(track => track.instrument === 'drums' && track.difficulty === 'expert')!
-			const group = track.noteEventGroups.find(group => group[0].tick === tick)!
-			return group.filter(note => note.type === noteTypes.blueDrum).map(note => [note.flags & noteFlags.tom ? 'tom' : 'cymbal', note.length,
-				...note.flags & noteFlags.accent ? ['accent'] : [], ...note.flags & noteFlags.ghost ? ['ghost'] : []].join(' '))
-		}
+		const notes = (data: Uint8Array, format: 'chart' | 'mid', tick: number) => notesWithLengthAt(parsers.legacy, data, format, tick)
 		// N 38 accents and N 44 ghosts the 5-lane green, N 36 accents the blue note, and N 67 makes it a cymbal.
 		const chart = drumsChart([
 			'768 = N 3 0', '768 = N 4 0', '768 = N 5 96', '768 = N 38 0',
@@ -115,10 +110,13 @@ describe('a 5-lane green note on the tick of a green note in a pro drums chart',
 			'1152 = N 3 0', '1152 = N 67 0', '1152 = N 4 0', '1152 = N 5 96', '1152 = N 44 0',
 			'1344 = N 3 0', '1344 = N 36 0', '1344 = N 4 0', '1344 = N 5 96',
 		])
-		expect([768, 960, 1152, 1344].map(tick => notes(chart, 'chart', tick))).toEqual([['tom 96'], ['cymbal 96'], ['cymbal 96'], ['tom 96 accent']])
+		expect([768, 960, 1152, 1344].map(tick => notes(chart, 'chart', tick))).toEqual([
+			['blueDrum tom 96', 'greenDrum tom 0'], ['blueDrum cymbal 96', 'greenDrum tom 0'],
+			['blueDrum cymbal 96', 'greenDrum tom 0'], ['blueDrum tom 96 accent', 'greenDrum tom 0'],
+		])
 		// A .mid blue note is a cymbal without a blue tom marker. The yellow tom marker at tick 0 makes the chart pro.
 		const mid = midi({ 'PART DRUMS': [{ tick: 0, noteNumber: 98 }, { tick: 0, noteNumber: 110 }, { tick: 960, noteNumber: 99 }, { tick: 960, noteNumber: 100 }, { tick: 960, noteNumber: 101, length: 480 }] })
-		expect(notes(mid, 'mid', 960)).toEqual(['cymbal 480'])
+		expect(notes(mid, 'mid', 960)).toEqual(['blueDrum cymbal 480', 'greenDrum cymbal 0'])
 	})
 
 	it('leaves a 5-lane chart and a lone 5-lane green in a pro chart as they are', () => {
