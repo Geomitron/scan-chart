@@ -655,7 +655,8 @@ function trimSustains(
 
 /**
  * The note groups of a drum track. In a pro chart, a 5-lane green note on the tick of a green note is dropped and its
- * tick added to `greenPairTicks` when `greenPair` is `invalid`, and moved to a blue tom when it's `blueTom`.
+ * tick added to `greenPairTicks` when `greenPair` is `invalid`, and moved to a blue tom when it's `blueTom`. Beside a blue
+ * note, the moved 5-lane green takes that note's type, accent and ghost.
  */
 function resolveDrumModifiers(
 	trackEventGroups: TrackEvent[][],
@@ -713,11 +714,15 @@ function resolveDrumModifiers(
 		}
 
 		const hasOrangeAndGreen = hasOrange && hasGreen
-		const dropsGreen = hasOrangeAndGreen && drumType === drumTypes.fourLanePro && greenPair === 'invalid'
+		const isGreenPair = hasOrangeAndGreen && drumType === drumTypes.fourLanePro
+		const dropsGreen = isGreenPair && greenPair === 'invalid'
 		if (dropsGreen) greenPairTicks.push(events[0].tick)
+		// Clone Hero 1.1 gives a moved 5-lane green the blue note's flags, then keeps the longer of the two.
+		const greenTakesBlueFlags = isGreenPair && greenPair === 'blueTom' && notes.some(note => note.type === eventTypes.blueDrum)
 
 		for (const note of notes) {
 			if (dropsGreen && note.type === eventTypes.fiveGreenDrum) continue
+			const flagsFrom = greenTakesBlueFlags && note.type === eventTypes.fiveGreenDrum ? eventTypes.blueDrum : note.type
 			const type = getDrumNoteTypeFromEventType(note.type, hasOrangeAndGreen)!
 			const canBeDisco = type === noteTypes.redDrum || type === noteTypes.yellowDrum
 			const discoFlag =
@@ -729,7 +734,7 @@ function resolveDrumModifiers(
 				tick: note.tick,
 				length: note.length,
 				type,
-				flags: baseFlags | getTomOrCymbalFlags(note.type, modifiers, drumType, format) | getGhostOrAccentFlags(note.type, modifiers),
+				flags: baseFlags | getTomOrCymbalFlags(flagsFrom, modifiers, drumType, format) | getGhostOrAccentFlags(flagsFrom, modifiers),
 			})
 		}
 

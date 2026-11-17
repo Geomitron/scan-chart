@@ -45,7 +45,8 @@ export interface ParseRules {
 	/**
 	 * A pro drums chart's 5-lane green note on the tick of a green note, on one difficulty. `invalid` is the spec's rule:
 	 * the chart is invalid, so games refuse it, and the parser reads the green note alone and records the tick. `blueTom`
-	 * is Clone Hero 1.1's reading, which moves the 5-lane green to a blue tom.
+	 * is Clone Hero 1.1's reading, which moves the 5-lane green to a blue tom, or, beside a blue note, keeps that note's
+	 * type, accent and ghost with the longer of the two lengths.
 	 */
 	readonly proDrumsGreenPair: 'invalid' | 'blueTom'
 	/**
