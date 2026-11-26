@@ -44,8 +44,8 @@ export interface ParseRules {
 	readonly midiFlam: 'laneVelocities' | 'everyDifficulty'
 	/**
 	 * Whether a `.chart` line or section written in a nonstandard way is read as what it probably means
-	 * (chart-line-spelling.ts), with a resolution of 192 when the file gives none. Clone Hero refuses such a file, or
-	 * reads it the same way; scan-chart 8 skipped such a line, which the frozen profile keeps doing.
+	 * (chart-line-spelling.ts), with a resolution of 192 when the `[Song]` section gives none. Clone Hero refuses such a
+	 * file, or reads it the same way; scan-chart 8 skipped such a line, which the frozen profile keeps doing.
 	 */
 	readonly chartNonstandardLines: 'read' | 'ignored'
 	/**

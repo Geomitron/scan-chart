@@ -5,9 +5,12 @@ import { authoredSongEvents, chartAuthoredTracks } from 'src/chart/authored-view
 import { tokenizeChartFile } from 'src/chart/chart-file-parser'
 import { chartLineSpelling, chartSectionSpellings, chartSongSpellings } from 'src/chart/chart-line-spelling'
 import { chartNormalizations } from 'src/chart/chart-normalize'
-import { parseChartFileCanonicalIdentity, parseChartFileFrozenLegacyIdentity } from 'src/chart/parse-chart-file'
+import { parseChartFile, parseChartFileCanonicalIdentity, parseChartFileFrozenLegacyIdentity } from 'src/chart/parse-chart-file'
+import { canonical20260801, frozenLegacy6142 } from 'src/chart/identity/public'
 import { calculateCompetitiveHashes } from 'src/competitive'
 import { resolveChart } from 'src/gameplay-chart'
+import { defaultMetadata } from 'src/ini/metadata'
+import { scanSongFolder } from 'src/scan-song-folder'
 import { editSong, parseSongFiles } from 'src/song-document'
 import { fileBytes } from 'src/song-files'
 import { songHashes } from 'src/song-hashes'
@@ -111,10 +114,24 @@ describe('parsing a nonstandard .chart file', () => {
 		expect(canonical.trackData[0].noteEventGroups).toHaveLength(2)
 	})
 
-	it('reads a file without a resolution with 192, and one written as Resolution=480 with 480; the frozen profile refuses both', () => {
+	it('refuses a file without a [Song] section in every profile, and gives the reason a scan reports', async () => {
+		const refusal = 'Invalid .chart file: no [Song] section was found. Add one at the start of the file with "Resolution = 192" to keep the notes where they are.'
 		const noSong = encode(chartText([['SyncTrack', ['0 = B 120000']], ['ExpertSingle', ['0 = N 0 0']]]))
-		expect(parseChartFileCanonicalIdentity(noSong, 'chart').resolution).toBe(192)
-		expect(() => parseChartFileFrozenLegacyIdentity(noSong, 'chart')).toThrow('resolution not found')
+		const files = [{ fileName: 'notes.chart', data: noSong }, songIni]
+		const scanned = await scanSongFolder(files)
+		expect(scanned.issues.filter(issue => issue.code === 'badChart').map(({ severity, message }) => ({ severity, message }))).toEqual([{ severity: 'error', message: refusal }])
+		expect(calculateCompetitiveHashes(parseSongFiles(files))).toEqual({ accepted: false, reason: refusal })
+		expect(() => parseChartFile(noSong, 'chart')).toThrow(refusal)
+		const request = { source: { format: 'chart', bytes: noSong }, modifiers: defaultMetadata } as const
+		expect(canonical20260801.parseSource(request)).toEqual({ kind: 'rejected', errors: [{ code: 'sourceParseFailed', message: refusal }] })
+		expect(frozenLegacy6142.parseSource(request)).toEqual({ kind: 'rejected', errors: [{ code: 'sourceParseFailed', message: refusal }] })
+	})
+
+	it('reads a [Song] without a resolution with 192, and one written as Resolution=480 with 480; the frozen profile refuses the first', () => {
+		const noResolution = encode(chartText([['Song', ['Name = "Test"']], ['SyncTrack', ['0 = B 120000']], ['ExpertSingle', ['0 = N 0 0']]]))
+		expect(parseChartFile(noResolution, 'chart').resolution).toBe(192)
+		expect(parseChartFileCanonicalIdentity(noResolution, 'chart').resolution).toBe(192)
+		expect(() => parseChartFileFrozenLegacyIdentity(noResolution, 'chart')).toThrow('resolution not found')
 		const spaced = encode(chartText([['Song', ['Resolution=480']], ['SyncTrack', ['0 = B 120000']], ['ExpertSingle', ['0 = N 0 0']]]))
 		expect(parseChartFileCanonicalIdentity(spaced, 'chart').resolution).toBe(480)
 		for (const written of ['Resolution = abc', 'Resolution=abc', 'Resolution = 0']) {
@@ -210,8 +227,8 @@ describe('saving a nonstandard .chart file', () => {
 		])
 	})
 
-	it('adds a [Song] section to a file without one, and gives what\'s left of a cut-off line before } a line of its own, then removes it', () => {
-		const text = '[SyncTrack]\r\n{\r\n  0 = B 120000\r\n}\r\n[ExpertSingle]\r\n{\r\n  0 = N 0 0\r\n  419040}\r\n'
+	it('adds a Resolution to a [Song] without one, and gives what\'s left of a cut-off line before } a line of its own, then removes it', () => {
+		const text = '[Song]\r\n{\r\n}\r\n[SyncTrack]\r\n{\r\n  0 = B 120000\r\n}\r\n[ExpertSingle]\r\n{\r\n  0 = N 0 0\r\n  419040}\r\n'
 		expect(normalized(text).text).toBe('[Song]\r\n{\r\n  Resolution = 192\r\n}\r\n[SyncTrack]\r\n{\r\n  0 = B 120000\r\n}\r\n[ExpertSingle]\r\n{\r\n  0 = N 0 0\r\n}\r\n')
 	})
 
@@ -246,14 +263,14 @@ describe('saving a nonstandard .chart file', () => {
 		expect(songHashes(parseSongFiles(files))?.get('canonical:guitar:hard')).toBe(songHashes(original)?.get('canonical:guitar:hard'))
 	})
 
-	it('normalizes an edited file the frozen profile refuses, such as one without a [Song] section', () => {
-		const original = song([head[1], ['ExpertSingle', ['0 N 0 0', '192 = N 1 0']]])
+	it('normalizes an edited file the frozen profile refuses, such as one whose [Song] section has no Resolution', () => {
+		const original = song([['Song', ['Name = "Test"', 'Length = 60']], head[1], ['ExpertSingle', ['0 N 0 0', '192 = N 1 0']]])
 		const tokens = original.chart?.format === 'chart' ? original.chart.tokens : null
 		const expert = chartAuthoredTracks(tokens!).find(track => track.sectionName === 'ExpertSingle')!
 		const edited = editSong(original, batch => batch.setLength(expert.events.find(event => event.tick === 192)!, 96))
 		const { files, report } = saveSong(original, edited)
 		expect(report.withheld).toEqual([])
-		expect(decode(fileBytes(files[0]))).toBe(chartText([['Song', ['Resolution = 192']], head[1], ['ExpertSingle', ['0 = N 0 0', '192 = N 1 96']]]))
+		expect(decode(fileBytes(files[0]))).toBe(chartText([...savedHead, ['ExpertSingle', ['0 = N 0 0', '192 = N 1 96']]]))
 	})
 
 	it('edits a nonstandard line from the standard spelling it\'s read as', () => {

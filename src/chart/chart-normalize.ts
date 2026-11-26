@@ -165,9 +165,9 @@ function spelledLineSplices(
 }
 
 /**
- * The splices that put `[Song]` first and `[SyncTrack]` second, adding a `[Song]` section, or a `Resolution` in it,
- * with the resolution a reader uses when the file gives none. None when a section to move holds bytes that aren't
- * valid in the file's encoding.
+ * The splices that put `[Song]` first and `[SyncTrack]` second, adding a `Resolution` to `[Song]`, with the resolution
+ * a reader uses when `[Song]` gives none. None when a section to move holds bytes that aren't valid in the file's
+ * encoding, or when the file has no `[Song]`, which every profile refuses.
  */
 function sectionOrderSplices(tokens: ChartFileTokens): Splice[] {
 	const { text, sections } = tokens
@@ -183,24 +183,22 @@ function sectionOrderSplices(tokens: ChartFileTokens): Splice[] {
 		return { start: text.lastIndexOf('\n', header) + 1, end: lineStartAfter(section.bodyEnd), section }
 	}
 	const song = block('Song')
+	if (song === null) return []
 	const syncTrack = block('SyncTrack')
 	const splices: Splice[] = []
 
-	let songText: string | null = null
-	if (song === null) {
-		songText = `[Song]${newLine}{${newLine}  Resolution = ${defaultChartResolution}${newLine}}${newLine}`
-	} else if (!chartSectionLines(tokens, song.section).some(line => /^Resolution[ \t]*=/.test(line.text))) {
+	if (!chartSectionLines(tokens, song.section).some(line => /^Resolution[ \t]*=/.test(line.text))) {
 		const firstLine = lineStartAfter(song.section.bodyStart - 1)
 		splices.push({ start: firstLine, end: firstLine, text: `  Resolution = ${defaultChartResolution}${newLine}` })
 	}
-	const songFirst = song !== null && sections[0] === song.section
-	const syncTrackSecond = syncTrack !== null && sections[song === null ? 0 : 1] === syncTrack.section
-	if (songText === null && songFirst && (syncTrack === null || syncTrackSecond)) return splices
+	const songFirst = sections[0] === song.section
+	const syncTrackSecond = syncTrack !== null && sections[1] === syncTrack.section
+	if (songFirst && (syncTrack === null || syncTrackSecond)) return splices
 
 	// Move both sections to the top: each is cut from where it is, and written first, in order.
 	const moved = [song, syncTrack].filter(found => found !== null)
 	if (moved.some(found => !chartTextRoundTrips(tokens, found.start, found.end))) return []
-	const insertion = (songText ?? '') + moved.map(found => {
+	const insertion = moved.map(found => {
 		const written = text.slice(found.start, found.end)
 		const added = splices.find(splice => splice.start >= found.start && splice.start < found.end)
 		const withAdded = added ? written.slice(0, added.start - found.start) + added.text + written.slice(added.start - found.start) : written

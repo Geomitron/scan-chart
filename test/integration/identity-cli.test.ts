@@ -184,18 +184,18 @@ describe('identity CLI generation', () => {
 
 	it('generates the canonical artifacts of a chart the frozen legacy profile refuses, with the legacy side unavailable', async () => {
 		const root = await temporaryDirectory()
-		for (const [name, chart] of [['no-song', validChart().replace('[Song]\r\n{\r\n  Resolution = 192\r\n}\r\n', '')], ['song', validChart()]]) {
+		for (const [name, chart] of [['no-resolution', validChart().replace('  Resolution = 192\r\n', '')], ['resolution', validChart()]]) {
 			await mkdir(join(root, name))
 			await writeFile(join(root, name, 'notes.chart'), chart)
 		}
 
 		const result = await generate({ input: root, output: join(root, 'output') })
-		const [noSong, withSong] = result.results
-		if (noSong?.kind !== 'success' || withSong?.kind !== 'success') throw new Error(JSON.stringify(result.results))
-		expect(noSong.legacySongHash).toBeNull()
-		// The canonical profile reads a .chart without [Song] as Resolution = 192.
-		expect(noSong.canonicalSongHash).toBe(withSong.canonicalSongHash)
-		const songRoot = join(root, 'output', 'songs', 'no-song')
+		const [noResolution, withResolution] = result.results
+		if (noResolution?.kind !== 'success' || withResolution?.kind !== 'success') throw new Error(JSON.stringify(result.results))
+		expect(noResolution.legacySongHash).toBeNull()
+		// The canonical profile reads a [Song] without Resolution as Resolution = 192.
+		expect(noResolution.canonicalSongHash).toBe(withResolution.canonicalSongHash)
+		const songRoot = join(root, 'output', 'songs', 'no-resolution')
 		await expect(access(join(songRoot, 'canonical20260801', 'tracks', '000-guitar-expert', 'physical.btrack'))).resolves.toBeUndefined()
 		await expect(access(join(songRoot, 'frozenLegacy6142'))).rejects.toThrow()
 		const manifest = JSON.parse(await readFile(join(songRoot, 'manifest.json'), 'utf8'))

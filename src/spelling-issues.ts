@@ -277,9 +277,8 @@ function lineIssues(
 function sectionsMessage(tokens: ChartFileTokens): string | null {
 	const names = tokens.sections.map(section => section.name)
 	const song = tokens.sections.find(section => section.name === 'Song')
-	if (song === undefined) {
-		return 'The chart has no [Song] section. scan-chart reads its resolution as 192, as Clone Hero does, and saving an edit adds the section.'
-	}
+	// Every profile refuses a file without [Song], so there's no chart to report on.
+	if (song === undefined) return null
 	const problems: string[] = []
 	if (!chartSectionLines(tokens, song).some(line => /^Resolution[ \t]*=/.test(line.text))) {
 		problems.push('The [Song] section has no Resolution. scan-chart reads it as 192, and saving an edit adds it.')

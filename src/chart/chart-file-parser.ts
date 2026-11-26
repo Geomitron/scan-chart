@@ -221,7 +221,8 @@ export type ChartLineRules = Pick<ParseRules, 'chartNonstandardLines' | 'mixEven
  * Classifies a `.chart` file's sections into chart data, with the rules `lineRules`: whether a nonstandard line is read
  * as what it probably means, and how a mix event is read.
  *
- * Throws an exception if the resolution isn't a positive number, or is missing and nonstandard lines are ignored.
+ * Throws an exception if the file has no `[Song]` section, or if the resolution isn't a positive number, or is missing
+ * and nonstandard lines are ignored.
  */
 export function classifyChartFile(
 	fileSections: ChartFileSections,
@@ -233,20 +234,22 @@ export function classifyChartFile(
 	// The lines as scan-chart reads them: a nonstandard line that has a probable meaning is read as its standard
 	// spelling (chart-line-spelling.ts).
 	const readable = (lines: string[], section: 'sync' | 'events' | 'song') => nonstandardLines === 'read' ? readableChartLines(lines, section) : lines
+	// A file without [Song] is invalid, and every profile refuses it. Clone Hero 1.1 loads one at 192 with no HOPO
+	// threshold or sustain cutoff, which the frozen profile doesn't reproduce.
+	if (fileSections['Song'] === undefined) {
+		throw 'Invalid .chart file: no [Song] section was found. Add one at the start of the file with "Resolution = 192" to keep the notes where they are.'
+	}
 	const metadata: { [key: string]: string } = {}
-	const songLines = fileSections['Song'] && readable(fileSections['Song'], 'song')
-	if (songLines) {
-		for (const line of songLines) {
-			const m = chartSongMetaRegex.exec(line)
-			if (m) metadata[m[1]] = m[2]
-		}
+	const songLines = readable(fileSections['Song'], 'song')
+	for (const line of songLines) {
+		const m = chartSongMetaRegex.exec(line)
+		if (m) metadata[m[1]] = m[2]
 	}
 
-	// Without a Resolution, a reader uses 192: Clone Hero does with no [Song] section (Song.cs:59), and YARG does with
-	// no Resolution in it. A value is read by its leading digits, as Clone Hero reads it (ChartReader.Header.cs,
-	// WeakIntParse): `480.5` is 480 and `1e3` is 1. A value that doesn't start with a digit, or is 0, is an error.
-	// The frozen profile keeps scan-chart 8's reading.
-	const namesResolution = songLines?.some(line => /^Resolution[ \t]*=/.test(line)) ?? false
+	// Without a Resolution in [Song], a reader uses 192, as YARG and Clone Hero's parse fixes do. A value is read by its
+	// leading digits, as Clone Hero reads it (ChartReader.Header.cs, WeakIntParse): `480.5` is 480 and `1e3` is 1. A
+	// value that doesn't start with a digit, or is 0, is an error. The frozen profile keeps scan-chart 8's reading.
+	const namesResolution = songLines.some(line => /^Resolution[ \t]*=/.test(line))
 	const resolution = nonstandardLines === 'ignored' ? Number(metadata['Resolution'])
 		: namesResolution ? Number(/^\d*/.exec(metadata['Resolution'] ?? '')![0])
 		: defaultChartResolution
