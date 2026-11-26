@@ -34,7 +34,7 @@ export interface AuthoredTrack {
 	readonly instrument: Instrument
 	/** The difficulty of a `.chart` section; `null` for a MIDI track. */
 	readonly difficulty: Difficulty | null
-	/** Whether Clone Hero reads it: `false` for an earlier `.chart` section whose name repeats, or a later MIDI track of an instrument. */
+	/** Whether Clone Hero reads it: `false` for a `.chart` section whose name an earlier section has, or a later MIDI track of an instrument. */
 	readonly isRead: boolean
 	/** Notes, note modifiers and phrases, by tick. */
 	readonly events: readonly AuthoredEvent[]

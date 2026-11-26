@@ -11,6 +11,6 @@ One instrument track as the file writes it: a `.chart` section, or a MIDI track,
 | <a id="property-difficulty"></a> `difficulty` | `readonly` | `"expert"` \| `"hard"` \| `"medium"` \| `"easy"` \| `null` | The difficulty of a `.chart` section; `null` for a MIDI track. |
 | <a id="property-events"></a> `events` | `readonly` | readonly [`AuthoredEvent`](/scan-chart/api/index/interfaces/AuthoredEvent)[] | Notes, note modifiers and phrases, by tick. |
 | <a id="property-instrument"></a> `instrument` | `readonly` | \| `"guitar"` \| `"guitarcoop"` \| `"rhythm"` \| `"bass"` \| `"drums"` \| `"keys"` \| `"guitarghl"` \| `"guitarcoopghl"` \| `"rhythmghl"` \| `"bassghl"` \| `"keysghl"` | - |
-| <a id="property-isread"></a> `isRead` | `readonly` | `boolean` | Whether Clone Hero reads it: `false` for an earlier `.chart` section whose name repeats, or a later MIDI track of an instrument. |
+| <a id="property-isread"></a> `isRead` | `readonly` | `boolean` | Whether Clone Hero reads it: `false` for a `.chart` section whose name an earlier section has, or a later MIDI track of an instrument. |
 | <a id="property-location"></a> `location` | `readonly` | \| \{ `format`: `"chart"`; `section`: `number`; \} \| \{ `chunk`: `number`; `format`: `"mid"`; \} | Where it is in the file: the `.chart` section's or the MIDI track chunk's index in the file's tokens. |
 | <a id="property-textevents"></a> `textEvents` | `readonly` | readonly [`AuthoredTextEvent`](/scan-chart/api/index/interfaces/AuthoredTextEvent)[] | - |
