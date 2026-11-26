@@ -178,6 +178,7 @@ export function chartSectionMisspelledMixes(lines: readonly ChartLineToken[], di
  * The misspelled mix events of the drums track a `.mid` file is read with, its first, each with its index among the
  * chunk's events, or `null` when it has no drums track. Only text events (`FF 01`) are mix events here, not lyric events
  * (`FF 05`): the check's message says how Clone Hero 1.1 reads each event, and Clone Hero 1.1 ignores lyric events.
+ * `midiDrumsEventsInLyrics` finds the mix events in lyric events.
  */
 export function midiTrackMisspelledMixes(tokens: MidiTokens): MidiTrackFinding<MisspelledMixEvent> | null {
 	const track = midiInstrumentTracks(tokens).find(candidate => candidate.instrument === 'drums')

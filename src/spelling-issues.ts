@@ -11,7 +11,18 @@ import {
 import { ChartEventSection, ChartLineSpelling, chartSectionSpellings, chartSongSpellings } from './chart/chart-line-spelling'
 import { chartModifiersWithoutNotes } from './chart/chart-modifiers'
 import { chartSectionMisspelledMixes, chartSectionNoflips, type MisspelledMixEvent, midiTrackMisspelledMixes, midiTrackNoflips, type NoflipDuringFlip } from './chart/disco-flip'
-import { midiDrumModifiersWithoutNotes, midiEnhancedOpensInOtherCase, midiEventsAfterEnd, midiSysExOfAnotherLength, midiTrackCounts, midiTrackInstrument, phaseShiftSysExTypes, repeatedMidiInstruments } from './chart/midi-file-parser'
+import {
+	midiDrumModifiersWithoutNotes,
+	midiDrumsEventsInLyrics,
+	type MidiDrumsLyricEvent,
+	midiEnhancedOpensInOtherCase,
+	midiEventsAfterEnd,
+	midiSysExOfAnotherLength,
+	midiTrackCounts,
+	midiTrackInstrument,
+	phaseShiftSysExTypes,
+	repeatedMidiInstruments,
+} from './chart/midi-file-parser'
 import { midiPitchKey } from './chart/midi-note-numbers'
 import { midiNormalizations } from './chart/midi-normalize'
 import type { MidiTokens } from './chart/midi-tokens'
@@ -40,6 +51,7 @@ export type SpellingIssueType =
 	| 'chartModifierWithoutNote'
 	| 'midiDrumModifierWithoutNote'
 	| 'nonstandardMixEvent'
+	| 'midiDrumsLyricEvent'
 	| 'nonstandardEnhancedOpens'
 	| 'wrongMidiTrackCount'
 	| 'eventsAfterEndOfTrack'
@@ -63,6 +75,7 @@ export const spellingIssueMessages: { readonly [code in SpellingIssueType]: stri
 	discoNoflipDuringFlip: 'A "dnoflip" mix event comes while a "d" disco flip is on. Clone Hero 1.1 keeps the flip on, and other programs start no-flip there. Saving an edit turns the flip off first.',
 	chartModifierWithoutNote: 'A modifier in this section, such as a forced, tap, cymbal, accent or ghost marker, has no note at its tick to apply to. Games ignore it, but a cymbal marker still makes the chart pro. Saving an edit removes it, unless it\'s a cymbal marker the drum type may depend on.',
 	nonstandardMixEvent: 'A mix event in this track isn\'t spelled the standard way, "mix <difficulty> drums<configuration><flag>". Clone Hero and other programs may read it differently.',
+	midiDrumsLyricEvent: 'A mix event or ENABLE_CHART_DYNAMICS event in this track is a lyric event, not a text event. Clone Hero 1.1 ignores it, and other programs, such as YARG, read it.',
 	nonstandardEnhancedOpens: "This track's ENHANCED_OPENS event isn't in capitals. Clone Hero reads it in any letter case, and other programs, such as YARG, only in capitals.",
 	wrongMidiTrackCount: "The .mid file's header counts another number of tracks than the file has. Clone Hero reads every track, and other programs may read only the ones counted.",
 	eventsAfterEndOfTrack: 'This track has events after its end of track. Clone Hero ignores them, and other programs may read them.',
@@ -161,6 +174,7 @@ export function chartSpellingIssues(source: ChartSource, styleNotes: boolean): I
 		const found = mixes?.events.filter(event => event.difficulty === difficulty) ?? []
 		if (found.length > 0) add('nonstandardMixEvent', { instrument: 'drums', difficulty }, mixMessage(found))
 	}
+	for (const { events } of midiDrumsEventsInLyrics(source.tokens)) add('midiDrumsLyricEvent', { instrument: 'drums', difficulty: null }, lyricEventMessage(events))
 	for (const { instrument, modifiers } of styleNotes ? midiDrumModifiersWithoutNotes(source.tokens) : []) {
 		add('midiDrumModifierWithoutNote', { instrument, difficulty: null }, drumModifierMessage(modifiers))
 	}
@@ -223,6 +237,22 @@ function mixMessage(found: readonly MisspelledMixEvent[]): string {
 	const reading = first.isRead ? `Clone Hero reads ${one ? 'it' : 'that one'} as "${first.standard}", and other programs may not.`
 		: `Clone Hero ignores ${one ? 'it' : 'that one'}, and other programs may read it as "${first.standard}".`
 	return `${which} spelled the standard way. ${reading} fixIssues can rewrite ${one ? 'it' : 'them'} in the standard spelling.`
+}
+
+/**
+ * The message about a drums track's mix events and `ENABLE_CHART_DYNAMICS` events written as lyric events, which Clone
+ * Hero 1.1 ignores and other readers read, naming the first.
+ */
+function lyricEventMessage(events: readonly MidiDrumsLyricEvent[]): string {
+	const [first] = events
+	const one = events.length === 1
+	const kind = (event: MidiDrumsLyricEvent) => event.kind === 'mix' ? 'mix event' : 'ENABLE_CHART_DYNAMICS event'
+	const which = one ? `The ${kind(first)} "${first.text}" at tick ${first.tick} is a lyric event, not a text event.`
+		: events.every(event => event.kind === first.kind)
+			? `${events.length.toLocaleString('en-US')} ${kind(first)}s, such as "${first.text}" at tick ${first.tick}, are lyric events, not text events.`
+			: `${events.length.toLocaleString('en-US')} events, such as the ${kind(first)} "${first.text}" at tick ${first.tick}, are lyric events, not text events.`
+	const it = one ? 'it' : 'them'
+	return `${which} Clone Hero 1.1 ignores ${it}, and other programs, such as YARG, read ${it}. fixIssues can rewrite ${it} as ${one ? 'a text event' : 'text events'}.`
 }
 
 /** The message about one difficulty's `dnoflip` mix events that come while a `d` flip is on, naming the first. */

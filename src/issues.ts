@@ -116,6 +116,7 @@ export const issueSeverities: { readonly [code in IssueCode]: IssueSeverity } = 
 	chartModifierWithoutNote: 'recommendation',
 	midiDrumModifierWithoutNote: 'recommendation',
 	nonstandardMixEvent: 'error',
+	midiDrumsLyricEvent: 'error',
 	nonstandardEnhancedOpens: 'error',
 	wrongMidiTrackCount: 'error',
 	eventsAfterEndOfTrack: 'error',

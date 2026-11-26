@@ -66,6 +66,7 @@ export const issueFixTable: { readonly [code in IssueCode]?: IssueFix } = {
 	badSustainGap: { hashes: 'changesHashes', steps: ['chart'] },
 	babySustain: { hashes: 'changesHashes', steps: ['chart'] },
 	nonstandardMixEvent: { hashes: 'mayChangeHashes', steps: ['chart'] },
+	midiDrumsLyricEvent: { hashes: 'keepsHashes', steps: ['chart'] },
 	nonstandardEnhancedOpens: { hashes: 'keepsHashes', steps: ['chart'] },
 	wrongMidiTrackCount: { hashes: 'keepsHashes', steps: ['chart'] },
 	eventsAfterEndOfTrack: { hashes: 'changesHashes', steps: ['chart'] },

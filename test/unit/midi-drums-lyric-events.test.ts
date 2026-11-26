@@ -1,6 +1,7 @@
 import { parseMidi } from '@geomitron/midi-file'
 import { describe, expect, it } from 'vitest'
 
+import { analyzeChart } from 'src/analyze-chart'
 import { authoredTracks } from 'src/authored'
 import { writeMidiFile } from 'src/chart/midi-writer'
 import { parseChartAndIni } from 'src/chart/parse-chart-and-ini'
@@ -8,6 +9,8 @@ import { parseChartFile, parseChartFileCanonicalIdentity, parseChartFileFrozenLe
 import { noteFlags } from 'src/chart/types'
 import { calculateCompetitiveHashes, frozenLegacy6142 } from 'src/competitive'
 import { convertChart } from 'src/convert-chart'
+import { fixIssues } from 'src/fix-issues'
+import { resolveChart } from 'src/gameplay-chart'
 import { defaultMetadata } from 'src/ini/metadata'
 import { documentFiles, editSong, parseSongFiles, type SongDocument } from 'src/song-document'
 import { fileBytes } from 'src/song-files'
@@ -45,6 +48,8 @@ const canonicalDrumsHash = (data: Uint8Array) => {
 	if (!hashes.accepted) throw new Error('Expected the canonical profile to accept the file')
 	return hashes.tracks.find(track => track.instrument === 'drums' && track.difficulty === 'expert')?.trackHash
 }
+const lyricEventIssues = (data: Uint8Array) => analyzeChart(resolveChart(song(data))).issues
+	.filter(issue => issue.code === 'midiDrumsLyricEvent').map(({ instrument, difficulty, severity, message }) => ({ instrument, difficulty, severity, message }))
 const legacyDrumsHash = (data: Uint8Array) => {
 	const parsed = frozenLegacy6142.parseSource({ source: { format: 'mid', bytes: data }, modifiers: defaultMetadata })
 	if (parsed.kind !== 'accepted') throw new Error('Expected the frozen profile to accept the file')
@@ -120,5 +125,43 @@ describe('a .mid drums track\'s mix events and [ENABLE_CHART_DYNAMICS] in lyric 
 		expect(report.dropped).toEqual([])
 		const drums = chartText(asChart)!.split('[ExpertDrums]\r\n{\r\n')[1].split('}')[0].split('\r\n').filter(line => line !== '')
 		expect(drums).toEqual(['  0 = E mix 3 drums0d', '  480 = N 1 0', '  480 = N 34 0', '  960 = E mix 3 drums0', '  1440 = N 1 0', '  1440 = N 40 0'])
+	})
+
+	it('reports them as an error for the drums track, naming the first, since Clone Hero 1.1 ignores them', () => {
+		const issue = (message: string) => [{ instrument: 'drums', difficulty: null, severity: 'error', message }]
+		expect(lyricEventIssues(drumsMidi([midiText(0, 'ENABLE_CHART_DYNAMICS', 'lyrics'), ...midiNote(480, 97, 0, { velocity: 127 })]))).toEqual(issue(
+			'The ENABLE_CHART_DYNAMICS event "ENABLE_CHART_DYNAMICS" at tick 0 is a lyric event, not a text event. Clone Hero 1.1 ignores it, and other programs, '
+				+ 'such as YARG, read it. fixIssues can rewrite it as a text event.',
+		))
+		expect(lyricEventIssues(flipped('lyrics'))).toEqual(issue(
+			'2 mix events, such as "[mix 3 drums0d]" at tick 0, are lyric events, not text events. Clone Hero 1.1 ignores them, and other programs, '
+				+ 'such as YARG, read them. fixIssues can rewrite them as text events.',
+		))
+		expect(lyricEventIssues(dynamicFlip)).toEqual(issue(
+			'3 events, such as the ENABLE_CHART_DYNAMICS event "[ENABLE_CHART_DYNAMICS]" at tick 0, are lyric events, not text events. Clone Hero 1.1 ignores them, '
+				+ 'and other programs, such as YARG, read them. fixIssues can rewrite them as text events.',
+		))
+		expect(lyricEventIssues(flipped('text'))).toEqual([])
+		// Lyric events a scanner keeps as written, and these in a track other than drums.
+		expect(lyricEventIssues(midiFile([
+			{ name: 'PART DRUMS', events: [midiText(0, 'Hello', 'lyrics'), midiText(0, ' [mix 3 drums0d]', 'lyrics'), midiText(0, '[ENHANCED_OPENS]', 'lyrics'), ...midiNote(480, 97)] },
+			{ name: 'PART GUITAR', events: [midiText(0, '[mix 3 drums0d]', 'lyrics'), midiText(0, '[ENABLE_CHART_DYNAMICS]', 'lyrics'), ...midiNote(480, 96)] },
+		]))).toEqual([])
+	})
+
+	it('is fixed by fixIssues as text events of the same tick and text, keeping the canonical hashes, which Clone Hero 1.1 then reads', async () => {
+		const { song: fixed, report } = await fixIssues(song(dynamicFlip), { codes: ['midiDrumsLyricEvent'] })
+		expect(report.fixed).toEqual([
+			{ code: 'midiDrumsLyricEvent', file: 'notes.mid', description: 'Rewrote the lyric event "[ENABLE_CHART_DYNAMICS]" at tick 0 in "PART DRUMS" as a text event.' },
+			{ code: 'midiDrumsLyricEvent', file: 'notes.mid', description: 'Rewrote the lyric event "[mix 3 drums0d]" at tick 0 in "PART DRUMS" as a text event.' },
+			{ code: 'midiDrumsLyricEvent', file: 'notes.mid', description: 'Rewrote the lyric event "[mix 3 drums0]" at tick 960 in "PART DRUMS" as a text event.' },
+		])
+		expect(report.hashes).toEqual([])
+		const data = songMidi(fixed)
+		expect(drumsTexts(data)).toEqual([[0, 'text', '[ENABLE_CHART_DYNAMICS]'], [0, 'text', '[mix 3 drums0d]'], [960, 'text', '[mix 3 drums0]']])
+		expect(lyricEventIssues(data)).toEqual([])
+		// The frozen profile, as Clone Hero 1.1, now reads the flip and the dynamics, so its TrackHash changes.
+		expect(expertFlags(data, parsers.legacy)).toEqual([[480, 'disco+accent'], [1440, 'ghost']])
+		expect(legacyDrumsHash(data)).not.toBe(legacyDrumsHash(dynamicFlip))
 	})
 })

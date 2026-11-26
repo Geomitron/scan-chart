@@ -671,6 +671,8 @@ describe('issueFixes', () => {
 			] }]),
 		},
 		nonstandardEnhancedOpens: { keeps: midSongOf([length], [{ name: 'PART BASS', events: [midiText(0, '[enhanced_opens]'), ...midiNote(480, 95, 10)] }]) },
+		// A flip the canonical profile reads from the lyric event, as from the text event the fix writes.
+		midiDrumsLyricEvent: { keeps: midSongOf([length], [{ name: 'PART DRUMS', events: [midiText(0, '[mix 3 drums0d]', 'lyrics'), ...midiNote(480, 97)] }]) },
 	}
 	const run = (files: readonly SongFile[], code: IssueCode, changeHashes: boolean) =>
 		fix(files, { codes: [code], changeHashes, resizeImage: async (_image, size) => jpeg(size, size) })

@@ -129,6 +129,35 @@ export function midiInstrumentTracks(tokens: MidiTokens): { name: string; instru
 	return tracks
 }
 
+/** Whether `text` is `ENABLE_CHART_DYNAMICS` or `[ENABLE_CHART_DYNAMICS]`, the two spellings a scanner reads. */
+export function isChartDynamicsText(text: string): boolean {
+	return text === 'ENABLE_CHART_DYNAMICS' || text === '[ENABLE_CHART_DYNAMICS]'
+}
+
+/** A mix event or `ENABLE_CHART_DYNAMICS` event of a drums track written as a lyric event, `FF 05`. */
+export interface MidiDrumsLyricEvent {
+	readonly tick: number
+	readonly text: string
+	readonly kind: 'mix' | 'dynamics'
+}
+
+/**
+ * The lyric events (`FF 05`) of the drums track a `.mid` file is read with, its first, that the scanner and canonical
+ * profiles read as a mix event or `ENABLE_CHART_DYNAMICS` and Clone Hero 1.1 ignores (`midiDrumsLyricEvents`), each with
+ * its index among the chunk's events. Empty when there are none.
+ */
+export function midiDrumsEventsInLyrics(tokens: MidiTokens): MidiTrackFinding<MidiDrumsLyricEvent>[] {
+	const track = midiInstrumentTracks(tokens).find(candidate => candidate.instrument === 'drums')
+	const chunk = track === undefined ? undefined : tokens.chunks[track.chunkIndex]
+	if (track === undefined || chunk?.kind !== 'track') return []
+	const events = chunk.events.flatMap(({ tick, event }, eventIndex) => {
+		if (event.type !== 'lyrics') return []
+		const kind: MidiDrumsLyricEvent['kind'] | null = readMixEvent(event.text, 'cloneHero') !== null ? 'mix' : isChartDynamicsText(event.text) ? 'dynamics' : null
+		return kind === null ? [] : [{ eventIndex, tick, text: event.text, kind }]
+	})
+	return events.length === 0 ? [] : [{ ...track, events }]
+}
+
 /**
  * The `ENHANCED_OPENS` text events of each instrument track that Clone Hero reads and that aren't in capitals (C20: R13),
  * each with its index among its chunk's events.
@@ -1023,7 +1052,7 @@ function scanInstrumentTrack(
 			if (isText && isEnhancedOpensText(event.text, rules.midiEnhancedOpens)) {
 				enhancedOpens = true
 				consumedAsNote = true
-			} else if (event.text === 'ENABLE_CHART_DYNAMICS' || event.text === '[ENABLE_CHART_DYNAMICS]') {
+			} else if (isChartDynamicsText(event.text)) {
 				// Treat this like the other events that have a start and end, so it can be processed the same way later
 				eventEnds['all'].push({ tick: event.deltaTime, type: eventTypes.enableChartDynamics, channel: 1, isStart: true, velocity: 127, eventIndex })
 				eventEnds['all'].push({ tick: event.deltaTime, type: eventTypes.enableChartDynamics, channel: 1, isStart: false, velocity: 127, eventIndex })

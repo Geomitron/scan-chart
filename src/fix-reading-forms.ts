@@ -2,7 +2,7 @@ import { spliceChartText } from './chart/chart-edit'
 import { chartSectionLines, chartSectionTrack } from './chart/chart-file-parser'
 import { chartSectionMisspelledMixes, midiTrackMisspelledMixes } from './chart/disco-flip'
 import { editMidiTrack, midiTextEvent, type MidiTrackEdit } from './chart/midi-edit'
-import { midiEnhancedOpensInOtherCase, midiEventsAfterEnd, midiSysExOfAnotherLength, midiTrackCounts, phaseShiftSysExTypes } from './chart/midi-file-parser'
+import { midiDrumsEventsInLyrics, midiEnhancedOpensInOtherCase, midiEventsAfterEnd, midiSysExOfAnotherLength, midiTrackCounts, phaseShiftSysExTypes } from './chart/midi-file-parser'
 import { type MidiTokens, readMidiTokens } from './chart/midi-tokens'
 import type { FixOptions } from './fix-issues'
 import { chooseEdits, FixRecord, hashChanges, hashNames, issueFixTable } from './issue-fixes'
@@ -11,9 +11,10 @@ import { continueEdits, SongDocument } from './song-document'
 import { songHashes } from './song-hashes'
 
 /**
- * One rewrite of a form the canonical profile reads as Clone Hero does (C20), into the standard form: the code of the
- * issue it fixes, what it does as the report describes it (`Rewrote ...`) and as a skip reason starts (`Rewriting ...`),
- * and its edit of the chart file's text or of one `.mid` track or the whole `.mid` file.
+ * One rewrite of a form games read differently, such as one the canonical profile reads as Clone Hero does (C20), into
+ * the standard form: the code of the issue it fixes, what it does as the report describes it (`Rewrote ...`) and as a
+ * skip reason starts (`Rewriting ...`), and its edit of the chart file's text or of one `.mid` track or the whole `.mid`
+ * file.
  */
 interface FormFix {
 	readonly code: IssueCode
@@ -32,7 +33,14 @@ const rewriting = (what: string) => ({ description: `Rewrote ${what}.`, skipping
 const moving = (what: string) => ({ description: `Moved ${what}.`, skipping: `Moving ${what}` })
 
 /** The codes `fixReadingForms` fixes. */
-const formCodes: readonly IssueCode[] = ['nonstandardMixEvent', 'nonstandardEnhancedOpens', 'wrongMidiTrackCount', 'eventsAfterEndOfTrack', 'nonstandardPhaseShiftSysEx']
+const formCodes: readonly IssueCode[] = [
+	'nonstandardMixEvent',
+	'midiDrumsLyricEvent',
+	'nonstandardEnhancedOpens',
+	'wrongMidiTrackCount',
+	'eventsAfterEndOfTrack',
+	'nonstandardPhaseShiftSysEx',
+]
 
 /**
  * Rewrites the forms of the chart file the issues report in their standard forms, each by its own edit so that each
@@ -115,6 +123,15 @@ export function fixReadingForms(song: SongDocument, issues: readonly Issue[], op
 				...rewriting(`the mix event "${mix.text}" at tick ${mix.tick} in "${drums!.name}" as "${mix.standard}"`),
 				edit: { kind: 'midiTrack', chunkIndex: drums!.chunkIndex, edits: [{ kind: 'replace', event: mix.eventIndex, with: midiTextEvent(mix.standard, event) }] },
 			})
+		}
+		for (const track of codes.has('midiDrumsLyricEvent') ? midiDrumsEventsInLyrics(tokens) : []) {
+			for (const { eventIndex, tick, text } of track.events) {
+				fixes.push({
+					code: 'midiDrumsLyricEvent',
+					...rewriting(`the lyric event "${text}" at tick ${tick} in "${track.name}" as a text event`),
+					edit: { kind: 'midiTrack', chunkIndex: track.chunkIndex, edits: [{ kind: 'replace', event: eventIndex, with: midiTextEvent(text) }] },
+				})
+			}
 		}
 	}
 	if (fixes.length === 0) return song
