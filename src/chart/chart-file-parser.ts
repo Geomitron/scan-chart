@@ -246,7 +246,7 @@ export function classifyChartFile(
 		if (m) metadata[m[1]] = m[2]
 	}
 
-	// Without a Resolution in [Song], a reader uses 192, as YARG and Clone Hero's parse fixes do. A value is read by its
+	// Without a Resolution in [Song], a reader uses 192, as YARG and Clone Hero's new parsing code do. A value is read by its
 	// leading digits, as Clone Hero reads it (ChartReader.Header.cs, WeakIntParse): `480.5` is 480 and `1e3` is 1. A
 	// value that doesn't start with a digit, or is 0, is an error. The frozen profile keeps scan-chart 8's reading.
 	const namesResolution = songLines.some(line => /^Resolution[ \t]*=/.test(line))

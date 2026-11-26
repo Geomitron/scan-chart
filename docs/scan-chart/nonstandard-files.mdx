@@ -24,7 +24,7 @@ The `nonstandardChartLine` issue names the first such line in each section.
 
 ## Sections
 
-- **No resolution:** a file with no `[Song]` section, or no `Resolution` in it, is read with a resolution of 192, as every scanner reads it. Saving adds `Resolution = 192`, and the `[Song]` section when there's none.
+- **No resolution:** a file with no `[Song]` section is refused and gets no hash. A `[Song]` section with no `Resolution` in it is read with a resolution of 192, as every scanner reads it. Saving adds `Resolution = 192`.
 - **Order:** `[Song]` and `[SyncTrack]` are read wherever they are. Saving puts them first, in that order.
 - **A repeated name:** the first section with the name is read. Saving removes the others.
 
