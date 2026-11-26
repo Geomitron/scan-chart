@@ -147,6 +147,37 @@ describe('convertChart', () => {
 		expect(chartText.split('\r\n').filter(line => line.includes('mix '))).toEqual(['  480 = E mix 3 drums1d', '  959 = E mix 3 drums1', '  960 = E mix 3 drums0dnoflip'])
 	})
 
+	it('writes a .chart flam on Hard and not Expert for Expert too, as a lane, and a .mid flam back to the difficulties its velocity gives', () => {
+		// Hard has a flam at 0 and 192, Expert only at 192, and Easy none.
+		const drums = [
+			'[ExpertDrums]', '{', '  0 = N 1 0', '  192 = N 1 0', '  192 = N 109 0', '}',
+			'[HardDrums]', '{', '  0 = N 1 0', '  0 = N 109 0', '  192 = N 1 0', '  192 = N 109 0', '}',
+			'[EasyDrums]', '{', '  0 = N 1 0', '  192 = N 1 0', '}',
+		]
+		const { song: asMidi, report } = convertChart(chartSong(drums), 'mid')
+		expect(report.tracks).toEqual([
+			{ instrument: 'drums', difficulty: 'easy', kept: true, causes: [] },
+			{ instrument: 'drums', difficulty: 'hard', kept: true, causes: [] },
+			{ instrument: 'drums', difficulty: 'expert', kept: false, causes: ['notes'] },
+		])
+		expect(report.dropped).toEqual([])
+		const midiDrums = parseMidi(fileBytes(documentFiles(asMidi).find(file => file.fileName === 'notes.mid')!)).tracks
+			.find(track => track.some(event => event.type === 'trackName' && event.text === 'PART DRUMS'))!
+		let tick = 0
+		expect(midiDrums.flatMap(event => {
+			tick += event.deltaTime
+			return event.type === 'noteOn' && event.noteNumber === 109 ? [[tick, event.velocity]] : []
+		})).toEqual([[0, 45], [192, 45]])
+
+		const { song: asChart, report: back } = convertChart(asMidi, 'chart')
+		expect(back.tracks.every(track => track.kept)).toBe(true)
+		const chartText = decode(fileBytes(documentFiles(asChart).find(file => file.fileName === 'notes.chart')!))
+		const flamLines = (section: string) => chartText.split(`[${section}]\r\n{\r\n`)[1].split('}')[0].split('\r\n').filter(line => line.includes('N 109'))
+		expect([flamLines('ExpertDrums'), flamLines('HardDrums'), flamLines('EasyDrums')]).toEqual([
+			['  0 = N 109 0', '  192 = N 109 0'], ['  0 = N 109 0', '  192 = N 109 0'], [],
+		])
+	})
+
 	it('gives a .chart song without song.ini one, so its [Song] metadata and offset read the same from a .mid', () => {
 		const song = chartSong(expert(['0 = N 0 0']), null, ['Name = "From Song"', 'Offset = 0.25'])
 		const { song: converted, report } = convertChart(song, 'mid')

@@ -37,6 +37,12 @@ export interface ParseRules {
 	 */
 	readonly chartFlam: 'read' | 'ignored'
 	/**
+	 * Which difficulties a `.mid` drums flam, note 109, applies to. `laneVelocities` is the spec's rule: like a lane, velocity
+	 * 21 to 30 every difficulty, 31 to 40 Medium and up, 41 to 50 Hard and up, and any other Expert only. `everyDifficulty`
+	 * is Clone Hero 1.1's reading, whatever the velocity.
+	 */
+	readonly midiFlam: 'laneVelocities' | 'everyDifficulty'
+	/**
 	 * Whether a `.chart` line or section written in a nonstandard way is read as what it probably means
 	 * (chart-line-spelling.ts), with a resolution of 192 when the file gives none. Clone Hero refuses such a file, or
 	 * reads it the same way; scan-chart 8 skipped such a line, which the frozen profile keeps doing.
@@ -92,6 +98,7 @@ const scanner: ParseRules = Object.freeze({
 	midiChartDynamics: 'fromEvent',
 	midiKickDynamics: 'ignored',
 	chartFlam: 'read',
+	midiFlam: 'laneVelocities',
 	chartNonstandardLines: 'read',
 	proDrumsGreenPair: 'blueTom',
 	kickPair: 'kick',
@@ -111,6 +118,7 @@ const frozenLegacy6142: ParseRules = Object.freeze({
 	midiChartDynamics: 'leaksAcrossDifficulties',
 	midiKickDynamics: 'applied',
 	chartFlam: 'ignored',
+	midiFlam: 'everyDifficulty',
 	chartNonstandardLines: 'ignored',
 	proDrumsGreenPair: 'longerBlue',
 	kickPair: 'longer',
@@ -130,6 +138,7 @@ const canonical20260801: ParseRules = Object.freeze({
 	midiChartDynamics: 'fromEvent',
 	midiKickDynamics: 'ignored',
 	chartFlam: 'read',
+	midiFlam: 'laneVelocities',
 	chartNonstandardLines: 'read',
 	proDrumsGreenPair: 'blueTom',
 	kickPair: 'kick',

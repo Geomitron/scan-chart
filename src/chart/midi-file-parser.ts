@@ -616,10 +616,9 @@ export function buildMidiInstrumentTrackData(
 		medium: [...eventEnds.medium],
 		easy: [...eventEnds.easy],
 	}, allocatesEmptyExpert)
-	const pairedEvents = getTrackEvents(distributed)
+	const pairedEvents = applyLaneVelocities(getTrackEvents(distributed), instrumentType, rules)
 	const step1 = splitMidiModifierSustains(pairedEvents, instrumentType, rules)
-	const step2 = fixLegacyGhStarPower(step1, instrumentType, iniChartModifiers)
-	const trackDifficulties = fixFlexLaneLds(step2)
+	const trackDifficulties = fixLegacyGhStarPower(step1, instrumentType, iniChartModifiers)
 
 	for (const difficulty of difficulties) {
 		const diffEvents = trackDifficulties[difficulty]
@@ -1510,23 +1509,34 @@ function fixLegacyGhStarPower(
 	return events
 }
 
-function fixFlexLaneLds(events: { [key in Difficulty]: MidiTrackEvent[] }) {
-	filterFlexLaneVelocity(events.easy, 30)
-	filterFlexLaneVelocity(events.medium, 40)
-	filterFlexLaneVelocity(events.hard, 50)
-	return events
+/** The highest lane velocity of each difficulty below Expert, from 21. A lane of any other velocity is on Expert only. */
+const laneVelocityMaxima = { easy: 30, medium: 40, hard: 50 } as const
+
+/**
+ * Whether a lane of `velocity` applies to `difficulty`: velocity 21 to 30 every difficulty, 31 to 40 Medium and up, 41 to 50
+ * Hard and up, and any other Expert only. A drums flam takes the same velocities under the parse rule `midiFlam`.
+ */
+export function laneVelocityReaches(velocity: number, difficulty: Difficulty): boolean {
+	return difficulty === 'expert' || (velocity >= 21 && velocity <= laneVelocityMaxima[difficulty])
 }
 
-function filterFlexLaneVelocity(arr: MidiTrackEvent[], maxVelocity: number): void {
-	let w = 0
-	for (let r = 0; r < arr.length; r++) {
-		const e = arr[r]
-		const isFlex = e.type === eventTypes.flexLaneSingle || e.type === eventTypes.flexLaneDouble
-		if (!(isFlex && (e.velocity < 21 || e.velocity > maxVelocity))) {
-			arr[w++] = e
+/**
+ * Removes each lane from the difficulties its velocity leaves out, and each drums flam too under `midiFlam` `laneVelocities`.
+ * Flams go before they're split onto their notes, so a note under two flams is a flam on every difficulty either one reaches.
+ */
+function applyLaneVelocities(events: { [key in Difficulty]: MidiTrackEvent[] }, instrumentType: InstrumentType, rules: ParseRules) {
+	const flamVelocities = instrumentType === instrumentTypes.drums && rules.midiFlam === 'laneVelocities'
+	for (const difficulty of ['hard', 'medium', 'easy'] as const) {
+		const arr = events[difficulty]
+		let w = 0
+		for (let r = 0; r < arr.length; r++) {
+			const e = arr[r]
+			const takesVelocity = e.type === eventTypes.flexLaneSingle || e.type === eventTypes.flexLaneDouble || (flamVelocities && e.type === eventTypes.forceFlam)
+			if (!takesVelocity || laneVelocityReaches(e.velocity, difficulty)) arr[w++] = e
 		}
+		arr.length = w
 	}
-	arr.length = w
+	return events
 }
 
 

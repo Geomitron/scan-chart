@@ -230,7 +230,7 @@ export function addVerbatimEvents(events: AbsoluteEvent[], verbatim: readonly Mi
 /**
  * Adds an instrument's lanes (126 single, 127 double) from its difficulty tracks. A lane on several difficulties is
  * written once, with the velocity of the easiest of them, which the reader turns back into the difficulties it applies
- * to (`fixFlexLaneLds`). Written with `addNoteOnOff`, a lane that ends where another of its number starts ends first.
+ * to (`laneVelocityReaches`). Written with `addNoteOnOff`, a lane that ends where another of its number starts ends first.
  */
 export function addFlexLanes(events: AbsoluteEvent[], tracks: readonly ParsedTrack[]): void {
 	const velocities = new Map<string, number>()
@@ -248,8 +248,8 @@ export function addFlexLanes(events: AbsoluteEvent[], tracks: readonly ParsedTra
 	}
 }
 
-/** The lane velocity each difficulty writes, within the range the reader keeps for it. */
-const laneVelocities: Record<Difficulty, number> = { easy: 25, medium: 35, hard: 45, expert: 100 }
+/** The velocity each difficulty writes on a lane or a drums flam, within the range the reader keeps for it. */
+export const laneVelocities: Record<Difficulty, number> = { easy: 25, medium: 35, hard: 45, expert: 100 }
 
 /** Adds an instrument track's versus phrases: player 1's on note 105 and player 2's on 106. A zero-length one is kept. */
 export function addVersusPhrases(events: AbsoluteEvent[], versusPhrases: ParsedTrack['versusPhrases']): void {

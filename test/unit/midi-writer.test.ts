@@ -483,6 +483,34 @@ describe('writeMidiFile round-trip: drum tracks', () => {
 		expect(lanes('hard')).toEqual([[0, 480]])
 	})
 
+	it('writes a flam marker with the lane velocity of the easiest difficulty with a flam on its tick', () => {
+		// A red note on every difficulty at each tick but the last, which only Easy and Expert have, and the difficulties with a flam.
+		const flammed: [tick: number, difficulties: string][] = [
+			[0, 'easy medium hard expert'], [480, 'medium hard expert'], [960, 'hard expert'], [1440, 'expert'], [1920, 'hard'], [2400, 'easy expert'], [2880, ''],
+		]
+		const chart = createEmptyChart({ format: 'mid', resolution: 480 })
+		for (const difficulty of ['expert', 'hard', 'medium', 'easy'] as const) {
+			const td = emptyDrumTrack(difficulty)
+			for (const [tick, difficulties] of flammed) td.noteEventGroups.push([note(tick, noteTypes.redDrum, difficulties.includes(difficulty) ? noteFlags.flam : 0)])
+			if (difficulty === 'easy' || difficulty === 'expert') td.noteEventGroups.push([note(3360, noteTypes.redDrum, noteFlags.flam)])
+			chart.trackData.push(td)
+		}
+		const drums = parseMidi(writeMidiFile(chart)).tracks.find(track => track.some(event => event.type === 'trackName' && event.text === 'PART DRUMS'))!
+		let tick = 0
+		const markers = drums.flatMap(event => {
+			tick += event.deltaTime
+			return event.type === 'noteOn' && event.noteNumber === 109 ? [[tick, event.velocity]] : []
+		})
+		expect(markers).toEqual([[0, 25], [480, 35], [960, 45], [1440, 100], [1920, 45], [2400, 25], [3360, 25]])
+		const re = roundTrip(chart)
+		const flams = (difficulty: string) => findTrack(re, 'drums', difficulty).noteEventGroups.map(group => [group[0].tick, (group[0].flags & noteFlags.flam) !== 0])
+		// .mid can't hold Hard's flam at 1920 without Expert's, or Easy's and Expert's at 2400 without Medium's and Hard's.
+		expect(flams('expert')).toEqual([[0, true], [480, true], [960, true], [1440, true], [1920, true], [2400, true], [2880, false], [3360, true]])
+		expect(flams('hard')).toEqual([[0, true], [480, true], [960, true], [1440, false], [1920, true], [2400, true], [2880, false]])
+		expect(flams('medium')).toEqual([[0, true], [480, true], [960, false], [1440, false], [1920, false], [2400, true], [2880, false]])
+		expect(flams('easy')).toEqual([[0, true], [480, false], [960, false], [1440, false], [1920, false], [2400, true], [2880, false], [3360, true]])
+	})
+
 	it('preserves versus phrases', () => {
 		const chart = createEmptyChart({ format: 'mid', resolution: 480 })
 		const td = emptyDrumTrack('expert')

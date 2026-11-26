@@ -43,10 +43,10 @@ export function trackTexts(track: readonly MidiEvent[]): [tick: number, text: st
 	})
 }
 
-/** A note-on at `tick` and its note-off `length` ticks later; at length 0, the note-on comes first. */
-export function midiNote(tick: number, noteNumber: number, length = 0, channel = 0): TimedMidiEvent[] {
+/** A note-on at `tick`, of velocity 100 unless given, and its note-off `length` ticks later; at length 0, the note-on comes first. */
+export function midiNote(tick: number, noteNumber: number, length = 0, { channel = 0, velocity = 100 } = {}): TimedMidiEvent[] {
 	return [
-		{ tick, event: { type: 'noteOn', channel, noteNumber, velocity: 100 } as Omit<MidiEvent, 'deltaTime'> },
+		{ tick, event: { type: 'noteOn', channel, noteNumber, velocity } as Omit<MidiEvent, 'deltaTime'> },
 		{ tick: tick + length, event: { type: 'noteOff', channel, noteNumber, velocity: 0 } as Omit<MidiEvent, 'deltaTime'> },
 	]
 }

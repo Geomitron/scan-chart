@@ -8,7 +8,7 @@ import { midiFile, midiNote, phaseShiftSysEx as sysEx, type TimedMidiEvent } fro
 
 /** A `.mid` file with one instrument track, PART GUITAR unless named otherwise. */
 const guitarMidi = (events: readonly TimedMidiEvent[], trackName = 'PART GUITAR') => midiFile([{ name: trackName, events }])
-const note = (tick: number, noteNumber: number, channel = 0) => midiNote(tick, noteNumber, 1, channel)
+const note = (tick: number, noteNumber: number, channel = 0) => midiNote(tick, noteNumber, 1, { channel })
 const greens = [0, 100, 200, 300].flatMap(tick => note(tick, 96))
 const parsers = { scanner: parseChartFile, canonical: parseChartFileCanonicalIdentity, legacy: parseChartFileFrozenLegacyIdentity }
 const tapTicks = (data: Uint8Array, parse: (data: Uint8Array, format: 'mid') => ReturnType<typeof parseChartFile>) =>
