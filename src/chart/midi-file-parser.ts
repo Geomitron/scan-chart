@@ -1061,24 +1061,33 @@ const drumNoteEventTypes: EventType[] = [
 const drumModifierNotes = new Map<EventType, number>([109, 110, 111, 112].map(noteNumber => [getInstrumentEventType(noteNumber)!, noteNumber]))
 
 /**
- * The drum modifiers of `types`, paired, that cover no drum note on any difficulty, in start order. A modifier covers the
- * notes from its start up to its end, or its own tick when it has no length.
+ * The drum modifiers of `types`, paired, that cover no drum note on a difficulty they apply to, as `appliesTo` says from
+ * a modifier's start, in start order. A modifier covers the notes from its start up to its end, or its own tick when it
+ * has no length.
  */
-function uncoveredDrumModifiers(eventEnds: TrackScanResult['eventEnds'], types: readonly EventType[]): PairedEventEnds[] {
+function uncoveredDrumModifiers(
+	eventEnds: TrackScanResult['eventEnds'],
+	types: readonly EventType[],
+	appliesTo: (start: TrackEventEnd, difficulty: Difficulty) => boolean,
+): PairedEventEnds[] {
 	const modifiers = eventEnds.all.filter(end => types.includes(end.type))
 	if (modifiers.length === 0) return []
-	const noteTicks = difficulties
-		.flatMap(difficulty => eventEnds[difficulty].filter(end => end.isStart && drumNoteEventTypes.includes(end.type)).map(end => end.tick))
-		.sort((a, b) => a - b)
-	const uncovered: PairedEventEnds[] = []
-	let next = 0
-	// Pairs come in start order, so the first note at or after each start only moves forward.
-	for (const pair of pairEventEnds(modifiers)) {
-		while (next < noteTicks.length && noteTicks[next] < pair.start.tick) next++
-		const covered = next < noteTicks.length && (noteTicks[next] < pair.end.tick || noteTicks[next] === pair.start.tick)
-		if (!covered) uncovered.push(pair)
+	const noteTicks = difficulties.map(difficulty => [difficulty, eventEnds[difficulty]
+		.filter(end => end.isStart && drumNoteEventTypes.includes(end.type)).map(end => end.tick).sort((a, b) => a - b)] as const)
+	return pairEventEnds(modifiers).filter(({ start, end }) =>
+		!noteTicks.some(([difficulty, ticks]) => appliesTo(start, difficulty) && hasTickInRange(ticks, start.tick, end.tick)))
+}
+
+/** Whether sorted `ticks` hold one from `start` up to `end`, or `start` itself. */
+function hasTickInRange(ticks: readonly number[], start: number, end: number): boolean {
+	let low = 0
+	let high = ticks.length
+	while (low < high) {
+		const middle = (low + high) >> 1
+		if (ticks[middle] < start) low = middle + 1
+		else high = middle
 	}
-	return uncovered
+	return low < ticks.length && (ticks[low] < end || ticks[low] === start)
 }
 
 /**
@@ -1088,7 +1097,8 @@ function uncoveredDrumModifiers(eventEnds: TrackScanResult['eventEnds'], types: 
  */
 function withUncoveredTomMarkers(events: MidiEvent[], eventEnds: TrackScanResult['eventEnds'], unrecognizedEvents: MidiEvent[]): MidiEvent[] {
 	const uncovered = new Set<number>()
-	for (const { start, end } of uncoveredDrumModifiers(eventEnds, [eventTypes.yellowTomMarker, eventTypes.blueTomMarker, eventTypes.greenTomMarker])) {
+	// A tom marker applies to every difficulty.
+	for (const { start, end } of uncoveredDrumModifiers(eventEnds, [eventTypes.yellowTomMarker, eventTypes.blueTomMarker, eventTypes.greenTomMarker], () => true)) {
 		uncovered.add(start.eventIndex).add(end.eventIndex)
 	}
 	if (uncovered.size === 0) return unrecognizedEvents
@@ -1098,9 +1108,12 @@ function withUncoveredTomMarkers(events: MidiEvent[], eventEnds: TrackScanResult
 
 /**
  * The tom markers and flams that cover no note, in start order with each one's note number and tick, in each drums
- * track a reader reads: the first of its instrument.
+ * track a reader reads: the first of its instrument. A flam covers only notes of the difficulties its velocity gives
+ * (parse rule `midiFlam`), as a lane covers only its own difficulties' notes.
  */
 export function midiDrumModifiersWithoutNotes(tokens: MidiTokens): { instrument: Instrument; modifiers: { noteNumber: number; tick: number }[] }[] {
+	const appliesTo = (start: TrackEventEnd, difficulty: Difficulty) =>
+		start.type !== eventTypes.forceFlam || parseRules.scanner.midiFlam === 'everyDifficulty' || laneVelocityReaches(start.velocity, difficulty)
 	const found: { instrument: Instrument; modifiers: { noteNumber: number; tick: number }[] }[] = []
 	const seen = new Set<Instrument>()
 	for (const { instrument, chunkIndex } of midiInstrumentTracks(tokens)) {
@@ -1110,7 +1123,7 @@ export function midiDrumModifiersWithoutNotes(tokens: MidiTokens): { instrument:
 		const chunk = tokens.chunks[chunkIndex]
 		const scanned = chunk.kind === 'track' ? classifyMidiInstrumentTrack(midiTrackIndex(tokens, chunkIndex), midiTrackEvents(chunk)) : null
 		if (scanned === null) continue
-		const modifiers = uncoveredDrumModifiers(scanned.scan.eventEnds, [...drumModifierNotes.keys()])
+		const modifiers = uncoveredDrumModifiers(scanned.scan.eventEnds, [...drumModifierNotes.keys()], appliesTo)
 			.map(({ start }) => ({ noteNumber: drumModifierNotes.get(start.type)!, tick: start.tick }))
 		if (modifiers.length > 0) found.push({ instrument, modifiers })
 	}

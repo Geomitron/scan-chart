@@ -164,8 +164,20 @@ describe('nonstandard spelling issues', () => {
 		})
 
 		it('none for a modifier over a kick, a zero-length one on its note\'s tick, or one on a second drums track', () => {
-			expect(modifiers([...midiNote(0, 110, 240), ...midiNote(120, 96), ...midiNote(480, 109), ...midiNote(480, 61)])).toEqual([])
+			expect(modifiers([...midiNote(0, 110, 240), ...midiNote(120, 96), ...midiNote(480, 109), ...midiNote(480, 97)])).toEqual([])
 			expect(modifiers(midiNote(0, 96), true, [{ name: 'PART DRUMS', events: midiNote(480, 110) }])).toEqual([])
+		})
+
+		it('a flam that covers notes only on difficulties its velocity leaves out, as a lane covers only its own difficulties\' notes', () => {
+			// An Easy red (61) under a flam of each velocity: only 21 to 30 gives Easy the flam. A tom marker covers every difficulty.
+			const flamOverEasy = (velocity: number) => modifiers([...midiNote(0, 109, 0, { velocity }), ...midiNote(0, 61)]).map(issue => issue.message)
+			expect(flamOverEasy(100)).toEqual(['The flam (note 109) at tick 0 covers no note, so it changes none.'])
+			expect(flamOverEasy(31)).toEqual(['The flam (note 109) at tick 0 covers no note, so it changes none.'])
+			expect(flamOverEasy(30)).toEqual([])
+			// A Hard red (85) and an Expert-only flam over it, then a Hard-and-up one.
+			expect(modifiers([...midiNote(0, 109, 0, { velocity: 100 }), ...midiNote(0, 85)])).toHaveLength(1)
+			expect(modifiers([...midiNote(0, 109, 0, { velocity: 45 }), ...midiNote(0, 85)])).toEqual([])
+			expect(modifiers([...midiNote(0, 110, 0), ...midiNote(0, 61)])).toEqual([])
 		})
 	})
 
