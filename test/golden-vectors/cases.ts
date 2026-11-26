@@ -271,12 +271,9 @@ function note(tick: number, noteNumber: number, length: number, velocity = 100):
 	]
 }
 
-function textEvent(tick: number, text: string): { tick: number; event: MidiEvent } {
-	return { tick, event: { deltaTime: 0, type: 'text', text } }
-}
-
-function lyricEvent(tick: number, text: string): { tick: number; event: MidiEvent } {
-	return { tick, event: { deltaTime: 0, type: 'lyrics', text } }
+/** A text event (`FF 01`), or a lyric event (`FF 05`). */
+function textEvent(tick: number, text: string, type: 'text' | 'lyrics' = 'text'): { tick: number; event: MidiEvent } {
+	return { tick, event: { deltaTime: 0, type, text } }
 }
 
 /** A format-1 MIDI file whose track 0 is `conductor`: by default 120 BPM and 4/4 at tick 0. */
@@ -881,7 +878,7 @@ function enhancedOpensLetterCaseCases(): AuthoredSourceCase[] {
  */
 function lyricDrumsEventCases(): AuthoredSourceCase[] {
 	const target = { instrument: 'drums', difficulty: 'expert' } as const
-	const flip = [lyricEvent(192, '[mix 3 drums0d]'), lyricEvent(1344, '[mix 3 drums0]')]
+	const flip = [textEvent(192, '[mix 3 drums0d]', 'lyrics'), textEvent(1344, '[mix 3 drums0]', 'lyrics')]
 	for (const tick of discoProbeTicks()) flip.push(...note(tick, 97, 10), ...note(tick, 98, 10))
 	return [
 		{
@@ -893,7 +890,7 @@ function lyricDrumsEventCases(): AuthoredSourceCase[] {
 			id: 'source-midi-lyric-chart-dynamics',
 			purpose: '.mid: [ENABLE_CHART_DYNAMICS] in a lyric event at 0 makes velocity 127 and 1 accents and ghosts, on the yellow notes at 0 and 480.',
 			format: 'mid',
-			bytes: midi([midiTrack('PART DRUMS', [lyricEvent(0, '[ENABLE_CHART_DYNAMICS]'), ...note(0, 98, 60, 127), ...note(480, 98, 60, 1), ...note(960, 98, 60)])]),
+			bytes: midi([midiTrack('PART DRUMS', [textEvent(0, '[ENABLE_CHART_DYNAMICS]', 'lyrics'), ...note(0, 98, 60, 127), ...note(480, 98, 60, 1), ...note(960, 98, 60)])]),
 			target,
 		},
 	]

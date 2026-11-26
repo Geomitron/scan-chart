@@ -12,7 +12,8 @@ import { defaultMetadata } from 'src/ini/metadata'
 import { documentFiles, editSong, parseSongFiles, type SongDocument } from 'src/song-document'
 import { fileBytes } from 'src/song-files'
 
-import { midiFile, midiNote, midiText, type TimedMidiEvent } from './helpers/midi-files'
+import { chartText } from './helpers/chart-files'
+import { midiFile, midiNote, midiText, type TimedMidiEvent, trackTextAndLyricEvents } from './helpers/midi-files'
 
 const parsers = { scanner: parseChartFile, canonical: parseChartFileCanonicalIdentity, legacy: parseChartFileFrozenLegacyIdentity }
 type Parse = typeof parseChartFile
@@ -37,17 +38,12 @@ const keptEvents = (data: Uint8Array, instrument: 'drums' | 'guitar') => parsers
 const song = (data: Uint8Array) => parseSongFiles([{ fileName: 'notes.mid', data }])
 const songMidi = (song: SongDocument) => fileBytes(documentFiles(song).find(file => file.fileName === 'notes.mid')!)
 /** Each of the drums track's text and lyric events, as its tick, type and text. */
-const drumsTexts = (data: Uint8Array) => {
-	const track = parseMidi(data).tracks.find(events => events.some(event => event.type === 'trackName' && event.text === 'PART DRUMS'))!
-	let tick = 0
-	return track.flatMap(event => {
-		tick += event.deltaTime
-		return event.type === 'text' || event.type === 'lyrics' ? [[tick, event.type, event.text]] : []
-	})
-}
+const drumsTexts = (data: Uint8Array) =>
+	trackTextAndLyricEvents(parseMidi(data).tracks.find(events => events.some(event => event.type === 'trackName' && event.text === 'PART DRUMS'))!)
 const canonicalDrumsHash = (data: Uint8Array) => {
 	const hashes = calculateCompetitiveHashes(song(data))
-	return hashes.accepted ? hashes.tracks.find(track => track.instrument === 'drums' && track.difficulty === 'expert')?.trackHash : null
+	if (!hashes.accepted) throw new Error('Expected the canonical profile to accept the file')
+	return hashes.tracks.find(track => track.instrument === 'drums' && track.difficulty === 'expert')?.trackHash
 }
 const legacyDrumsHash = (data: Uint8Array) => {
 	const parsed = frozenLegacy6142.parseSource({ source: { format: 'mid', bytes: data }, modifiers: defaultMetadata })
@@ -78,6 +74,17 @@ describe('a .mid drums track\'s mix events and [ENABLE_CHART_DYNAMICS] in lyric 
 		expect(canonicalDrumsHash(flipped('lyrics'))).not.toBe(canonicalDrumsHash(flipped(null)))
 		expect(legacyDrumsHash(flipped('lyrics'))).toBe(legacyDrumsHash(flipped(null)))
 		expect(legacyDrumsHash(flipped('text'))).not.toBe(legacyDrumsHash(flipped(null)))
+	})
+
+	it('takes the lowest event type of a text event and a lyric event on one tick, as of two text events: off before d', () => {
+		for (const order of [['text', 'lyrics'], ['lyrics', 'text']] as const) {
+			const data = drumsMidi([
+				midiText(0, '[mix 3 drums0d]', 'text'),
+				midiText(960, '[mix 3 drums0]', order[0]), midiText(960, '[mix 3 drums0d]', order[1]),
+				...midiNote(480, 97), ...midiNote(1440, 97),
+			])
+			for (const parse of [parsers.scanner, parsers.canonical]) expect(expertFlags(data, parse), order.join()).toEqual([[480, 'disco'], [1440, '-']])
+		}
 	})
 
 	it('keeps any other lyric event as written, and these in a track other than drums', () => {
@@ -111,8 +118,7 @@ describe('a .mid drums track\'s mix events and [ENABLE_CHART_DYNAMICS] in lyric 
 		const { song: asChart, report } = convertChart(song(dynamicFlip), 'chart')
 		expect(report.tracks).toEqual([{ instrument: 'drums', difficulty: 'expert', kept: true, causes: [] }])
 		expect(report.dropped).toEqual([])
-		const chartText = new TextDecoder().decode(fileBytes(documentFiles(asChart).find(file => file.fileName === 'notes.chart')!))
-		const drums = chartText.split('[ExpertDrums]\r\n{\r\n')[1].split('}')[0].split('\r\n').filter(line => line !== '')
+		const drums = chartText(asChart)!.split('[ExpertDrums]\r\n{\r\n')[1].split('}')[0].split('\r\n').filter(line => line !== '')
 		expect(drums).toEqual(['  0 = E mix 3 drums0d', '  480 = N 1 0', '  480 = N 34 0', '  960 = E mix 3 drums0', '  1440 = N 1 0', '  1440 = N 40 0'])
 	})
 })

@@ -1032,11 +1032,14 @@ function scanInstrumentTrack(
 			}
 
 			// A drums track's lyric event that holds neither is kept as written, as any other lyric event is.
-			if (!consumedAsNote && !isText) unrecognizedEvents.push(event)
-			else if (!consumedAsNote) {
-				// Skip tick-0 text events that duplicate the track name
-				if (event.deltaTime === 0 && event.text === trackName) continue
-				textEvents.push({ tick: event.deltaTime, text: event.text })
+			if (!consumedAsNote) {
+				if (!isText) {
+					unrecognizedEvents.push(event)
+				} else {
+					// Skip tick-0 text events that duplicate the track name
+					if (event.deltaTime === 0 && event.text === trackName) continue
+					textEvents.push({ tick: event.deltaTime, text: event.text })
+				}
 			}
 		} else if (eventType === 'trackName' || eventType === 'endOfTrack') {
 			// Trackname is the track identifier; endOfTrack is the MIDI marker.

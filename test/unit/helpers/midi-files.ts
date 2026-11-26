@@ -34,13 +34,18 @@ function trackEvents(events: readonly TimedMidiEvent[]): MidiEvent[] {
 	return result
 }
 
-/** A parsed track's text events (`FF 01`), each as its absolute tick and text. */
-export function trackTexts(track: readonly MidiEvent[]): [tick: number, text: string][] {
+/** A parsed track's text events (`FF 01`) and lyric events (`FF 05`), each as its absolute tick, type and text. */
+export function trackTextAndLyricEvents(track: readonly MidiEvent[]): [tick: number, type: 'text' | 'lyrics', text: string][] {
 	let tick = 0
 	return track.flatMap(event => {
 		tick += event.deltaTime
-		return event.type === 'text' ? [[tick, event.text] as [number, string]] : []
+		return event.type === 'text' || event.type === 'lyrics' ? [[tick, event.type, event.text] as [number, 'text' | 'lyrics', string]] : []
 	})
+}
+
+/** A parsed track's text events (`FF 01`), each as its absolute tick and text. */
+export function trackTexts(track: readonly MidiEvent[]): [tick: number, text: string][] {
+	return trackTextAndLyricEvents(track).flatMap(([tick, type, text]) => type === 'text' ? [[tick, text] as [number, string]] : [])
 }
 
 /** The track's note-ons of `noteNumber`, each with its tick and velocity, in track order. */

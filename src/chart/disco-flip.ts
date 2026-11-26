@@ -79,10 +79,8 @@ export function chartSectionNoflips(lines: readonly string[], difficulty: Diffic
 }
 
 /**
- * `noflipsDuringFlips` for each difficulty of the drums track a `.mid` file is read with, or `null` when it has none. Like
- * Clone Hero 1.1, it reads only the mix events in text events (`FF 01`), since it finds what Clone Hero 1.1 reads otherwise
- * than other readers: not those in lyric events, which the scanner and canonical profiles also read
- * (`midiDrumsLyricEvents`).
+ * `noflipsDuringFlips` for each difficulty of the drums track a `.mid` file is read with, or `null` when it has none.
+ * Only text events (`FF 01`) are read, not lyric events (`FF 05`): see `midiTrackMisspelledMixes`.
  */
 export function midiTrackNoflips(tokens: MidiTokens): MidiDrumsNoflips | null {
 	const track = midiInstrumentTracks(tokens).find(candidate => candidate.instrument === 'drums')
@@ -178,9 +176,8 @@ export function chartSectionMisspelledMixes(lines: readonly ChartLineToken[], di
 
 /**
  * The misspelled mix events of the drums track a `.mid` file is read with, its first, each with its index among the
- * chunk's events, or `null` when it has no drums track. Like Clone Hero 1.1, it reads only text events (`FF 01`), as
- * the messages say how Clone Hero reads each: not the mix events in lyric events, which the scanner and canonical
- * profiles also read (`midiDrumsLyricEvents`).
+ * chunk's events, or `null` when it has no drums track. Only text events (`FF 01`) are mix events here, not lyric events
+ * (`FF 05`): the check's message says how Clone Hero 1.1 reads each event, and Clone Hero 1.1 ignores lyric events.
  */
 export function midiTrackMisspelledMixes(tokens: MidiTokens): MidiTrackFinding<MisspelledMixEvent> | null {
 	const track = midiInstrumentTracks(tokens).find(candidate => candidate.instrument === 'drums')
