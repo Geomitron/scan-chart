@@ -256,6 +256,7 @@ export const sourceCases: readonly AuthoredSourceCase[] = [
 	...tapEndCases(),
 	...mixSpellingCases(),
 	...mixOtherFlagCases(),
+	...lyricDrumsEventCases(),
 	...enhancedOpensLetterCaseCases(),
 	...byteOrderMarkCases(),
 	...trackCountCases(),
@@ -272,6 +273,10 @@ function note(tick: number, noteNumber: number, length: number, velocity = 100):
 
 function textEvent(tick: number, text: string): { tick: number; event: MidiEvent } {
 	return { tick, event: { deltaTime: 0, type: 'text', text } }
+}
+
+function lyricEvent(tick: number, text: string): { tick: number; event: MidiEvent } {
+	return { tick, event: { deltaTime: 0, type: 'lyrics', text } }
 }
 
 /** A format-1 MIDI file whose track 0 is `conductor`: by default 120 BPM and 4/4 at tick 0. */
@@ -868,6 +873,30 @@ function enhancedOpensLetterCaseCases(): AuthoredSourceCase[] {
 		bytes: midi([midiTrack('PART GUITAR', [textEvent(0, text), ...note(480, 95, 10), ...note(960, 96, 10)])]),
 		target: { instrument: 'guitar', difficulty: 'expert' } as const,
 	}))
+}
+
+/**
+ * A drums track's mix events and [ENABLE_CHART_DYNAMICS] written as lyric events (FF 05) read as in text events (FF 01):
+ * a flip over the probe notes, and accents and ghosts. Clone Hero 1.1 ignores both.
+ */
+function lyricDrumsEventCases(): AuthoredSourceCase[] {
+	const target = { instrument: 'drums', difficulty: 'expert' } as const
+	const flip = [lyricEvent(192, '[mix 3 drums0d]'), lyricEvent(1344, '[mix 3 drums0]')]
+	for (const tick of discoProbeTicks()) flip.push(...note(tick, 97, 10), ...note(tick, 98, 10))
+	return [
+		{
+			id: 'source-midi-lyric-mix-events',
+			purpose: '.mid: "[mix 3 drums0d]" at 192 and "[mix 3 drums0]" at 1344, both lyric events, flip the red and yellow notes from 192 to before 1344.',
+			format: 'mid', bytes: midi([midiTrack('PART DRUMS', flip)], 192), target,
+		},
+		{
+			id: 'source-midi-lyric-chart-dynamics',
+			purpose: '.mid: [ENABLE_CHART_DYNAMICS] in a lyric event at 0 makes velocity 127 and 1 accents and ghosts, on the yellow notes at 0 and 480.',
+			format: 'mid',
+			bytes: midi([midiTrack('PART DRUMS', [lyricEvent(0, '[ENABLE_CHART_DYNAMICS]'), ...note(0, 98, 60, 127), ...note(480, 98, 60, 1), ...note(960, 98, 60)])]),
+			target,
+		},
+	]
 }
 
 /**
