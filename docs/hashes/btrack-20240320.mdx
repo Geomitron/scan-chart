@@ -98,6 +98,7 @@ Clone Hero 1.1 fills the lists as [version 20260801](/hashes/btrack#from-a-chart
 | `.chart` instrument text in quotation marks, such as `E "solo"` | Not read | Read as without them |
 | A `.mid` tom marker that covers no note | Makes the chart pro | [Doesn't](/mid/drums#drum-types) |
 | A `.mid` kick at the velocity of an accent or ghost | An accented or ghost kick | A kick |
+| A `.mid` mix event or `ENABLE_CHART_DYNAMICS` in a drums lyric event | Not read | Read as in a text event: see [Text](/mid/structure#invalid-forms) |
 | `.chart` `N 109` | Ignored | A [flam](/chart/drums#flams) |
 | A `.mid` flam at a velocity other than 21 to 30 | On every difficulty | On the difficulties [its velocity gives](/mid/drums#flams) |
 | Tracks | Every recognized `.chart` section, and in a `.mid` file each instrument's Expert and each difficulty a modifier gives, even without notes | Only tracks with a note |

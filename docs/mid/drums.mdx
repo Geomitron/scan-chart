@@ -117,7 +117,7 @@ A `mix` event sets up the drum audio for one difficulty, and its `d` flag turns 
 - **Recommended:** single spaces between the parts, and no square brackets: `mix 3 drums0d`.
 - **Recommended:** disco flip events only in 4-lane and pro charts.
 
-**Edge case:** a scanner also accepts `_` between the parts, and square brackets around the text.
+**Edge case:** a scanner also accepts `_` between the parts, square brackets around the text, and a lyric event in place of the text event: see [Text of another type](/mid/structure#invalid-forms).
 
 ## Deprecated
 
@@ -157,11 +157,11 @@ A scanner gives accents and ghosts only to the notes after it in the track, as C
 </Accordion>
 
 <Accordion title="ENABLE_CHART_DYNAMICS spelled another way">
-A scanner reads only the two standard spellings, in a text event, as Clone Hero and scan-chart do. YARG also reads the event with spaces around it, and in other types of text event.
+A scanner reads only the two standard spellings, as Clone Hero and scan-chart do, in a text event or a lyric event: see [Text of another type](/mid/structure#invalid-forms). YARG also reads the event with spaces around it, and in other types of text event.
 </Accordion>
 
 <Accordion title="A mix event spelled another way">
-A scanner reads other spellings as Clone Hero does. It reads more than one space or `_` between the parts, and a difficulty with a leading zero. It takes the character after `drums` as the configuration, whatever it is. After the configuration, it reads `dnoflip` as no-flip, any other text that starts with `d` as a flip, and any other text, or none, as an event that turns the flip off. It ignores the event with a space before `mix`. So `[mix  3 drums0d]`, with two spaces, `[mix 03 drums0d]`, `[mix 3 drums6d]` and `[mix 3 drums0dx]` are flips. `[mix 3 drumsd]`, with no configuration, and `[mix 3 drums 0d]`, with a space as the configuration, turn the flip off. YARG reads `[mix  3 drums0d]`, `[mix 3 drums 0d]`, `mix3drums0d` and `[mix 3 drums0dx]` as a flip, and the others as no `mix` event. Saving with scan-chart keeps the text as written, and its export writes every mix event it reads as `mix <difficulty> drums<configuration><flag>`, with a configuration other than a digit from `0` to `5` as `0`. scan-chart reports it, and `fixIssues` can rewrite it in the standard spelling.
+A scanner reads other spellings as Clone Hero does. It reads more than one space or `_` between the parts, and a difficulty with a leading zero. It takes the character after `drums` as the configuration, whatever it is. After the configuration, it reads `dnoflip` as no-flip, any other text that starts with `d` as a flip, and any other text, or none, as an event that turns the flip off. It ignores the event with a space before `mix`. So `[mix  3 drums0d]`, with two spaces, `[mix 03 drums0d]`, `[mix 3 drums6d]` and `[mix 3 drums0dx]` are flips. `[mix 3 drumsd]`, with no configuration, and `[mix 3 drums 0d]`, with a space as the configuration, turn the flip off. YARG reads `[mix  3 drums0d]`, `[mix 3 drums 0d]`, `mix3drums0d` and `[mix 3 drums0dx]` as a flip, and the others as no `mix` event. Saving with scan-chart keeps the text as written, and its export writes every mix event it reads as `mix <difficulty> drums<configuration><flag>`, with a configuration other than a digit from `0` to `5` as `0`. scan-chart reports it in a text event, and `fixIssues` can rewrite it there in the standard spelling.
 </Accordion>
 
 <Accordion title="Two mix events of one difficulty at one tick">
