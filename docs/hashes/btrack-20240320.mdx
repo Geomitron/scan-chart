@@ -104,7 +104,7 @@ Clone Hero 1.1 fills the lists as [version 20260801](/hashes/btrack#from-a-chart
 | Two notes of one type at one tick | The longer, or the first of equal length, with the other's flags added. So a kick and a double kick are a double kick, and a note can be both ghost and accent | The [longer](/chart/note-resolution#remove-duplicate-notes). A kick and a double kick are the kick, with its own length |
 | A lane whose notes are all on its end tick | Left out | [Kept](/chart/phrases#lanes): a lane covers its end tick |
 | A note that `chord_snap_threshold` moves onto a note of its fret | The chord's type, and the next note's HOPO, come from the tick it moves to | They come from the [written ticks](/chart/note-resolution#snap-close-notes-into-chords) |
-| A `.chart` file without `[Song]` | Resolution 192, with no HOPO threshold and no sustain cutoff, so no natural HOPOs | Read as `Resolution = 192` |
+| A `.chart` file without `[Song]` | Resolution 192, with no HOPO threshold and no sustain cutoff, so no natural HOPOs | [Refused](/chart/syntax#invalid-forms) |
 | A `[Song]` without `Resolution` | The file isn't loaded | Resolution 192 |
 | `notes.chart` and `notes.mid` in one folder | The last of the two that the folder's listing gives | [`notes.mid`](/song-folders#the-chart) |
 | `pro_drum` and `star_power_note` in `song.ini` | Not read | [Older names](/ini/settings#deprecated) of `pro_drums` and `multiplier_note` |

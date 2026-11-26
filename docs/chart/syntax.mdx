@@ -189,7 +189,7 @@ A scanner reads the first section with each name, and ignores the rest, as scan-
 </Accordion>
 
 <Accordion title="No Song section">
-A scanner reads the file with a resolution of 192, as it reads a `[Song]` section without `Resolution`. scan-chart's saving adds a `[Song]` section with `Resolution = 192`.
+A scanner refuses the file, as YARG and scan-chart do. Clone Hero reads the file with a resolution of 192, until the release with its `[Song]` change. A `[Song]` section without `Resolution` reads with a resolution of 192: see [No Resolution](/chart/song#invalid-forms).
 </Accordion>
 
 <Accordion title="No SyncTrack section">

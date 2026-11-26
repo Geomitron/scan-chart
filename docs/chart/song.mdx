@@ -74,7 +74,7 @@ A scanner ignores every other key. An exporter may keep them as written. Older c
 ## Invalid forms
 
 <Accordion title="No Resolution">
-A scanner reads a file with no `[Song]` section, or no `Resolution` in it, with a resolution of 192. scan-chart's saving adds `Resolution = 192`.
+A scanner reads a `[Song]` section without `Resolution` with a resolution of 192. scan-chart's saving adds `Resolution = 192`. A scanner refuses a file with no `[Song]` section: see [No Song section](/chart/syntax#invalid-forms).
 </Accordion>
 
 <Accordion title="A Resolution that isn't a whole number from 1 up, in digits">
