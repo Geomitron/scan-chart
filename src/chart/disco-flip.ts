@@ -1,8 +1,8 @@
 import { type Difficulty, difficulties } from '../types'
 import { type ChartLineToken, discoFlipDifficultyMap, parseTrackLine } from './chart-file-parser'
-import { midiInstrumentTracks, type MidiTrackFinding } from './midi-file-parser'
+import { midiDrumsTrack, type MidiTrackFinding } from './midi-file-parser'
 import { drumsDiffStarts } from './midi-note-numbers'
-import type { MidiTokens } from './midi-tokens'
+import { type MidiTokens, readTrackTokens } from './midi-tokens'
 import { isMixEventSpelledAnotherWay, readMixEvent } from './mix-event'
 import { mixEventReadingRules } from './parse-rules'
 import { type DrumMixEvent, eventTypes } from './raw-types'
@@ -83,10 +83,9 @@ export function chartSectionNoflips(lines: readonly string[], difficulty: Diffic
  * Only text events (`FF 01`) are read, not lyric events (`FF 05`): see `midiTrackMisspelledMixes`.
  */
 export function midiTrackNoflips(tokens: MidiTokens): MidiDrumsNoflips | null {
-	const track = midiInstrumentTracks(tokens).find(candidate => candidate.instrument === 'drums')
-	const chunk = track === undefined ? undefined : tokens.chunks[track.chunkIndex]
-	if (track === undefined || chunk?.kind !== 'track') return null
-	const { name, chunkIndex } = track
+	const drums = midiDrumsTrack(tokens)
+	if (drums === null) return null
+	const { track: { name, chunkIndex }, chunk } = drums
 	// Most drums tracks have no dnoflip event, and so nothing to find.
 	if (!chunk.events.some(({ event }) => event.type === 'text' && event.text.includes('dnoflip'))) return { name, chunkIndex, difficulties: new Map() }
 	const events = new Map<Difficulty, DrumMixEvent[]>(difficulties.map(difficulty => [difficulty, []]))
@@ -176,19 +175,18 @@ export function chartSectionMisspelledMixes(lines: readonly ChartLineToken[], di
 
 /**
  * The misspelled mix events of the drums track a `.mid` file is read with, its first, each with its index among the
- * chunk's events, or `null` when it has no drums track. Only text events (`FF 01`) are mix events here, not lyric events
- * (`FF 05`): the check's message says how Clone Hero 1.1 reads each event, and Clone Hero 1.1 ignores lyric events.
- * `midiDrumsEventsInLyrics` finds the mix events in lyric events.
+ * chunk's events, or `null` when it has no drums track. Only text events (`FF 01`) up to the first end of track are mix
+ * events here, not lyric events (`FF 05`) or events after it: the check's message says how Clone Hero 1.1 reads each
+ * event, and Clone Hero 1.1 ignores both. `midiMixAndDynamicsLyrics` finds the mix events in lyric events.
  */
 export function midiTrackMisspelledMixes(tokens: MidiTokens): MidiTrackFinding<MisspelledMixEvent> | null {
-	const track = midiInstrumentTracks(tokens).find(candidate => candidate.instrument === 'drums')
-	const chunk = track === undefined ? undefined : tokens.chunks[track.chunkIndex]
-	if (track === undefined || chunk?.kind !== 'track') return null
+	const drums = midiDrumsTrack(tokens)
+	if (drums === null) return null
 	const events: MidiTrackFinding<MisspelledMixEvent>['events'] = []
-	chunk.events.forEach(({ tick, event }, eventIndex) => {
+	readTrackTokens(drums.chunk, 'ignored').forEach(({ tick, event }, eventIndex) => {
 		if (event.type !== 'text' || !event.text.includes('mix') || !isMixEventSpelledAnotherWay(event.text)) return
 		const mix = readMixEvent(event.text, 'cloneHero') ?? readMixEvent(event.text, 'strict')!
 		events.push({ difficulty: mix.difficulty, tick, text: event.text, standard: drumMixText(mix.difficulty, mix), isRead: readMixEvent(event.text, 'cloneHero') !== null, eventIndex })
 	})
-	return { ...track, events }
+	return { ...drums.track, events }
 }

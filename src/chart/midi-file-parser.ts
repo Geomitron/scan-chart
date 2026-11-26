@@ -1,10 +1,10 @@
 import { MidiData, MidiEvent, MidiSetTempoEvent, MidiTextEvent, MidiTimeSignatureEvent } from '@geomitron/midi-file'
 
 import { difficulties, Difficulty, getInstrumentType, Instrument, InstrumentType, instrumentTypes } from '../types'
-import { isCutInsideEvent, isReadTrack, metaEventDataStart, midiTokensToMidiData, MidiTokens, midiTrackEvents, midiTrackIndex, type MidiTrackRules, readMidiTokens, readTrackTokens } from './midi-tokens'
+import { isCutInsideEvent, isReadTrack, metaEventDataStart, midiTokensToMidiData, MidiTokens, type MidiTrackChunk, midiTrackEvents, midiTrackIndex, type MidiTrackRules, readMidiTokens, readTrackTokens } from './midi-tokens'
 import { DrumMixEvent, EventType, eventTypes, RawChartData, VocalTrackData } from './raw-types'
 import { IniChartModifiers } from './types'
-import { discoFlipEventTypes, readMixEvent, setsDiscoFlip } from './mix-event'
+import { discoFlipEventTypes, type MixEventReading, readMixEvent, setsDiscoFlip } from './mix-event'
 import { parseRules, ParseRules } from './parse-rules'
 import { scanVocalTrack } from './lyric-parser'
 import { MidiEventsVocalEvent, readMidiEventsText, readMidiEventsVocalText } from './song-events'
@@ -134,28 +134,36 @@ export function isChartDynamicsText(text: string): boolean {
 	return text === 'ENABLE_CHART_DYNAMICS' || text === '[ENABLE_CHART_DYNAMICS]'
 }
 
-/** A mix event or `ENABLE_CHART_DYNAMICS` event of a drums track written as a lyric event, `FF 05`. */
-export interface MidiDrumsLyricEvent {
-	readonly tick: number
-	readonly text: string
-	readonly kind: 'mix' | 'dynamics'
+/** The drums track a `.mid` file is read with, its first, and its chunk, or `null` when it has none. */
+export function midiDrumsTrack(tokens: MidiTokens): { track: { name: string; instrument: Instrument; chunkIndex: number }; chunk: MidiTrackChunk } | null {
+	const track = midiInstrumentTracks(tokens).find(candidate => candidate.instrument === 'drums')
+	const chunk = track === undefined ? undefined : tokens.chunks[track.chunkIndex]
+	return track === undefined || chunk?.kind !== 'track' ? null : { track, chunk }
 }
+
+/** A lyric event, `FF 05`, of a drums track that the scanner and canonical profiles read as a mix event or `ENABLE_CHART_DYNAMICS`. */
+export type MixOrDynamicsLyric = { readonly tick: number; readonly text: string } & (
+	| { readonly kind: 'mix'; readonly mix: MixEventReading }
+	| { readonly kind: 'dynamics' }
+)
 
 /**
  * The lyric events (`FF 05`) of the drums track a `.mid` file is read with, its first, that the scanner and canonical
  * profiles read as a mix event or `ENABLE_CHART_DYNAMICS` and Clone Hero 1.1 ignores (`midiDrumsLyricEvents`), each with
- * its index among the chunk's events. Empty when there are none.
+ * its index among the chunk's events, or `null` when the file has no drums track. As those profiles do, it reads only the
+ * events up to the first end of track, and keeps a UTF-8 byte order mark, so a text that starts with one is neither.
  */
-export function midiDrumsEventsInLyrics(tokens: MidiTokens): MidiTrackFinding<MidiDrumsLyricEvent>[] {
-	const track = midiInstrumentTracks(tokens).find(candidate => candidate.instrument === 'drums')
-	const chunk = track === undefined ? undefined : tokens.chunks[track.chunkIndex]
-	if (track === undefined || chunk?.kind !== 'track') return []
-	const events = chunk.events.flatMap(({ tick, event }, eventIndex) => {
-		if (event.type !== 'lyrics') return []
-		const kind: MidiDrumsLyricEvent['kind'] | null = readMixEvent(event.text, 'cloneHero') !== null ? 'mix' : isChartDynamicsText(event.text) ? 'dynamics' : null
-		return kind === null ? [] : [{ eventIndex, tick, text: event.text, kind }]
+export function midiMixAndDynamicsLyrics(tokens: MidiTokens): MidiTrackFinding<MixOrDynamicsLyric> | null {
+	const drums = midiDrumsTrack(tokens)
+	if (drums === null) return null
+	const events: MidiTrackFinding<MixOrDynamicsLyric>['events'] = []
+	readTrackTokens(drums.chunk, 'ignored').forEach(({ tick, event, byteOrderMark }, eventIndex) => {
+		if (event.type !== 'lyrics' || byteOrderMark) return
+		const mix = readMixEvent(event.text, 'cloneHero')
+		if (mix !== null) events.push({ eventIndex, tick, text: event.text, kind: 'mix', mix })
+		else if (isChartDynamicsText(event.text)) events.push({ eventIndex, tick, text: event.text, kind: 'dynamics' })
 	})
-	return events.length === 0 ? [] : [{ ...track, events }]
+	return { ...drums.track, events }
 }
 
 /**

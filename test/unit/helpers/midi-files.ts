@@ -70,6 +70,11 @@ export function midiText(tick: number, text: string, type: 'text' | 'lyrics' = '
 	return { tick, event: { type, text } as Omit<MidiEvent, 'deltaTime'> }
 }
 
+/** An end of track at `tick`, before the one each track ends with. */
+export function midiEndOfTrack(tick: number): TimedMidiEvent {
+	return { tick, event: { type: 'endOfTrack' } as Omit<MidiEvent, 'deltaTime'> }
+}
+
 /** A Phase Shift SysEx event: `50 53 00 00 <difficulty> <phrase> <1 to start, 0 to end> F7`. */
 export function phaseShiftSysEx(tick: number, difficulty: number, phrase: number, isStart: boolean): TimedMidiEvent {
 	return { tick, event: { type: 'sysEx', data: new Uint8Array([0x50, 0x53, 0, 0, difficulty, phrase, isStart ? 1 : 0, 0xf7]) } as Omit<MidiEvent, 'deltaTime'> }

@@ -10,7 +10,7 @@ import type { IssueCode } from 'src/issues'
 import { defaultMetadata } from 'src/ini/metadata'
 import { parseSong, parseSongFiles } from 'src/song-document'
 
-import { midiFile, midiNote, midiText, type TimedMidiEvent } from './helpers/midi-files'
+import { midiEndOfTrack, midiFile, midiNote, midiText, type TimedMidiEvent } from './helpers/midi-files'
 
 const parsers = { scanner: parseChartFile, canonical: parseChartFileCanonicalIdentity, legacy: parseChartFileFrozenLegacyIdentity }
 type Parse = typeof parseChartFile
@@ -184,9 +184,8 @@ describe('a track with a fault after its end of track (C20: R15, R16)', () => {
 })
 
 describe('events after the end of track are ignored (C20: R16)', () => {
-	const endOfTrack = (tick: number): TimedMidiEvent => ({ tick, event: { type: 'endOfTrack' } as TimedMidiEvent['event'] })
 	// The track ends at 600; the green at 960 and the red's note-off at 650 come after it.
-	const data = guitarMidi([...midiNote(480, 96, 10), ...midiNote(500, 97, 150), endOfTrack(600), ...midiNote(960, 96, 10)])
+	const data = guitarMidi([...midiNote(480, 96, 10), ...midiNote(500, 97, 150), midiEndOfTrack(600), ...midiNote(960, 96, 10)])
 
 	it('leaves them out in the scanner and canonical profiles, and reads them in the frozen one', () => {
 		for (const parse of [parsers.scanner, parsers.canonical]) expect(expertNotes(data, parse)).toEqual([[480, noteTypes.green]])

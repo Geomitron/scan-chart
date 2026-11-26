@@ -11,7 +11,7 @@ import { defaultMetadata } from 'src/ini/metadata'
 import { parseSong, parseSongFiles } from 'src/song-document'
 
 import { chartFile } from './helpers/chart-files'
-import { midiFile, midiNote, midiText } from './helpers/midi-files'
+import { midiEndOfTrack, midiFile, midiNote, midiText } from './helpers/midi-files'
 
 const parsers = { scanner: parseChartFile, canonical: parseChartFileCanonicalIdentity, legacy: parseChartFileFrozenLegacyIdentity }
 const drumsChart = (...lines: string[]) => chartFile(['[ExpertDrums]', '{', ...['480 = N 1 0', ...lines].map(line => `  ${line}`), '}'])
@@ -80,6 +80,9 @@ describe('mix events spelled another way (C20: R2, R10)', () => {
 		}])
 		expect(mixIssues([{ fileName: 'notes.chart', data: drumsChart('0 = E mix 3 drums0d', '960 = E mix 3 drums0easy', '1440 = E mix 3 drums0easynokick') }])).toEqual([])
 		expect(mixIssues([{ fileName: 'notes.mid', data: drumsMidi('[mix 3 drums0easy]', 'mix 3 drums0easynokick') }])).toEqual([])
+		// Clone Hero ignores one after the end of track, which eventsAfterEndOfTrack reports.
+		const afterEnd = midiFile([{ name: 'PART DRUMS', events: [...midiNote(480, 97), midiEndOfTrack(600), midiText(960, '[mix 3 drums0dx]')] }])
+		expect(mixIssues([{ fileName: 'notes.mid', data: afterEnd }])).toEqual([])
 		// An unknown flag is invalid.
 		for (const [fileName, data, text] of [['notes.chart', drumsChart('0 = E mix 3 drums0x'), 'mix 3 drums0x'], ['notes.mid', drumsMidi('[mix 3 drums0x]'), '[mix 3 drums0x]']] as const) {
 			expect(mixIssues([{ fileName, data }]).map(issue => issue.message), fileName).toEqual([

@@ -1,9 +1,10 @@
 import { spliceChartText } from './chart/chart-edit'
 import { chartSectionLines, chartSectionTrack } from './chart/chart-file-parser'
-import { chartSectionMisspelledMixes, midiTrackMisspelledMixes } from './chart/disco-flip'
+import { chartSectionMisspelledMixes, drumMixText, midiTrackMisspelledMixes } from './chart/disco-flip'
 import { editMidiTrack, midiTextEvent, type MidiTrackEdit } from './chart/midi-edit'
-import { midiDrumsEventsInLyrics, midiEnhancedOpensInOtherCase, midiEventsAfterEnd, midiSysExOfAnotherLength, midiTrackCounts, phaseShiftSysExTypes } from './chart/midi-file-parser'
-import { type MidiTokens, readMidiTokens } from './chart/midi-tokens'
+import { midiEnhancedOpensInOtherCase, midiEventsAfterEnd, midiMixAndDynamicsLyrics, midiSysExOfAnotherLength, midiTrackCounts, phaseShiftSysExTypes } from './chart/midi-file-parser'
+import { metaEventDataStart, type MidiTokens, readMidiTokens } from './chart/midi-tokens'
+import { isMixEventSpelledAnotherWay } from './chart/mix-event'
 import type { FixOptions } from './fix-issues'
 import { chooseEdits, FixRecord, hashChanges, hashNames, issueFixTable } from './issue-fixes'
 import type { Issue, IssueCode } from './issues'
@@ -124,15 +125,7 @@ export function fixReadingForms(song: SongDocument, issues: readonly Issue[], op
 				edit: { kind: 'midiTrack', chunkIndex: drums!.chunkIndex, edits: [{ kind: 'replace', event: mix.eventIndex, with: midiTextEvent(mix.standard, event) }] },
 			})
 		}
-		for (const track of codes.has('midiDrumsLyricEvent') ? midiDrumsEventsInLyrics(tokens) : []) {
-			for (const { eventIndex, tick, text } of track.events) {
-				fixes.push({
-					code: 'midiDrumsLyricEvent',
-					...rewriting(`the lyric event "${text}" at tick ${tick} in "${track.name}" as a text event`),
-					edit: { kind: 'midiTrack', chunkIndex: track.chunkIndex, edits: [{ kind: 'replace', event: eventIndex, with: midiTextEvent(text) }] },
-				})
-			}
-		}
+		if (codes.has('midiDrumsLyricEvent')) fixes.push(...lyricFixes(tokens))
 	}
 	if (fixes.length === 0) return song
 
@@ -172,6 +165,35 @@ export function fixReadingForms(song: SongDocument, issues: readonly Issue[], op
 		: `${fix.skipping} ${problem}, so games would read the song differently.`))
 	for (const fix of chosen) record.fixed.push({ code: fix.code, file: chart.fileName, description: fix.description })
 	return fixed
+}
+
+/**
+ * The fixes that rewrite each of the drums track's lyric events that the canonical profile reads as a mix event or
+ * `ENABLE_CHART_DYNAMICS` as a text event, which it reads alike: a mix event spelled another way in the standard
+ * spelling, and any other with the lyric's bytes as written.
+ */
+function lyricFixes(tokens: MidiTokens): FormFix[] {
+	const lyrics = midiMixAndDynamicsLyrics(tokens)
+	const chunk = lyrics === null ? undefined : tokens.chunks[lyrics.chunkIndex]
+	if (lyrics === null || chunk?.kind !== 'track') return []
+	return lyrics.events.map((lyric): FormFix => {
+		const standard = lyric.kind === 'mix' && isMixEventSpelledAnotherWay(lyric.text) ? drumMixText(lyric.mix.difficulty, lyric.mix) : null
+		const { start, end } = chunk.events[lyric.eventIndex]
+		return {
+			code: 'midiDrumsLyricEvent',
+			...rewriting(`the lyric event "${lyric.text}" at tick ${lyric.tick} in "${lyrics.name}" as ${standard === null ? 'a text event' : `the text event "${standard}"`}`),
+			edit: {
+				kind: 'midiTrack',
+				chunkIndex: lyrics.chunkIndex,
+				edits: [{
+					kind: 'replace',
+					event: lyric.eventIndex,
+					// A text event is meta type 01.
+					with: standard === null ? { type: 'meta', metaType: 0x01, data: tokens.data.slice(metaEventDataStart(tokens.data, start), end) } : midiTextEvent(standard),
+				}],
+			},
+		}
+	})
 }
 
 /** A `.mid` file's tokens with the header's track count set to `count`. */

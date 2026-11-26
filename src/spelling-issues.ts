@@ -13,13 +13,13 @@ import { chartModifiersWithoutNotes } from './chart/chart-modifiers'
 import { chartSectionMisspelledMixes, chartSectionNoflips, type MisspelledMixEvent, midiTrackMisspelledMixes, midiTrackNoflips, type NoflipDuringFlip } from './chart/disco-flip'
 import {
 	midiDrumModifiersWithoutNotes,
-	midiDrumsEventsInLyrics,
-	type MidiDrumsLyricEvent,
 	midiEnhancedOpensInOtherCase,
 	midiEventsAfterEnd,
+	midiMixAndDynamicsLyrics,
 	midiSysExOfAnotherLength,
 	midiTrackCounts,
 	midiTrackInstrument,
+	type MixOrDynamicsLyric,
 	phaseShiftSysExTypes,
 	repeatedMidiInstruments,
 } from './chart/midi-file-parser'
@@ -174,7 +174,8 @@ export function chartSpellingIssues(source: ChartSource, styleNotes: boolean): I
 		const found = mixes?.events.filter(event => event.difficulty === difficulty) ?? []
 		if (found.length > 0) add('nonstandardMixEvent', { instrument: 'drums', difficulty }, mixMessage(found))
 	}
-	for (const { events } of midiDrumsEventsInLyrics(source.tokens)) add('midiDrumsLyricEvent', { instrument: 'drums', difficulty: null }, lyricEventMessage(events))
+	const lyrics = midiMixAndDynamicsLyrics(source.tokens)?.events ?? []
+	if (lyrics.length > 0) add('midiDrumsLyricEvent', { instrument: 'drums', difficulty: null }, lyricEventMessage(lyrics))
 	for (const { instrument, modifiers } of styleNotes ? midiDrumModifiersWithoutNotes(source.tokens) : []) {
 		add('midiDrumModifierWithoutNote', { instrument, difficulty: null }, drumModifierMessage(modifiers))
 	}
@@ -243,10 +244,10 @@ function mixMessage(found: readonly MisspelledMixEvent[]): string {
  * The message about a drums track's mix events and `ENABLE_CHART_DYNAMICS` events written as lyric events, which Clone
  * Hero 1.1 ignores and other readers read, naming the first.
  */
-function lyricEventMessage(events: readonly MidiDrumsLyricEvent[]): string {
+function lyricEventMessage(events: readonly MixOrDynamicsLyric[]): string {
 	const [first] = events
 	const one = events.length === 1
-	const kind = (event: MidiDrumsLyricEvent) => event.kind === 'mix' ? 'mix event' : 'ENABLE_CHART_DYNAMICS event'
+	const kind = (event: MixOrDynamicsLyric) => event.kind === 'mix' ? 'mix event' : 'ENABLE_CHART_DYNAMICS event'
 	const which = one ? `The ${kind(first)} "${first.text}" at tick ${first.tick} is a lyric event, not a text event.`
 		: events.every(event => event.kind === first.kind)
 			? `${events.length.toLocaleString('en-US')} ${kind(first)}s, such as "${first.text}" at tick ${first.tick}, are lyric events, not text events.`

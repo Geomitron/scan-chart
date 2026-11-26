@@ -16,7 +16,7 @@ import { documentFiles, editSong, parseSongFiles, type SongDocument } from 'src/
 import { fileBytes } from 'src/song-files'
 
 import { chartText } from './helpers/chart-files'
-import { midiFile, midiNote, midiText, type TimedMidiEvent, trackTextAndLyricEvents } from './helpers/midi-files'
+import { midiEndOfTrack, midiFile, midiNote, midiText, type TimedMidiEvent, trackTextAndLyricEvents } from './helpers/midi-files'
 
 const parsers = { scanner: parseChartFile, canonical: parseChartFileCanonicalIdentity, legacy: parseChartFileFrozenLegacyIdentity }
 type Parse = typeof parseChartFile
@@ -31,6 +31,13 @@ const dynamicFlip = drumsMidi([
 	midiText(0, '[ENABLE_CHART_DYNAMICS]', 'lyrics'), midiText(0, '[mix 3 drums0d]', 'lyrics'), midiText(960, '[mix 3 drums0]', 'lyrics'),
 	...midiNote(480, 97, 0, { velocity: 127 }), ...midiNote(1440, 97, 0, { velocity: 1 }),
 ])
+/** A flip from 0 to 960, and an off event and an on event at 960 written as the types in `order`. */
+const oneTick = (order: readonly ['text', 'lyrics'] | readonly ['lyrics', 'text']) => drumsMidi([
+	midiText(0, '[mix 3 drums0d]', 'text'),
+	midiText(960, '[mix 3 drums0]', order[0]), midiText(960, '[mix 3 drums0d]', order[1]),
+	...midiNote(480, 97), ...midiNote(1440, 97),
+])
+const orders = [['text', 'lyrics'], ['lyrics', 'text']] as const
 const expertDrums = (data: Uint8Array, parse: Parse) => parse(data, 'mid').trackData.find(track => track.instrument === 'drums' && track.difficulty === 'expert')!
 /** Each Expert drum note's tick and its disco, accent and ghost flags, or `-` without one. */
 const expertFlags = (data: Uint8Array, parse: Parse) => expertDrums(data, parse).noteEventGroups.flat().map(({ tick, flags }) =>
@@ -82,13 +89,8 @@ describe('a .mid drums track\'s mix events and [ENABLE_CHART_DYNAMICS] in lyric 
 	})
 
 	it('takes the lowest event type of a text event and a lyric event on one tick, as of two text events: off before d', () => {
-		for (const order of [['text', 'lyrics'], ['lyrics', 'text']] as const) {
-			const data = drumsMidi([
-				midiText(0, '[mix 3 drums0d]', 'text'),
-				midiText(960, '[mix 3 drums0]', order[0]), midiText(960, '[mix 3 drums0d]', order[1]),
-				...midiNote(480, 97), ...midiNote(1440, 97),
-			])
-			for (const parse of [parsers.scanner, parsers.canonical]) expect(expertFlags(data, parse), order.join()).toEqual([[480, 'disco'], [1440, '-']])
+		for (const order of orders) {
+			for (const parse of [parsers.scanner, parsers.canonical]) expect(expertFlags(oneTick(order), parse), order.join()).toEqual([[480, 'disco'], [1440, '-']])
 		}
 	})
 
@@ -147,6 +149,12 @@ describe('a .mid drums track\'s mix events and [ENABLE_CHART_DYNAMICS] in lyric 
 			{ name: 'PART DRUMS', events: [midiText(0, 'Hello', 'lyrics'), midiText(0, ' [mix 3 drums0d]', 'lyrics'), midiText(0, '[ENHANCED_OPENS]', 'lyrics'), ...midiNote(480, 97)] },
 			{ name: 'PART GUITAR', events: [midiText(0, '[mix 3 drums0d]', 'lyrics'), midiText(0, '[ENABLE_CHART_DYNAMICS]', 'lyrics'), ...midiNote(480, 96)] },
 		]))).toEqual([])
+		// These after the end of track, and these with a byte order mark, which the scanner and canonical profiles don't read.
+		expect(lyricEventIssues(drumsMidi([...midiNote(480, 97), midiEndOfTrack(600), midiText(960, '[mix 3 drums0d]', 'lyrics'), midiText(960, 'ENABLE_CHART_DYNAMICS', 'lyrics')])))
+			.toEqual([])
+		const marked = drumsMidi([midiText(0, '\ufeff[mix 3 drums0d]', 'lyrics'), midiText(0, '\ufeffENABLE_CHART_DYNAMICS', 'lyrics'), ...midiNote(480, 97, 0, { velocity: 127 })])
+		expect(expertFlags(marked, parsers.canonical)).toEqual([[480, '-']])
+		expect(lyricEventIssues(marked)).toEqual([])
 	})
 
 	it('is fixed by fixIssues as text events of the same tick and text, keeping the canonical hashes, which Clone Hero 1.1 then reads', async () => {
@@ -163,5 +171,29 @@ describe('a .mid drums track\'s mix events and [ENABLE_CHART_DYNAMICS] in lyric 
 		// The frozen profile, as Clone Hero 1.1, now reads the flip and the dynamics, so its TrackHash changes.
 		expect(expertFlags(data, parsers.legacy)).toEqual([[480, 'disco+accent'], [1440, 'ghost']])
 		expect(legacyDrumsHash(data)).not.toBe(legacyDrumsHash(dynamicFlip))
+	})
+
+	it('is fixed by fixIssues in one run as a text event in the standard spelling for a mix event spelled another way', async () => {
+		const data = drumsMidi([midiText(0, '[mix 3 drums0dx]', 'lyrics'), midiText(960, '[mix 3 drums0]', 'lyrics'), ...midiNote(480, 97), ...midiNote(1440, 97)])
+		const { song: fixed, report } = await fixIssues(song(data), { codes: ['midiDrumsLyricEvent'] })
+		expect(report.fixed.map(entry => entry.description)).toEqual([
+			'Rewrote the lyric event "[mix 3 drums0dx]" at tick 0 in "PART DRUMS" as the text event "mix 3 drums0d".',
+			'Rewrote the lyric event "[mix 3 drums0]" at tick 960 in "PART DRUMS" as a text event.',
+		])
+		expect(report.hashes).toEqual([])
+		const written = songMidi(fixed)
+		expect(drumsTexts(written)).toEqual([[0, 'text', 'mix 3 drums0d'], [960, 'text', '[mix 3 drums0]']])
+		expect(analyzeChart(resolveChart(song(written))).issues.map(issue => issue.code)).not.toContain('nonstandardMixEvent')
+		expect(lyricEventIssues(written)).toEqual([])
+	})
+
+	it('is fixed by fixIssues with a text event on its tick, keeping the canonical hashes', async () => {
+		for (const order of orders) {
+			const { song: fixed, report } = await fixIssues(song(oneTick(order)), { codes: ['midiDrumsLyricEvent'] })
+			expect(report.fixed.map(entry => entry.description), order.join()).toEqual([
+				`Rewrote the lyric event "${order[0] === 'lyrics' ? '[mix 3 drums0]' : '[mix 3 drums0d]'}" at tick 960 in "PART DRUMS" as a text event.`])
+			expect(report.hashes, order.join()).toEqual([])
+			expect(drumsTexts(songMidi(fixed)), order.join()).toEqual([[0, 'text', '[mix 3 drums0d]'], [960, 'text', '[mix 3 drums0]'], [960, 'text', '[mix 3 drums0d]']])
+		}
 	})
 })
