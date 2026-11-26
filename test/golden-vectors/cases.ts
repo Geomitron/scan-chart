@@ -248,6 +248,7 @@ export const sourceCases: readonly AuthoredSourceCase[] = [
 	...chartDynamicsCases(),
 	...drumMarkerCases(),
 	...chartFlamCases(),
+	...midiFlamVelocityCases(),
 	...kickPairCases(),
 	...greenPairCases(),
 	...discoCases(),
@@ -581,6 +582,27 @@ function greenPairCases(): AuthoredSourceCase[] {
 			target: { instrument: 'drums', difficulty: 'expert' },
 		},
 	]
+}
+
+/**
+ * A `.mid` flam, note 109, takes the lane velocities: 21 to 30 every difficulty, 31 to 40 Medium and up, 41 to 50 Hard and
+ * up, and any other Expert only. A red note on every difficulty at each of ten ticks, under a flam of velocity 1, 20, 21,
+ * 30, 31, 40, 41, 50, 51 and 127 in turn, one case for each difficulty.
+ */
+function midiFlamVelocityCases(): AuthoredSourceCase[] {
+	const velocities = [1, 20, 21, 30, 31, 40, 41, 50, 51, 127]
+	const bytes = midi([midiTrack('PART DRUMS', velocities.flatMap((velocity, index) => [
+		...[61, 73, 85, 97].flatMap(red => note(index * 480, red, 60)),
+		...note(index * 480, 109, 60, velocity),
+	]))])
+	const flammed = { easy: '21 to 30', medium: '21 to 40', hard: '21 to 50', expert: 'every velocity' } as const
+	return (['easy', 'medium', 'hard', 'expert'] as const).map((difficulty): AuthoredSourceCase => ({
+		id: `source-midi-flam-velocities-${difficulty}`,
+		purpose: `Note 109 at velocities 1, 20, 21, 30, 31, 40, 41, 50, 51 and 127, each over a red note: on ${difficulty}, the flams of ${flammed[difficulty]} apply.`,
+		format: 'mid',
+		bytes,
+		target: { instrument: 'drums', difficulty },
+	}))
 }
 
 /**
