@@ -69,6 +69,11 @@ export interface ParseRules {
 	 * `dnoflip`, `easy` and `easynokick`, the last two setting nothing.
 	 */
 	readonly mixEvents: 'cloneHero' | 'strict'
+	/**
+	 * Whether a `.mid` drums track's mix events and `[ENABLE_CHART_DYNAMICS]` written as lyric events (`FF 05`) are `read`
+	 * as they are in text events (`FF 01`), as YARG and Rock Band 3 read them, or `ignored`, as Clone Hero 1.1 ignores them.
+	 */
+	readonly midiDrumsLyricEvents: 'read' | 'ignored'
 	/** Whether a `.mid` track's `ENHANCED_OPENS` is read in any letter case, as Clone Hero reads it (C20: R13), or only in capitals. */
 	readonly midiEnhancedOpens: 'anyCase' | 'capitals'
 	/**
@@ -103,6 +108,7 @@ const scanner: ParseRules = Object.freeze({
 	proDrumsGreenPair: 'blueTom',
 	kickPair: 'kick',
 	mixEvents: 'cloneHero',
+	midiDrumsLyricEvents: 'read',
 	midiEnhancedOpens: 'anyCase',
 	midiTrackChunks: 'every',
 	midiEventsAfterEnd: 'ignored',
@@ -123,6 +129,7 @@ const frozenLegacy6142: ParseRules = Object.freeze({
 	proDrumsGreenPair: 'longerBlue',
 	kickPair: 'longer',
 	mixEvents: 'strict',
+	midiDrumsLyricEvents: 'ignored',
 	midiEnhancedOpens: 'capitals',
 	midiTrackChunks: 'headerCount',
 	midiEventsAfterEnd: 'read',
@@ -143,6 +150,7 @@ const canonical20260801: ParseRules = Object.freeze({
 	proDrumsGreenPair: 'blueTom',
 	kickPair: 'kick',
 	mixEvents: 'cloneHero',
+	midiDrumsLyricEvents: 'read',
 	midiEnhancedOpens: 'anyCase',
 	midiTrackChunks: 'every',
 	midiEventsAfterEnd: 'ignored',

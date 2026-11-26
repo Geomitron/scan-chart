@@ -217,7 +217,7 @@ const sixFretDiffStarts = { easy: 58, medium: 70, hard: 82, expert: 94 }
 const drumsDiffStarts = { easy: 60, medium: 72, hard: 84, expert: 96 }
 
 /** The rules that differ between profiles when a `.mid` file's tracks are classified. */
-export type MidiClassificationRules = Pick<ParseRules, 'mixEvents' | 'midiEnhancedOpens' | 'phaseShiftSysEx'>
+export type MidiClassificationRules = Pick<ParseRules, 'mixEvents' | 'midiDrumsLyricEvents' | 'midiEnhancedOpens' | 'phaseShiftSysEx'>
 
 export interface TrackEventEnd {
 	tick: number
@@ -1001,7 +1001,8 @@ function scanInstrumentTrack(
 			} else {
 				unrecognizedEvents.push(event)
 			}
-		} else if (eventType === 'text') {
+		} else if (eventType === 'text' || (eventType === 'lyrics' && instrumentType === instrumentTypes.drums && rules.midiDrumsLyricEvents === 'read')) {
+			const isText = eventType === 'text'
 			let consumedAsNote = false
 			if (instrumentType === instrumentTypes.drums) {
 				const mix = readMixEvent(event.text, rules.mixEvents)
@@ -1019,7 +1020,7 @@ function scanInstrumentTrack(
 				}
 			}
 
-			if (isEnhancedOpensText(event.text, rules.midiEnhancedOpens)) {
+			if (isText && isEnhancedOpensText(event.text, rules.midiEnhancedOpens)) {
 				enhancedOpens = true
 				consumedAsNote = true
 			} else if (event.text === 'ENABLE_CHART_DYNAMICS' || event.text === '[ENABLE_CHART_DYNAMICS]') {
@@ -1030,7 +1031,9 @@ function scanInstrumentTrack(
 				consumedAsNote = true
 			}
 
-			if (!consumedAsNote) {
+			// A drums track's lyric event that holds neither is kept as written, as any other lyric event is.
+			if (!consumedAsNote && !isText) unrecognizedEvents.push(event)
+			else if (!consumedAsNote) {
 				// Skip tick-0 text events that duplicate the track name
 				if (event.deltaTime === 0 && event.text === trackName) continue
 				textEvents.push({ tick: event.deltaTime, text: event.text })
