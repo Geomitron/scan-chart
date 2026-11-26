@@ -1111,9 +1111,12 @@ function withUncoveredTomMarkers(events: MidiEvent[], eventEnds: TrackScanResult
  * track a reader reads: the first of its instrument. A flam covers only notes of the difficulties its velocity gives
  * (parse rule `midiFlam`), as a lane covers only its own difficulties' notes.
  */
-export function midiDrumModifiersWithoutNotes(tokens: MidiTokens): { instrument: Instrument; modifiers: { noteNumber: number; tick: number }[] }[] {
+export function midiDrumModifiersWithoutNotes(
+	tokens: MidiTokens,
+	rules: ParseRules = parseRules.scanner,
+): { instrument: Instrument; modifiers: { noteNumber: number; tick: number }[] }[] {
 	const appliesTo = (start: TrackEventEnd, difficulty: Difficulty) =>
-		start.type !== eventTypes.forceFlam || parseRules.scanner.midiFlam === 'everyDifficulty' || laneVelocityReaches(start.velocity, difficulty)
+		!takesLaneVelocity(start.type, instrumentTypes.drums, rules) || laneVelocityReaches(start.velocity, difficulty)
 	const found: { instrument: Instrument; modifiers: { noteNumber: number; tick: number }[] }[] = []
 	const seen = new Set<Instrument>()
 	for (const { instrument, chunkIndex } of midiInstrumentTracks(tokens)) {
@@ -1538,18 +1541,21 @@ export function laneVelocityReaches(velocity: number, difficulty: Difficulty): b
  * Flams go before they're split onto their notes, so a note under two flams is a flam on every difficulty either one reaches.
  */
 function applyLaneVelocities(events: { [key in Difficulty]: MidiTrackEvent[] }, instrumentType: InstrumentType, rules: ParseRules) {
-	const flamVelocities = instrumentType === instrumentTypes.drums && rules.midiFlam === 'laneVelocities'
 	for (const difficulty of ['hard', 'medium', 'easy'] as const) {
-		const arr = events[difficulty]
-		let w = 0
-		for (let r = 0; r < arr.length; r++) {
-			const e = arr[r]
-			const takesVelocity = e.type === eventTypes.flexLaneSingle || e.type === eventTypes.flexLaneDouble || (flamVelocities && e.type === eventTypes.forceFlam)
-			if (!takesVelocity || laneVelocityReaches(e.velocity, difficulty)) arr[w++] = e
+		const kept = events[difficulty]
+		let keptCount = 0
+		for (const event of kept) {
+			if (!takesLaneVelocity(event.type, instrumentType, rules) || laneVelocityReaches(event.velocity, difficulty)) kept[keptCount++] = event
 		}
-		arr.length = w
+		kept.length = keptCount
 	}
 	return events
+}
+
+/** Whether an event of `type` applies only to the difficulties its velocity gives: a lane, and a drums flam under `midiFlam` `laneVelocities`. */
+function takesLaneVelocity(type: EventType, instrumentType: InstrumentType, rules: ParseRules): boolean {
+	return type === eventTypes.flexLaneSingle || type === eventTypes.flexLaneDouble
+		|| (type === eventTypes.forceFlam && instrumentType === instrumentTypes.drums && rules.midiFlam === 'laneVelocities')
 }
 
 

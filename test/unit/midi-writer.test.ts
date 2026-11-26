@@ -24,7 +24,7 @@ import { readMidiFile } from 'src/chart/midi-file-parser'
 import { scanVocalTrack } from 'src/chart/lyric-parser'
 import { chartSpellingIssues } from 'src/spelling-issues'
 
-import { midiFile, midiNote, midiText, type TimedMidiEvent, trackTexts } from './helpers/midi-files'
+import { midiFile, midiNote, midiText, type TimedMidiEvent, trackNoteOns, trackTexts } from './helpers/midi-files'
 
 function roundTrip(chart: ParsedChart, iniText?: string): ParsedChart {
 	const files: { fileName: string; data: Uint8Array }[] = [
@@ -496,12 +496,7 @@ describe('writeMidiFile round-trip: drum tracks', () => {
 			chart.trackData.push(td)
 		}
 		const drums = parseMidi(writeMidiFile(chart)).tracks.find(track => track.some(event => event.type === 'trackName' && event.text === 'PART DRUMS'))!
-		let tick = 0
-		const markers = drums.flatMap(event => {
-			tick += event.deltaTime
-			return event.type === 'noteOn' && event.noteNumber === 109 ? [[tick, event.velocity]] : []
-		})
-		expect(markers).toEqual([[0, 25], [480, 35], [960, 45], [1440, 100], [1920, 45], [2400, 25], [3360, 25]])
+		expect(trackNoteOns(drums, 109)).toEqual([[0, 25], [480, 35], [960, 45], [1440, 100], [1920, 45], [2400, 25], [3360, 25]])
 		const re = roundTrip(chart)
 		const flams = (difficulty: string) => findTrack(re, 'drums', difficulty).noteEventGroups.map(group => [group[0].tick, (group[0].flags & noteFlags.flam) !== 0])
 		// .mid can't hold Hard's flam at 1920 without Expert's, or Easy's and Expert's at 2400 without Medium's and Hard's.

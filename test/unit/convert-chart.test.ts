@@ -10,7 +10,7 @@ import { fileBytes } from 'src/song-files'
 import { saveSong } from 'src/song-save'
 import { chartSpellingIssues } from 'src/spelling-issues'
 
-import { midiFile, midiNote, midiText, trackTexts } from './helpers/midi-files'
+import { midiFile, midiNote, midiText, trackNoteOns, trackTexts } from './helpers/midi-files'
 
 const encode = (text: string) => new TextEncoder().encode(text)
 const decode = (bytes: Uint8Array) => new TextDecoder().decode(bytes)
@@ -163,11 +163,7 @@ describe('convertChart', () => {
 		expect(report.dropped).toEqual([])
 		const midiDrums = parseMidi(fileBytes(documentFiles(asMidi).find(file => file.fileName === 'notes.mid')!)).tracks
 			.find(track => track.some(event => event.type === 'trackName' && event.text === 'PART DRUMS'))!
-		let tick = 0
-		expect(midiDrums.flatMap(event => {
-			tick += event.deltaTime
-			return event.type === 'noteOn' && event.noteNumber === 109 ? [[tick, event.velocity]] : []
-		})).toEqual([[0, 45], [192, 45]])
+		expect(trackNoteOns(midiDrums, 109)).toEqual([[0, 45], [192, 45]])
 
 		const { song: asChart, report: back } = convertChart(asMidi, 'chart')
 		expect(back.tracks.every(track => track.kept)).toBe(true)
@@ -176,6 +172,22 @@ describe('convertChart', () => {
 		expect([flamLines('ExpertDrums'), flamLines('HardDrums'), flamLines('EasyDrums')]).toEqual([
 			['  0 = N 109 0', '  192 = N 109 0'], ['  0 = N 109 0', '  192 = N 109 0'], [],
 		])
+	})
+
+	it('reports Medium and Hard changed when a .chart flam on Easy and Expert only becomes one .mid flam for every difficulty', () => {
+		const drums = ['ExpertDrums', 'HardDrums', 'MediumDrums', 'EasyDrums'].flatMap(section => [
+			`[${section}]`, '{', '  0 = N 1 0', ...(section === 'ExpertDrums' || section === 'EasyDrums' ? ['  0 = N 109 0'] : []), '}',
+		])
+		const { song: asMidi, report } = convertChart(chartSong(drums), 'mid')
+		expect(report.tracks).toEqual([
+			{ instrument: 'drums', difficulty: 'easy', kept: true, causes: [] },
+			{ instrument: 'drums', difficulty: 'medium', kept: false, causes: ['notes'] },
+			{ instrument: 'drums', difficulty: 'hard', kept: false, causes: ['notes'] },
+			{ instrument: 'drums', difficulty: 'expert', kept: true, causes: [] },
+		])
+		const midiDrums = parseMidi(fileBytes(documentFiles(asMidi).find(file => file.fileName === 'notes.mid')!)).tracks
+			.find(track => track.some(event => event.type === 'trackName' && event.text === 'PART DRUMS'))!
+		expect(trackNoteOns(midiDrums, 109)).toEqual([[0, 25]])
 	})
 
 	it('gives a .chart song without song.ini one, so its [Song] metadata and offset read the same from a .mid', () => {

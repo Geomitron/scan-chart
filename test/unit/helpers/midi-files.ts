@@ -43,6 +43,15 @@ export function trackTexts(track: readonly MidiEvent[]): [tick: number, text: st
 	})
 }
 
+/** The track's note-ons of `noteNumber`, each with its tick and velocity, in track order. */
+export function trackNoteOns(track: readonly MidiEvent[], noteNumber: number): [tick: number, velocity: number][] {
+	let tick = 0
+	return track.flatMap(event => {
+		tick += event.deltaTime
+		return event.type === 'noteOn' && event.noteNumber === noteNumber ? [[tick, event.velocity] as [number, number]] : []
+	})
+}
+
 /** A note-on at `tick`, of velocity 100 unless given, and its note-off `length` ticks later; at length 0, the note-on comes first. */
 export function midiNote(tick: number, noteNumber: number, length = 0, { channel = 0, velocity = 100 } = {}): TimedMidiEvent[] {
 	return [

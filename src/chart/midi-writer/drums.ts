@@ -3,7 +3,7 @@
  */
 import type { MidiEvent } from '@geomitron/midi-file'
 
-import { drumTypes } from '../../types'
+import { type DrumType, drumTypes } from '../../types'
 import type { NoteType } from '../types'
 import { noteFlags, noteTypes } from '../types'
 import { drumsDiffStarts } from '../midi-note-numbers'
@@ -112,7 +112,7 @@ export function buildDrumTrack(
 		}
 	}
 
-	const noteContext: DrumNoteContext = { chart, emittedTomMarker, flamVelocities: flamMarkerVelocities(trackDataEntries), conflictedGreenTomTicks }
+	const noteContext: DrumNoteContext = { chart, emittedTomMarker, flamVelocityByTick: flamMarkerVelocities(trackDataEntries, drumOffsetTable(chart.drumType)), conflictedGreenTomTicks }
 
 	for (const td of trackDataEntries) {
 		if (emitDrumNotes(events, td, noteContext)) hasAccentsOrGhosts = true
@@ -250,14 +250,14 @@ interface DrumNoteContext {
 	/** The tom markers written so far, as `tick:length:note`, which each difficulty adds to. */
 	readonly emittedTomMarker: Set<string>
 	/** The velocity of each flam marker still to write, by tick; the first difficulty with a flam at the tick writes it. */
-	readonly flamVelocities: Map<number, number>
+	readonly flamVelocityByTick: Map<number, number>
 	/** The ticks where one difficulty has a green tom and another a green cymbal. */
 	readonly conflictedGreenTomTicks: ReadonlySet<number>
 }
 
 /** Adds a drum difficulty's notes, markers and mix events. Returns whether it wrote an accent or a ghost. */
 function emitDrumNotes(events: AbsoluteEvent[], td: ParsedTrack, context: DrumNoteContext): boolean {
-	const { chart, emittedTomMarker, flamVelocities, conflictedGreenTomTicks } = context
+	const { chart, emittedTomMarker, flamVelocityByTick, conflictedGreenTomTicks } = context
 	let hasAccentsOrGhosts = false
 	const base = drumsDiffStarts[td.difficulty]
 	for (const event of drumMixEvents(td)) {
@@ -267,7 +267,7 @@ function emitDrumNotes(events: AbsoluteEvent[], td: ParsedTrack, context: DrumNo
 	const drumType = chart.drumType
 	const isFiveLaneTrack = drumType === drumTypes.fiveLane
 	const isFourLanePro = drumType === drumTypes.fourLanePro
-	const offsetTable = isFiveLaneTrack ? drumNoteTypeToOffsetFiveLane : drumNoteTypeToOffset
+	const offsetTable = drumOffsetTable(drumType)
 
 	for (const group of td.noteEventGroups) {
 		// Ensure regular kicks emit BEFORE double kicks at the same tick — YARG's
@@ -342,18 +342,23 @@ function emitDrumNotes(events: AbsoluteEvent[], td: ParsedTrack, context: DrumNo
 		}
 
 		// One flam marker (MIDI 109) per tick, shared by the difficulties.
-		const flamVelocity = hasWrittenFlam(group) ? flamVelocities.get(group[0].tick) : undefined
+		const flamVelocity = hasWrittenFlam(group, offsetTable) ? flamVelocityByTick.get(group[0].tick) : undefined
 		if (flamVelocity !== undefined) {
-			flamVelocities.delete(group[0].tick)
+			flamVelocityByTick.delete(group[0].tick)
 			addNoteOnOff(events, group[0].tick, 1, 109, flamVelocity)
 		}
 	}
 	return hasAccentsOrGhosts
 }
 
+/** The offset from its difficulty's base note of each drum note type the writer writes for `drumType`. */
+function drumOffsetTable(drumType: DrumType | null): Partial<Record<NoteType, number>> {
+	return drumType === drumTypes.fiveLane ? drumNoteTypeToOffsetFiveLane : drumNoteTypeToOffset
+}
+
 /** Whether a note group has a flam the writer writes: one on a drum note it writes. */
-function hasWrittenFlam(group: ParsedTrack['noteEventGroups'][number]): boolean {
-	return group.some(note => (note.flags & noteFlags.flam) !== 0 && drumNoteTypeToOffset[note.type] !== undefined)
+function hasWrittenFlam(group: ParsedTrack['noteEventGroups'][number], offsetTable: Partial<Record<NoteType, number>>): boolean {
+	return group.some(note => (note.flags & noteFlags.flam) !== 0 && offsetTable[note.type] !== undefined)
 }
 
 /**
@@ -361,12 +366,12 @@ function hasWrittenFlam(group: ParsedTrack['noteEventGroups'][number]): boolean 
  * so that the marker reaches each difficulty with a flam there. A harder difficulty with a note but no flam at the tick
  * gets one too, as a `.mid` file can't leave it out.
  */
-function flamMarkerVelocities(tracks: readonly ParsedTrack[]): Map<number, number> {
+function flamMarkerVelocities(tracks: readonly ParsedTrack[], offsetTable: Partial<Record<NoteType, number>>): Map<number, number> {
 	const velocities = new Map<number, number>()
 	for (const track of tracks) {
 		const velocity = laneVelocities[track.difficulty]
 		for (const group of track.noteEventGroups) {
-			if (!hasWrittenFlam(group)) continue
+			if (!hasWrittenFlam(group, offsetTable)) continue
 			const tick = group[0].tick
 			velocities.set(tick, Math.min(velocity, velocities.get(tick) ?? velocity))
 		}
