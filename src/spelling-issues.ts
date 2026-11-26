@@ -67,7 +67,7 @@ export const spellingIssueMessages: { readonly [code in SpellingIssueType]: stri
 	wrongMidiTrackCount: "The .mid file's header counts another number of tracks than the file has. Clone Hero reads every track, and other programs may read only the ones counted.",
 	eventsAfterEndOfTrack: 'This track has events after its end of track. Clone Hero ignores them, and other programs may read them.',
 	nonstandardPhaseShiftSysEx: "A tap or open SysEx event in this track isn't 8 bytes long. Clone Hero and YARG ignore it, and other programs may read it.",
-	midiDrumModifierWithoutNote: 'A drum modifier in this track, a tom marker or a flam, covers no note, so it changes none. Clone Hero 1.1 and YARG still read a tom marker as making the chart pro.',
+	midiDrumModifierWithoutNote: 'A drum modifier in this track, a tom marker or a flam, covers no note it applies to, so it changes none here. A flam applies only to the difficulties its velocity gives, but Clone Hero 1.1 and YARG apply it to every difficulty. Clone Hero 1.1 and YARG also read any tom marker as making the chart pro.',
 }
 
 /** The nonstandard spellings of a chart file, one issue per section or track; style notes only when `styleNotes`. */
@@ -171,9 +171,11 @@ export function chartSpellingIssues(source: ChartSource, styleNotes: boolean): I
 function drumModifierMessage(modifiers: readonly { noteNumber: number; tick: number }[]): string {
 	const name = ({ noteNumber, tick }: { noteNumber: number; tick: number }) => `${noteNumber === 109 ? 'flam' : 'tom marker'} (note ${noteNumber}) at tick ${tick}`
 	const one = modifiers.length === 1
-	const which = one ? `The ${name(modifiers[0])} covers no note, so it changes none.`
-		: `${modifiers.length.toLocaleString('en-US')} drum modifiers, such as the ${name(modifiers[0])}, cover no note, so they change none.`
+	const covered = one ? `The ${name(modifiers[0])} covers no note it applies to, so it changes none here.`
+		: `${modifiers.length.toLocaleString('en-US')} drum modifiers, such as the ${name(modifiers[0])}, cover no note they apply to, so they change none here.`
 	const toms = modifiers.filter(modifier => modifier.noteNumber !== 109).length
+	const which = toms === modifiers.length ? covered
+		: `${covered} A flam applies only to the difficulties its velocity gives, but Clone Hero 1.1 and YARG apply it to every difficulty.`
 	if (toms === 0) return which
 	const them = toms === modifiers.length ? (one ? 'it' : 'them') : `the ${toms === 1 ? 'tom marker' : `${toms.toLocaleString('en-US')} tom markers`}`
 	return `${which} Clone Hero 1.1 and YARG still read ${them} as making the chart pro.`

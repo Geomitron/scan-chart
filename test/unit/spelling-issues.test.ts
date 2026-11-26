@@ -155,12 +155,12 @@ describe('nonstandard spelling issues', () => {
 			const events = [...midiNote(0, 110, 480), ...midiNote(480, 98), ...midiNote(480, 111, 240), ...midiNote(720, 109), ...midiNote(960, 112, 1), ...midiNote(960, 64)]
 			expect(modifiers(events)).toEqual([{
 				instrument: 'drums', difficulty: null, severity: 'recommendation',
-				message: '2 drum modifiers, such as the tom marker (note 110) at tick 0, cover no note, so they change none. Clone Hero 1.1 and YARG still read the tom marker as making the chart pro.',
+				message: '2 drum modifiers, such as the tom marker (note 110) at tick 0, cover no note they apply to, so they change none here. A flam applies only to the difficulties its velocity gives, but Clone Hero 1.1 and YARG apply it to every difficulty. Clone Hero 1.1 and YARG still read the tom marker as making the chart pro.',
 			}])
 			expect(modifiers(events, false)).toEqual([])
-			expect(modifiers([...midiNote(0, 109, 240), ...midiNote(480, 96)]).map(issue => issue.message)).toEqual(['The flam (note 109) at tick 0 covers no note, so it changes none.'])
+			expect(modifiers([...midiNote(0, 109, 240), ...midiNote(480, 96)]).map(issue => issue.message)).toEqual(['The flam (note 109) at tick 0 covers no note it applies to, so it changes none here. A flam applies only to the difficulties its velocity gives, but Clone Hero 1.1 and YARG apply it to every difficulty.'])
 			expect(modifiers([...midiNote(0, 112, 480), ...midiNote(480, 96)]).map(issue => issue.message))
-				.toEqual(['The tom marker (note 112) at tick 0 covers no note, so it changes none. Clone Hero 1.1 and YARG still read it as making the chart pro.'])
+				.toEqual(['The tom marker (note 112) at tick 0 covers no note it applies to, so it changes none here. Clone Hero 1.1 and YARG still read it as making the chart pro.'])
 		})
 
 		it('none for a modifier over a kick, a zero-length one on its note\'s tick, or one on a second drums track', () => {
@@ -171,8 +171,8 @@ describe('nonstandard spelling issues', () => {
 		it('a flam that covers notes only on difficulties its velocity leaves out, as a lane covers only its own difficulties\' notes', () => {
 			// An Easy red (61) under a flam of each velocity: only 21 to 30 gives Easy the flam. A tom marker covers every difficulty.
 			const flamOverEasy = (velocity: number) => modifiers([...midiNote(0, 109, 0, { velocity }), ...midiNote(0, 61)]).map(issue => issue.message)
-			expect(flamOverEasy(100)).toEqual(['The flam (note 109) at tick 0 covers no note, so it changes none.'])
-			expect(flamOverEasy(31)).toEqual(['The flam (note 109) at tick 0 covers no note, so it changes none.'])
+			expect(flamOverEasy(100)).toEqual(['The flam (note 109) at tick 0 covers no note it applies to, so it changes none here. A flam applies only to the difficulties its velocity gives, but Clone Hero 1.1 and YARG apply it to every difficulty.'])
+			expect(flamOverEasy(31)).toEqual(['The flam (note 109) at tick 0 covers no note it applies to, so it changes none here. A flam applies only to the difficulties its velocity gives, but Clone Hero 1.1 and YARG apply it to every difficulty.'])
 			expect(flamOverEasy(30)).toEqual([])
 			// A Hard red (85) and an Expert-only flam over it, then a Hard-and-up one.
 			expect(modifiers([...midiNote(0, 109, 0, { velocity: 100 }), ...midiNote(0, 85)])).toHaveLength(1)
